@@ -81,9 +81,4 @@ var _ = Describe("Cache implementation of KVStore", func() {
 		})
 	})
 
-	Context("when using concurrently", func() {
-		It("should be safe to do concurrent read and write operations", func() {
-
-		})
-	})
 })
