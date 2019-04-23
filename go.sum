@@ -61,6 +61,8 @@ github.com/republicprotocol/ren-go v0.0.0-20190222053323-c99864c34acb h1:88ilrGr
 github.com/republicprotocol/ren-go v0.0.0-20190222053323-c99864c34acb/go.mod h1:VY9MvsDDMySmGPaolEUVIKOLSPtLtV7KPuO6dEHgCl4=
 github.com/republicprotocol/renp2p-go v0.0.0-20190119083719-1fd688ff820b h1:GlgaVW0MQ7vFu4vOrjAbuk9Z6cYQ23MD5A5aKxieGFs=
 github.com/republicprotocol/renp2p-go v0.0.0-20190119083719-1fd688ff820b/go.mod h1:oQVfcQeN/dloadjgPBuTOKInaw7c39TsXpLBoz0xoYU=
+github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be h1:E9fhHqqrVhY/iGt5VX9afQ3Z4YtZoAO+uTPG17tENuI=
+github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be/go.mod h1:oQVfcQeN/dloadjgPBuTOKInaw7c39TsXpLBoz0xoYU=
 github.com/republicprotocol/tau v0.0.0-20190116001021-54c2ea27fbc3 h1:iYHFykTfdJMeXNcgwkob2WfiuEpDCot4tH228/0rRhg=
 github.com/republicprotocol/tau v0.0.0-20190116001021-54c2ea27fbc3/go.mod h1:8uPHnWJeb3PNNRnIxVWe8oJcq/b6nPKi6SExe/5gr4M=
 github.com/rs/cors v1.6.0 h1:G9tHG9lebljV9mfp9SNPDL36nCDxmo3zTlAf1YgvzmI=
