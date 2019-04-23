@@ -5,6 +5,7 @@ go 1.12
 require (
 	github.com/btcsuite/btcd v0.0.0-20190418232430-6867ff32788a // indirect
 	github.com/ethereum/go-ethereum v1.8.27 // indirect
+	github.com/jbenet/go-base58 v0.0.0-20150317085156-6237cf65f3a6 // indirect
 	github.com/mr-tron/base58 v1.1.1 // indirect
 	github.com/multiformats/go-multiaddr v0.0.2 // indirect
 	github.com/multiformats/go-multihash v0.0.3 // indirect
