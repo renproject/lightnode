@@ -1,11 +1,14 @@
 version: 2
 jobs:
   build:
-    working_directory: /go/src/github.com/republicprotocol/lightnode
     docker:
       - image: circleci/golang:1.12      
     steps:
       - checkout
-      - run: go get -v -t -d ./...
-      - run: go build -v ./...
+      - restore_cache: # Restore saved cache if no changes are detected since last run
+          key: go-mod-v1-{{ checksum "go.sum" }}
       - run: go test -v ./...
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
