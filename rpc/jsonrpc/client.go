@@ -1,11 +1,21 @@
 package jsonrpc
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/republicprotocol/dcc/jsonrpc"
+	"github.com/republicprotocol/lightnode/store"
+)
 
 type Client struct {
-	http.Client
+	http  http.Client
+	store store.KVStore
 }
 
-func (client Client) Invoke() {
+func NewClient() Client {
+	return Client{}
+}
+
+func (client Client) Invoke(req jsonrpc.JSONRequest) (jsonrpc.JSONResponse, error) {
 	panic("unimplemented")
 }
