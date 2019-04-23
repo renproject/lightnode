@@ -5,4 +5,10 @@ jobs:
       - image: circleci/golang:1.12      
     steps:
       - checkout
+      - restore_cache: # Restore saved cache if no changes are detected since last run
+          key: go-mod-v1-{{ checksum "go.sum" }}
       - run: go test -v ./...
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
