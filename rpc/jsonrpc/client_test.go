@@ -1,6 +1,8 @@
 package jsonrpc_test
 
 import (
+	"encoding/json"
+
 	"github.com/republicprotocol/dcc/jsonrpc"
 
 	. "github.com/onsi/ginkgo"
@@ -19,10 +21,15 @@ var _ = Describe("JSON-RPC Client", func() {
 	Context("when sending valid requests", func() {
 		It("should return a response", func() {
 			// Construct request.
+			paramsBytes, err := json.Marshal([]jsonrpc.SendMessageRequest{})
+			Expect(err).ToNot(HaveOccurred())
+			params := json.RawMessage(paramsBytes)
+
 			request := jsonrpc.JSONRequest{
 				JSONRPC: "2.0",
 				ID:      1,
 				Method:  jsonrpc.MethodSendMessage,
+				Params:  &params,
 			}
 			response, err := client.Invoke(request)
 			Expect(err).ToNot(HaveOccurred())

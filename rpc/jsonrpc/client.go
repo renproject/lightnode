@@ -1,21 +1,32 @@
 package jsonrpc
 
 import (
-	"net/http"
-
 	"github.com/republicprotocol/dcc/jsonrpc"
 	"github.com/republicprotocol/lightnode/store"
 )
 
 type Client struct {
-	http  http.Client
-	store store.KVStore
+	store.KVStore
 }
 
 func NewClient() Client {
 	return Client{}
 }
 
-func (client Client) Invoke(req jsonrpc.JSONRequest) (jsonrpc.JSONResponse, error) {
-	panic("unimplemented")
+// TODO: Pass list of addresses to Invoke()
+func (client Client) Invoke(request jsonrpc.JSONRequest) (jsonrpc.JSONResponse, error) {
+	/* var params []jsonrpc.Request
+	if err := json.Unmarshal(*request.Params, params); err != nil {
+		return jsonrpc.JSONResponse{}, err
+	}
+
+	for _, param := range params {
+		switch req := param.(type) {
+		case jsonrpc.SendMessageRequest:
+			address := ""
+			client.Post()
+		}
+	} */
+
+	return jsonrpc.JSONResponse{}, nil
 }
