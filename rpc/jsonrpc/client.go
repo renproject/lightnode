@@ -1,32 +1,51 @@
 package jsonrpc
 
 import (
-	"github.com/republicprotocol/dcc/jsonrpc"
-	"github.com/republicprotocol/lightnode/store"
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 )
 
+// Client is able to send JSON-RPC 2.0 request through http.
 type Client struct {
-	store.KVStore
+	http *http.Client
 }
 
-func NewClient() Client {
-	return Client{}
+// NewClient returns a new Client with given timeout.
+func NewClient(timeout time.Duration) Client {
+	httpClient := new(http.Client)
+	httpClient.Timeout = timeout
+
+	return Client{
+		http: httpClient,
+	}
 }
 
-// TODO: Pass list of addresses to Invoke()
-func (client Client) Invoke(request jsonrpc.JSONRequest) (jsonrpc.JSONResponse, error) {
-	/* var params []jsonrpc.Request
-	if err := json.Unmarshal(*request.Params, params); err != nil {
+// Call sends the given JSON-RPC request to the given url address.
+func (client Client) Call(url string, request jsonrpc.JSONRequest) (jsonrpc.JSONResponse, error) {
+	body, err := json.Marshal(request)
+	if err != nil {
 		return jsonrpc.JSONResponse{}, err
 	}
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
+	if err != nil {
+		return jsonrpc.JSONResponse{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
 
-	for _, param := range params {
-		switch req := param.(type) {
-		case jsonrpc.SendMessageRequest:
-			address := ""
-			client.Post()
-		}
-	} */
+	response, err := client.http.Do(req)
+	if err != nil {
+		return jsonrpc.JSONResponse{}, err
+	}
+	if response.StatusCode != http.StatusOK {
+		return jsonrpc.JSONResponse{}, fmt.Errorf("unexpected status code %v", response.StatusCode)
+	}
 
-	return jsonrpc.JSONResponse{}, nil
+	var resp jsonrpc.JSONResponse
+	err = json.NewDecoder(response.Body).Decode(&resp)
+	return resp, err
 }
