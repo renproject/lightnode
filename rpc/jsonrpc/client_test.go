@@ -22,10 +22,10 @@ var _ = Describe("JSON-RPC Client", func() {
 			err := json.NewDecoder(r.Body).Decode(&req)
 			Expect(err).NotTo(HaveOccurred())
 
-			result := json.RawMessage([]byte(`"ok"`))
+			result := json.RawMessage(`"ok"`)
 			resp := jsonrpc.JSONResponse{
 				JSONRPC: "2.0",
-				Result:  &result,
+				Result:  result,
 				ID:      req.ID,
 			}
 
@@ -47,25 +47,24 @@ var _ = Describe("JSON-RPC Client", func() {
 
 	// Construct a valid jsonrpc request.
 	newRequest := func() jsonrpc.JSONRequest {
-		paramsBytes, err := json.Marshal(jsonrpc.SendMessageRequest{})
+		params, err := json.Marshal(jsonrpc.SendMessageRequest{})
 		Expect(err).ToNot(HaveOccurred())
-		params := json.RawMessage(paramsBytes)
 		return jsonrpc.JSONRequest{
 			JSONRPC: "2.0",
 			ID:      rand.Int31(),
 			Method:  jsonrpc.MethodSendMessage,
-			Params:  &params,
+			Params:  params,
 		}
 	}
 
 	// Construct a bad jsonrpc request.
 	badRequest := func() jsonrpc.JSONRequest {
-		params := json.RawMessage([]byte("bad request"))
+		params := json.RawMessage("bad request")
 		return jsonrpc.JSONRequest{
 			JSONRPC: "2.0",
 			ID:      rand.Int31(),
 			Method:  jsonrpc.MethodSendMessage,
-			Params:  &params,
+			Params:  params,
 		}
 	}
 
@@ -85,8 +84,8 @@ var _ = Describe("JSON-RPC Client", func() {
 			Expect(response.JSONRPC).To(Equal("2.0"))
 			Expect(int32(response.ID.(float64))).Should(Equal(request.ID))
 			Expect(response.Error).To(BeNil())
-			result := response.Result.(string)
-			Expect(result).To(Equal("ok"))
+			result := response.Result
+			Expect(string(result)).To(Equal("ok"))
 		})
 	})
 
