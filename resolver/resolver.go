@@ -10,12 +10,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Resolver is the parent task which is used to relay messages between the client, server and other sub-tasks.
 type Resolver struct {
 	logger *logrus.Logger
 	client tau.Task
 	server tau.Task
 }
 
+// newResolver returns a new Resolver.
 func newResolver(logger *logrus.Logger, client, server tau.Task) *Resolver {
 	return &Resolver{
 		logger: logger,
@@ -24,12 +26,14 @@ func newResolver(logger *logrus.Logger, client, server tau.Task) *Resolver {
 	}
 }
 
+// New returns a new Resolver task.
 func New(cap int, logger *logrus.Logger, client, server tau.Task) tau.Task {
 	resolver := newResolver(logger, client, server)
 	resolver.server.Send(rpc.NewAccept())
 	return tau.New(tau.NewIO(cap), resolver, client, server)
 }
 
+// Reduce implements the `tau.Task` interface.
 func (resolver *Resolver) Reduce(message tau.Message) tau.Message {
 	switch message := message.(type) {
 	case rpc.MessageAccepted:
