@@ -1,10 +1,13 @@
 version: 2.1
 orbs:
     core: ren/circleci-orbs@dev:first
+executors:
+  go_exec:
+    docker:
+      - image: circleci/golang:1.12
 jobs:
   build:
-    docker:
-      - image: circleci/golang:1.12      
+    executor: go_exec
     steps:
       - checkout
       - restore_cache: # Restore saved cache if no changes are detected since last run
