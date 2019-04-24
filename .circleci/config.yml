@@ -1,4 +1,6 @@
-version: 2
+version: 2.1
+orbs:
+    core: ren/circleci-orbs@dev:first
 jobs:
   build:
     docker:
@@ -12,3 +14,28 @@ jobs:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
+workflows:
+  nightly:
+      triggers:
+        - schedule:
+            cron: "0 2 * * *" # Every night at 02:00
+            filters:
+              branches:
+                only:
+                  - master
+      jobs:
+        - core/merge:
+            from: master
+            into: nightly
+  weekly:
+      triggers:
+        - schedule:
+            cron: "0 9 * * 1" # Every Monday at 09:00
+            filters:
+              branches:
+                only:
+                  - master
+      jobs:
+        - core/merge:
+            from: nightly
+            into: testnet
