@@ -10,6 +10,12 @@ import (
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 )
 
+// RpcCall contains everything the client needs to make the RPC call.
+type RpcCall struct {
+	Url     string              `json:"url"`
+	Request jsonrpc.JSONRequest `json:"request"`
+}
+
 // Client is able to send JSON-RPC 2.0 request through http.
 type Client struct {
 	http *http.Client
@@ -26,12 +32,12 @@ func NewClient(timeout time.Duration) Client {
 }
 
 // Call sends the given JSON-RPC request to the given url address.
-func (client Client) Call(url string, request jsonrpc.JSONRequest) (jsonrpc.JSONResponse, error) {
-	body, err := json.Marshal(request)
+func (client Client) Call(rc RpcCall) (jsonrpc.JSONResponse, error) {
+	body, err := json.Marshal(rc.Request)
 	if err != nil {
 		return jsonrpc.JSONResponse{}, err
 	}
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPost, rc.Url, bytes.NewBuffer(body))
 	if err != nil {
 		return jsonrpc.JSONResponse{}, err
 	}

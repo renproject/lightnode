@@ -97,7 +97,7 @@ var _ = Describe("JSON-RPC Client", func() {
 			// Send the request
 			request := newSendMessageRequest()
 			client := NewClient(time.Second)
-			response, err := client.Call(server.URL, request)
+			response, err := client.Call(RpcCall{server.URL, request})
 			Expect(err).ToNot(HaveOccurred())
 
 			// Validate the response
@@ -120,7 +120,7 @@ var _ = Describe("JSON-RPC Client", func() {
 			// Send the request
 			request := newReceiveMessageRequest()
 			client := NewClient(time.Second)
-			response, err := client.Call(server.URL, request)
+			response, err := client.Call(RpcCall{server.URL, request})
 			Expect(err).ToNot(HaveOccurred())
 
 			// Validate the response
@@ -144,7 +144,7 @@ var _ = Describe("JSON-RPC Client", func() {
 			// Send the request
 			request := newSendMessageRequest()
 			client := NewClient(10 * time.Millisecond)
-			_, err := client.Call(server.URL, request)
+			_, err := client.Call(RpcCall{server.URL, request})
 			Expect(err).To(HaveOccurred())
 		})
 	})
@@ -156,7 +156,7 @@ var _ = Describe("JSON-RPC Client", func() {
 
 			request := badRequest()
 			client := NewClient(time.Second)
-			_, err := client.Call(server.URL, request)
+			_, err := client.Call(RpcCall{server.URL, request})
 			Expect(err).To(HaveOccurred())
 		})
 	})
@@ -165,7 +165,7 @@ var _ = Describe("JSON-RPC Client", func() {
 		It("should return an error if the server is offline", func() {
 			request := newSendMessageRequest()
 			client := NewClient(time.Second)
-			_, err := client.Call("0.0.0.0:8888", request)
+			_, err := client.Call(RpcCall{"0.0.0.0:8888", request})
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -175,7 +175,7 @@ var _ = Describe("JSON-RPC Client", func() {
 
 			request := newSendMessageRequest()
 			client := NewClient(time.Second)
-			_, err := client.Call(server.URL, request)
+			_, err := client.Call(RpcCall{server.URL, request})
 			Expect(err).To(HaveOccurred())
 		})
 	})
