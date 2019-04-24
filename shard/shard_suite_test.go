@@ -1,4 +1,4 @@
-package rpc_test
+package shard_test
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestRpc(t *testing.T) {
+func TestSharding(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "RPC Suite")
+	RunSpecs(t, "Sharding Suite")
 }

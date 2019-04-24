@@ -9,7 +9,6 @@ var _ = Describe("rpc server", func() {
 	Context("when receiving new request", func() {
 		It("todo", func() {
 
-
 			Expect(true).Should(BeTrue())
 		})
 	})

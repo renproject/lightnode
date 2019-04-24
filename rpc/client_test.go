@@ -59,21 +59,21 @@ var _ = Describe("RPC client", func() {
 			responder := make(chan jsonrpc.Response)
 
 			// send a message to the task which contains a SendMessageRequest
-			for i :=0 ; i < 32 ; i ++ {
+			for i := 0; i < 32; i++ {
 				client.IO().InputWriter() <- InvokeRPC{
 					Request: jsonrpc.SendMessageRequest{
 						Responder: responder,
 					},
-					Url:  server.URL ,
+					Addresses: []string{server.URL},
 				}
 
 				// expect to receive a response from the responder channel
 				select {
-				case response := <- responder:
+				case response := <-responder:
 					resp, ok := response.(jsonrpc.SendMessageResponse)
 					Expect(ok).To(BeTrue())
 					Expect(resp.Ok).To(BeTrue())
-				case <- time.After(time.Second):
+				case <-time.After(time.Second):
 					Fail("timeout")
 				}
 			}
@@ -93,22 +93,22 @@ var _ = Describe("RPC client", func() {
 			responder := make(chan jsonrpc.Response)
 
 			// send a message to the task which contains a SendMessageRequest
-			for i :=0 ; i < 32 ; i ++ {
+			for i := 0; i < 32; i++ {
 				client.IO().InputWriter() <- InvokeRPC{
 					Request: jsonrpc.ReceiveMessageRequest{
 						Responder: responder,
 					},
-					Url:  server.URL ,
+					Addresses: []string{server.URL},
 				}
 
 				// expect to receive a response from the responder channel
 				select {
-				case response := <- responder:
+				case response := <-responder:
 					resp, ok := response.(jsonrpc.ReceiveMessageResponse)
 					Expect(ok).To(BeTrue())
 					Expect(len(resp.Result)).To(Equal(1))
 					Expect(resp.Result[0].Index).Should(Equal(0))
-				case <- time.After(time.Second):
+				case <-time.After(time.Second):
 					Fail("timeout")
 				}
 			}

@@ -1,3 +1,5 @@
+// Package jsonrpc handles sending `JSONRequest` objects to a given URL. In our case, the URL provided should be the
+// address of a Darknode as the response is expected to be of type `JSONResponse`.
 package jsonrpc
 
 import (
@@ -9,12 +11,6 @@ import (
 
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 )
-
-// RPCCall contains everything the client needs to make the RPC call.
-type RPCCall struct {
-	Url     string              `json:"url"`
-	Request jsonrpc.JSONRequest `json:"request"`
-}
 
 // Client is able to send JSON-RPC 2.0 request through http.
 type Client struct {
@@ -31,18 +27,20 @@ func NewClient(timeout time.Duration) Client {
 	}
 }
 
-// Call sends the given JSON-RPC request to the given url address.
-func (client Client) Call(rc RPCCall) (jsonrpc.JSONResponse, error) {
-	body, err := json.Marshal(rc.Request)
+// Call sends the given JSON-RPC request to the given URL.
+func (client Client) Call(url string, request jsonrpc.JSONRequest) (jsonrpc.JSONResponse, error) {
+	// Construct HTTP request.
+	body, err := json.Marshal(request)
 	if err != nil {
 		return jsonrpc.JSONResponse{}, err
 	}
-	req, err := http.NewRequest(http.MethodPost, rc.Url, bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
 	if err != nil {
 		return jsonrpc.JSONResponse{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	// Read response.
 	response, err := client.http.Do(req)
 	if err != nil {
 		return jsonrpc.JSONResponse{}, err
@@ -50,7 +48,6 @@ func (client Client) Call(rc RPCCall) (jsonrpc.JSONResponse, error) {
 	if response.StatusCode != http.StatusOK {
 		return jsonrpc.JSONResponse{}, fmt.Errorf("unexpected status code %v", response.StatusCode)
 	}
-
 	var resp jsonrpc.JSONResponse
 	err = json.NewDecoder(response.Body).Decode(&resp)
 	return resp, err

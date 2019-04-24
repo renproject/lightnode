@@ -82,7 +82,7 @@ var _ = Describe("JSON-RPC Client", func() {
 			// Send request.
 			request := newSendMessageRequest()
 			client := NewClient(time.Second)
-			jsonResponse, err := client.Call(RPCCall{server.URL, request})
+			jsonResponse, err := client.Call(server.URL, request)
 			Expect(err).ToNot(HaveOccurred())
 
 			// Validate response.
@@ -106,7 +106,7 @@ var _ = Describe("JSON-RPC Client", func() {
 			// Send request.
 			request := newReceiveMessageRequest()
 			client := NewClient(time.Second)
-			jsonResponse, err := client.Call(RPCCall{server.URL, request})
+			jsonResponse, err := client.Call(server.URL, request)
 			Expect(err).ToNot(HaveOccurred())
 
 			// Validate response.
@@ -131,7 +131,7 @@ var _ = Describe("JSON-RPC Client", func() {
 			// Send request.
 			request := newInvalidSendMessageRequest()
 			client := NewClient(time.Second)
-			_, err := client.Call(RPCCall{server.URL, request})
+			_, err := client.Call(server.URL, request)
 			Expect(err).To(HaveOccurred())
 		})
 	})
@@ -145,7 +145,7 @@ var _ = Describe("JSON-RPC Client", func() {
 			// Send request.
 			request := newSendMessageRequest()
 			client := NewClient(10 * time.Millisecond)
-			_, err := client.Call(RPCCall{server.URL, request})
+			_, err := client.Call(server.URL, request)
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -153,7 +153,7 @@ var _ = Describe("JSON-RPC Client", func() {
 			// Send request.
 			request := newSendMessageRequest()
 			client := NewClient(time.Second)
-			_, err := client.Call(RPCCall{"0.0.0.0:8888", request})
+			_, err := client.Call("0.0.0.0:8888", request)
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -165,7 +165,7 @@ var _ = Describe("JSON-RPC Client", func() {
 			// Send request.
 			request := newSendMessageRequest()
 			client := NewClient(time.Second)
-			_, err := client.Call(RPCCall{server.URL, request})
+			_, err := client.Call(server.URL, request)
 			Expect(err).To(HaveOccurred())
 		})
 	})

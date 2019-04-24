@@ -2,40 +2,27 @@ package rpc
 
 import (
 	"fmt"
-	"net/http"
 
-	"github.com/republicprotocol/lightnode/rpc/jsonrpc"
+	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/tau"
-	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 )
 
+// Server is used to write new RPC requests.
 type Server struct {
 	logger       logrus.FieldLogger
-	jsonrpcQueue <-chan jsonrpc.Request
+	jsonRPCQueue <-chan jsonrpc.Request
 }
 
-func NewServer(cap int, jsonRPCPort string, logger logrus.FieldLogger) tau.Task {
-	jsonrpcQueue := make(chan jsonrpc.Request, cap)
-	service := jsonrpc.NewService()
-	go func() {
-		handler := cors.New(cors.Options{
-			AllowCredentials: true,
-			AllowedMethods:   []string{"GET", "POST", "OPTIONS", "DELETE"},
-			AllowedHeaders:   []string{"Authorization", "Content-Type"},
-		}).Handler(service)
-		logger.Infof("jsonRPC listening on 0.0.0.0:%v...", jsonRPCPort)
-		if err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%v", jsonRPCPort), handler); err != nil {
-			logger.Errorln("fail to serve the server,", err)
-		}
-	}()
-
+// NewServer returns a new Server.
+func NewServer(logger logrus.FieldLogger, cap int, jsonRPCQueue <-chan jsonrpc.Request) tau.Task {
 	return tau.New(tau.NewIO(cap), &Server{
 		logger:       logger,
-		jsonrpcQueue: jsonrpcQueue,
+		jsonRPCQueue: jsonRPCQueue,
 	})
 }
 
+// Reduce implements the `tau.Task` interface.
 func (server *Server) Reduce(message tau.Message) tau.Message {
 	switch message.(type) {
 	case Accept:
@@ -45,15 +32,12 @@ func (server *Server) Reduce(message tau.Message) tau.Message {
 	}
 }
 
+// accept writes new requests back to the parent.
 func (server *Server) accept() tau.Message {
 	select {
-	case req := <-server.jsonrpcQueue:
-		return MessageAccepted{
-			Request: req,
-		}
-
+	case req := <-server.jsonRPCQueue:
+		return NewMessageAccepted(req)
 	}
-	return nil
 }
 
 type Accept struct {
@@ -71,4 +55,10 @@ type MessageAccepted struct {
 }
 
 func (MessageAccepted) IsMessage() {
+}
+
+func NewMessageAccepted(req jsonrpc.Request) MessageAccepted {
+	return MessageAccepted{
+		Request: req,
+	}
 }
