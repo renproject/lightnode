@@ -6,7 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/republicprotocol/lightnode/store"
+	. "github.com/renproject/lightnode/store"
 )
 
 const ExpiredTime = 30

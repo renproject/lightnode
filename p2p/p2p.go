@@ -3,7 +3,7 @@ package p2p
 import (
 	"fmt"
 
-	"github.com/republicprotocol/lightnode/store"
+	"github.com/renproject/lightnode/store"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"

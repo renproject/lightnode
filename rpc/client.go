@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/republicprotocol/co-go"
-	"github.com/republicprotocol/lightnode/rpc/jsonrpc"
+	"github.com/renproject/lightnode/rpc/jsonrpc"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
 )

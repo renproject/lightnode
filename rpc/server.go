@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/republicprotocol/lightnode/rpc/jsonrpc"
+	"github.com/renproject/lightnode/rpc/jsonrpc"
 	"github.com/republicprotocol/tau"
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
