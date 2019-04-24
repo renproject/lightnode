@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
-	"github.com/republicprotocol/lightnode/resolver"
-	"github.com/republicprotocol/lightnode/rpc"
+	"github.com/renproject/lightnode/resolver"
+	"github.com/renproject/lightnode/rpc"
 	"github.com/republicprotocol/tau"
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"

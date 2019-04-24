@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/republicprotocol/lightnode"
+	"github.com/renproject/lightnode"
 	"github.com/sirupsen/logrus"
 )
 

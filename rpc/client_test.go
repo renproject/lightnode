@@ -8,7 +8,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/republicprotocol/lightnode/rpc"
+	. "github.com/renproject/lightnode/rpc"
 
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/sirupsen/logrus"

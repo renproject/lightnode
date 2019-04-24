@@ -9,7 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/republicprotocol/lightnode/rpc/jsonrpc"
+	. "github.com/renproject/lightnode/rpc/jsonrpc"
 
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 )
