@@ -20,31 +20,34 @@ type Lightnode struct {
 	resolver tau.Task
 }
 
-func NewLightnode(logger *logrus.Logger, cap, workers, timeout int, port string) *Lightnode {
-	lightNode := &Lightnode{
+func NewLightnode(logger *logrus.Logger, cap, workers, timeout int, port string, addresses []string) *Lightnode {
+	lightnode := &Lightnode{
 		port:   port,
 		logger: logger,
 	}
 
+	// Construct client and server.
 	client := rpc.NewClient(logger, cap, workers, time.Duration(timeout)*time.Second)
 	requests := make(chan jsonrpc.Request, cap)
 	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second)
 	server := rpc.NewServer(logger, cap, requests)
-	lightNode.handler = cors.New(cors.Options{
+	lightnode.handler = cors.New(cors.Options{
 		AllowCredentials: true,
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS", "DELETE"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type"},
 	}).Handler(jsonrpcService)
 
-	lightNode.resolver = resolver.New(cap, logger, client, server)
-	return lightNode
+	// Construct resolver.
+	lightnode.resolver = resolver.New(cap, logger, client, server, addresses)
+
+	return lightnode
 }
 
 func (node *Lightnode) Run(done <-chan struct{}) {
-	node.logger.Infof("jsonRPC listening on 0.0.0.0:%v...", node.port)
+	node.logger.Infof("JSON-RPC server listening on 0.0.0.0:%v...", node.port)
 	go func() {
 		if err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%v", node.port), node.handler); err != nil {
-			node.logger.Errorln("fail to serve the server,", err)
+			node.logger.Errorf("failed to serve: %v", err)
 		}
 	}()
 	node.resolver.Run(done)

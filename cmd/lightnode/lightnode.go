@@ -3,13 +3,13 @@ package main
 import (
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/republicprotocol/lightnode"
 	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	// TODO : Are we getting this from ENV or config files?
 	port := os.Getenv("PORT")
 	cap, err := strconv.Atoi(os.Getenv("CAP"))
 	if err != nil {
@@ -23,9 +23,10 @@ func main() {
 	if err != nil {
 		timeout = 60
 	}
+	addresses := strings.Split(os.Getenv("ADDRESSES"), ",")
 
 	logger := logrus.New()
 	done := make(chan struct{})
-	node := lightnode.NewLightNode(logger, cap, workers, timeout, port)
+	node := lightnode.NewLightnode(logger, cap, workers, timeout, port, addresses)
 	node.Run(done)
 }
