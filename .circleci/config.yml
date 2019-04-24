@@ -1,0 +1,42 @@
+version: 2.1
+orbs:
+  core: ren/circleci-orbs@dev:first
+executors:
+  go_exec:
+    docker:
+      - image: circleci/golang:1.12
+jobs:
+  build:
+    executor: go_exec
+    steps:
+      - checkout
+      - restore_cache: # Restore saved cache if no changes are detected since last run
+          key: go-mod-v1-{{ checksum "go.sum" }}
+      - run: go test -v ./...
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
+workflows:
+  nightly:
+    triggers:
+      - schedule:
+          cron: "0 16 * * *" # Every day at 16:00 UTC
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
+      - core/merge_nightly:
+          executor: go_exec
+  weekly:
+    triggers:
+      - schedule:
+          cron: "0 23 * * 0" # Every Sunday at 23:00 UTC
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
+      - core/merge_beta:
+          executor: go_exec
