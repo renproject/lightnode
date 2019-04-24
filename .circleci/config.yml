@@ -38,4 +38,4 @@ workflows:
       jobs:
         - core/merge:
             from: nightly
-            into: testnet
+            into: beta
