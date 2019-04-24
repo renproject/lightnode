@@ -1,10 +1,13 @@
 version: 2.1
 orbs:
     core: ren/circleci-orbs@dev:first
+executors:
+  go_exec:
+    docker:
+      - image: circleci/golang:1.12
 jobs:
   build:
-    docker:
-      - image: circleci/golang:1.12      
+    executor: go_exec
     steps:
       - checkout
       - restore_cache: # Restore saved cache if no changes are detected since last run
@@ -24,9 +27,8 @@ workflows:
                 only:
                   - master
       jobs:
-        - core/merge:
-            from: master
-            into: nightly
+        - core/merge_nightly:
+            executor: go_exec
   weekly:
       triggers:
         - schedule:
@@ -36,6 +38,5 @@ workflows:
                 only:
                   - master
       jobs:
-        - core/merge:
-            from: nightly
-            into: beta
+        - core/merge_beta:
+            executor: go_exec
