@@ -70,8 +70,9 @@ func (client *Client) runWorkers(n int) {
 			jsonClient := jrpc.NewClient(client.timeout)
 			response, err := jsonClient.Call(call.URL, call.Request)
 			if err != nil {
+				close(call.Responder)
 				client.logger.Errorf("cannot send message to %v, %v", call.URL, err)
-				return
+				continue
 			}
 
 			// Unmarshal the response and write it to the responder channel.
@@ -80,7 +81,7 @@ func (client *Client) runWorkers(n int) {
 				var resp jsonrpc.SendMessageResponse
 				if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
 					client.logger.Errorf("cannot unmarshal SendMessageResponse from Darknode: %v", err)
-					return
+					continue
 				}
 				select {
 				case call.Responder <- resp:
@@ -91,7 +92,7 @@ func (client *Client) runWorkers(n int) {
 				var resp jsonrpc.ReceiveMessageResponse
 				if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
 					client.logger.Errorf("cannot unmarshal ReceiveMessageResponse from Darknode: %v", err)
-					return
+					continue
 				}
 				select {
 				case call.Responder <- resp:
@@ -152,6 +153,9 @@ func (client *Client) handleSendMessageRequest(request jsonrpc.SendMessageReques
 	// task.
 	messageIDs := map[string]int{}
 	for _, result := range results {
+		if result == nil {
+			continue
+		}
 		res := result.(jsonrpc.SendMessageResponse)
 		if res.Error == nil && res.Ok {
 			messageIDs[res.MessageID]++
@@ -180,22 +184,23 @@ func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessage
 	results := client.handleRequest(request, method, addresses)
 
 	// TODO: Fix this logic.
-	var response jsonrpc.ReceiveMessageResponse
 	for _, result := range results {
+		if result == nil {
+			continue
+		}
 		res := result.(jsonrpc.ReceiveMessageResponse)
-		response.Result = append(response.Result, res.Result...)
-	}
-	if len(response.Result) < (len(addresses)+1)*2/3 {
-		response.Error = ErrNotEnoughResultsReturned
+		if res.Err() == nil {
+			select {
+			case request.Responder <- res:
+			case <-time.After(client.timeout):
+				client.logger.Errorf("cannot write response to the responder channel")
+			}
+
+			return nil
+		}
 	}
 
-	select {
-	case request.Responder <- response:
-	case <-time.After(client.timeout):
-		client.logger.Errorf("cannot write response to the responder channel")
-	}
-
-	return nil
+	return tau.NewError(ErrNotEnoughResultsReturned)
 }
 
 type InvokeRPC struct {
