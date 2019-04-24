@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"time"
 
+	jrpc "github.com/renproject/lightnode/rpc/jsonrpc"
 	"github.com/republicprotocol/co-go"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
-	jrpc "github.com/republicprotocol/lightnode/rpc/jsonrpc"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
 )

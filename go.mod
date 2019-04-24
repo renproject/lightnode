@@ -1,4 +1,4 @@
-module github.com/republicprotocol/lightnode
+module github.com/renproject/lightnode
 
 go 1.12
 
