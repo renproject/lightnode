@@ -12,7 +12,6 @@ require (
 	github.com/onsi/ginkgo v1.8.0
 	github.com/onsi/gomega v1.5.0
 	github.com/republicprotocol/co-go v0.0.0-20180723052914-4e299fdb0e80
-	github.com/republicprotocol/ren-go v0.0.0-20190222053323-c99864c34acb // indirect
 	github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be
 	github.com/republicprotocol/tau v0.0.0-20190116001021-54c2ea27fbc3
 	github.com/rs/cors v1.6.0

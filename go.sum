@@ -59,10 +59,6 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/republicprotocol/co-go v0.0.0-20180723052914-4e299fdb0e80 h1:jcfajT2zPmtzIGn/JnWCkaWwz1kFprPYO9Y5qBUv0/U=
 github.com/republicprotocol/co-go v0.0.0-20180723052914-4e299fdb0e80/go.mod h1:NdfPrY+l1x6DwEs+wn5eJejQ+DibNnXGia8tkxumgsU=
-github.com/republicprotocol/ren-go v0.0.0-20190222053323-c99864c34acb h1:88ilrGrtj0YuspEb/LGykdVSabzPBr5x/vLcZr6MJSI=
-github.com/republicprotocol/ren-go v0.0.0-20190222053323-c99864c34acb/go.mod h1:VY9MvsDDMySmGPaolEUVIKOLSPtLtV7KPuO6dEHgCl4=
-github.com/republicprotocol/renp2p-go v0.0.0-20190119083719-1fd688ff820b h1:GlgaVW0MQ7vFu4vOrjAbuk9Z6cYQ23MD5A5aKxieGFs=
-github.com/republicprotocol/renp2p-go v0.0.0-20190119083719-1fd688ff820b/go.mod h1:oQVfcQeN/dloadjgPBuTOKInaw7c39TsXpLBoz0xoYU=
 github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be h1:E9fhHqqrVhY/iGt5VX9afQ3Z4YtZoAO+uTPG17tENuI=
 github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be/go.mod h1:oQVfcQeN/dloadjgPBuTOKInaw7c39TsXpLBoz0xoYU=
 github.com/republicprotocol/tau v0.0.0-20190116001021-54c2ea27fbc3 h1:iYHFykTfdJMeXNcgwkob2WfiuEpDCot4tH228/0rRhg=
