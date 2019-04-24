@@ -2,7 +2,6 @@ package jsonrpc_test
 
 import (
 	"encoding/json"
-	"log"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -16,44 +15,30 @@ import (
 )
 
 var _ = Describe("JSON-RPC Client", func() {
-
+	// Construct a valid test server.
 	initServer := func() *httptest.Server {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var req jsonrpc.JSONRequest
-			err := json.NewDecoder(r.Body).Decode(&req)
-			Expect(err).NotTo(HaveOccurred())
+			var request jsonrpc.JSONRequest
+			Expect(json.NewDecoder(r.Body).Decode(&request)).To(Succeed())
 
-			resp := jsonrpc.JSONResponse{
-				JSONRPC: "2.0",
-				ID:      req.ID,
-			}
-
-			switch req.Method {
-			case jsonrpc.MethodSendMessage:
-				resp.Result = json.RawMessage([]byte(`{"messageID":"messageID","ok":true}`))
-			case jsonrpc.MethodReceiveMessage:
-				resp.Result = json.RawMessage([]byte(`{"result":[{"private":false,"value":"0"}]}`))
-			default:
-				panic("unknown message type")
-			}
+			response, err := constructResponse(request)
+			Expect(err).ToNot(HaveOccurred())
 
 			time.Sleep(100 * time.Millisecond)
-			err = json.NewEncoder(w).Encode(resp)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(json.NewEncoder(w).Encode(response)).To(Succeed())
 		}))
-
 		return server
 	}
 
-	badServer := func() *httptest.Server {
+	// Construct a test server that always returns errors.
+	initErrorServer := func() *httptest.Server {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}))
-
 		return server
 	}
 
-	// Construct a valid `jsonrpc.SendMessageRequest` .
+	// Construct a valid `jsonrpc.SendMessageRequest`.
 	newSendMessageRequest := func() jsonrpc.JSONRequest {
 		params, err := json.Marshal(jsonrpc.SendMessageRequest{})
 		Expect(err).ToNot(HaveOccurred())
@@ -77,8 +62,8 @@ var _ = Describe("JSON-RPC Client", func() {
 		}
 	}
 
-	// Construct a bad jsonrpc request.
-	badRequest := func() jsonrpc.JSONRequest {
+	// Construct an invalid `jsonrpc.SendMessageRequest`.
+	newInvalidSendMessageRequest := func() jsonrpc.JSONRequest {
 		params := json.RawMessage("bad request")
 		return jsonrpc.JSONRequest{
 			JSONRPC: "2.0",
@@ -88,95 +73,138 @@ var _ = Describe("JSON-RPC Client", func() {
 		}
 	}
 
-	Context("when sending valid requests", func() {
-		It("should reach the server and get a response back when it's a SendMessageRequest", func() {
-			// Init the testing server
+	Context("when sending a SendMessageRequest", func() {
+		It("should get a valid response", func() {
+			// Intialise server.
 			server := initServer()
 			defer server.Close()
 
-			// Send the request
+			// Send request.
 			request := newSendMessageRequest()
 			client := NewClient(time.Second)
-			response, err := client.Call(RpcCall{server.URL, request})
+			jsonResponse, err := client.Call(RPCCall{server.URL, request})
 			Expect(err).ToNot(HaveOccurred())
 
-			// Validate the response
-			Expect(response.JSONRPC).To(Equal("2.0"))
-			Expect(int32(response.ID.(float64))).Should(Equal(request.ID))
-			Expect(response.Error).To(BeNil())
+			// Validate response.
+			Expect(jsonResponse.JSONRPC).To(Equal("2.0"))
+			Expect(int32(jsonResponse.ID.(float64))).Should(Equal(request.ID))
+			Expect(jsonResponse.Error).To(BeNil())
 
-			log.Print(string(response.Result))
-			var resp jsonrpc.SendMessageResponse
-			Expect(json.Unmarshal(response.Result, &resp)).NotTo(HaveOccurred())
-			Expect(resp.Ok).To(BeTrue())
-			Expect(resp.MessageID).To(Equal("messageID"))
+			var response jsonrpc.SendMessageResponse
+			Expect(json.Unmarshal(jsonResponse.Result, &response)).NotTo(HaveOccurred())
+			Expect(response.Ok).To(BeTrue())
+			Expect(response.MessageID).To(Equal("messageID"))
 		})
+	})
 
-		It("should reach the server and get a response back when it's a ReceiveMessageRequest", func() {
-			// Init the testing server
+	Context("when sending a ReceiveMessageRequest", func() {
+		It("should get a valid response", func() {
+			// Intialise server.
 			server := initServer()
 			defer server.Close()
 
-			// Send the request
+			// Send request.
 			request := newReceiveMessageRequest()
 			client := NewClient(time.Second)
-			response, err := client.Call(RpcCall{server.URL, request})
+			jsonResponse, err := client.Call(RPCCall{server.URL, request})
 			Expect(err).ToNot(HaveOccurred())
 
-			// Validate the response
-			Expect(response.JSONRPC).To(Equal("2.0"))
-			Expect(int32(response.ID.(float64))).Should(Equal(request.ID))
-			Expect(response.Error).To(BeNil())
-			var resp jsonrpc.ReceiveMessageResponse
-			Expect(json.Unmarshal(response.Result, &resp)).NotTo(HaveOccurred())
-			Expect(len(resp.Result)).To(Equal(1))
-			Expect(resp.Result[0].Index).To(Equal(0))
-			Expect(resp.Result[0].Private).To(BeFalse())
+			// Validate response.
+			Expect(jsonResponse.JSONRPC).To(Equal("2.0"))
+			Expect(int32(jsonResponse.ID.(float64))).Should(Equal(request.ID))
+			Expect(jsonResponse.Error).To(BeNil())
+
+			var response jsonrpc.ReceiveMessageResponse
+			Expect(json.Unmarshal(jsonResponse.Result, &response)).NotTo(HaveOccurred())
+			Expect(len(response.Result)).To(Equal(1))
+			Expect(response.Result[0].Index).To(Equal(0))
+			Expect(response.Result[0].Private).To(BeFalse())
 		})
 	})
 
-	Context("when server doesn't response in time", func() {
-		It("should timeout and returns an error", func() {
-			// Init the testing server
+	Context("when sending an invalid request", func() {
+		It("should return an error before calling the server", func() {
+			// Intialise server.
 			server := initServer()
 			defer server.Close()
 
-			// Send the request
+			// Send request.
+			request := newInvalidSendMessageRequest()
+			client := NewClient(time.Second)
+			_, err := client.Call(RPCCall{server.URL, request})
+			Expect(err).To(HaveOccurred())
+		})
+	})
+
+	Context("when the server is not working", func() {
+		It("should timeout if we do not receive a response", func() {
+			// Intialise server.
+			server := initServer()
+			defer server.Close()
+
+			// Send request.
 			request := newSendMessageRequest()
 			client := NewClient(10 * time.Millisecond)
-			_, err := client.Call(RpcCall{server.URL, request})
+			_, err := client.Call(RPCCall{server.URL, request})
 			Expect(err).To(HaveOccurred())
 		})
-	})
 
-	Context("when sending a bad request", func() {
-		It("should return an error before calling the server", func() {
-			server := initServer()
-			defer server.Close()
-
-			request := badRequest()
-			client := NewClient(time.Second)
-			_, err := client.Call(RpcCall{server.URL, request})
-			Expect(err).To(HaveOccurred())
-		})
-	})
-
-	Context("when server is out of order", func() {
 		It("should return an error if the server is offline", func() {
+			// Send request.
 			request := newSendMessageRequest()
 			client := NewClient(time.Second)
-			_, err := client.Call(RpcCall{"0.0.0.0:8888", request})
+			_, err := client.Call(RPCCall{"0.0.0.0:8888", request})
 			Expect(err).To(HaveOccurred())
 		})
 
 		It("should return an error if we get a status code other than 200", func() {
-			server := badServer()
+			// Initialise server.
+			server := initErrorServer()
 			defer server.Close()
 
+			// Send request.
 			request := newSendMessageRequest()
 			client := NewClient(time.Second)
-			_, err := client.Call(RpcCall{server.URL, request})
+			_, err := client.Call(RPCCall{server.URL, request})
 			Expect(err).To(HaveOccurred())
 		})
 	})
 })
+
+func constructResponse(req jsonrpc.JSONRequest) (jsonrpc.JSONResponse, error) {
+	resp := jsonrpc.JSONResponse{
+		JSONRPC: "2.0",
+		ID:      req.ID,
+	}
+
+	switch req.Method {
+	case jsonrpc.MethodSendMessage:
+		result := jsonrpc.SendMessageResponse{
+			MessageID: "messageID",
+			Ok:        true,
+		}
+		resultBytes, err := json.Marshal(result)
+		if err != nil {
+			return jsonrpc.JSONResponse{}, err
+		}
+		resp.Result = json.RawMessage(resultBytes)
+	case jsonrpc.MethodReceiveMessage:
+		result := jsonrpc.ReceiveMessageResponse{
+			Result: []jsonrpc.Arg{
+				jsonrpc.Arg{
+					Private: false,
+					Value:   "0",
+				},
+			},
+		}
+		resultBytes, err := json.Marshal(result)
+		if err != nil {
+			return jsonrpc.JSONResponse{}, err
+		}
+		resp.Result = json.RawMessage(resultBytes)
+	default:
+		panic("unknown message type")
+	}
+
+	return resp, nil
+}
