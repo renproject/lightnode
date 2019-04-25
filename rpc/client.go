@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"time"
 
 	jrpc "github.com/renproject/lightnode/rpc/jsonrpc"
@@ -79,10 +80,14 @@ func (client *Client) runWorkers(n int) {
 			switch call.Request.Method {
 			case jsonrpc.MethodSendMessage:
 				var resp jsonrpc.SendMessageResponse
-				if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
+				if response.Error != nil {
+					resp.Error = fmt.Errorf("received response error: %v", response.Error)
+				} else if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
 					client.logger.Errorf("cannot unmarshal SendMessageResponse from Darknode: %v", err)
+					close(call.Responder)
 					continue
 				}
+
 				select {
 				case call.Responder <- resp:
 				case <-time.After(client.timeout):
@@ -90,10 +95,14 @@ func (client *Client) runWorkers(n int) {
 				}
 			case jsonrpc.MethodReceiveMessage:
 				var resp jsonrpc.ReceiveMessageResponse
-				if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
+				if response.Error != nil {
+					resp.Error = fmt.Errorf("%v", response.Error.Message)
+				} else if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
 					client.logger.Errorf("cannot unmarshal ReceiveMessageResponse from Darknode: %v", err)
+					close(call.Responder)
 					continue
 				}
+
 				select {
 				case call.Responder <- resp:
 				case <-time.After(client.timeout):
@@ -122,6 +131,7 @@ func (client *Client) handleRequest(request interface{}, method string, addresse
 				JSONRPC: "2.0",
 				Method:  method,
 				Params:  data,
+				ID:      rand.Int31(),
 			},
 			URL:       address,
 			Responder: responder,
@@ -190,18 +200,16 @@ func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessage
 			continue
 		}
 		res := result.(jsonrpc.ReceiveMessageResponse)
-		if res.Err() == nil {
-			select {
-			case request.Responder <- res:
-			case <-time.After(client.timeout):
-				client.logger.Errorf("cannot write response to the responder channel")
-			}
-
-			return nil
+		select {
+		case request.Responder <- res:
+		case <-time.After(client.timeout):
+			client.logger.Errorf("cannot write response to the responder channel")
 		}
+
+		return nil
 	}
 
-	return tau.NewError(ErrNotEnoughResultsReturned)
+	return tau.NewError(errors.New("all nodes are offline"))
 }
 
 type InvokeRPC struct {

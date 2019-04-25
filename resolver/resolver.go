@@ -3,9 +3,8 @@ package resolver
 import (
 	"fmt"
 
-	"github.com/republicprotocol/darknode-go/server"
-	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/renproject/lightnode/rpc"
+	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
 )
@@ -39,7 +38,7 @@ func New(cap int, logger *logrus.Logger, client, server tau.Task, addresses []st
 func (resolver *Resolver) Reduce(message tau.Message) tau.Message {
 	switch message := message.(type) {
 	case rpc.MessageAccepted:
-		resolver.server.Send(server.NewAccept())
+		resolver.server.Send(rpc.NewAccept())
 		return resolver.handleServerMessage(message.Request)
 	case tau.Error:
 		resolver.logger.Errorln(message.Error())
