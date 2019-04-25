@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"math/rand"
 	"time"
 
@@ -97,7 +96,6 @@ func (client *Client) runWorkers(n int) {
 			case jsonrpc.MethodReceiveMessage:
 				var resp jsonrpc.ReceiveMessageResponse
 				if response.Error != nil {
-					log.Printf("error %+v", response.Error)
 					resp.Error = fmt.Errorf("%v", response.Error.Message)
 				} else if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
 					client.logger.Errorf("cannot unmarshal ReceiveMessageResponse from Darknode: %v", err)
