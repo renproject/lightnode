@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/lightnode/rpc"
+	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/tau"
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
