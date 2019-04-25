@@ -1,1 +1,1 @@
-web:lightnode
+web: lightnode
