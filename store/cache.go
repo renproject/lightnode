@@ -53,7 +53,6 @@ func (cache cache) Write(key string, value interface{}) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
-	// TODO: It may be better to use gob in this case for performance
 	val, err := json.Marshal(value)
 	if err != nil {
 		return err

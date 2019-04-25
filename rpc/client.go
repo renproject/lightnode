@@ -183,7 +183,8 @@ func (client *Client) handleSendMessageRequest(request jsonrpc.SendMessageReques
 func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessageRequest, method string, addresses []string) tau.Message {
 	results := client.handleRequest(request, method, addresses)
 
-	// TODO: Fix this logic.
+	// TODO: We currently forward the first non-error response we receive. In future we may want to do some basic
+	// validation here to ensure it is consistent with the responses returned by the other Darknodes.
 	for _, result := range results {
 		if result == nil {
 			continue
