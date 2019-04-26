@@ -22,4 +22,16 @@ type KVStore interface {
 
 	// Entries returns the number of entries in the store.
 	Entries() int
+
+	// Iterator returns a KVStoreIterator
+	Iterator () KVStoreIterator
+}
+
+type KVStoreIterator interface {
+
+	// Next tells if we reach the end of iterator.
+	Next() bool
+
+	// KV returns the key, value of current pointer.
+	KV(value interface{}) (string, error)
 }

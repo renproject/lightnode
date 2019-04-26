@@ -10,6 +10,9 @@ import (
 // ErrDataExpired is returned when the data is expired.
 var ErrDataExpired = errors.New("data expired")
 
+// ErrNoMoreItems is returned when no more items left in the iterator.
+var ErrNoMoreItems = errors.New("no more items in iterator")
+
 // cache is an in-memory implementation of the KVStore. It is safe for concurrent read and write. The data stored will have
 // a valid duration. After the data expired, it will returns ErrDataExpired error to alert user to update the data.
 type cache struct {
@@ -79,4 +82,50 @@ func (cache cache) Entries() int {
 	defer cache.mu.RUnlock()
 
 	return len(cache.data)
+}
+
+func (cache cache) Iterator() KVStoreIterator {
+	cache.mu.RLock()
+	defer cache.mu.RUnlock()
+
+	return newCacheIterator(cache.data)
+}
+
+type cacheIterator struct {
+	index  int
+	keys   []string
+	values [][]byte
+}
+
+func newCacheIterator(data map[string][]byte) *cacheIterator {
+	iter := &cacheIterator{
+		index:  -1,
+		keys:   make([]string, len(data)),
+		values: make([][]byte, len(data)),
+	}
+	index := 0
+	for key, value := range data {
+		iter.keys[index] = key
+		iter.values[index] = value
+		index++
+	}
+
+	return iter
+}
+
+func (iter *cacheIterator) Next() bool {
+	iter.index++
+	return iter.index < len(iter.keys)
+}
+
+func (iter *cacheIterator) KV(value interface{}) (string, error) {
+	if iter.index >= len(iter.keys) {
+		return "", ErrNoMoreItems
+	}
+
+	if err := json.Unmarshal(iter.values[iter.index], &value); err != nil {
+		return "", err
+	}
+
+	return iter.keys[iter.index], nil
 }
