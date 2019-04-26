@@ -34,11 +34,11 @@ func NewLightnode(logger *logrus.Logger, cap, workers, timeout int, port string,
 	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second)
 	server := rpc.NewServer(logger, cap, requests)
 	lightnode.handler = cors.New(cors.Options{
-		AllowedOrigins: []string{"*"},
+		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS", "DELETE"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type"},
-		Debug: true,
+		Debug:            true,
 	}).Handler(jsonrpcService)
 
 	// Construct resolver.
