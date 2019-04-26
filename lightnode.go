@@ -38,7 +38,6 @@ func NewLightnode(logger *logrus.Logger, cap, workers, timeout int, port string,
 		AllowCredentials: true,
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS", "DELETE"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type"},
-		Debug:            true,
 	}).Handler(jsonrpcService)
 
 	// Construct resolver.
