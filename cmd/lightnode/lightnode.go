@@ -34,7 +34,7 @@ func main() {
 	logger := logrus.New()
 	client, err := raven.New(fmt.Sprintf("https://%v@sentry.io/1286737", sentryToken))
 	if err != nil {
-		logrus.Fatalf("cannot connect to sentry: %v", err)
+		logger.Fatalf("cannot connect to sentry: %v", err)
 	}
 	hook, err := logrus_sentry.NewWithClientSentryHook(client, []logrus.Level{
 		logrus.PanicLevel,
@@ -42,7 +42,7 @@ func main() {
 		logrus.ErrorLevel,
 	})
 	if err != nil {
-		logrus.Fatalf("cannot create a sentry hook: %v", err)
+		logger.Fatalf("cannot create a sentry hook: %v", err)
 	}
 	logger.AddHook(hook)
 
