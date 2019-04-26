@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	// Getting params from environment variables.
+	// Retrieve environment variables.
 	port := os.Getenv("PORT")
 	sentryToken := os.Getenv("SENTRY_TOKEN")
 	cap, err := strconv.Atoi(os.Getenv("CAP"))
@@ -30,7 +30,7 @@ func main() {
 	}
 	addresses := strings.Split(os.Getenv("ADDRESSES"), ",")
 
-	// Setup the logger and hook it to sentry
+	// Setup logger and attach Sentry hook.
 	logger := logrus.New()
 	client, err := raven.New(fmt.Sprintf("https://%v@sentry.io/1286737", sentryToken))
 	if err != nil {
@@ -46,7 +46,7 @@ func main() {
 	}
 	logger.AddHook(hook)
 
-	// Start running the lightnode
+	// Start running Lightnode.
 	done := make(chan struct{})
 	node := lightnode.NewLightnode(logger, cap, workers, timeout, port, addresses)
 	node.Run(done)
