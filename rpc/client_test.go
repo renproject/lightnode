@@ -94,6 +94,29 @@ var _ = Describe("RPC client", func() {
 	// 	return server
 	// }
 
+	// Construct a test server that always return a bad-formatted response.
+	badResponseServer := func() *http.Server {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			err := json.NewEncoder(w).Encode(jsonrpc.JSONResponse{
+				JSONRPC: "2.0",
+				Version: "0.1",
+				Result:  []byte(""),
+			})
+			Expect(err).NotTo(HaveOccurred())
+		})
+		server := &http.Server{Addr: "0.0.0.0:18515", Handler: handler}
+
+		go func() {
+			defer GinkgoRecover()
+
+			Expect(func() {
+				server.ListenAndServe()
+			}).NotTo(Panic())
+		}()
+
+		return server
+	}
+
 	Context("when receive a InvokeRPC message", func() {
 		It("should get a response from the server if it's a SendMessage request", func() {
 			// init the server
@@ -108,7 +131,7 @@ var _ = Describe("RPC client", func() {
 			logger := logrus.New()
 			client := NewClient(logger, 32, 8, time.Second, store)
 			go client.Run(done)
-			responder := make(chan jsonrpc.Response)
+			responder := make(chan jsonrpc.Response, 1)
 
 			// send a message to the task which contains a SendMessageRequest
 			for i := 0; i < 32; i++ {
@@ -144,7 +167,7 @@ var _ = Describe("RPC client", func() {
 			logger := logrus.New()
 			client := NewClient(logger, 32, 8, time.Second, store)
 			go client.Run(done)
-			responder := make(chan jsonrpc.Response)
+			responder := make(chan jsonrpc.Response, 1)
 
 			// send a message to the task which contains a SendMessageRequest
 			for i := 0; i < 32; i++ {
@@ -165,6 +188,111 @@ var _ = Describe("RPC client", func() {
 				case <-time.After(time.Second):
 					Fail("timeout")
 				}
+			}
+		})
+	})
+
+	Context("when the darknode is offline", func() {
+		It("should return proper error ", func() {
+			// init the server
+			done := make(chan struct{})
+			defer close(done)
+			multi, err := peer.NewMultiAddr("/ip4/0.0.0.0/tcp/18515/ren/8MKXcuQAjR2eEq8bsSHDPkYEmqmjtj", 1, [65]byte{})
+			Expect(err).NotTo(HaveOccurred())
+			store := initStore(multi)
+
+			// init the client task
+			logger := logrus.New()
+			client := NewClient(logger, 32, 8, time.Second, store)
+			go client.Run(done)
+			responder := make(chan jsonrpc.Response, 1)
+
+			// send a message to the task which contains a SendMessageRequest
+			client.IO().InputWriter() <- InvokeRPC{
+				Request: jsonrpc.SendMessageRequest{
+					Responder: responder,
+				},
+				Addresses: []addr.Addr{multi.Addr()},
+			}
+
+			// expect to receive a response from the responder channel
+			select {
+			case response := <-responder:
+				resp, ok := response.(jsonrpc.SendMessageResponse)
+				Expect(ok).To(BeTrue())
+				Expect(resp.Ok).To(BeFalse())
+				Expect(resp.Error).NotTo(BeNil())
+			}
+		})
+	})
+
+	Context("when the darknode gives a bad response", func() {
+		It("should return proper error when it's sendMessage request", func() {
+			// init the server
+			done := make(chan struct{})
+			defer close(done)
+			server := badResponseServer()
+			defer server.Close()
+			multi := serverMulti(server)
+			store := initStore(multi)
+
+			// init the client task
+			logger := logrus.New()
+			client := NewClient(logger, 32, 8, time.Second, store)
+			go client.Run(done)
+			responder := make(chan jsonrpc.Response, 1)
+
+			// send a message to the task which contains a SendMessageRequest
+			client.IO().InputWriter() <- InvokeRPC{
+				Request: jsonrpc.SendMessageRequest{
+					Responder: responder,
+				},
+				Addresses: []addr.Addr{multi.Addr()},
+			}
+
+			// expect to receive a response from the responder channel
+			select {
+			case response := <-responder:
+				resp, ok := response.(jsonrpc.SendMessageResponse)
+				Expect(ok).To(BeTrue())
+				Expect(resp.Ok).To(BeFalse())
+				Expect(resp.Error).NotTo(BeNil())
+			case <-time.After(time.Second):
+				Fail("timeout")
+			}
+		})
+
+		It("should return proper error when it's receiveMessage request", func() {
+			// init the server
+			done := make(chan struct{})
+			defer close(done)
+			server := badResponseServer()
+			defer server.Close()
+			multi := serverMulti(server)
+			store := initStore(multi)
+
+			// init the client task
+			logger := logrus.New()
+			client := NewClient(logger, 32, 8, time.Second, store)
+			go client.Run(done)
+			responder := make(chan jsonrpc.Response, 1)
+
+			// send a message to the task which contains a SendMessageRequest
+			client.IO().InputWriter() <- InvokeRPC{
+				Request: jsonrpc.ReceiveMessageRequest{
+					Responder: responder,
+				},
+				Addresses: []addr.Addr{multi.Addr()},
+			}
+
+			// expect to receive a response from the responder channel
+			select {
+			case response := <-responder:
+				resp, ok := response.(jsonrpc.ReceiveMessageResponse)
+				Expect(ok).To(BeTrue())
+				Expect(resp.Error).NotTo(BeNil())
+			case <-time.After(time.Second):
+				Fail("timeout")
 			}
 		})
 	})

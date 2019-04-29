@@ -123,7 +123,7 @@ func (p2p *P2P) handleQuery(message rpc.QueryPeersMessage) tau.Message {
 
 		indexes := rand.Perm(len(addresses))
 		randAddress := make([]string, 5)
-		for i := range randAddress{
+		for i := range randAddress {
 			randAddress[i] = addresses[indexes[i]]
 		}
 		response = jsonrpc.QueryPeersResponse{

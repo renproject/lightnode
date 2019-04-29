@@ -126,7 +126,7 @@ func (client *Client) handleRequest(request interface{}, method string, addresse
 	// Loop through the provided addresses.
 	co.ParForAll(addresses, func(i int) {
 		address := addresses[i]
-		responder := make(chan jsonrpc.Response)
+		responder := make(chan jsonrpc.Response, 1)
 		data, err := json.Marshal(request)
 		if err != nil {
 			client.logger.Errorf("failed to marshal the SendMessageRequest: %v", err)
@@ -189,17 +189,17 @@ func (client *Client) handleSendMessageRequest(request jsonrpc.SendMessageReques
 
 	for id, num := range messageIDs {
 		if num >= (len(addresses)+1)*2/3 {
-			select {
-			case request.Responder <- jsonrpc.SendMessageResponse{
+			request.Responder <- jsonrpc.SendMessageResponse{
 				MessageID: id,
 				Ok:        true,
-			}:
-			case <-time.After(client.timeout):
-				client.logger.Errorf("cannot write response to the responder channel")
 			}
 
 			return nil
 		}
+	}
+
+	request.Responder <- jsonrpc.SendMessageResponse{
+		Error: ErrNotEnoughResultsReturned,
 	}
 
 	return tau.NewError(ErrNotEnoughResultsReturned)
@@ -221,6 +221,10 @@ func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessage
 		}
 
 		return nil
+	}
+
+	request.Responder <- jsonrpc.ReceiveMessageResponse{
+		Error: ErrNotEnoughResultsReturned,
 	}
 
 	return tau.NewError(errors.New("all nodes are offline"))
