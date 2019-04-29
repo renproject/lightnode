@@ -9,11 +9,15 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net"
 	"time"
 
 	jrpc "github.com/renproject/lightnode/rpc/jsonrpc"
+	"github.com/renproject/lightnode/store"
 	"github.com/republicprotocol/co-go"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/renp2p-go/core/peer"
+	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
 )
@@ -24,14 +28,16 @@ var ErrNotEnoughResultsReturned = errors.New("not enough results returned")
 // Client is used to send RPC requests.
 type Client struct {
 	logger  logrus.FieldLogger
+	store   store.KVStore
 	queue   chan RPCCall
 	timeout time.Duration
 }
 
 // NewClient returns a new Client.
-func NewClient(logger logrus.FieldLogger, cap, numWorkers int, timeout time.Duration) tau.Task {
+func NewClient(logger logrus.FieldLogger, cap, numWorkers int, timeout time.Duration, store store.KVStore) tau.Task {
 	client := &Client{
 		logger:  logger,
+		store:   store,
 		queue:   make(chan RPCCall, cap),
 		timeout: timeout,
 	}
@@ -114,7 +120,7 @@ func (client *Client) runWorkers(n int) {
 }
 
 // handleRequest handles writing the request for each Darknode to the queue and reading each of the responses.
-func (client *Client) handleRequest(request interface{}, method string, addresses []string) []interface{} {
+func (client *Client) handleRequest(request interface{}, method string, addresses []addr.Addr) []interface{} {
 	results := make([]interface{}, len(addresses))
 
 	// Loop through the provided addresses.
@@ -126,6 +132,15 @@ func (client *Client) handleRequest(request interface{}, method string, addresse
 			client.logger.Errorf("failed to marshal the SendMessageRequest: %v", err)
 			return
 		}
+
+		// Get multi-address of the darknode from store.
+		var multi peer.MultiAddr
+		if err := client.store.Read(address.String(), &multi); err != nil {
+			client.logger.Errorf("cannot read multi address from the KVStore, %v", err)
+			return
+		}
+		netAddr := multi.ResolveTCPAddr().(*net.TCPAddr)
+		netAddr.Port = 18515
 		call := RPCCall{
 			Request: jsonrpc.JSONRequest{
 				JSONRPC: "2.0",
@@ -133,7 +148,7 @@ func (client *Client) handleRequest(request interface{}, method string, addresse
 				Params:  data,
 				ID:      rand.Int31(),
 			},
-			URL:       address,
+			URL:       "http://" + netAddr.String(),
 			Responder: responder,
 		}
 
@@ -156,7 +171,7 @@ func (client *Client) handleRequest(request interface{}, method string, addresse
 	return results
 }
 
-func (client *Client) handleSendMessageRequest(request jsonrpc.SendMessageRequest, method string, addresses []string) tau.Message {
+func (client *Client) handleSendMessageRequest(request jsonrpc.SendMessageRequest, method string, addresses []addr.Addr) tau.Message {
 	results := client.handleRequest(request, method, addresses)
 
 	// Check if the majority of the Darknodes return the same result and if so write the response back to the parent
@@ -190,7 +205,7 @@ func (client *Client) handleSendMessageRequest(request jsonrpc.SendMessageReques
 	return tau.NewError(ErrNotEnoughResultsReturned)
 }
 
-func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessageRequest, method string, addresses []string) tau.Message {
+func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessageRequest, method string, addresses []addr.Addr) tau.Message {
 	results := client.handleRequest(request, method, addresses)
 
 	// TODO: Fix this logic.
@@ -213,7 +228,7 @@ func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessage
 
 type InvokeRPC struct {
 	Request   jsonrpc.Request
-	Addresses []string
+	Addresses []addr.Addr
 }
 
 func (InvokeRPC) IsMessage() {

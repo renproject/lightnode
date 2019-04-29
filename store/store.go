@@ -24,7 +24,7 @@ type KVStore interface {
 	Entries() int
 
 	// Iterator returns a KVStoreIterator
-	Iterator () KVStoreIterator
+	Iterator() KVStoreIterator
 }
 
 type KVStoreIterator interface {

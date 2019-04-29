@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/renproject/lightnode/p2p"
 	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/lightnode/rpc"
+	"github.com/renproject/lightnode/store"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/tau"
 	"github.com/rs/cors"
@@ -27,20 +29,22 @@ func NewLightnode(logger *logrus.Logger, cap, workers, timeout int, port string,
 	}
 
 	// Construct client and server.
-	client := rpc.NewClient(logger, cap, workers, time.Duration(timeout)*time.Second)
+	addrStore := store.NewCache(0)
+	client := rpc.NewClient(logger, cap, workers, time.Duration(timeout)*time.Second, addrStore)
 	requests := make(chan jsonrpc.Request, cap)
 	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second)
 	server := rpc.NewServer(logger, cap, requests)
+	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, addrStore, addresses)
 	lightnode.handler = cors.New(cors.Options{
-		AllowedOrigins: []string{"*"},
+		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS", "DELETE"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type"},
-		Debug: true,
+		Debug:            true,
 	}).Handler(jsonrpcService)
 
 	// Construct resolver.
-	lightnode.resolver = resolver.New(cap, logger, client, server, addresses)
+	lightnode.resolver = resolver.New(cap, logger, client, server, p2pService, addresses)
 
 	return lightnode
 }
@@ -52,5 +56,20 @@ func (node *Lightnode) Run(done <-chan struct{}) {
 			node.logger.Errorf("failed to serve: %v", err)
 		}
 	}()
-	node.resolver.Run(done)
+
+	go node.resolver.Run(done)
+	node.resolver.Send(p2p.Tick{})
+
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			node.logger.Debug("updating darknode multi addresses")
+			node.resolver.Send(p2p.Tick{})
+		}
+	}
 }

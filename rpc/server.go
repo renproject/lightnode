@@ -36,7 +36,14 @@ func (server *Server) Reduce(message tau.Message) tau.Message {
 func (server *Server) accept() tau.Message {
 	select {
 	case req := <-server.jsonRPCQueue:
-		return NewMessageAccepted(req)
+		switch req.(type) {
+		case jsonrpc.QueryPeersRequest, jsonrpc.QueryNumPeersRequest:
+			return NewQueryMessage(req)
+		case jsonrpc.SendMessageRequest, jsonrpc.ReceiveMessageRequest:
+			return NewMessageAccepted(req)
+		default:
+			panic("unknown request type")
+		}
 	}
 }
 
@@ -50,15 +57,28 @@ func NewAccept() Accept {
 	return Accept{}
 }
 
-type MessageAccepted struct {
+type SendMessage struct {
 	jsonrpc.Request
 }
 
-func (MessageAccepted) IsMessage() {
+func (SendMessage) IsMessage() {
 }
 
-func NewMessageAccepted(req jsonrpc.Request) MessageAccepted {
-	return MessageAccepted{
+func NewMessageAccepted(req jsonrpc.Request) SendMessage {
+	return SendMessage{
+		Request: req,
+	}
+}
+
+type QueryPeersMessage struct {
+	jsonrpc.Request
+}
+
+func (QueryPeersMessage) IsMessage() {
+}
+
+func NewQueryMessage(req jsonrpc.Request) QueryPeersMessage {
+	return QueryPeersMessage{
 		Request: req,
 	}
 }

@@ -11,6 +11,12 @@ import (
 
 const ExpiredTime = 30
 
+type testStruct struct {
+	A string
+	B int
+	C bool
+}
+
 var _ = Describe("Cache implementation of KVStore", func() {
 	Context("when reading and writing", func() {
 		It("should be able to store int value", func() {
@@ -46,39 +52,49 @@ var _ = Describe("Cache implementation of KVStore", func() {
 			Expect(quick.Check(readAndWrite, nil)).To(Succeed())
 		})
 
-		It("should be able to store a struct value", func() {
-			type testStruct struct {
-				A string
-				B int
-				C bool
-			}
-
+		It("should iterate through all the key-values in the store", func() {
 			cache := NewCache(ExpiredTime)
+
 			readAndWrite := func(key string, value testStruct) bool {
+				Expect(cache.Entries()).Should(Equal(0))
 				Expect(cache.Write(key, value)).NotTo(HaveOccurred())
 				var newValue testStruct
 				Expect(cache.Read(key, &newValue)).NotTo(HaveOccurred())
-				return reflect.DeepEqual(value, newValue)
+				Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
+				Expect(cache.Entries()).Should(Equal(1))
+
+				var deletedValue testStruct
+				Expect(cache.Delete(key)).NotTo(HaveOccurred())
+				Expect(cache.Read(key, &deletedValue)).Should(Equal(ErrKeyNotFound))
+				return true
 			}
 			Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
 		})
+	})
 
-		It("should be able to store struct value", func() {
+	Context("when iterating the data in the store", func() {
+		It("should iterate through all the key-values in the store", func() {
+			cache := NewCache(ExpiredTime)
 			type testStruct struct {
 				A string
 				B int
 				C bool
 			}
 
-			cache := NewCache(ExpiredTime)
 			readAndWrite := func(key string, value testStruct) bool {
-				Expect(cache.Write(key, value)).To(Succeed())
+				Expect(cache.Entries()).Should(Equal(0))
+				Expect(cache.Write(key, value)).NotTo(HaveOccurred())
 				var newValue testStruct
-				Expect(cache.Read(key, &newValue)).To(Succeed())
-				return reflect.DeepEqual(value, newValue)
+				Expect(cache.Read(key, &newValue)).NotTo(HaveOccurred())
+				Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
+				Expect(cache.Entries()).Should(Equal(1))
+
+				var deletedValue testStruct
+				Expect(cache.Delete(key)).NotTo(HaveOccurred())
+				Expect(cache.Read(key, &deletedValue)).Should(Equal(ErrKeyNotFound))
+				return true
 			}
-			Expect(quick.Check(readAndWrite, nil)).To(Succeed())
+			Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
 		})
 	})
-
 })
