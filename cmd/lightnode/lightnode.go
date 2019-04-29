@@ -16,7 +16,7 @@ import (
 func main() {
 	// Retrieve environment variables.
 	port := os.Getenv("PORT")
-	sentryToken := os.Getenv("SENTRY_TOKEN")
+	sentryURL := os.Getenv("SENTRY_URL")
 	cap, err := strconv.Atoi(os.Getenv("CAP"))
 	if err != nil {
 		cap = 128
@@ -33,7 +33,7 @@ func main() {
 
 	// Setup logger and attach Sentry hook.
 	logger := logrus.New()
-	client, err := raven.New(fmt.Sprintf("https://%v@sentry.io/1286737", sentryToken))
+	client, err := raven.New(sentryURL)
 	if err != nil {
 		logger.Fatalf("cannot connect to sentry: %v", err)
 	}
