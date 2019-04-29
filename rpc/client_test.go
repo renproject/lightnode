@@ -1,23 +1,31 @@
 package rpc_test
 
 import (
+	"crypto/ecdsa"
+	"crypto/rand"
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
-	"net/http/httptest"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/rpc"
 
+	"github.com/ethereum/go-ethereum/crypto/secp256k1"
+	"github.com/renproject/lightnode/store"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/renp2p-go/core/peer"
+	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/sirupsen/logrus"
 )
 
 var _ = Describe("RPC client", func() {
 
-	initServer := func() *httptest.Server {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	initServer := func() *http.Server {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var req jsonrpc.JSONRequest
 			err := json.NewDecoder(r.Body).Decode(&req)
 			Expect(err).NotTo(HaveOccurred())
@@ -39,18 +47,52 @@ var _ = Describe("RPC client", func() {
 			time.Sleep(100 * time.Millisecond)
 			err = json.NewEncoder(w).Encode(resp)
 			Expect(err).NotTo(HaveOccurred())
-		}))
+		})
+		server := &http.Server{Addr: "0.0.0.0:18515", Handler: handler}
+
+		go func() {
+			defer GinkgoRecover()
+
+			Expect(func() {
+				server.ListenAndServe()
+			}).NotTo(Panic())
+		}()
 
 		return server
 	}
 
-	// Construct a test server that always returns errors.
-	initErrorServer := func() *httptest.Server {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusInternalServerError)
-		}))
-		return server
+	initStore := func(multis ...peer.MultiAddr) store.KVStore {
+		store := store.NewCache(0)
+		for _, multi := range multis {
+			Expect(store.Write(multi.Addr().String(), multi)).NotTo(HaveOccurred())
+		}
+		return store
 	}
+
+	serverMulti := func(server *http.Server) peer.MultiAddr {
+		url := strings.TrimPrefix(server.Addr, "http://")
+		address, err := net.ResolveTCPAddr("tcp", url)
+		Expect(err).NotTo(HaveOccurred())
+
+		privateKey, err := ecdsa.GenerateKey(secp256k1.S256(), rand.Reader)
+		Expect(err).NotTo(HaveOccurred())
+
+		addr := addr.FromPublicKey(&privateKey.PublicKey)
+		multi, err := peer.NewMultiAddr(fmt.Sprintf("/ip4/%v/tcp/%v/ren/%v", address.IP, address.Port, addr), 1, [65]byte{})
+		Expect(err).NotTo(HaveOccurred())
+
+		return multi
+	}
+
+	// // Construct a test server that always returns errors.
+	// initErrorServer := func() *http.Server {
+	// 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// 		w.WriteHeader(http.StatusInternalServerError)
+	// 	})
+	// 	server := &http.Server{Addr: "0.0.0.0:18515", Handler: handler}
+	//
+	// 	return server
+	// }
 
 	Context("when receive a InvokeRPC message", func() {
 		It("should get a response from the server if it's a SendMessage request", func() {
@@ -59,10 +101,12 @@ var _ = Describe("RPC client", func() {
 			defer close(done)
 			server := initServer()
 			defer server.Close()
+			multi := serverMulti(server)
+			store := initStore(multi)
 
 			// init the client task
 			logger := logrus.New()
-			client := NewClient(logger, 32, 8, time.Second)
+			client := NewClient(logger, 32, 8, time.Second, store)
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response)
 
@@ -72,7 +116,7 @@ var _ = Describe("RPC client", func() {
 					Request: jsonrpc.SendMessageRequest{
 						Responder: responder,
 					},
-					Addresses: []string{server.URL},
+					Addresses: []addr.Addr{multi.Addr()},
 				}
 
 				// expect to receive a response from the responder channel
@@ -93,10 +137,12 @@ var _ = Describe("RPC client", func() {
 			defer close(done)
 			server := initServer()
 			defer server.Close()
+			multi := serverMulti(server)
+			store := initStore(multi)
 
 			// init the client task
 			logger := logrus.New()
-			client := NewClient(logger, 32, 8, time.Second)
+			client := NewClient(logger, 32, 8, time.Second, store)
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response)
 
@@ -106,7 +152,7 @@ var _ = Describe("RPC client", func() {
 					Request: jsonrpc.ReceiveMessageRequest{
 						Responder: responder,
 					},
-					Addresses: []string{server.URL},
+					Addresses: []addr.Addr{multi.Addr()},
 				}
 
 				// expect to receive a response from the responder channel
@@ -117,51 +163,6 @@ var _ = Describe("RPC client", func() {
 					Expect(len(resp.Result)).To(Equal(1))
 					Expect(resp.Result[0].Index).Should(Equal(0))
 				case <-time.After(time.Second):
-					Fail("timeout")
-				}
-			}
-		})
-	})
-
-	Context("when receive a InvokeRPC message with single target", func() {
-		It("should response with the result most darknodes returned", func() {
-			// init the server with 6 good server and 2 bad server.
-			done := make(chan struct{})
-			defer close(done)
-			servers := make([]*httptest.Server, 8)
-			serverAddrs := make([]string, 8)
-			for i := 0; i < 8; i++ {
-				if i < 6 {
-					servers[i] = initServer()
-					defer servers[i].Close()
-				} else {
-					servers[i] = initErrorServer()
-				}
-				serverAddrs[i] = servers[i].URL
-			}
-
-			// init the client task
-			logger := logrus.New()
-			client := NewClient(logger, 32, 8, 5*time.Second)
-			go client.Run(done)
-
-			// send messages to the task which contain SendMessageRequest
-			for i := 0; i < 8; i++ {
-				responder := make(chan jsonrpc.Response)
-				client.IO().InputWriter() <- InvokeRPC{
-					Request: jsonrpc.SendMessageRequest{
-						Responder: responder,
-					},
-					Addresses: serverAddrs,
-				}
-
-				// expect to receive a response from the responder channel
-				select {
-				case response := <-responder:
-					resp, ok := response.(jsonrpc.SendMessageResponse)
-					Expect(ok).To(BeTrue())
-					Expect(resp.Ok).To(BeTrue())
-				case <-time.After(5 * time.Second):
 					Fail("timeout")
 				}
 			}
