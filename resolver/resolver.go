@@ -3,6 +3,7 @@ package resolver
 import (
 	"fmt"
 
+	"github.com/renproject/lightnode/p2p"
 	"github.com/renproject/lightnode/rpc"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
@@ -39,7 +40,7 @@ func newResolver(logger *logrus.Logger, client, server, p2p tau.Task, addresses 
 func New(cap int, logger *logrus.Logger, client, server, p2p tau.Task, addresses []string) tau.Task {
 	resolver := newResolver(logger, client, server, p2p, addresses)
 	resolver.server.Send(rpc.NewAccept())
-	return tau.New(tau.NewIO(cap), resolver, client, server)
+	return tau.New(tau.NewIO(cap), resolver, client, server, p2p)
 }
 
 // Reduce implements the `tau.Task` interface.
@@ -50,13 +51,15 @@ func (resolver *Resolver) Reduce(message tau.Message) tau.Message {
 		return resolver.handleServerMessage(message.Request)
 	case rpc.QueryPeersMessage:
 		resolver.p2p.Send(message)
-		return nil
 	case tau.Error:
 		resolver.logger.Errorln(message.Error())
-		return nil
+	case p2p.Tick:
+		resolver.p2p.Send(message)
 	default:
 		panic(fmt.Errorf("unexpected message type %T", message))
 	}
+
+	return nil
 }
 
 func (resolver *Resolver) handleServerMessage(request jsonrpc.Request) tau.Message {

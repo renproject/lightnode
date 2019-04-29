@@ -58,7 +58,7 @@ func (node *Lightnode) Run(done <-chan struct{}) {
 	}()
 
 	go node.resolver.Run(done)
-	node.resolver.Send(p2p.Tick{})
+	node.resolver.IO().InputWriter() <- p2p.Tick{}
 
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
@@ -69,7 +69,7 @@ func (node *Lightnode) Run(done <-chan struct{}) {
 			return
 		case <-ticker.C:
 			node.logger.Debug("updating darknode multi addresses")
-			node.resolver.Send(p2p.Tick{})
+			node.resolver.IO().InputWriter() <- p2p.Tick{}
 		}
 	}
 }

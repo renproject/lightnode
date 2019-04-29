@@ -3,6 +3,7 @@ package p2p
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"time"
@@ -30,7 +31,7 @@ func New(logger *logrus.Logger, cap int, timeout time.Duration, store store.KVSt
 	for i, addr := range bootstrapAddrs {
 		multiAddr, err := peer.NewMultiAddr(addr, 0, [65]byte{})
 		if err != nil {
-			logger.Fatal("invalid bootstrap addresses")
+			logger.Fatal("invalid bootstrap addresses", err)
 		}
 		addrs[i] = multiAddr
 	}
@@ -63,44 +64,47 @@ func (p2p *P2P) handleTick(message tau.Message) tau.Message {
 		ID:      rand.Int31(),
 	}
 
-	go co.ParForAll(p2p.bootstrapAddrs, func(i int) {
-		multi := p2p.bootstrapAddrs[i]
-		client := jrpc.NewClient(p2p.timeout)
-		addr := multi.ResolveTCPAddr().(*net.TCPAddr)
-		addr.Port = 18515
-		response, err := client.Call(fmt.Sprintf("http://%v", addr.String()), request)
-		if err != nil {
-			p2p.logger.Errorf("bootstrap node = %v is offline, err = %v", multi.Addr().String(), err)
-			if err := p2p.store.Delete(multi.Addr().String()); err != nil {
-				p2p.logger.Errorf("fail to delete entry from KVStore, %v", err)
-			}
-			return
-		}
-		if err := p2p.store.Write(multi.Addr().String(), multi); err != nil {
-			p2p.logger.Errorf("fail to add new entry to KVStore, %v", err)
-			return
-		}
-		if response.Error != nil {
-			// todo : handle error
-		}
-
-		var result jsonrpc.QueryPeersResponse
-		if err := json.Unmarshal(response.Result, &result); err != nil {
-			p2p.logger.Errorf("invalid QueryPeersResponse from node %v, %v", multi.Addr().String(), err)
-			return
-		}
-		for _, node := range result.Peers {
-			multiAddr, err := peer.NewMultiAddr(node, 0, [65]byte{})
+	go func() {
+		co.ParForAll(p2p.bootstrapAddrs, func(i int) {
+			multi := p2p.bootstrapAddrs[i]
+			client := jrpc.NewClient(p2p.timeout)
+			addr := multi.ResolveTCPAddr().(*net.TCPAddr)
+			addr.Port = 18515
+			response, err := client.Call(fmt.Sprintf("http://%v", addr.String()), request)
 			if err != nil {
-				p2p.logger.Errorf("invalid QueryPeersResponse from node %v, %v", multi.Addr().String(), err)
+				p2p.logger.Errorf("bootstrap node = %v is offline, err = %v", multi.Addr().String(), err)
+				if err := p2p.store.Delete(multi.Addr().String()); err != nil {
+					p2p.logger.Errorf("fail to delete entry from KVStore, %v", err)
+				}
 				return
 			}
-			if err := p2p.store.Write(multiAddr.Addr().String(), multiAddr); err != nil {
+			if err := p2p.store.Write(multi.Addr().String(), multi); err != nil {
 				p2p.logger.Errorf("fail to add new entry to KVStore, %v", err)
 				return
 			}
-		}
-	})
+			if response.Error != nil {
+				// todo : handle error
+			}
+
+			var result jsonrpc.QueryPeersResponse
+			if err := json.Unmarshal(response.Result, &result); err != nil {
+				p2p.logger.Errorf("invalid QueryPeersResponse from node %v, %v", multi.Addr().String(), err)
+				return
+			}
+			for _, node := range result.Peers {
+				multiAddr, err := peer.NewMultiAddr(node, 0, [65]byte{})
+				if err != nil {
+					p2p.logger.Errorf("invalid QueryPeersResponse from node %v, %v", multi.Addr().String(), err)
+					return
+				}
+				if err := p2p.store.Write(multiAddr.Addr().String(), multiAddr); err != nil {
+					p2p.logger.Errorf("fail to add new entry to KVStore, %v", err)
+					return
+				}
+			}
+		})
+		p2p.logger.Infof("connecting to %v darknodes", p2p.store.Entries())
+	}()
 
 	return nil
 }
