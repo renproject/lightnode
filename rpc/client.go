@@ -22,8 +22,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// ErrNotEnoughResultsReturned is returned if we do not get enough successful responses from Darknodes.
-var ErrNotEnoughResultsReturned = errors.New("not enough results returned")
+var (
+	// ErrNotEnoughResultsReturned is returned if we do not get enough successful responses from Darknodes.
+	ErrNotEnoughResultsReturned = errors.New("not enough results returned")
+
+	// ErrNoResultReceived is returned when the response we receive from each Darknode is nil.
+	ErrNoResultReceived = errors.New("no result received")
+)
 
 // Client is used to send RPC requests.
 type Client struct {
@@ -89,8 +94,8 @@ func (client *Client) runWorkers(n int) {
 				if response.Error != nil {
 					resp.Error = fmt.Errorf("received response error: %v", response.Error)
 				} else if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
-					client.logger.Errorf("cannot unmarshal SendMessageResponse from Darknode: %v", err)
 					close(call.Responder)
+					client.logger.Errorf("cannot unmarshal SendMessageResponse from Darknode: %v", err)
 					continue
 				}
 
@@ -104,8 +109,8 @@ func (client *Client) runWorkers(n int) {
 				if response.Error != nil {
 					resp.Error = fmt.Errorf("%v", response.Error.Message)
 				} else if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
-					client.logger.Errorf("cannot unmarshal ReceiveMessageResponse from Darknode: %v", err)
 					close(call.Responder)
+					client.logger.Errorf("cannot unmarshal ReceiveMessageResponse from Darknode: %v", err)
 					continue
 				}
 
@@ -208,7 +213,8 @@ func (client *Client) handleSendMessageRequest(request jsonrpc.SendMessageReques
 func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessageRequest, method string, addresses []addr.Addr) tau.Message {
 	results := client.handleRequest(request, method, addresses)
 
-	// TODO: Fix this logic.
+	// TODO: We currently forward the first non-error response we receive. In future we may want to do some basic
+	// validation here to ensure it is consistent with the responses returned by the other Darknodes.
 	for _, result := range results {
 		if result == nil {
 			continue
