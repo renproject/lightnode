@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/getsentry/raven-go"
@@ -44,6 +45,7 @@ func main() {
 	if err != nil {
 		logger.Fatalf("cannot create a sentry hook: %v", err)
 	}
+	hook.Timeout = 500 * time.Millisecond
 	logger.AddHook(hook)
 
 	// Start running Lightnode.
