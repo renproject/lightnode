@@ -59,7 +59,7 @@ func (p2p *P2P) handleTick(message tau.Message) tau.Message {
 	request := jsonrpc.JSONRequest{
 		JSONRPC: "2.0",
 		Version: "0.1",
-		Method:  jsonrpc.MethodQueryNumPeers,
+		Method:  jsonrpc.MethodQueryPeers,
 		ID:      rand.Int31(),
 	}
 
@@ -101,6 +101,7 @@ func (p2p *P2P) handleTick(message tau.Message) tau.Message {
 			}
 		}
 	})
+
 	return nil
 }
 
@@ -119,8 +120,14 @@ func (p2p *P2P) handleQuery(message rpc.QueryPeersMessage) tau.Message {
 			}
 			addresses = append(addresses, value.Value())
 		}
+
+		indexes := rand.Perm(len(addresses))
+		randAddress := make([]string, 5)
+		for i := range randAddress{
+			randAddress[i] = addresses[indexes[i]]
+		}
 		response = jsonrpc.QueryPeersResponse{
-			Peers: addresses,
+			Peers: randAddress,
 		}
 		responder = request.Responder
 	case jsonrpc.QueryNumPeersRequest:
