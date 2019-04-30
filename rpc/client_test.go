@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	"github.com/renproject/lightnode/store"
+	"github.com/republicprotocol/darknode-go/processor"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
@@ -38,7 +39,7 @@ var _ = Describe("RPC client", func() {
 			case jsonrpc.MethodSendMessage:
 				response.Result = json.RawMessage([]byte(`{"messageID":"messageID","ok":true}`))
 			case jsonrpc.MethodReceiveMessage:
-				response.Result = json.RawMessage([]byte(`{"result":[{"private":false,"value":"0"}]}`))
+				response.Result = json.RawMessage([]byte(`{"values":[{"type":"private","value":"0"}]}`))
 			default:
 				panic("unknown message type")
 			}
@@ -181,7 +182,10 @@ var _ = Describe("RPC client", func() {
 				case response := <-responder:
 					resp, ok := response.(jsonrpc.ReceiveMessageResponse)
 					Expect(ok).To(BeTrue())
-					Expect(len(resp.Result)).To(Equal(1))
+
+					var params []processor.Param
+					Expect(json.Unmarshal(resp.Result, &params)).To(Succeed())
+					Expect(len(params)).To(Equal(1))
 				case <-time.After(time.Second):
 					Fail("timeout")
 				}
