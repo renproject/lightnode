@@ -26,9 +26,8 @@ var _ = Describe("RPC client", func() {
 
 	initServer := func() *http.Server {
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var req jsonrpc.JSONRequest
-			err := json.NewDecoder(r.Body).Decode(&req)
-			Expect(err).NotTo(HaveOccurred())
+			var request jsonrpc.JSONRequest
+			Expect(json.NewDecoder(r.Body).Decode(&request)).To(Succeed())
 
 			response := jsonrpc.JSONResponse{
 				JSONRPC: "2.0",
@@ -45,8 +44,7 @@ var _ = Describe("RPC client", func() {
 			}
 
 			time.Sleep(100 * time.Millisecond)
-			err = json.NewEncoder(w).Encode(resp)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(json.NewEncoder(w).Encode(response)).To(Succeed())
 		})
 		server := &http.Server{Addr: "0.0.0.0:18515", Handler: handler}
 
@@ -184,7 +182,6 @@ var _ = Describe("RPC client", func() {
 					resp, ok := response.(jsonrpc.ReceiveMessageResponse)
 					Expect(ok).To(BeTrue())
 					Expect(len(resp.Result)).To(Equal(1))
-					Expect(resp.Result[0].Index).Should(Equal(0))
 				case <-time.After(time.Second):
 					Fail("timeout")
 				}
