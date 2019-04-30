@@ -227,7 +227,7 @@ var _ = Describe("RPC client", func() {
 	})
 
 	Context("when the darknode gives a bad response", func() {
-		It("should return proper error when it's sendMessage request", func() {
+		It("should return proper error when it's a sendMessage request", func() {
 			// init the server
 			done := make(chan struct{})
 			defer close(done)
@@ -262,7 +262,7 @@ var _ = Describe("RPC client", func() {
 			}
 		})
 
-		It("should return proper error when it's receiveMessage request", func() {
+		It("should return proper error when it's a receiveMessage request", func() {
 			// init the server
 			done := make(chan struct{})
 			defer close(done)
