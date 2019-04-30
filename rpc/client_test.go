@@ -32,10 +32,10 @@ var _ = Describe("RPC client", func() {
 
 			response := jsonrpc.JSONResponse{
 				JSONRPC: "2.0",
-				ID:      request.ID,
+				ID:      req.ID,
 			}
 
-			switch request.Method {
+			switch req.Method {
 			case jsonrpc.MethodSendMessage:
 				response.Result = json.RawMessage([]byte(`{"messageID":"messageID","ok":true}`))
 			case jsonrpc.MethodReceiveMessage:
@@ -45,7 +45,7 @@ var _ = Describe("RPC client", func() {
 			}
 
 			time.Sleep(100 * time.Millisecond)
-			err = json.NewEncoder(w).Encode(resp)
+			err = json.NewEncoder(w).Encode(response)
 			Expect(err).NotTo(HaveOccurred())
 		})
 		server := &http.Server{Addr: "0.0.0.0:18515", Handler: handler}
@@ -184,7 +184,6 @@ var _ = Describe("RPC client", func() {
 					resp, ok := response.(jsonrpc.ReceiveMessageResponse)
 					Expect(ok).To(BeTrue())
 					Expect(len(resp.Result)).To(Equal(1))
-					Expect(resp.Result[0].Index).Should(Equal(0))
 				case <-time.After(time.Second):
 					Fail("timeout")
 				}

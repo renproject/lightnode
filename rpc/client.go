@@ -192,6 +192,7 @@ func (client *Client) handleSendMessageRequest(request jsonrpc.SendMessageReques
 		}
 	}
 
+	// Write the response returned by most darknode to the user
 	for id, num := range messageIDs {
 		if num >= (len(addresses)+1)*2/3 {
 			request.Responder <- jsonrpc.SendMessageResponse{
@@ -203,6 +204,7 @@ func (client *Client) handleSendMessageRequest(request jsonrpc.SendMessageReques
 		}
 	}
 
+	// Write error back if we don't get enough results from darknodes.
 	request.Responder <- jsonrpc.SendMessageResponse{
 		Error: ErrNotEnoughResultsReturned,
 	}
@@ -229,21 +231,27 @@ func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessage
 		return nil
 	}
 
+	// If all result are bad, return an error to the sender.
 	request.Responder <- jsonrpc.ReceiveMessageResponse{
 		Error: ErrNotEnoughResultsReturned,
 	}
 
-	return tau.NewError(errors.New("all nodes are offline"))
+	return tau.NewError(ErrNotEnoughResultsReturned)
 }
 
+// InvokeRPC is tau.Message contains a `jsonrpc.Request` and a list of target darknodes address. The client task is to
+// send the request to the given addresses and returned the results to the responder channel in the request.
 type InvokeRPC struct {
 	Request   jsonrpc.Request
 	Addresses []addr.Addr
 }
 
+// IsMessage implements the `tau.Message` interface.
 func (InvokeRPC) IsMessage() {
 }
 
+// RPCCall contains everything the `jsonrpc.Client` needs to send the request. The response will be written to the
+// responder channel which we can assume it has a buffer size of 1.
 type RPCCall struct {
 	Request   jsonrpc.JSONRequest
 	URL       string

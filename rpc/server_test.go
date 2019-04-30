@@ -12,6 +12,7 @@ import (
 var _ = Describe("rpc server task", func() {
 	Context("when receiving new request", func() {
 		It("should forward the sendMessage request to it's parent task", func() {
+			// initialize the server
 			logger := logrus.New()
 			inputs := make(chan jsonrpc.Request)
 			server := NewServer(logger, 128, inputs)
@@ -19,6 +20,7 @@ var _ = Describe("rpc server task", func() {
 			defer close(done)
 			go server.Run(done)
 
+			// simulating the server receiving an Accept message
 			server.IO().InputWriter() <- Accept{}
 			reqIn := jsonrpc.SendMessageRequest{
 				Nonce:   1,
@@ -26,6 +28,8 @@ var _ = Describe("rpc server task", func() {
 				Payload: jsonrpc.Payload{},
 			}
 			inputs <- reqIn
+
+			// simulating reading messages as a parent task and validate the message
 			request := <-server.IO().OutputReader()
 			message, ok := request.(SendMessage)
 			Expect(ok).Should(BeTrue())
@@ -36,6 +40,7 @@ var _ = Describe("rpc server task", func() {
 		})
 
 		It("should forward the receiveMessage request to it's parent task", func() {
+			// initialize the server
 			logger := logrus.New()
 			inputs := make(chan jsonrpc.Request)
 			server := NewServer(logger, 128, inputs)
@@ -43,11 +48,14 @@ var _ = Describe("rpc server task", func() {
 			defer close(done)
 			go server.Run(done)
 
+			// simulating the server receiving an Accept message
 			server.IO().InputWriter() <- Accept{}
 			reqIn := jsonrpc.ReceiveMessageRequest{
 				MessageID: "1234567890",
 			}
 			inputs <- reqIn
+
+			// simulating reading messages as a parent task and validate the message
 			request := <-server.IO().OutputReader()
 			message, ok := request.(SendMessage)
 			Expect(ok).Should(BeTrue())
@@ -57,6 +65,7 @@ var _ = Describe("rpc server task", func() {
 		})
 
 		It("should forward the queryPeers request to it's parent task", func() {
+			// initialize the server
 			logger := logrus.New()
 			inputs := make(chan jsonrpc.Request)
 			server := NewServer(logger, 128, inputs)
@@ -64,9 +73,12 @@ var _ = Describe("rpc server task", func() {
 			defer close(done)
 			go server.Run(done)
 
+			// simulating the server receiving an Accept message
 			server.IO().InputWriter() <- Accept{}
 			req := jsonrpc.QueryPeersRequest{}
 			inputs <- req
+
+			// simulating reading messages as a parent task and validate the message
 			request := <-server.IO().OutputReader()
 			message, ok := request.(QueryPeersMessage)
 			Expect(ok).Should(BeTrue())
@@ -75,6 +87,7 @@ var _ = Describe("rpc server task", func() {
 		})
 
 		It("should forward the queryNumPeers request to it's parent task", func() {
+			// initialize the server
 			logger := logrus.New()
 			inputs := make(chan jsonrpc.Request)
 			server := NewServer(logger, 128, inputs)
@@ -82,9 +95,12 @@ var _ = Describe("rpc server task", func() {
 			defer close(done)
 			go server.Run(done)
 
+			// simulating the server receiving an Accept message
 			server.IO().InputWriter() <- Accept{}
 			req := jsonrpc.QueryNumPeersRequest{}
 			inputs <- req
+
+			// simulating reading messages as a parent task and validate the message
 			request := <-server.IO().OutputReader()
 			message, ok := request.(QueryPeersMessage)
 			Expect(ok).Should(BeTrue())
