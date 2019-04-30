@@ -3,7 +3,6 @@ package p2p
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
 	"net"
 	"time"
