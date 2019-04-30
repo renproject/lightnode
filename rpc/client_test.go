@@ -1,21 +1,15 @@
 package rpc_test
 
 import (
-	"crypto/ecdsa"
-	"crypto/rand"
 	"encoding/json"
-	"fmt"
-	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/rpc"
 
-	"github.com/ethereum/go-ethereum/crypto/secp256k1"
-	"github.com/renproject/lightnode/store"
+	"github.com/renproject/lightnode/testutils"
 	"github.com/republicprotocol/darknode-go/processor"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
@@ -24,7 +18,6 @@ import (
 )
 
 var _ = Describe("RPC client", func() {
-
 	initServer := func() *http.Server {
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var request jsonrpc.JSONRequest
@@ -60,41 +53,8 @@ var _ = Describe("RPC client", func() {
 		return server
 	}
 
-	initStore := func(multis ...peer.MultiAddr) store.KVStore {
-		store := store.NewCache(0)
-		for _, multi := range multis {
-			Expect(store.Write(multi.Addr().String(), multi)).NotTo(HaveOccurred())
-		}
-		return store
-	}
-
-	serverMulti := func(server *http.Server) peer.MultiAddr {
-		url := strings.TrimPrefix(server.Addr, "http://")
-		address, err := net.ResolveTCPAddr("tcp", url)
-		Expect(err).NotTo(HaveOccurred())
-
-		privateKey, err := ecdsa.GenerateKey(secp256k1.S256(), rand.Reader)
-		Expect(err).NotTo(HaveOccurred())
-
-		addr := addr.FromPublicKey(&privateKey.PublicKey)
-		multi, err := peer.NewMultiAddr(fmt.Sprintf("/ip4/%v/tcp/%v/ren/%v", address.IP, address.Port, addr), 1, [65]byte{})
-		Expect(err).NotTo(HaveOccurred())
-
-		return multi
-	}
-
-	// // Construct a test server that always returns errors.
-	// initErrorServer := func() *http.Server {
-	// 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	// 		w.WriteHeader(http.StatusInternalServerError)
-	// 	})
-	// 	server := &http.Server{Addr: "0.0.0.0:18515", Handler: handler}
-	//
-	// 	return server
-	// }
-
-	// Construct a test server that always return a bad-formatted response.
-	badResponseServer := func() *http.Server {
+	// Construct a test server that always returns an incorrectly formatted response.
+	initErrorServer := func() *http.Server {
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			err := json.NewEncoder(w).Encode(jsonrpc.JSONResponse{
 				JSONRPC: "2.0",
@@ -123,8 +83,10 @@ var _ = Describe("RPC client", func() {
 			defer close(done)
 			server := initServer()
 			defer server.Close()
-			multi := serverMulti(server)
-			store := initStore(multi)
+			multi, err := testutils.ServerMultiAddress(server)
+			Expect(err).ToNot(HaveOccurred())
+			store, err := testutils.InitStore(multi)
+			Expect(err).ToNot(HaveOccurred())
 
 			// Initialise the client task.
 			logger := logrus.New()
@@ -159,8 +121,10 @@ var _ = Describe("RPC client", func() {
 			defer close(done)
 			server := initServer()
 			defer server.Close()
-			multi := serverMulti(server)
-			store := initStore(multi)
+			multi, err := testutils.ServerMultiAddress(server)
+			Expect(err).ToNot(HaveOccurred())
+			store, err := testutils.InitStore(multi)
+			Expect(err).ToNot(HaveOccurred())
 
 			// Initialise the client task.
 			logger := logrus.New()
@@ -195,20 +159,21 @@ var _ = Describe("RPC client", func() {
 
 	Context("when the darknode is offline", func() {
 		It("should return proper error ", func() {
-			// init the server
+			// Initialise Darknode.
 			done := make(chan struct{})
 			defer close(done)
 			multi, err := peer.NewMultiAddr("/ip4/0.0.0.0/tcp/18515/ren/8MKXcuQAjR2eEq8bsSHDPkYEmqmjtj", 1, [65]byte{})
 			Expect(err).NotTo(HaveOccurred())
-			store := initStore(multi)
+			store, err := testutils.InitStore(multi)
+			Expect(err).ToNot(HaveOccurred())
 
-			// init the client task
+			// Initialise the client task.
 			logger := logrus.New()
 			client := NewClient(logger, 32, 8, time.Second, store)
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response, 1)
 
-			// send a message to the task which contains a SendMessageRequest
+			// Send a request to the task.
 			client.IO().InputWriter() <- InvokeRPC{
 				Request: jsonrpc.SendMessageRequest{
 					Responder: responder,
@@ -216,7 +181,7 @@ var _ = Describe("RPC client", func() {
 				Addresses: []addr.Addr{multi.Addr()},
 			}
 
-			// expect to receive a response from the responder channel
+			// Expect to receive a response from the responder channel.
 			select {
 			case response := <-responder:
 				resp, ok := response.(jsonrpc.SendMessageResponse)
@@ -229,13 +194,15 @@ var _ = Describe("RPC client", func() {
 
 	Context("when the darknode gives a bad response", func() {
 		It("should return proper error when it's a sendMessage request", func() {
-			// init the server
+			// Initialise Darknode.
 			done := make(chan struct{})
 			defer close(done)
-			server := badResponseServer()
+			server := initErrorServer()
 			defer server.Close()
-			multi := serverMulti(server)
-			store := initStore(multi)
+			multi, err := testutils.ServerMultiAddress(server)
+			Expect(err).ToNot(HaveOccurred())
+			store, err := testutils.InitStore(multi)
+			Expect(err).ToNot(HaveOccurred())
 
 			// Initialise the client task.
 			logger := logrus.New()
@@ -243,7 +210,7 @@ var _ = Describe("RPC client", func() {
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response, 1)
 
-			// send a message to the task which contains a SendMessageRequest
+			// Send a request to the task.
 			client.IO().InputWriter() <- InvokeRPC{
 				Request: jsonrpc.SendMessageRequest{
 					Responder: responder,
@@ -251,7 +218,7 @@ var _ = Describe("RPC client", func() {
 				Addresses: []addr.Addr{multi.Addr()},
 			}
 
-			// expect to receive a response from the responder channel
+			// Expect to receive a response from the responder channel.
 			select {
 			case response := <-responder:
 				resp, ok := response.(jsonrpc.SendMessageResponse)
@@ -264,21 +231,23 @@ var _ = Describe("RPC client", func() {
 		})
 
 		It("should return proper error when it's a receiveMessage request", func() {
-			// init the server
+			// Initialise Darknode.
 			done := make(chan struct{})
 			defer close(done)
-			server := badResponseServer()
+			server := initErrorServer()
 			defer server.Close()
-			multi := serverMulti(server)
-			store := initStore(multi)
+			multi, err := testutils.ServerMultiAddress(server)
+			Expect(err).ToNot(HaveOccurred())
+			store, err := testutils.InitStore(multi)
+			Expect(err).ToNot(HaveOccurred())
 
-			// init the client task
+			// Initialise the client task.
 			logger := logrus.New()
 			client := NewClient(logger, 32, 8, time.Second, store)
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response, 1)
 
-			// send a message to the task which contains a SendMessageRequest
+			// Send a request to the task.
 			client.IO().InputWriter() <- InvokeRPC{
 				Request: jsonrpc.ReceiveMessageRequest{
 					Responder: responder,
@@ -286,7 +255,7 @@ var _ = Describe("RPC client", func() {
 				Addresses: []addr.Addr{multi.Addr()},
 			}
 
-			// expect to receive a response from the responder channel
+			// Expect to receive a response from the responder channel.
 			select {
 			case response := <-responder:
 				resp, ok := response.(jsonrpc.ReceiveMessageResponse)

@@ -25,20 +25,12 @@ type P2P struct {
 	store          store.KVStore
 }
 
-func New(logger *logrus.Logger, cap int, timeout time.Duration, store store.KVStore, bootstrapAddrs []string) tau.Task {
-	addrs := make([]peer.MultiAddr, len(bootstrapAddrs))
-	for i, addr := range bootstrapAddrs {
-		multiAddr, err := peer.NewMultiAddr(addr, 0, [65]byte{})
-		if err != nil {
-			logger.Fatal("invalid bootstrap addresses", err)
-		}
-		addrs[i] = multiAddr
-	}
+func New(logger *logrus.Logger, cap int, timeout time.Duration, store store.KVStore, bootstrapAddrs []peer.MultiAddr) tau.Task {
 	p2p := &P2P{
 		timeout:        timeout,
 		logger:         logger,
 		store:          store,
-		bootstrapAddrs: addrs,
+		bootstrapAddrs: bootstrapAddrs,
 	}
 	return tau.New(tau.NewIO(cap), p2p)
 }
@@ -55,7 +47,7 @@ func (p2p *P2P) Reduce(message tau.Message) tau.Message {
 }
 
 func (p2p *P2P) handleTick(message tau.Message) tau.Message {
-	// TODO: FIX THE VERSION AND ID.
+	// TODO: Fix the version and ID
 	request := jsonrpc.JSONRequest{
 		JSONRPC: "2.0",
 		Version: "0.1",
@@ -68,36 +60,36 @@ func (p2p *P2P) handleTick(message tau.Message) tau.Message {
 			multi := p2p.bootstrapAddrs[i]
 			client := jrpc.NewClient(p2p.timeout)
 			addr := multi.ResolveTCPAddr().(*net.TCPAddr)
-			addr.Port = 18515
+			// addr.Port = 18515
 			response, err := client.Call(fmt.Sprintf("http://%v", addr.String()), request)
 			if err != nil {
-				p2p.logger.Errorf("bootstrap node = %v is offline, err = %v", multi.Addr().String(), err)
+				p2p.logger.Errorf("cannot connect to node %v: %v", multi.Addr().String(), err)
 				if err := p2p.store.Delete(multi.Addr().String()); err != nil {
-					p2p.logger.Errorf("fail to delete entry from KVStore, %v", err)
+					p2p.logger.Errorf("cannot delete multi-address from store: %v", err)
 				}
 				return
 			}
 			if err := p2p.store.Write(multi.Addr().String(), multi); err != nil {
-				p2p.logger.Errorf("fail to add new entry to KVStore, %v", err)
+				p2p.logger.Errorf("cannot add multi-address to store: %v", err)
 				return
 			}
 			if response.Error != nil {
-				// todo : handle error
+				// TODO: Handle error
 			}
 
 			var result jsonrpc.QueryPeersResponse
 			if err := json.Unmarshal(response.Result, &result); err != nil {
-				p2p.logger.Errorf("invalid QueryPeersResponse from node %v, %v", multi.Addr().String(), err)
+				p2p.logger.Errorf("invalid QueryPeersResponse from node %v: %v", multi.Addr().String(), err)
 				return
 			}
 			for _, node := range result.Peers {
 				multiAddr, err := peer.NewMultiAddr(node, 0, [65]byte{})
 				if err != nil {
-					p2p.logger.Errorf("invalid QueryPeersResponse from node %v, %v", multi.Addr().String(), err)
+					p2p.logger.Errorf("invalid QueryPeersResponse from node %v: %v", multi.Addr().String(), err)
 					return
 				}
 				if err := p2p.store.Write(multiAddr.Addr().String(), multiAddr); err != nil {
-					p2p.logger.Errorf("fail to add new entry to KVStore, %v", err)
+					p2p.logger.Errorf("cannot add multi-address to store: %v", err)
 					return
 				}
 			}
@@ -119,7 +111,7 @@ func (p2p *P2P) handleQuery(message rpc.QueryPeersMessage) tau.Message {
 			var value peer.MultiAddr
 			_, err := iter.KV(value)
 			if err != nil {
-				p2p.logger.Error("cannot read key-value from the multiAddr store iterator.")
+				p2p.logger.Errorf("cannot read multi-address using iterator: %v", err)
 			}
 			addresses = append(addresses, value.Value())
 		}
@@ -140,14 +132,14 @@ func (p2p *P2P) handleQuery(message rpc.QueryPeersMessage) tau.Message {
 		}
 		responder = request.Responder
 	default:
-		panic("unknown request type to p2p task")
+		panic("unknown query request type") // TODO: Should this be a panic?
 	}
 
 	select {
 	case responder <- response:
 		return nil
 	case <-time.After(time.Second):
-		p2p.logger.Debug("fail to write response to responder channel")
+		p2p.logger.Debug("failed to write response to responder channel")
 		return nil
 	}
 }
