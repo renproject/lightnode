@@ -13,8 +13,8 @@ var ErrDataExpired = errors.New("data expired")
 // ErrNoMoreItems is returned when no more items left in the iterator.
 var ErrNoMoreItems = errors.New("no more items in iterator")
 
-// cache is an in-memory implementation of the KVStore. It is safe for concurrent read and write. The data stored will have
-// a valid duration. After the data expired, it will returns ErrDataExpired error to alert user to update the data.
+// cache is an in-memory implementation of the KVStore. It is safe for concurrent read and write. The data stored will
+// have a valid duration. After the data expired, it will returns ErrDataExpired error to alert user to update the data.
 type cache struct {
 	mu          *sync.RWMutex
 	data        map[string][]byte
@@ -22,7 +22,8 @@ type cache struct {
 	expiredTime int64
 }
 
-// NewCache returns a new cached KVStore
+// NewCache returns a new cached KVStore. If the expiredTime is less than or equal to 0, the data will not have
+// expiration time.
 func NewCache(expiredTime int64) KVStore {
 	return cache{
 		mu:          new(sync.RWMutex),
@@ -37,17 +38,22 @@ func (cache cache) Read(key string, value interface{}) error {
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
 
-	lastSeen, ok := cache.lastSeen[key]
-	if !ok {
-		return ErrKeyNotFound
+	// Check if the value is expired.
+	if cache.expiredTime > 0 {
+		lastSeen, ok := cache.lastSeen[key]
+		if !ok {
+			return ErrKeyNotFound
+		}
+		if (time.Now().Unix() - lastSeen) > cache.expiredTime {
+			return ErrDataExpired
+		}
 	}
-	if cache.expiredTime > 0 && (time.Now().Unix()-lastSeen) > cache.expiredTime {
-		return ErrDataExpired
-	}
+
 	val, ok := cache.data[key]
 	if !ok {
 		return ErrKeyNotFound
 	}
+
 	return json.Unmarshal(val, value)
 }
 
@@ -61,7 +67,10 @@ func (cache cache) Write(key string, value interface{}) error {
 		return err
 	}
 	cache.data[key] = val
-	cache.lastSeen[key] = time.Now().Unix()
+	if cache.expiredTime > 0 {
+		cache.lastSeen[key] = time.Now().Unix()
+	}
+
 	return nil
 }
 
