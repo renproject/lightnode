@@ -6,6 +6,8 @@ require (
 	github.com/StackExchange/wmi v0.0.0-20181212234831-e0a55b97c705 // indirect
 	github.com/btcsuite/btcd v0.0.0-20190424234938-150379531efe // indirect
 	github.com/ethereum/go-ethereum v1.8.27
+	github.com/evalphobia/logrus_sentry v0.8.2
+	github.com/getsentry/raven-go v0.2.0
 	github.com/multiformats/go-multihash v0.0.3 // indirect
 	github.com/onsi/ginkgo v1.8.0
 	github.com/onsi/gomega v1.5.0

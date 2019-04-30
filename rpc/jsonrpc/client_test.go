@@ -15,7 +15,7 @@ import (
 )
 
 var _ = Describe("JSON-RPC Client", func() {
-	// Construct a valid test server.
+	// Construct a mock Darknode server.
 	initServer := func() *httptest.Server {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var request jsonrpc.JSONRequest
@@ -30,7 +30,7 @@ var _ = Describe("JSON-RPC Client", func() {
 		return server
 	}
 
-	// Construct a test server that always returns errors.
+	// Construct a mock Darknode server that always returns errors.
 	initErrorServer := func() *httptest.Server {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -75,7 +75,7 @@ var _ = Describe("JSON-RPC Client", func() {
 
 	Context("when sending a SendMessageRequest", func() {
 		It("should get a valid response", func() {
-			// Intialise server.
+			// Intialise Darknode.
 			server := initServer()
 			defer server.Close()
 
@@ -99,7 +99,7 @@ var _ = Describe("JSON-RPC Client", func() {
 
 	Context("when sending a ReceiveMessageRequest", func() {
 		It("should get a valid response", func() {
-			// Intialise server.
+			// Intialise Darknode.
 			server := initServer()
 			defer server.Close()
 
@@ -124,7 +124,7 @@ var _ = Describe("JSON-RPC Client", func() {
 
 	Context("when sending an invalid request", func() {
 		It("should return an error before calling the server", func() {
-			// Intialise server.
+			// Intialise Darknode.
 			server := initServer()
 			defer server.Close()
 
@@ -138,7 +138,7 @@ var _ = Describe("JSON-RPC Client", func() {
 
 	Context("when the server is not working", func() {
 		It("should timeout if we do not receive a response", func() {
-			// Intialise server.
+			// Intialise Darknode.
 			server := initServer()
 			defer server.Close()
 
