@@ -263,6 +263,8 @@ github.com/republicprotocol/darknode-go v0.0.0-20190501041353-669fcb586bd0 h1:6q
 github.com/republicprotocol/darknode-go v0.0.0-20190501041353-669fcb586bd0/go.mod h1:P2J8kEQGHNZ88FcEEeLLwNlg5UZcNSevcOmHQfFlr0k=
 github.com/republicprotocol/darknode-go v0.0.0-20190501051216-febd15ad3e76 h1:4MDGDFtvcpZPpgcAdxKyPesKIfyaKHtDLljbnGaW5q8=
 github.com/republicprotocol/darknode-go v0.0.0-20190501051216-febd15ad3e76/go.mod h1:P2J8kEQGHNZ88FcEEeLLwNlg5UZcNSevcOmHQfFlr0k=
+github.com/republicprotocol/darknode-go v0.0.0-20190501062611-7a62c35a80ed h1:YalHVvXOnmVM9bwm7bh7X08et1BbU21+VD5nIS4vHjU=
+github.com/republicprotocol/darknode-go v0.0.0-20190501062611-7a62c35a80ed/go.mod h1:P2J8kEQGHNZ88FcEEeLLwNlg5UZcNSevcOmHQfFlr0k=
 github.com/republicprotocol/registry v0.0.0-20190415061645-12929f382dc0 h1:NLjFns7Syff6HqFbTANTHUDtPJRb9U7KsoW8xM29lG4=
 github.com/republicprotocol/registry v0.0.0-20190415061645-12929f382dc0/go.mod h1:6rF1prrnJLQflVV4yB8uF1ewexB125OBH+mNaoafOsM=
 github.com/republicprotocol/ren-go v0.0.0-20190411004825-e8cbaadd9326/go.mod h1:VY9MvsDDMySmGPaolEUVIKOLSPtLtV7KPuO6dEHgCl4=

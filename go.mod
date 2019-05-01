@@ -31,7 +31,7 @@ require (
 	github.com/renproject/libeth-go v0.0.0-20190430063350-95b18e30b8af // indirect
 	github.com/renproject/mercury v0.0.0-20190501041323-cbd9733b74c3 // indirect
 	github.com/republicprotocol/co-go v0.0.0-20180723052914-4e299fdb0e80
-	github.com/republicprotocol/darknode-go v0.0.0-20190501051216-febd15ad3e76
+	github.com/republicprotocol/darknode-go v0.0.0-20190501062611-7a62c35a80ed
 	github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be
 	github.com/republicprotocol/renvm-go v0.0.0-20190430222454-ef61323a8576
 	github.com/republicprotocol/tau v0.0.0-20190116001021-54c2ea27fbc3
