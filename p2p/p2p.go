@@ -63,7 +63,7 @@ func (p2p *P2P) handleTick(message tau.Message) tau.Message {
 			addr.Port += 1
 			response, err := client.Call(fmt.Sprintf("http://%v", addr.String()), request)
 			if err != nil {
-				p2p.logger.Errorf("cannot connect to node %v: %v", multi.Addr().String(), err)
+				p2p.logger.Warnf("cannot connect to node %v: %v", multi.Addr().String(), err)
 				if err := p2p.store.Delete(multi.Addr().String()); err != nil {
 					p2p.logger.Errorf("cannot delete multi-address from store: %v", err)
 				}
