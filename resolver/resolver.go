@@ -1,25 +1,58 @@
 package resolver
 
 import (
+	"fmt"
+
+	"github.com/renproject/lightnode/rpc"
+	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/tau"
+	"github.com/sirupsen/logrus"
 )
 
+// Resolver is the parent task which is used to relay messages between the client, server and other sub-tasks.
 type Resolver struct {
-	client   tau.Task
-	server   tau.Task
-	p2p      tau.Task
-	sharding tau.Task
+	logger    logrus.FieldLogger
+	client    tau.Task
+	server    tau.Task
+	addresses []string
 }
 
-func NewResolver() *Resolver {
-	panic("unimplemented")
+// newResolver returns a new Resolver.
+func newResolver(logger logrus.FieldLogger, client, server tau.Task, addresses []string) *Resolver {
+	return &Resolver{
+		logger:    logger,
+		client:    client,
+		server:    server,
+		addresses: addresses,
+	}
 }
 
+// New returns a new Resolver task.
+func New(cap int, logger logrus.FieldLogger, client, server tau.Task, addresses []string) tau.Task {
+	resolver := newResolver(logger, client, server, addresses)
+	resolver.server.Send(rpc.NewAccept())
+	return tau.New(tau.NewIO(cap), resolver, client, server)
+}
+
+// Reduce implements the `tau.Task` interface.
 func (resolver *Resolver) Reduce(message tau.Message) tau.Message {
-	panic("unimplemented")
+	switch message := message.(type) {
+	case rpc.MessageAccepted:
+		resolver.server.Send(rpc.NewAccept())
+		return resolver.handleServerMessage(message.Request)
+	case tau.Error:
+		resolver.logger.Errorln(message.Error())
+		return nil
+	default:
+		panic(fmt.Errorf("unexpected message type %T", message))
+	}
 }
 
-func New(cap int, client, server, p2p, sharding tau.Task) tau.Task {
-	resolver := NewResolver()
-	return tau.New(tau.NewIO(cap), resolver, client, server, p2p, sharding)
+func (resolver *Resolver) handleServerMessage(request jsonrpc.Request) tau.Message {
+	resolver.client.Send(rpc.InvokeRPC{
+		Request:   request,
+		Addresses: resolver.addresses,
+	})
+
+	return nil
 }

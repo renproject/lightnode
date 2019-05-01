@@ -45,7 +45,7 @@ func New(cap int, store store.KVStore) tau.Task {
 }
 
 type QueryAddressRequest struct {
-	// todo : decorator pattern
+	// TODO: Use decorator pattern.
 	Addr addr.Addr
 }
 

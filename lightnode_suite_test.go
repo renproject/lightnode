@@ -1,4 +1,4 @@
-package rpc_test
+package lightnode_test
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestRpc(t *testing.T) {
+func TestLightnode(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "RPC Suite")
+	RunSpecs(t, "Lightnode Suite")
 }
