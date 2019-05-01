@@ -115,7 +115,7 @@ var _ = Describe("RPC client", func() {
 			}
 		})
 
-		It("should get a response from the server for a SendMessageRequest", func() {
+		It("should get a response from the server for a ReceiveMessageRequest", func() {
 			// Intialise Darknode.
 			done := make(chan struct{})
 			defer close(done)
