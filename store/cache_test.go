@@ -108,7 +108,6 @@ var _ = Describe("Cache implementation of KVStore", func() {
 		})
 	})
 
-
 	Context("when iterating the data in the store", func() {
 		It("should iterate through all the key-values in the store", func() {
 			ran := rand.New(rand.NewSource(time.Now().Unix()))

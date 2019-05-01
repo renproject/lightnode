@@ -17,6 +17,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const Version = "1.0.0"
+
 // Lightnode defines the fields required by the server.
 type Lightnode struct {
 	port     string
@@ -26,7 +28,7 @@ type Lightnode struct {
 }
 
 // NewLightnode constructs a new Lightnode.
-func NewLightnode(logger logrus.FieldLogger, cap, workers, timeout int, port string, addresses []addr.Addr) *Lightnode {
+func NewLightnode(logger logrus.FieldLogger, cap, workers, timeout int, port string, bootstrapAddrs []peer.MultiAddr) *Lightnode {
 	lightnode := &Lightnode{
 		port:   port,
 		logger: logger,
@@ -36,16 +38,9 @@ func NewLightnode(logger logrus.FieldLogger, cap, workers, timeout int, port str
 	addrStore := store.NewCache(0)
 	client := rpc.NewClient(logger, cap, workers, time.Duration(timeout)*time.Second, addrStore)
 	requests := make(chan jsonrpc.Request, cap)
-	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second)
+	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second, Version)
 	server := rpc.NewServer(logger, cap, requests)
-	bootstrapAddrs := make([]peer.MultiAddr, len(addresses))
-	for i, addr := range addresses {
-		multiAddr, err := peer.NewMultiAddr(addr.String(), 0, [65]byte{})
-		if err != nil {
-			logger.Fatalf("invalid bootstrap addresses: %v", err)
-		}
-		bootstrapAddrs[i] = multiAddr
-	}
+
 	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, addrStore, bootstrapAddrs)
 	lightnode.handler = cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
@@ -56,7 +51,12 @@ func NewLightnode(logger logrus.FieldLogger, cap, workers, timeout int, port str
 	}).Handler(jsonrpcService)
 
 	// Construct resolver.
-	lightnode.resolver = resolver.New(cap, logger, client, server, p2pService, addresses)
+	addrs := make([]addr.Addr, len(bootstrapAddrs))
+	for i := range bootstrapAddrs {
+		addrs[i] = bootstrapAddrs[i].Addr()
+	}
+
+	lightnode.resolver = resolver.New(cap, logger, client, server, p2pService, addrs)
 
 	return lightnode
 }

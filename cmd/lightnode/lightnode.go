@@ -9,6 +9,7 @@ import (
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/getsentry/raven-go"
 	"github.com/renproject/lightnode"
+	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/sirupsen/logrus"
 )
 
@@ -47,8 +48,17 @@ func main() {
 	hook.Timeout = 500 * time.Millisecond
 	logger.AddHook(hook)
 
+	bootstrapAddrs := make([]peer.MultiAddr, len(addresses))
+	for i := range addresses {
+		multiAddr, err := peer.NewMultiAddr(addresses[i], 0, [65]byte{})
+		if err != nil {
+			logger.Fatalf("invalid bootstrap addresses: %v", err)
+		}
+		bootstrapAddrs[i] = multiAddr
+	}
+
 	// Start running Lightnode.
 	done := make(chan struct{})
-	node := lightnode.NewLightnode(logger, cap, workers, timeout, port, addresses)
+	node := lightnode.NewLightnode(logger, cap, workers, timeout, port, bootstrapAddrs)
 	node.Run(done)
 }

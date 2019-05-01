@@ -3,6 +3,7 @@ package p2p
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"time"
@@ -60,7 +61,7 @@ func (p2p *P2P) handleTick(message tau.Message) tau.Message {
 			multi := p2p.bootstrapAddrs[i]
 			client := jrpc.NewClient(p2p.timeout)
 			addr := multi.ResolveTCPAddr().(*net.TCPAddr)
-			// addr.Port = 18515
+			addr.Port += 1
 			response, err := client.Call(fmt.Sprintf("http://%v", addr.String()), request)
 			if err != nil {
 				p2p.logger.Errorf("cannot connect to node %v: %v", multi.Addr().String(), err)
@@ -142,13 +143,9 @@ func (p2p *P2P) handleQuery(message rpc.QueryPeersMessage) tau.Message {
 		panic("unknown query request type") // TODO: Should this be a panic?
 	}
 
-	select {
-	case responder <- response:
-		return nil
-	case <-time.After(time.Second):
-		p2p.logger.Debug("failed to write response to responder channel")
-		return nil
-	}
+	responder <- response
+	log.Print("writing back the response")
+	return nil
 }
 
 type Tick struct {

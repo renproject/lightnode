@@ -145,7 +145,7 @@ func (client *Client) handleRequest(request interface{}, method string, addresse
 			return
 		}
 		netAddr := multi.ResolveTCPAddr().(*net.TCPAddr)
-		netAddr.Port = 18515
+		// netAddr.Port = 18515
 		call := RPCCall{
 			Request: jsonrpc.JSONRequest{
 				JSONRPC: "2.0",
