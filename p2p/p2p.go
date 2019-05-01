@@ -3,7 +3,6 @@ package p2p
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
 	"net"
 	"time"
@@ -144,7 +143,6 @@ func (p2p *P2P) handleQuery(message rpc.QueryPeersMessage) tau.Message {
 	}
 
 	responder <- response
-	log.Print("writing back the response")
 	return nil
 }
 

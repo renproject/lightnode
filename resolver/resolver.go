@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/renproject/lightnode/p2p"
 	"github.com/renproject/lightnode/rpc"
@@ -44,14 +43,13 @@ func (resolver *Resolver) Reduce(message tau.Message) tau.Message {
 	switch message := message.(type) {
 	case rpc.SendMessage:
 		resolver.server.Send(rpc.NewAccept())
-		return resolver.handleServerMessage(message.Request)
+		resolver.handleServerMessage(message.Request)
 	case rpc.QueryPeersMessage:
-		log.Print("get a query message request")
+		resolver.server.Send(rpc.NewAccept())
 		resolver.p2p.Send(message)
 	case tau.Error:
 		resolver.logger.Errorln(message.Error())
 	case p2p.Tick:
-		log.Print("get a tick message")
 		resolver.p2p.Send(message)
 	default:
 		panic(fmt.Errorf("unexpected message type %T", message))
@@ -60,11 +58,9 @@ func (resolver *Resolver) Reduce(message tau.Message) tau.Message {
 	return nil
 }
 
-func (resolver *Resolver) handleServerMessage(request jsonrpc.Request) tau.Message {
+func (resolver *Resolver) handleServerMessage(request jsonrpc.Request) {
 	resolver.client.Send(rpc.InvokeRPC{
 		Request:   request,
 		Addresses: resolver.addresses,
 	})
-
-	return nil
 }
