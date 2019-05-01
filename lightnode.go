@@ -16,13 +16,13 @@ import (
 // Lightnode defines the fields required by the server.
 type Lightnode struct {
 	port     string
-	logger   *logrus.Logger
+	logger   logrus.FieldLogger
 	handler  http.Handler
 	resolver tau.Task
 }
 
 // NewLightnode constructs a new Lightnode.
-func NewLightnode(logger *logrus.Logger, cap, workers, timeout int, port string, addresses []string) *Lightnode {
+func NewLightnode(logger logrus.FieldLogger, cap, workers, timeout int, port string, addresses []string) *Lightnode {
 	lightnode := &Lightnode{
 		port:   port,
 		logger: logger,

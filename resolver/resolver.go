@@ -11,14 +11,14 @@ import (
 
 // Resolver is the parent task which is used to relay messages between the client, server and other sub-tasks.
 type Resolver struct {
-	logger    *logrus.Logger
+	logger    logrus.FieldLogger
 	client    tau.Task
 	server    tau.Task
 	addresses []string
 }
 
 // newResolver returns a new Resolver.
-func newResolver(logger *logrus.Logger, client, server tau.Task, addresses []string) *Resolver {
+func newResolver(logger logrus.FieldLogger, client, server tau.Task, addresses []string) *Resolver {
 	return &Resolver{
 		logger:    logger,
 		client:    client,
@@ -28,7 +28,7 @@ func newResolver(logger *logrus.Logger, client, server tau.Task, addresses []str
 }
 
 // New returns a new Resolver task.
-func New(cap int, logger *logrus.Logger, client, server tau.Task, addresses []string) tau.Task {
+func New(cap int, logger logrus.FieldLogger, client, server tau.Task, addresses []string) tau.Task {
 	resolver := newResolver(logger, client, server, addresses)
 	resolver.server.Send(rpc.NewAccept())
 	return tau.New(tau.NewIO(cap), resolver, client, server)
