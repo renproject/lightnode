@@ -141,7 +141,7 @@ func (client *Client) handleRequest(request interface{}, method string, addresse
 		// Get multi-address of the darknode from store.
 		var multi peer.MultiAddr
 		if err := client.store.Read(address.String(), &multi); err != nil {
-			client.logger.Errorf("cannot read multi address from the KVStore, %v", err)
+			client.logger.Errorf("cannot read multi address of %v from the KVStore, %v", address.String(), err)
 			return
 		}
 		netAddr := multi.ResolveTCPAddr().(*net.TCPAddr)

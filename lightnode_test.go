@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -94,6 +95,8 @@ var _ = Describe("light nodes local tests", func() {
 			lightNode := NewLightnode(logger, 128, 3, 60, "5000", bootstrapAddrs)
 			go lightNode.Run(done)
 
+			time.Sleep(5 * time.Second)
+
 			client := jrpc.NewClient(time.Minute)
 			request := jsonrpc.JSONRequest{
 				JSONRPC: "2.0",
@@ -101,10 +104,13 @@ var _ = Describe("light nodes local tests", func() {
 				Method:  jsonrpc.MethodQueryPeers,
 				ID:      "100",
 			}
-			time.Sleep(time.Hour)
 			response, err := client.Call("http://0.0.0.0:5000", request)
 			Expect(err).NotTo(HaveOccurred())
-			log.Print(response)
+			Expect(response.Error).Should(BeNil())
+
+			var resp jsonrpc.QueryPeersResponse
+			Expect(json.Unmarshal(response.Result, &resp)).NotTo(HaveOccurred())
+			Expect(len(resp.Peers)).Should(BeNumerically(">", 0))
 		})
 	})
 })
