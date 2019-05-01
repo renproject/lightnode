@@ -83,7 +83,7 @@ func (client *Client) runWorkers(n int) {
 			response, err := jsonClient.Call(call.URL, call.Request)
 			if err != nil {
 				close(call.Responder)
-				client.logger.Errorf("cannot send message to %v, %v", call.URL, err)
+				client.logger.Debugf("cannot send message to %v, %v", call.URL, err)
 				continue
 			}
 
