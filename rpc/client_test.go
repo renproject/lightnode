@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/rpc"
 
+	"github.com/republicprotocol/darknode-go/processor"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/sirupsen/logrus"
 )
@@ -84,7 +85,7 @@ var _ = Describe("RPC client", func() {
 			}
 		})
 
-		It("should get a response from the server for a SendMessageRequest", func() {
+		It("should get a response from the server for a ReceiveMessageRequest", func() {
 			// Intialise Darknode.
 			done := make(chan struct{})
 			defer close(done)
@@ -111,8 +112,10 @@ var _ = Describe("RPC client", func() {
 				case response := <-responder:
 					resp, ok := response.(jsonrpc.ReceiveMessageResponse)
 					Expect(ok).To(BeTrue())
-					Expect(len(resp.Result)).To(Equal(1))
-					Expect(resp.Result[0].Index).Should(Equal(0))
+
+					var params []processor.Param
+					Expect(json.Unmarshal(resp.Result, &params)).To(Succeed())
+					Expect(len(params)).To(Equal(1))
 				case <-time.After(time.Second):
 					Fail("timeout")
 				}
