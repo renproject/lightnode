@@ -10,6 +10,7 @@ import (
 	"github.com/renproject/lightnode/rpc"
 	"github.com/renproject/lightnode/store"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
 	"github.com/rs/cors"
@@ -37,7 +38,15 @@ func NewLightnode(logger logrus.FieldLogger, cap, workers, timeout int, port str
 	requests := make(chan jsonrpc.Request, cap)
 	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second)
 	server := rpc.NewServer(logger, cap, requests)
-	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, addrStore, addresses)
+	bootstrapAddrs := make([]peer.MultiAddr, len(addresses))
+	for i, addr := range addresses {
+		multiAddr, err := peer.NewMultiAddr(addr.String(), 0, [65]byte{})
+		if err != nil {
+			logger.Fatalf("invalid bootstrap addresses: %v", err)
+		}
+		bootstrapAddrs[i] = multiAddr
+	}
+	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, addrStore, bootstrapAddrs)
 	lightnode.handler = cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,

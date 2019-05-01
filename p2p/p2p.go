@@ -13,7 +13,6 @@ import (
 	"github.com/republicprotocol/co-go"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
-	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
 )
@@ -26,15 +25,7 @@ type P2P struct {
 	store          store.KVStore
 }
 
-func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.KVStore, addrs []addr.Addr) tau.Task {
-	bootstrapAddrs := make([]peer.MultiAddr, len(addrs))
-	for i, addr := range addrs {
-		multiAddr, err := peer.NewMultiAddr(addr.String(), 0, [65]byte{})
-		if err != nil {
-			logger.Fatalf("invalid bootstrap addresses: %v", err)
-		}
-		bootstrapAddrs[i] = multiAddr
-	}
+func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.KVStore, bootstrapAddrs []peer.MultiAddr) tau.Task {
 	p2p := &P2P{
 		timeout:        timeout,
 		logger:         logger,
@@ -118,20 +109,27 @@ func (p2p *P2P) handleQuery(message rpc.QueryPeersMessage) tau.Message {
 		addresses := make([]string, 0, p2p.store.Entries())
 		for iter.Next() {
 			var value peer.MultiAddr
-			_, err := iter.KV(value)
+			_, err := iter.KV(&value)
 			if err != nil {
 				p2p.logger.Errorf("cannot read multi-address using iterator: %v", err)
 			}
 			addresses = append(addresses, value.Value())
 		}
 
-		indexes := rand.Perm(len(addresses))
-		randAddress := make([]string, 5)
-		for i := range randAddress {
-			randAddress[i] = addresses[indexes[i]]
+		indices := rand.Perm(len(addresses))
+
+		// Return at most 5 addresses from the list.
+		var randAddresses []string
+		if len(addresses) > 5 {
+			randAddresses = make([]string, 5)
+		} else {
+			randAddresses = make([]string, len(addresses))
+		}
+		for i := range randAddresses {
+			randAddresses[i] = addresses[indices[i]]
 		}
 		response = jsonrpc.QueryPeersResponse{
-			Peers: randAddress,
+			Peers: randAddresses,
 		}
 		responder = request.Responder
 	case jsonrpc.QueryNumPeersRequest:

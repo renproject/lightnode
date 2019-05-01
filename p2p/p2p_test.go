@@ -11,15 +11,17 @@ import (
 	. "github.com/renproject/lightnode/p2p"
 
 	"github.com/renproject/lightnode/rpc"
+	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
+	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
 )
 
 var _ = Describe("RPC client", func() {
 	// Construct a mock Darknode server.
-	initServer := func(address string) *http.Server {
+	initServer := func(address string, numPeers int) *http.Server {
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var request jsonrpc.JSONRequest
 			Expect(json.NewDecoder(r.Body).Decode(&request)).To(Succeed())
@@ -29,18 +31,21 @@ var _ = Describe("RPC client", func() {
 				ID:      request.ID,
 			}
 
-			peers := make([]peer.MultiAddr, 3)
+			// Construct 5 random peers for the response message.
+			peers := make([]string, numPeers)
 			for i := range peers {
-				multi, err := peer.NewMultiAddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/500%d/ren/8MKXcuQAjR2eEq8bsSHDPkYEmqmjt%s", i, string('A'-1+i)), 1, [65]byte{})
-				Expect(err).ToNot(HaveOccurred())
-				peers[i] = multi
+				peers[i] = fmt.Sprintf("/ip4/0.0.0.0/tcp/800%d/ren/8MKXcuQAjR2eEq8bsSHDPkYEmqmjt%s", i, string('A'+i))
 			}
-			peersBytes, err := json.Marshal(peers)
+
+			resp := jsonrpc.QueryPeersResponse{
+				Peers: peers,
+			}
+			respBytes, err := json.Marshal(resp)
 			Expect(err).ToNot(HaveOccurred())
 
 			switch request.Method {
 			case jsonrpc.MethodQueryPeers:
-				response.Result = json.RawMessage(peersBytes)
+				response.Result = json.RawMessage(respBytes)
 			default:
 				panic("unknown message type")
 			}
@@ -52,47 +57,87 @@ var _ = Describe("RPC client", func() {
 
 		go func() {
 			defer GinkgoRecover()
-			Expect(server.ListenAndServe()).To(Succeed())
+			Expect(func() {
+				server.ListenAndServe()
+			}).NotTo(Panic())
 		}()
 
 		return server
 	}
 
-	Context("when the task receives a Tick message", func() {
+	// Construct mock Darknode servers and initialise P2P task.
+	initTask := func(done chan struct{}, numPeers, numBootstrapAddresses int) (tau.Task, store.KVStore, []*http.Server) {
+		servers := make([]*http.Server, numBootstrapAddresses+1)
+
+		// Intialise Darknode.
+		server := initServer("0.0.0.0:5000", numPeers)
+		servers[0] = server
+
+		multi, err := testutils.ServerMultiAddress(server)
+		Expect(err).ToNot(HaveOccurred())
+		store, err := testutils.InitStore(multi)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Intialise Bootstrap nodes.
+		bootstrapAddrs := make([]peer.MultiAddr, numBootstrapAddresses)
+		for i := range bootstrapAddrs {
+			bootstrapServer := initServer(fmt.Sprintf("0.0.0.0:500%d", i+1), numPeers)
+			servers[i+1] = bootstrapServer
+
+			multiAddr, err := testutils.ServerMultiAddress(bootstrapServer)
+			Expect(err).ToNot(HaveOccurred())
+			bootstrapAddrs[i] = multiAddr
+		}
+
+		// Initialise the P2P task.
+		logger := logrus.New()
+		p2p := New(logger, 128, time.Second, store, bootstrapAddrs)
+		go func() {
+			defer GinkgoRecover()
+			p2p.Run(done)
+		}()
+
+		return p2p, store, servers
+	}
+
+	Context("when sending a tick message", func() {
 		It("should update the multi-address store", func() {
-			// Intialise Darknode.
+			numPeers := 5
+			numBootstrapAddresses := 2
 			done := make(chan struct{})
 			defer close(done)
-			server := initServer("0.0.0.0:5000")
-			defer server.Close()
-			multi, err := testutils.ServerMultiAddress(server)
-			Expect(err).ToNot(HaveOccurred())
-			store, err := testutils.InitStore(multi)
-			Expect(err).ToNot(HaveOccurred())
 
-			bootstrapAddrs := make([]peer.MultiAddr, 2)
-			for i := range bootstrapAddrs {
-				bootstrapServer := initServer(fmt.Sprintf("0.0.0.0:500%d", i+1))
-				defer bootstrapServer.Close()
-
-				addr, err := testutils.ServerMultiAddress(bootstrapServer)
-				Expect(err).ToNot(HaveOccurred())
-				bootstrapAddrs[i] = addr
+			p2p, store, servers := initTask(done, numPeers, numBootstrapAddresses)
+			for _, server := range servers {
+				defer server.Close()
 			}
 
-			// Initialise the P2P task.
-			logger := logrus.New()
-			p2p := New(logger, 128, time.Second, store, bootstrapAddrs)
-			go func() {
-				defer GinkgoRecover()
-				p2p.Run(done)
-			}()
-
-			// Send a request to the task.
+			// Send a Tick message to the task and wait for it to query the bootstrap addresses and update its store.
 			p2p.IO().InputWriter() <- Tick{}
-
 			time.Sleep(1 * time.Second)
 
+			// Note: we add 1 because the store will include its own multi-address.
+			Expect(store.Entries()).To(Equal(numPeers + numBootstrapAddresses + 1))
+		})
+	})
+
+	Context("when sending a query peers message", func() {
+		It("should return the correct number of peers", func() {
+			numPeers := 5
+			numBootstrapAddresses := 2
+			done := make(chan struct{})
+			defer close(done)
+
+			p2p, _, servers := initTask(done, numPeers, numBootstrapAddresses)
+			for _, server := range servers {
+				defer server.Close()
+			}
+
+			// Send a Tick message to the task and wait for it to query the bootstrap addresses and update its store.
+			p2p.IO().InputWriter() <- Tick{}
+			time.Sleep(1 * time.Second)
+
+			// Send a QueryPeers message to the task.
 			responder := make(chan jsonrpc.Response, 1)
 			p2p.IO().InputWriter() <- rpc.QueryPeersMessage{
 				Request: jsonrpc.QueryPeersRequest{
@@ -105,7 +150,37 @@ var _ = Describe("RPC client", func() {
 			case response := <-responder:
 				resp, ok := response.(jsonrpc.QueryPeersResponse)
 				Expect(ok).To(BeTrue())
-				fmt.Println(resp)
+				Expect(len(resp.Peers)).To(Equal(5))
+			}
+		})
+
+		It("should return no peers if a tick has not been called", func() {
+			numPeers := 5
+			numBootstrapAddresses := 2
+			done := make(chan struct{})
+			defer close(done)
+
+			p2p, _, servers := initTask(done, numPeers, numBootstrapAddresses)
+			for _, server := range servers {
+				defer server.Close()
+			}
+
+			// Send a QueryPeers message to the task.
+			responder := make(chan jsonrpc.Response, 1)
+			p2p.IO().InputWriter() <- rpc.QueryPeersMessage{
+				Request: jsonrpc.QueryPeersRequest{
+					Responder: responder,
+				},
+			}
+
+			// Expect to receive a response from the responder channel.
+			select {
+			case response := <-responder:
+				resp, ok := response.(jsonrpc.QueryPeersResponse)
+				Expect(ok).To(BeTrue())
+
+				// Note: the store for a server contains its own multi-address.
+				Expect(len(resp.Peers)).To(Equal(1))
 			}
 		})
 	})
