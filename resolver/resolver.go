@@ -13,31 +13,26 @@ import (
 
 // Resolver is the parent task which is used to relay messages between the client, server and other sub-tasks.
 type Resolver struct {
-	logger *logrus.Logger
-	client tau.Task
-	server tau.Task
-	p2p    tau.Task
-	addrs  []addr.Addr
+	logger    *logrus.Logger
+	client    tau.Task
+	server    tau.Task
+	p2p       tau.Task
+	addresses []addr.Addr
 }
 
 // newResolver returns a new Resolver.
-func newResolver(logger *logrus.Logger, client, server, p2p tau.Task, addresses []string) *Resolver {
-	addrs := make([]addr.Addr, len(addresses))
-	for i, address := range addresses {
-		addrs[i] = addr.New(address)
-	}
-
+func newResolver(logger *logrus.Logger, client, server, p2p tau.Task, addresses []addr.Addr) *Resolver {
 	return &Resolver{
-		logger: logger,
-		client: client,
-		server: server,
-		p2p:    p2p,
-		addrs:  addrs,
+		logger:    logger,
+		client:    client,
+		server:    server,
+		p2p:       p2p,
+		addresses: addresses,
 	}
 }
 
 // New returns a new Resolver task.
-func New(cap int, logger *logrus.Logger, client, server, p2p tau.Task, addresses []string) tau.Task {
+func New(cap int, logger *logrus.Logger, client, server, p2p tau.Task, addresses []addr.Addr) tau.Task {
 	resolver := newResolver(logger, client, server, p2p, addresses)
 	resolver.server.Send(rpc.NewAccept())
 	return tau.New(tau.NewIO(cap), resolver, client, server, p2p)
@@ -65,7 +60,7 @@ func (resolver *Resolver) Reduce(message tau.Message) tau.Message {
 func (resolver *Resolver) handleServerMessage(request jsonrpc.Request) tau.Message {
 	resolver.client.Send(rpc.InvokeRPC{
 		Request:   request,
-		Addresses: resolver.addrs,
+		Addresses: resolver.addresses,
 	})
 
 	return nil

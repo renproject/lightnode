@@ -13,6 +13,7 @@ import (
 	"github.com/republicprotocol/co-go"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
+	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
 )
@@ -25,7 +26,15 @@ type P2P struct {
 	store          store.KVStore
 }
 
-func New(logger *logrus.Logger, cap int, timeout time.Duration, store store.KVStore, bootstrapAddrs []peer.MultiAddr) tau.Task {
+func New(logger *logrus.Logger, cap int, timeout time.Duration, store store.KVStore, addrs []addr.Addr) tau.Task {
+	bootstrapAddrs := make([]peer.MultiAddr, len(addrs))
+	for i, addr := range addrs {
+		multiAddr, err := peer.NewMultiAddr(addr.String(), 0, [65]byte{})
+		if err != nil {
+			logger.Fatalf("invalid bootstrap addresses: %v", err)
+		}
+		bootstrapAddrs[i] = multiAddr
+	}
 	p2p := &P2P{
 		timeout:        timeout,
 		logger:         logger,

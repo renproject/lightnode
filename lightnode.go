@@ -10,6 +10,7 @@ import (
 	"github.com/renproject/lightnode/rpc"
 	"github.com/renproject/lightnode/store"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
@@ -24,7 +25,7 @@ type Lightnode struct {
 }
 
 // NewLightnode constructs a new Lightnode.
-func NewLightnode(logger *logrus.Logger, cap, workers, timeout int, port string, addresses []string) *Lightnode {
+func NewLightnode(logger *logrus.Logger, cap, workers, timeout int, port string, addresses []addr.Addr) *Lightnode {
 	lightnode := &Lightnode{
 		port:   port,
 		logger: logger,

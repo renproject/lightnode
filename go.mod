@@ -3,8 +3,6 @@ module github.com/renproject/lightnode
 go 1.12
 
 require (
-	github.com/DataDog/zstd v1.4.0 // indirect
-	github.com/Shopify/sarama v1.22.1 // indirect
 	github.com/StackExchange/wmi v0.0.0-20181212234831-e0a55b97c705 // indirect
 	github.com/aristanetworks/goarista v0.0.0-20190429220743-799535f6f364 // indirect
 	github.com/cespare/cp v1.1.1 // indirect
