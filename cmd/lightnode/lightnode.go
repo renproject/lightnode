@@ -41,6 +41,7 @@ func main() {
 		logrus.PanicLevel,
 		logrus.FatalLevel,
 		logrus.ErrorLevel,
+		logrus.WarnLevel,
 	})
 	if err != nil {
 		logger.Fatalf("cannot create a sentry hook: %v", err)
