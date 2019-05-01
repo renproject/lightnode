@@ -22,11 +22,11 @@ import (
 type P2P struct {
 	timeout        time.Duration
 	bootstrapAddrs []peer.MultiAddr
-	logger         *logrus.Logger
+	logger         logrus.FieldLogger
 	store          store.KVStore
 }
 
-func New(logger *logrus.Logger, cap int, timeout time.Duration, store store.KVStore, addrs []addr.Addr) tau.Task {
+func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.KVStore, addrs []addr.Addr) tau.Task {
 	bootstrapAddrs := make([]peer.MultiAddr, len(addrs))
 	for i, addr := range addrs {
 		multiAddr, err := peer.NewMultiAddr(addr.String(), 0, [65]byte{})
