@@ -145,7 +145,6 @@ func (client *Client) handleRequest(request interface{}, method string, addresse
 			return
 		}
 		netAddr := multi.ResolveTCPAddr().(*net.TCPAddr)
-		// netAddr.Port = 18515
 		call := RPCCall{
 			Request: jsonrpc.JSONRequest{
 				JSONRPC: "2.0",
@@ -209,7 +208,7 @@ func (client *Client) handleSendMessageRequest(request jsonrpc.SendMessageReques
 		Error: ErrNotEnoughResultsReturned,
 	}
 
-	return tau.NewError(ErrNotEnoughResultsReturned)
+	return nil
 }
 
 func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessageRequest, method string, addresses []addr.Addr) tau.Message {
@@ -236,7 +235,7 @@ func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessage
 		Error: ErrNotEnoughResultsReturned,
 	}
 
-	return tau.NewError(ErrNotEnoughResultsReturned)
+	return nil
 }
 
 // InvokeRPC is tau.Message contains a `jsonrpc.Request` and a list of target darknodes address. The client task is to
