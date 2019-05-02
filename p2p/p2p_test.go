@@ -139,7 +139,7 @@ var _ = Describe("RPC client", func() {
 
 			// Send a QueryPeers message to the task.
 			responder := make(chan jsonrpc.Response, 1)
-			p2p.IO().InputWriter() <- rpc.QueryPeersMessage{
+			p2p.IO().InputWriter() <- rpc.QueryMessage{
 				Request: jsonrpc.QueryPeersRequest{
 					Responder: responder,
 				},
@@ -167,7 +167,7 @@ var _ = Describe("RPC client", func() {
 
 			// Send a QueryPeers message to the task.
 			responder := make(chan jsonrpc.Response, 1)
-			p2p.IO().InputWriter() <- rpc.QueryPeersMessage{
+			p2p.IO().InputWriter() <- rpc.QueryMessage{
 				Request: jsonrpc.QueryPeersRequest{
 					Responder: responder,
 				},
