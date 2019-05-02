@@ -85,8 +85,8 @@ var _ = Describe("light nodes local tests", func() {
 		return multis
 	}
 
-	Context("when sending sendMessageRequest to darknodes through light nodes", func() {
-		It("should get response back", func() {
+	Context("when querying the light nodes", func() {
+		It("should get non-error response", func() {
 			logger := logrus.New()
 			done := make(chan struct{})
 			defer close(done)
@@ -111,6 +111,34 @@ var _ = Describe("light nodes local tests", func() {
 			var resp jsonrpc.QueryPeersResponse
 			Expect(json.Unmarshal(response.Result, &resp)).NotTo(HaveOccurred())
 			Expect(len(resp.Peers)).Should(BeNumerically(">", 0))
+		})
+
+		It("should get non-error response", func() {
+			logger := logrus.New()
+			done := make(chan struct{})
+			defer close(done)
+
+			bootstrapAddrs := initNodes(8, 6, done, logger)
+			lightNode := NewLightnode(logger, 128, 3, 60, "5000", bootstrapAddrs)
+			go lightNode.Run(done)
+
+			time.Sleep(5 * time.Second)
+
+			client := jrpc.NewClient(time.Minute)
+			request := jsonrpc.JSONRequest{
+				JSONRPC: "2.0",
+				Version: "1.0",
+				Method:  jsonrpc.MethodQueryNumPeers,
+				ID:      "100",
+			}
+			response, err := client.Call("http://0.0.0.0:5000", request)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(response.Error).Should(BeNil())
+
+			var resp jsonrpc.QueryNumPeersResponse
+			Expect(json.Unmarshal(response.Result, &resp)).NotTo(HaveOccurred())
+			Expect(resp.Error).Should(BeNil())
+			Expect(resp.NumPeers).Should(Equal(8))
 		})
 	})
 })

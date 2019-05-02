@@ -3,6 +3,7 @@ package lightnode
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/renproject/lightnode/p2p"
@@ -47,7 +48,7 @@ func NewLightnode(logger logrus.FieldLogger, cap, workers, timeout int, port str
 		AllowCredentials: true,
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS", "DELETE"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type"},
-		Debug:            true,
+		Debug:     os.Getenv("DEBUG") == "true",
 	}).Handler(jsonrpcService)
 
 	// Construct resolver.
