@@ -15,7 +15,7 @@ type MockDarknode struct {
 	config darknode.Config
 }
 
-func NewMockDarknode (config darknode.Config) *MockDarknode{
+func NewMockDarknode(config darknode.Config) *MockDarknode {
 	return &MockDarknode{
 		config: config,
 	}
@@ -24,7 +24,7 @@ func NewMockDarknode (config darknode.Config) *MockDarknode{
 func (node *MockDarknode) Run(done <-chan struct{}) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request jsonrpc.JSONRequest
-		if err := json.NewDecoder(r.Body).Decode(&request);err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			node.writeError(w, err)
 			return
 		}
@@ -55,7 +55,7 @@ func (node *MockDarknode) Run(done <-chan struct{}) {
 	server := &http.Server{Addr: address, Handler: handler}
 
 	go func() {
-		<- done
+		<-done
 		server.Close()
 	}()
 

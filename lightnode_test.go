@@ -81,14 +81,14 @@ var _ = Describe("light nodes local tests", func() {
 		return multis
 	}
 
-	testSendMessage := func(){
+	testSendMessage := func() {
 		client := jrpc.NewClient(time.Minute)
-		data, err  :=json.Marshal(jsonrpc.SendMessageRequest{
+		data, err := json.Marshal(jsonrpc.SendMessageRequest{
 			To:    "WarpGate",
 			Nonce: 100,
 			Payload: jsonrpc.Payload{
 				Method: "MintZBTC",
-				Args:   json.RawMessage(`[
+				Args: json.RawMessage(`[
                 {
                     "name": "uid",
                     "type": "public",
@@ -115,7 +115,29 @@ var _ = Describe("light nodes local tests", func() {
 		Expect(resp.MessageID).ShouldNot(BeEmpty())
 	}
 
-	testQueryPeers := func(){
+	testReceiveMessage := func() {
+		client := jrpc.NewClient(time.Minute)
+		data, err := json.Marshal(jsonrpc.ReceiveMessageRequest{
+			MessageID: "messageID",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		request := jsonrpc.JSONRequest{
+			JSONRPC: "2.0",
+			Version: "1.0",
+			Method:  jsonrpc.MethodReceiveMessage,
+			Params:  json.RawMessage(data),
+			ID:      "100",
+		}
+		response, err := client.Call("http://0.0.0.0:5000", request)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(response.Error).Should(BeNil())
+
+		var resp jsonrpc.ReceiveMessageResponse
+		Expect(json.Unmarshal(response.Result, &resp)).NotTo(HaveOccurred())
+		Expect(resp.Err()).Should(BeNil())
+	}
+
+	testQueryPeers := func() {
 		client := jrpc.NewClient(time.Minute)
 		request := jsonrpc.JSONRequest{
 			JSONRPC: "2.0",
@@ -162,6 +184,7 @@ var _ = Describe("light nodes local tests", func() {
 
 			time.Sleep(5 * time.Second)
 			testSendMessage()
+			testReceiveMessage()
 			testQueryPeers()
 			testQueryNumPeers()
 		})
