@@ -4,9 +4,6 @@ go 1.12
 
 require (
 	github.com/StackExchange/wmi v0.0.0-20181212234831-e0a55b97c705 // indirect
-	github.com/aristanetworks/goarista v0.0.0-20190429220743-799535f6f364 // indirect
-	github.com/btcsuite/btcd v0.0.0-20190427004231-96897255fd17
-	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d
 	github.com/cespare/cp v1.1.1 // indirect
 	github.com/cmars/basen v0.0.0-20150613233007-fe3947df716e // indirect
 	github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2 // indirect
@@ -23,17 +20,14 @@ require (
 	github.com/onsi/ginkgo v1.8.0
 	github.com/onsi/gomega v1.5.0
 	github.com/renproject/hyperdrive v0.0.0-20190501043840-9135aa9e58cf // indirect
-	github.com/renproject/libeth-go v0.0.0-20190430063350-95b18e30b8af // indirect
-	github.com/renproject/mercury v0.0.0-20190501041323-cbd9733b74c3 // indirect
+	github.com/renproject/libbtc-go v0.0.0-20190502040245-41c7fca26fed // indirect
+	github.com/renproject/libzec-go v0.0.0-20190502035952-8361a5e04bae // indirect
 	github.com/republicprotocol/co-go v0.0.0-20180723052914-4e299fdb0e80
-	github.com/republicprotocol/darknode-go v0.0.0-20190502000935-74f74d9ee831
+	github.com/republicprotocol/darknode-go v0.0.0-20190502053516-f72b80d186ce
 	github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be
-	github.com/republicprotocol/renvm-go v0.0.0-20190430222454-ef61323a8576
+	github.com/republicprotocol/renvm-go v0.0.0-20190430222454-ef61323a8576 // indirect
 	github.com/republicprotocol/tau v0.0.0-20190116001021-54c2ea27fbc3
 	github.com/rs/cors v1.6.0
 	github.com/sirupsen/logrus v1.4.1
-	github.com/tyler-smith/go-bip39 v1.0.0
-	golang.org/x/net v0.0.0-20190501004415-9ce7a6920f09 // indirect
-	golang.org/x/sys v0.0.0-20190429190828-d89cdac9e872 // indirect
 	gopkg.in/urfave/cli.v1 v1.20.0 // indirect
 )

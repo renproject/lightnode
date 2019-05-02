@@ -1,8 +1,6 @@
 package resolver
 
 import (
-	"fmt"
-
 	"github.com/renproject/lightnode/p2p"
 	"github.com/renproject/lightnode/rpc"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
@@ -54,7 +52,7 @@ func (resolver *Resolver) Reduce(message tau.Message) tau.Message {
 	case p2p.Tick:
 		resolver.p2p.Send(message)
 	default:
-		panic(fmt.Errorf("unexpected message type %T", message))
+		resolver.logger.Panicf("unexpected message type %T", message)
 	}
 
 	return nil

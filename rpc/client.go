@@ -56,8 +56,9 @@ func (client *Client) Reduce(message tau.Message) tau.Message {
 	case InvokeRPC:
 		return client.invoke(message)
 	default:
-		panic(fmt.Errorf("unexpected message type %T", message))
+		client.logger.Panicf("unexpected message type %T", message)
 	}
+	return nil
 }
 
 // invoke sends the given message to the target addresses. If the queue is full, the message will be dropped.
@@ -68,8 +69,9 @@ func (client *Client) invoke(message InvokeRPC) tau.Message {
 	case jsonrpc.ReceiveMessageRequest:
 		return client.handleReceiveMessageRequest(request, jsonrpc.MethodReceiveMessage, message.Addresses)
 	default:
-		panic("unknown message type")
+		client.logger.Panicf("unexpected message type %T", request)
 	}
+	return nil
 }
 
 // runWorkers starts running a given number of workers. They each try to read from the request queue and send the

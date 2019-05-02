@@ -231,6 +231,8 @@ github.com/renproject/libbtc-go v0.0.0-20190328231045-a06390d7e515/go.mod h1:Cbn
 github.com/renproject/libbtc-go v0.0.0-20190406053552-a33d87f4d88f/go.mod h1:Cbn7ex/PdqbzlnMk4+hTnE3cdw2a2ZKH2hSSbeW2Z1w=
 github.com/renproject/libbtc-go v0.0.0-20190425025759-c8e8732e4832 h1:uzWG2iJuZHFkwYvMcAoLHsTXjRi3pfyBtsdHpHCK8FA=
 github.com/renproject/libbtc-go v0.0.0-20190425025759-c8e8732e4832/go.mod h1:Cbn7ex/PdqbzlnMk4+hTnE3cdw2a2ZKH2hSSbeW2Z1w=
+github.com/renproject/libbtc-go v0.0.0-20190502040245-41c7fca26fed h1:fyQHmxNtk8Soz626kBVH9G1o/Ic6ROdbeqKMhL/r/20=
+github.com/renproject/libbtc-go v0.0.0-20190502040245-41c7fca26fed/go.mod h1:PGWbQGaaj4RvfaAeh6vrjsMh1GB/v7HWcRLqbb4s+mY=
 github.com/renproject/libeth-go v0.0.0-20190328001234-8ff82bee6c22/go.mod h1:1eTGJhofvCl+95kLz42cuSH9fz/jrbYNZynOXzh5qAE=
 github.com/renproject/libeth-go v0.0.0-20190412003833-315f7da6c380/go.mod h1:nW+XJBkfN1wQcA6eSe0btesaMbHw5SJz1uzYCw0yVEE=
 github.com/renproject/libeth-go v0.0.0-20190416043830-15be236efb73/go.mod h1:nW+XJBkfN1wQcA6eSe0btesaMbHw5SJz1uzYCw0yVEE=
@@ -241,6 +243,8 @@ github.com/renproject/libeth-go v0.0.0-20190430063350-95b18e30b8af/go.mod h1:nW+
 github.com/renproject/libzec-go v0.0.0-20190407051230-0c4bd960914c/go.mod h1:KnFxCzHFRfyXNbISwEgo7LRlrpHTQ6GIpUsV/SxyQgI=
 github.com/renproject/libzec-go v0.0.0-20190416054954-b4f6b74f0b3a h1:L2STLrnjG8OulIpxHMO5XbrmMQhDr9cPk6131iDU5qM=
 github.com/renproject/libzec-go v0.0.0-20190416054954-b4f6b74f0b3a/go.mod h1:KnFxCzHFRfyXNbISwEgo7LRlrpHTQ6GIpUsV/SxyQgI=
+github.com/renproject/libzec-go v0.0.0-20190502035952-8361a5e04bae h1:SDM0w6BsesQbIqEmLuROj4QBMQA+aSqIzvxiloJAsqY=
+github.com/renproject/libzec-go v0.0.0-20190502035952-8361a5e04bae/go.mod h1:mwFmx375bQ+36s/Y453kMZLmzYpU8aickukkgTAs+Cg=
 github.com/renproject/mercury v0.0.0-20190321013155-23499d524cd8/go.mod h1:62WHJPxwAQU+aQzPjEsz+2IhxbMyjU0+HMk7CBTfm/4=
 github.com/renproject/mercury v0.0.0-20190412004928-734f2019ebdd h1:hepCDRm69q34r+e1okldSSqjMN8yXAaz2iZtZNxivPI=
 github.com/renproject/mercury v0.0.0-20190412004928-734f2019ebdd/go.mod h1:O1w37yoA8AQiqcjA/nABkzU52sSMjPM5jss353Wp8F0=
@@ -249,13 +253,15 @@ github.com/renproject/mercury v0.0.0-20190501041323-cbd9733b74c3/go.mod h1:ze+cL
 github.com/renproject/renxcs-go v0.0.0-20190406121856-2ca5a290393b/go.mod h1:YnLIXIYtMf55VROvuRZDnOhjYzO5uNtw3+PdPrtFhxo=
 github.com/republicprotocol/co-go v0.0.0-20180723052914-4e299fdb0e80 h1:jcfajT2zPmtzIGn/JnWCkaWwz1kFprPYO9Y5qBUv0/U=
 github.com/republicprotocol/co-go v0.0.0-20180723052914-4e299fdb0e80/go.mod h1:NdfPrY+l1x6DwEs+wn5eJejQ+DibNnXGia8tkxumgsU=
-github.com/republicprotocol/darknode-go v0.0.0-20190502000935-74f74d9ee831 h1:odstLyiycGZ1ZCGjO2W4inmJThsMpQ73dKPScl+u/DE=
-github.com/republicprotocol/darknode-go v0.0.0-20190502000935-74f74d9ee831/go.mod h1:P2J8kEQGHNZ88FcEEeLLwNlg5UZcNSevcOmHQfFlr0k=
+github.com/republicprotocol/darknode-go v0.0.0-20190502053516-f72b80d186ce h1:nlC21KfCzBF96qx0YqXj4hUJlsNILpl6+C4jPo9skK4=
+github.com/republicprotocol/darknode-go v0.0.0-20190502053516-f72b80d186ce/go.mod h1:P2J8kEQGHNZ88FcEEeLLwNlg5UZcNSevcOmHQfFlr0k=
+github.com/republicprotocol/libbtc-go v0.0.0-20190218031145-13bd5bd75d7c/go.mod h1:piHewjEGMHuvrbWYZ14DtdJNpotcmVjMKCp/Xey+Xao=
 github.com/republicprotocol/registry v0.0.0-20190415061645-12929f382dc0 h1:NLjFns7Syff6HqFbTANTHUDtPJRb9U7KsoW8xM29lG4=
 github.com/republicprotocol/registry v0.0.0-20190415061645-12929f382dc0/go.mod h1:6rF1prrnJLQflVV4yB8uF1ewexB125OBH+mNaoafOsM=
 github.com/republicprotocol/ren-go v0.0.0-20190411004825-e8cbaadd9326/go.mod h1:VY9MvsDDMySmGPaolEUVIKOLSPtLtV7KPuO6dEHgCl4=
 github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be h1:E9fhHqqrVhY/iGt5VX9afQ3Z4YtZoAO+uTPG17tENuI=
 github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be/go.mod h1:oQVfcQeN/dloadjgPBuTOKInaw7c39TsXpLBoz0xoYU=
+github.com/republicprotocol/renvm-go v0.0.0-20190320052535-795f34011fa2/go.mod h1:cqu/ZRgyxN3+O2CgRdOjDtr0BV98tdqH+fZA9eqdCB8=
 github.com/republicprotocol/renvm-go v0.0.0-20190328012735-db6b5c394610/go.mod h1:cqu/ZRgyxN3+O2CgRdOjDtr0BV98tdqH+fZA9eqdCB8=
 github.com/republicprotocol/renvm-go v0.0.0-20190429052115-639dfd51d0ac h1:6VkCFTpf/xf2Fa6RHSf4Fj3JaHHQJ8ZgXJ9pq34q/jo=
 github.com/republicprotocol/renvm-go v0.0.0-20190429052115-639dfd51d0ac/go.mod h1:9dfLBrPsB6OiXTCbwxXoCGi1odb0FavcK2sZUPiWcxU=
@@ -387,6 +393,7 @@ golang.org/x/tools v0.0.0-20190312170243-e65039ee4138/go.mod h1:LCzVGOaR6xXOjkQ3
 golang.org/x/tools v0.0.0-20190409223705-96f2e7ef861b/go.mod h1:LCzVGOaR6xXOjkQ3onu1FJEFr0SW1gC7cKk1uF8kGRs=
 golang.org/x/tools v0.0.0-20190425001055-9e44c1c40307/go.mod h1:RgjU9mgBXZiqYHBnxXauZ1Gv1EHHAz9KjViQ78xBX0Q=
 golang.org/x/tools v0.0.0-20190428024724-550556f78a90/go.mod h1:RgjU9mgBXZiqYHBnxXauZ1Gv1EHHAz9KjViQ78xBX0Q=
+golang.org/x/tools v0.0.0-20190430194229-2d28432af7a5/go.mod h1:RgjU9mgBXZiqYHBnxXauZ1Gv1EHHAz9KjViQ78xBX0Q=
 google.golang.org/api v0.3.1/go.mod h1:6wY9I6uQWHQ8EM57III9mq/AjF+i8G65rmVagqKMtkk=
 google.golang.org/api v0.4.0/go.mod h1:8k5glujaEP+g9n7WNsDg8QP6cUVNI86fCNMcbazEtwE=
 google.golang.org/appengine v1.1.0/go.mod h1:EbEs0AVv82hx2wNQdGPgUI5lhzA/G0D9YwlJXL52JkM=

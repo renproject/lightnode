@@ -1,8 +1,6 @@
 package rpc
 
 import (
-	"fmt"
-
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
@@ -28,8 +26,9 @@ func (server *Server) Reduce(message tau.Message) tau.Message {
 	case Accept:
 		return server.accept()
 	default:
-		panic(fmt.Errorf("unexpected message type %T", message))
+		server.logger.Panicf("unexpected message type %T", message)
 	}
+	return nil
 }
 
 // accept writes new requests back to the parent.
@@ -42,9 +41,10 @@ func (server *Server) accept() tau.Message {
 		case jsonrpc.SendMessageRequest, jsonrpc.ReceiveMessageRequest:
 			return NewSendMessage(req)
 		default:
-			panic("unknown request type")
+			server.logger.Panicf("unknown request type: %T", req)
 		}
 	}
+	return nil
 }
 
 // Accept messages are sent by the parent task indicating they are ready to accept a new request from the server.

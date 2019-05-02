@@ -42,15 +42,14 @@ func (p2p *P2P) Reduce(message tau.Message) tau.Message {
 	case rpc.QueryMessage:
 		return p2p.handleQuery(message)
 	default:
-		panic(fmt.Errorf("unexpected message type %T", message))
+		p2p.logger.Panicf("unexpected message type %T", message)
 	}
+	return nil
 }
 
 func (p2p *P2P) handleTick(message tau.Message) tau.Message {
-	// TODO: Fix the version and ID
 	request := jsonrpc.JSONRequest{
 		JSONRPC: "2.0",
-		Version: "0.1",
 		Method:  jsonrpc.MethodQueryPeers,
 		ID:      rand.Int31(),
 	}
@@ -74,7 +73,8 @@ func (p2p *P2P) handleTick(message tau.Message) tau.Message {
 				return
 			}
 			if response.Error != nil {
-				// TODO: Handle error
+				p2p.logger.Warnf("received error in response: code = %v, message = %v, data = %v", response.Error.Code, response.Error.Message, string(response.Error.Data))
+				return
 			}
 
 			var result jsonrpc.QueryPeersResponse
@@ -139,7 +139,7 @@ func (p2p *P2P) handleQuery(message rpc.QueryMessage) tau.Message {
 		}
 		responder = request.Responder
 	default:
-		panic("unknown query request type") // TODO: Should this be a panic?
+		p2p.logger.Panicf("unknown query request type: %T", request)
 	}
 
 	responder <- response
