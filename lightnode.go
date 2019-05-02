@@ -18,8 +18,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const Version = "1.0.0"
-
 // Lightnode defines the fields required by the server.
 type Lightnode struct {
 	port     string

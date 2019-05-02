@@ -58,7 +58,6 @@ var _ = Describe("RPC client", func() {
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			err := json.NewEncoder(w).Encode(jsonrpc.JSONResponse{
 				JSONRPC: "2.0",
-				Version: "0.1",
 				Result:  []byte(""),
 			})
 			Expect(err).NotTo(HaveOccurred())
