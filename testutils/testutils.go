@@ -37,7 +37,7 @@ func ServerMultiAddress(server *http.Server) (peer.MultiAddr, error) {
 	}
 
 	addr := addr.FromPublicKey(&privateKey.PublicKey)
-	multi, err := peer.NewMultiAddr(fmt.Sprintf("/ip4/%v/tcp/%v/ren/%v", address.IP, address.Port, addr), 1, [65]byte{})
+	multi, err := peer.NewMultiAddr(fmt.Sprintf("/ip4/%v/tcp/%v/ren/%v", address.IP, address.Port-1, addr), 1, [65]byte{})
 	if err != nil {
 		return peer.MultiAddr{}, err
 	}
