@@ -39,7 +39,7 @@ func (p2p *P2P) Reduce(message tau.Message) tau.Message {
 	switch message := message.(type) {
 	case Tick:
 		return p2p.handleTick(message)
-	case rpc.QueryPeersMessage:
+	case rpc.QueryMessage:
 		return p2p.handleQuery(message)
 	default:
 		panic(fmt.Errorf("unexpected message type %T", message))
@@ -100,7 +100,7 @@ func (p2p *P2P) handleTick(message tau.Message) tau.Message {
 	return nil
 }
 
-func (p2p *P2P) handleQuery(message rpc.QueryPeersMessage) tau.Message {
+func (p2p *P2P) handleQuery(message rpc.QueryMessage) tau.Message {
 	var response jsonrpc.Response
 	var responder chan<- jsonrpc.Response
 	switch request := message.Request.(type) {

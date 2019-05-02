@@ -40,15 +40,14 @@ func (server *Server) accept() tau.Message {
 		case jsonrpc.QueryPeersRequest, jsonrpc.QueryNumPeersRequest:
 			return NewQueryMessage(req)
 		case jsonrpc.SendMessageRequest, jsonrpc.ReceiveMessageRequest:
-			return NewMessageAccepted(req)
+			return NewSendMessage(req)
 		default:
 			panic("unknown request type")
 		}
 	}
 }
 
-// Accept usually sent by the parent task indicating they are ready to accept a new request from the server. Server will
-// wait until receiving a new request and propagate the request to its parent task for processing.
+// Accept messages are sent by the parent task indicating they are ready to accept a new request from the server.
 type Accept struct {
 }
 
@@ -61,9 +60,9 @@ func NewAccept() Accept {
 	return Accept{}
 }
 
-// SendMessage is created and propagate by the server to its parent when receiving a SendMessage or ReceiveMessage
-// request. Eventually the message will be allocated to a Client task by the resolver as these request need to make a
-// JSON-RPC request to darknodes.
+// SendMessage is created and propagated by the server to its parent when receiving a SendMessage or ReceiveMessage
+// request. These messages get forwarded to Client tasks by the resolver as these requests need to interact with the
+// Darknodes using JSON-RPC.
 type SendMessage struct {
 	jsonrpc.Request
 }
@@ -72,26 +71,27 @@ type SendMessage struct {
 func (SendMessage) IsMessage() {
 }
 
-// NewMessageAccepted returns a SendMessage with given request.
-func NewMessageAccepted(req jsonrpc.Request) SendMessage {
+// NewSendMessage returns a new `SendMessage` with the given request.
+func NewSendMessage(req jsonrpc.Request) SendMessage {
 	return SendMessage{
 		Request: req,
 	}
 }
 
-// SendMessage is created and propagate by the server to its parent when receiving a QueryPeers or QueryNumPeers
-// request. The p2p task will query the store and write the response in the responder channel.
-type QueryPeersMessage struct {
+// QueryMessage is created and propagated by the server to its parent when receiving a QueryPeers or QueryNumPeers
+// request. These messages get forwarded to the P2P task which queries the store and writes the response in the
+// responder channel.
+type QueryMessage struct {
 	jsonrpc.Request
 }
 
 // IsMessage implements the `tau.Message` interface.
-func (QueryPeersMessage) IsMessage() {
+func (QueryMessage) IsMessage() {
 }
 
-// NewQueryMessage returns a new `QueryPeersMessage` with given request.
-func NewQueryMessage(req jsonrpc.Request) QueryPeersMessage {
-	return QueryPeersMessage{
+// NewQueryMessage returns a new `QueryMessage` with the given request.
+func NewQueryMessage(req jsonrpc.Request) QueryMessage {
+	return QueryMessage{
 		Request: req,
 	}
 }

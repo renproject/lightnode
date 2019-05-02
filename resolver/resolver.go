@@ -5,7 +5,6 @@ import (
 
 	"github.com/renproject/lightnode/p2p"
 	"github.com/renproject/lightnode/rpc"
-	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
@@ -43,8 +42,11 @@ func (resolver *Resolver) Reduce(message tau.Message) tau.Message {
 	switch message := message.(type) {
 	case rpc.SendMessage:
 		resolver.server.Send(rpc.NewAccept())
-		resolver.handleServerMessage(message.Request)
-	case rpc.QueryPeersMessage:
+		resolver.client.Send(rpc.InvokeRPC{
+			Request:   message.Request,
+			Addresses: resolver.addresses,
+		})
+	case rpc.QueryMessage:
 		resolver.server.Send(rpc.NewAccept())
 		resolver.p2p.Send(message)
 	case tau.Error:
@@ -56,11 +58,4 @@ func (resolver *Resolver) Reduce(message tau.Message) tau.Message {
 	}
 
 	return nil
-}
-
-func (resolver *Resolver) handleServerMessage(request jsonrpc.Request) {
-	resolver.client.Send(rpc.InvokeRPC{
-		Request:   request,
-		Addresses: resolver.addresses,
-	})
 }
