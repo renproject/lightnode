@@ -1,3 +1,7 @@
+// Package p2p defines the p2p tau.task. It maintains the peer-to-peer network of all the darknodes. The task tries to
+// ping all bootstrap nodes after receiving a `Tick`message. It updates the multi-address store with the results it gets
+// back. The results will be cached for a certain amount of time.
+
 package p2p
 
 import (
