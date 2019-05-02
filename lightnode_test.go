@@ -100,7 +100,6 @@ var _ = Describe("light nodes local tests", func() {
 		Expect(err).NotTo(HaveOccurred())
 		request := jsonrpc.JSONRequest{
 			JSONRPC: "2.0",
-			Version: "1.0",
 			Method:  jsonrpc.MethodSendMessage,
 			Params:  json.RawMessage(data),
 			ID:      "100",
@@ -123,7 +122,6 @@ var _ = Describe("light nodes local tests", func() {
 		Expect(err).NotTo(HaveOccurred())
 		request := jsonrpc.JSONRequest{
 			JSONRPC: "2.0",
-			Version: "1.0",
 			Method:  jsonrpc.MethodReceiveMessage,
 			Params:  json.RawMessage(data),
 			ID:      "100",
@@ -141,7 +139,6 @@ var _ = Describe("light nodes local tests", func() {
 		client := jrpc.NewClient(time.Minute)
 		request := jsonrpc.JSONRequest{
 			JSONRPC: "2.0",
-			Version: "1.0",
 			Method:  jsonrpc.MethodQueryPeers,
 			ID:      "100",
 		}
@@ -158,7 +155,6 @@ var _ = Describe("light nodes local tests", func() {
 		client := jrpc.NewClient(time.Minute)
 		request := jsonrpc.JSONRequest{
 			JSONRPC: "2.0",
-			Version: "1.0",
 			Method:  jsonrpc.MethodQueryNumPeers,
 			ID:      "100",
 		}

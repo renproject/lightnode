@@ -25,6 +25,7 @@ type P2P struct {
 	store          store.KVStore
 }
 
+// New returns a tau.Task.
 func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.KVStore, bootstrapAddrs []peer.MultiAddr) tau.Task {
 	p2p := &P2P{
 		timeout:        timeout,

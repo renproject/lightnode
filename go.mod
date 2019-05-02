@@ -23,7 +23,7 @@ require (
 	github.com/renproject/libbtc-go v0.0.0-20190502040245-41c7fca26fed // indirect
 	github.com/renproject/libzec-go v0.0.0-20190502035952-8361a5e04bae // indirect
 	github.com/republicprotocol/co-go v0.0.0-20180723052914-4e299fdb0e80
-	github.com/republicprotocol/darknode-go v0.0.0-20190502053516-f72b80d186ce
+	github.com/republicprotocol/darknode-go v0.0.0-20190502055320-8913f049be2a
 	github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be
 	github.com/republicprotocol/renvm-go v0.0.0-20190430222454-ef61323a8576 // indirect
 	github.com/republicprotocol/tau v0.0.0-20190116001021-54c2ea27fbc3

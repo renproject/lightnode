@@ -39,7 +39,7 @@ func NewLightnode(logger logrus.FieldLogger, cap, workers, timeout int, port str
 	addrStore := store.NewCache(0)
 	client := rpc.NewClient(logger, cap, workers, time.Duration(timeout)*time.Second, addrStore)
 	requests := make(chan jsonrpc.Request, cap)
-	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second, Version)
+	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second)
 	server := rpc.NewServer(logger, cap, requests)
 
 	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, addrStore, bootstrapAddrs)
