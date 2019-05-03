@@ -38,7 +38,7 @@ type Client struct {
 	timeout time.Duration
 }
 
-// NewClient returns a new Client.
+// NewClient returns a new Client task.
 func NewClient(logger logrus.FieldLogger, cap, numWorkers int, timeout time.Duration, store store.KVStore) tau.Task {
 	client := &Client{
 		logger:  logger,

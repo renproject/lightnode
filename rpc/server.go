@@ -12,7 +12,7 @@ type Server struct {
 	jsonRPCQueue <-chan jsonrpc.Request
 }
 
-// NewServer returns a new Server.
+// NewServer returns a new Server task.
 func NewServer(logger logrus.FieldLogger, cap int, jsonRPCQueue <-chan jsonrpc.Request) tau.Task {
 	return tau.New(tau.NewIO(cap), &Server{
 		logger:       logger,
