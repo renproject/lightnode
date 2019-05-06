@@ -75,7 +75,7 @@ var _ = Describe("RPC client", func() {
 
 		multi, err := testutils.ServerMultiAddress(server)
 		Expect(err).ToNot(HaveOccurred())
-		store, err := testutils.InitStore(multi)
+		multiStore, err := testutils.InitStore(multi)
 		Expect(err).ToNot(HaveOccurred())
 
 		// Intialise Bootstrap nodes.
@@ -91,13 +91,13 @@ var _ = Describe("RPC client", func() {
 
 		// Initialise the P2P task.
 		logger := logrus.New()
-		p2p := New(logger, 128, time.Second, store, bootstrapAddrs)
+		p2p := New(logger, 128, time.Second, multiStore, store.NewCache(0), bootstrapAddrs)
 		go func() {
 			defer GinkgoRecover()
 			p2p.Run(done)
 		}()
 
-		return p2p, store, servers
+		return p2p, multiStore, servers
 	}
 
 	Context("when sending a tick message", func() {
