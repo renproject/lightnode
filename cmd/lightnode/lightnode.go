@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -34,6 +35,9 @@ func main() {
 		pollRate = 300
 	}
 	addresses := strings.Split(os.Getenv("ADDRESSES"), ",")
+
+	// Seed random number generator.
+	rand.Seed(time.Now().UnixNano())
 
 	// Setup logger and attach Sentry hook.
 	logger := logrus.New()

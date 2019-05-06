@@ -170,7 +170,6 @@ func (p2p *P2P) randomPeers(iter store.KVStoreIterator, num int) []string {
 	}
 
 	// Shuffle the list.
-	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(addresses), func(i, j int) {
 		addresses[i], addresses[j] = addresses[j], addresses[i]
 	})

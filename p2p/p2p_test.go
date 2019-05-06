@@ -3,6 +3,7 @@ package p2p_test
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -20,6 +21,8 @@ import (
 )
 
 var _ = Describe("RPC client", func() {
+	rand.Seed(time.Now().UnixNano())
+
 	// Construct a mock Darknode server.
 	initServer := func(address string, numPeers int) *http.Server {
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
