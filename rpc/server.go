@@ -38,7 +38,7 @@ func (server *Server) accept() tau.Message {
 		switch req.(type) {
 		case jsonrpc.QueryPeersRequest, jsonrpc.QueryNumPeersRequest:
 			return NewQueryMessage(req)
-		case jsonrpc.SendMessageRequest, jsonrpc.ReceiveMessageRequest:
+		case jsonrpc.SendMessageRequest, jsonrpc.ReceiveMessageRequest, jsonrpc.QueryStatsRequest:
 			return NewSendMessage(req)
 		default:
 			server.logger.Panicf("unknown request type: %T", req)
@@ -60,9 +60,9 @@ func NewAccept() Accept {
 	return Accept{}
 }
 
-// SendMessage is created and propagated by the server to its parent when receiving a SendMessage or ReceiveMessage
-// request. These messages get forwarded to Client tasks by the resolver as these requests need to interact with the
-// Darknodes using JSON-RPC.
+// SendMessage is created and propagated by the server to its parent when receiving a SendMessage, ReceiveMessage or
+// QueryStats request. These messages get forwarded to Client tasks by the resolver as these requests need to interact
+// with the Darknodes using JSON-RPC.
 type SendMessage struct {
 	jsonrpc.Request
 }

@@ -68,6 +68,8 @@ func (client *Client) invoke(message InvokeRPC) tau.Message {
 		return client.handleSendMessageRequest(request, jsonrpc.MethodSendMessage, message.Addresses)
 	case jsonrpc.ReceiveMessageRequest:
 		return client.handleReceiveMessageRequest(request, jsonrpc.MethodReceiveMessage, message.Addresses)
+	case jsonrpc.QueryStatsRequest:
+		return client.handleQueryStatsRequest(request, jsonrpc.MethodQueryStats)
 	default:
 		client.logger.Panicf("unexpected message type %T", request)
 	}
@@ -121,6 +123,21 @@ func (client *Client) runWorkers(n int) {
 				case <-time.After(client.timeout):
 					client.logger.Errorf("cannot write response to the responder channel")
 				}
+			case jsonrpc.MethodQueryStats:
+				var resp jsonrpc.QueryStatsResponse
+				if response.Error != nil {
+					resp.Error = fmt.Errorf("%v", response.Error.Message)
+				} else if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
+					close(call.Responder)
+					client.logger.Errorf("cannot unmarshal QueryStatsResponse from Darknode: %v", err)
+					continue
+				}
+
+				select {
+				case call.Responder <- resp:
+				case <-time.After(client.timeout):
+					client.logger.Errorf("cannot write response to the responder channel")
+				}
 			}
 		}
 	})
@@ -143,7 +160,7 @@ func (client *Client) handleRequest(request interface{}, method string, addresse
 		// Get multi-address of the darknode from store.
 		var multi peer.MultiAddr
 		if err := client.store.Read(address.String(), &multi); err != nil {
-			client.logger.Errorf("cannot read multi-address of %v from the store: %v", address.String(), err)
+			client.logger.Warnf("cannot read multi-address of %v from the store: %v", address.String(), err)
 			return
 		}
 		netAddr := multi.ResolveTCPAddr().(*net.TCPAddr)
@@ -236,6 +253,29 @@ func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessage
 	// If all result are bad, return an error to the sender.
 	request.Responder <- jsonrpc.ReceiveMessageResponse{
 		Error: ErrNotEnoughResultsReturned,
+	}
+
+	return nil
+}
+
+func (client *Client) handleQueryStatsRequest(request jsonrpc.QueryStatsRequest, method string) tau.Message {
+	if request.DarknodeID == "" {
+		// TODO: We likely want to return the Lightnode stats if the request does not contain a Darknode ID.
+		request.Responder <- jsonrpc.QueryStatsResponse{
+			Error: errors.New("missing darknode ID"),
+		}
+	}
+
+	addresses := []addr.Addr{addr.New(request.DarknodeID)}
+	results := client.handleRequest(request, method, addresses)
+
+	if len(results) == 0 || results[0] == nil {
+		request.Responder <- jsonrpc.QueryStatsResponse{
+			Error: ErrNoResultReceived,
+		}
+	} else {
+		result := results[0].(jsonrpc.QueryStatsResponse)
+		request.Responder <- result
 	}
 
 	return nil
