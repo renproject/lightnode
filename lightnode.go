@@ -27,7 +27,7 @@ type Lightnode struct {
 }
 
 // NewLightnode constructs a new Lightnode.
-func NewLightnode(logger logrus.FieldLogger, cap, workers, timeout int, port string, bootstrapAddrs []peer.MultiAddr) *Lightnode {
+func NewLightnode(logger logrus.FieldLogger, cap, workers, timeout int, port string, bootstrapMultiAddrs []peer.MultiAddr) *Lightnode {
 	lightnode := &Lightnode{
 		port:   port,
 		logger: logger,
@@ -40,7 +40,7 @@ func NewLightnode(logger logrus.FieldLogger, cap, workers, timeout int, port str
 	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second)
 	server := rpc.NewServer(logger, cap, requests)
 
-	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, addrStore, bootstrapAddrs)
+	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, addrStore, bootstrapMultiAddrs)
 	lightnode.handler = cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,
@@ -50,12 +50,12 @@ func NewLightnode(logger logrus.FieldLogger, cap, workers, timeout int, port str
 	}).Handler(jsonrpcService)
 
 	// Construct resolver.
-	addrs := make([]addr.Addr, len(bootstrapAddrs))
-	for i := range bootstrapAddrs {
-		addrs[i] = bootstrapAddrs[i].Addr()
+	bootstrapAddrs := make([]addr.Addr, len(bootstrapMultiAddrs))
+	for i := range bootstrapMultiAddrs {
+		bootstrapAddrs[i] = bootstrapMultiAddrs[i].Addr()
 	}
 
-	lightnode.resolver = resolver.New(cap, logger, client, server, p2pService, addrs)
+	lightnode.resolver = resolver.New(cap, logger, client, server, p2pService, bootstrapAddrs)
 
 	return lightnode
 }

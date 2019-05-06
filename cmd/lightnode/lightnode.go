@@ -49,17 +49,17 @@ func main() {
 	hook.Timeout = 500 * time.Millisecond
 	logger.AddHook(hook)
 
-	bootstrapAddrs := make([]peer.MultiAddr, len(addresses))
+	bootstrapMultiAddrs := make([]peer.MultiAddr, len(addresses))
 	for i := range addresses {
 		multiAddr, err := peer.NewMultiAddr(addresses[i], 0, [65]byte{})
 		if err != nil {
 			logger.Fatalf("invalid bootstrap addresses: %v", err)
 		}
-		bootstrapAddrs[i] = multiAddr
+		bootstrapMultiAddrs[i] = multiAddr
 	}
 
 	// Start running Lightnode.
 	done := make(chan struct{})
-	node := lightnode.NewLightnode(logger, cap, workers, timeout, port, bootstrapAddrs)
+	node := lightnode.NewLightnode(logger, cap, workers, timeout, port, bootstrapMultiAddrs)
 	node.Run(done)
 }
