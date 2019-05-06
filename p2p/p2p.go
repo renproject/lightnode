@@ -1,5 +1,5 @@
 // Package p2p defines the P2P task, which maintains the network information for the Darknodes. The task pings the
-// Bootstrap nodes upon receiving a `Tick` message and subsequently updates the multi-address store.
+// Bootstrap nodes on a regular interval and subsequently updates the multi-address store.
 package p2p
 
 import (
@@ -25,24 +25,28 @@ type P2P struct {
 	bootstrapAddrs []peer.MultiAddr
 	logger         logrus.FieldLogger
 	store          store.KVStore
+	pollRate       time.Duration
 }
 
 // New returns a new P2P task.
-func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.KVStore, bootstrapAddrs []peer.MultiAddr) tau.Task {
+func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.KVStore, bootstrapAddrs []peer.MultiAddr, pollRate time.Duration) tau.Task {
 	p2p := &P2P{
 		timeout:        timeout,
 		logger:         logger,
 		store:          store,
 		bootstrapAddrs: bootstrapAddrs,
+		pollRate:       pollRate,
 	}
+
+	// Start background polling service.
+	p2p.Run()
+
 	return tau.New(tau.NewIO(cap), p2p)
 }
 
 // Reduce implements the `tau.Task` interface.
 func (p2p *P2P) Reduce(message tau.Message) tau.Message {
 	switch message := message.(type) {
-	case Tick:
-		return p2p.handleTick(message)
 	case rpc.QueryMessage:
 		return p2p.handleQuery(message)
 	default:
@@ -51,10 +55,11 @@ func (p2p *P2P) Reduce(message tau.Message) tau.Message {
 	return nil
 }
 
-// handleTick queries the Bootstrap nodes for their peers. Upon receiving a response, we update the store with the
-// multi-address of the node we queried, as well as any nodes it returns. If we do not receive a response, we remove it
-// from the store if it previously existed.
-func (p2p *P2P) handleTick(message tau.Message) tau.Message {
+// Run starts a background routine querying the Bootstrap nodes for their peers. Upon receiving a response, we update
+// the store with the multi-address of the node we queried, as well as any nodes it returns. If we do not receive a
+// response, we remove it from the store if it previously existed. After the querying is complete, this service waits
+// for `pollRate` before querying the nodes again.
+func (p2p *P2P) Run() {
 	request := jsonrpc.JSONRequest{
 		JSONRPC: "2.0",
 		Method:  jsonrpc.MethodQueryPeers,
@@ -62,54 +67,56 @@ func (p2p *P2P) handleTick(message tau.Message) tau.Message {
 	}
 
 	go func() {
-		co.ParForAll(p2p.bootstrapAddrs, func(i int) {
-			// Get the net.Addr of the Bootstrap node. We make the assumption that the JSON-RPC port is equivalent to
-			// the gRPC port + 1.
-			multi := p2p.bootstrapAddrs[i]
-			client := jrpc.NewClient(p2p.timeout)
-			addr := multi.ResolveTCPAddr().(*net.TCPAddr)
-			addr.Port += 1
+		for {
+			co.ParForAll(p2p.bootstrapAddrs, func(i int) {
+				// Get the net.Addr of the Bootstrap node. We make the assumption that the JSON-RPC port is equivalent to
+				// the gRPC port + 1.
+				multi := p2p.bootstrapAddrs[i]
+				client := jrpc.NewClient(p2p.timeout)
+				addr := multi.ResolveTCPAddr().(*net.TCPAddr)
+				addr.Port += 1
 
-			// Send the JSON-RPC request.
-			response, err := client.Call(fmt.Sprintf("http://%v", addr.String()), request)
-			if err != nil {
-				p2p.logger.Warnf("cannot connect to node %v: %v", multi.Addr().String(), err)
-				if err := p2p.store.Delete(multi.Addr().String()); err != nil {
-					p2p.logger.Errorf("cannot delete multi-address from store: %v", err)
-				}
-				return
-			}
-			if err := p2p.store.Write(multi.Addr().String(), multi); err != nil {
-				p2p.logger.Errorf("cannot add multi-address to store: %v", err)
-				return
-			}
-			if response.Error != nil {
-				p2p.logger.Warnf("received error in response: code = %v, message = %v, data = %v", response.Error.Code, response.Error.Message, string(response.Error.Data))
-				return
-			}
-
-			// Parse the response and write any multi-addresses returned by the node to the store.
-			var result jsonrpc.QueryPeersResponse
-			if err := json.Unmarshal(response.Result, &result); err != nil {
-				p2p.logger.Errorf("invalid QueryPeersResponse from node %v: %v", multi.Addr().String(), err)
-				return
-			}
-			for _, node := range result.Peers {
-				multiAddr, err := peer.NewMultiAddr(node, 0, [65]byte{})
+				// Send the JSON-RPC request.
+				response, err := client.Call(fmt.Sprintf("http://%v", addr.String()), request)
 				if err != nil {
-					p2p.logger.Errorf("invalid QueryPeersResponse from node %v: %v", multi.Addr().String(), err)
+					p2p.logger.Warnf("cannot connect to node %v: %v", multi.Addr().String(), err)
+					if err := p2p.store.Delete(multi.Addr().String()); err != nil {
+						p2p.logger.Errorf("cannot delete multi-address from store: %v", err)
+					}
 					return
 				}
-				if err := p2p.store.Write(multiAddr.Addr().String(), multiAddr); err != nil {
+				fmt.Println("writing multi for", multi.Addr().String())
+				if err := p2p.store.Write(multi.Addr().String(), multi); err != nil {
 					p2p.logger.Errorf("cannot add multi-address to store: %v", err)
 					return
 				}
-			}
-		})
-		p2p.logger.Infof("connecting to %v darknodes", p2p.store.Entries())
-	}()
+				if response.Error != nil {
+					p2p.logger.Warnf("received error in response: code = %v, message = %v, data = %v", response.Error.Code, response.Error.Message, string(response.Error.Data))
+					return
+				}
 
-	return nil
+				// Parse the response and write any multi-addresses returned by the node to the store.
+				var result jsonrpc.QueryPeersResponse
+				if err := json.Unmarshal(response.Result, &result); err != nil {
+					p2p.logger.Errorf("invalid QueryPeersResponse from node %v: %v", multi.Addr().String(), err)
+					return
+				}
+				for _, node := range result.Peers {
+					multiAddr, err := peer.NewMultiAddr(node, 0, [65]byte{})
+					if err != nil {
+						p2p.logger.Errorf("invalid QueryPeersResponse from node %v: %v", multi.Addr().String(), err)
+						return
+					}
+					if err := p2p.store.Write(multiAddr.Addr().String(), multiAddr); err != nil {
+						p2p.logger.Errorf("cannot add multi-address to store: %v", err)
+						return
+					}
+				}
+			})
+			p2p.logger.Infof("connecting to %v darknodes", p2p.store.Entries())
+			time.Sleep(p2p.pollRate)
+		}
+	}()
 }
 
 // handleQuery retrieves multi-addresses from the store and writes the response to the responder channel in the original
@@ -174,13 +181,4 @@ func (p2p *P2P) randomPeers(iter store.KVStoreIterator, num int) []string {
 	}
 
 	return addresses[:length]
-}
-
-// Tick message is periodically generated by the parent task. The P2P task updates the multi-addresses in the store upon
-// receiving this message.
-type Tick struct {
-}
-
-// IsMessage implements the `tau.Message` interface.
-func (message Tick) IsMessage() {
 }

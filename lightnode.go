@@ -26,8 +26,8 @@ type Lightnode struct {
 	resolver tau.Task
 }
 
-// NewLightnode constructs a new Lightnode.
-func NewLightnode(logger logrus.FieldLogger, cap, workers, timeout int, port string, bootstrapAddrs []peer.MultiAddr) *Lightnode {
+// New constructs a new Lightnode.
+func New(logger logrus.FieldLogger, cap, workers, timeout int, port string, bootstrapAddrs []peer.MultiAddr, pollRate time.Duration) *Lightnode {
 	lightnode := &Lightnode{
 		port:   port,
 		logger: logger,
@@ -40,7 +40,7 @@ func NewLightnode(logger logrus.FieldLogger, cap, workers, timeout int, port str
 	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second)
 	server := rpc.NewServer(logger, cap, requests)
 
-	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, addrStore, bootstrapAddrs)
+	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, addrStore, bootstrapAddrs, pollRate)
 	lightnode.handler = cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,
@@ -69,19 +69,5 @@ func (node *Lightnode) Run(done <-chan struct{}) {
 		}
 	}()
 
-	go node.resolver.Run(done)
-	node.resolver.IO().InputWriter() <- p2p.Tick{}
-
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-done:
-			return
-		case <-ticker.C:
-			node.logger.Debug("updating darknode multi addresses")
-			node.resolver.IO().InputWriter() <- p2p.Tick{}
-		}
-	}
+	node.resolver.Run(done)
 }

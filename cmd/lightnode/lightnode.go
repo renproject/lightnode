@@ -29,6 +29,10 @@ func main() {
 	if err != nil {
 		timeout = 60
 	}
+	pollRate, err := strconv.Atoi(os.Getenv("POLL_RATE"))
+	if err != nil {
+		pollRate = 300
+	}
 	addresses := strings.Split(os.Getenv("ADDRESSES"), ",")
 
 	// Setup logger and attach Sentry hook.
@@ -60,6 +64,6 @@ func main() {
 
 	// Start running Lightnode.
 	done := make(chan struct{})
-	node := lightnode.NewLightnode(logger, cap, workers, timeout, port, bootstrapAddrs)
+	node := lightnode.New(logger, cap, workers, timeout, port, bootstrapAddrs, time.Duration(pollRate)*time.Second)
 	node.Run(done)
 }
