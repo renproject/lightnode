@@ -4,7 +4,6 @@ package p2p
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -15,13 +14,9 @@ import (
 	"github.com/republicprotocol/co-go"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
+	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
-)
-
-var (
-	// ErrInvalidDarknodeID is returned when we do not have health information for a particular Darknode in the store.
-	ErrInvalidDarknodeID = errors.New("invalid darknode ID")
 )
 
 // P2P handles the peer-to-peer network of nodes.
@@ -29,19 +24,17 @@ type P2P struct {
 	timeout        time.Duration
 	bootstrapAddrs []peer.MultiAddr
 	logger         logrus.FieldLogger
-	multiStore     store.KVStore
-	statsStore     store.KVStore
+	store          store.Proxy
 	pollRate       time.Duration
 	multiAddrCount int
 }
 
 // New returns a new P2P task.
-func New(logger logrus.FieldLogger, cap int, timeout time.Duration, multiStore, statsStore store.KVStore, bootstrapAddrs []peer.MultiAddr, pollRate time.Duration, multiAddrCount int) tau.Task {
+func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.Proxy, bootstrapAddrs []peer.MultiAddr, pollRate time.Duration, multiAddrCount int) tau.Task {
 	p2p := &P2P{
 		timeout:        timeout,
 		logger:         logger,
-		multiStore:     multiStore,
-		statsStore:     statsStore,
+		store:          store,
 		bootstrapAddrs: bootstrapAddrs,
 		pollRate:       pollRate,
 		multiAddrCount: multiAddrCount,
@@ -122,7 +115,7 @@ func (p2p *P2P) Run() {
 						p2p.logger.Errorf("invalid QueryPeersResponse from node %v: %v", multi.Addr().String(), err)
 						return
 					}
-					if err := p2p.multiStore.Write(multiAddr.Addr().String(), multiAddr); err != nil {
+					if err := p2p.store.InsertMultiAddress(multiAddr.Addr(), multiAddr); err != nil {
 						p2p.logger.Errorf("cannot add multi-address to store: %v", err)
 						return
 					}
@@ -154,12 +147,12 @@ func (p2p *P2P) Run() {
 				}
 
 				// Parse the response and write the node's stats to the store.
-				if err := p2p.statsStore.Write(multi.Addr().String(), statsResult); err != nil {
+				if err := p2p.store.InsertStats(multi.Addr(), statsResult); err != nil {
 					p2p.logger.Errorf("cannot add stats to store: %v", err)
 					return
 				}
 			})
-			p2p.logger.Infof("querying %v darknodes", p2p.multiStore.Entries())
+			p2p.logger.Infof("querying %v darknodes", p2p.store.MultiAddressEntries())
 			time.Sleep(p2p.pollRate)
 		}
 	}()
@@ -177,12 +170,12 @@ func (p2p *P2P) sendRequest(request jsonrpc.JSONRequest, multi peer.MultiAddr) j
 	response, err := client.Call(fmt.Sprintf("http://%v", addr.String()), request)
 	if err != nil {
 		p2p.logger.Warnf("cannot connect to node %v: %v", multi.Addr().String(), err)
-		if err := p2p.multiStore.Delete(multi.Addr().String()); err != nil {
+		if err := p2p.store.DeleteMultiAddress(multi.Addr()); err != nil {
 			p2p.logger.Errorf("cannot delete multi-address from store: %v", err)
 		}
 		return nil
 	}
-	if err := p2p.multiStore.Write(multi.Addr().String(), multi); err != nil {
+	if err := p2p.store.InsertMultiAddress(multi.Addr(), multi); err != nil {
 		p2p.logger.Errorf("cannot add multi-address to store: %v", err)
 		return nil
 	}
@@ -196,26 +189,16 @@ func (p2p *P2P) sendRequest(request jsonrpc.JSONRequest, multi peer.MultiAddr) j
 
 // handleQueryPeers retrieves at most 5 random multi-addresses from the store.
 func (p2p *P2P) handleQueryPeers(request jsonrpc.QueryPeersRequest) jsonrpc.Response {
-	iter := p2p.multiStore.Iterator()
-	addresses := p2p.randomPeers(iter)
+	addresses := p2p.randomPeers()
 	response := jsonrpc.QueryPeersResponse{
 		Peers: addresses,
 	}
 	return response
 }
 
-func (p2p *P2P) randomPeers(iter store.KVStoreIterator) []string {
+func (p2p *P2P) randomPeers() []string {
 	// Retrieve all the Darknode multi-addresses in the store.
-	addresses := make([]string, 0, p2p.multiStore.Entries())
-	for iter.Next() {
-		var value peer.MultiAddr
-		_, err := iter.KV(&value)
-		if err != nil {
-			p2p.logger.Errorf("cannot read multi-address using iterator: %v", err)
-			continue
-		}
-		addresses = append(addresses, value.Value())
-	}
+	addresses := p2p.store.MultiAddresses()
 
 	// Shuffle the list.
 	rand.Shuffle(len(addresses), func(i, j int) {
@@ -234,7 +217,7 @@ func (p2p *P2P) randomPeers(iter store.KVStoreIterator) []string {
 // handleQueryNumPeers retrieves the number of multi-addresses in the store.
 func (p2p *P2P) handleQueryNumPeers(request jsonrpc.QueryNumPeersRequest) jsonrpc.Response {
 	// Return the number of entries in the store.
-	entries := p2p.multiStore.Entries()
+	entries := p2p.store.MultiAddressEntries()
 	response := jsonrpc.QueryNumPeersResponse{
 		NumPeers: entries,
 	}
@@ -243,13 +226,7 @@ func (p2p *P2P) handleQueryNumPeers(request jsonrpc.QueryNumPeersRequest) jsonrp
 
 // handleQueryStats retrieves the stats for the given Darknode address from the store.
 func (p2p *P2P) handleQueryStats(request jsonrpc.QueryStatsRequest) jsonrpc.Response {
-	var response jsonrpc.QueryStatsResponse
-
-	// Return the number of entries in the store.
-	if err := p2p.statsStore.Read(request.DarknodeID, &response); err != nil {
-		response.Error = ErrInvalidDarknodeID
-	}
-	return response
+	return p2p.store.Stats(addr.New(request.DarknodeID))
 }
 
 // InvokeRPC is tau.Message contains a `jsonrpc.Request`.

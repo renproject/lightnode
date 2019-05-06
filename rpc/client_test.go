@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/rpc"
+	"github.com/renproject/lightnode/store"
 
 	"github.com/renproject/lightnode/testutils"
 	"github.com/republicprotocol/darknode-go/processor"
@@ -84,12 +85,13 @@ var _ = Describe("RPC client", func() {
 			defer server.Close()
 			multi, err := testutils.ServerMultiAddress(server)
 			Expect(err).ToNot(HaveOccurred())
-			store, err := testutils.InitStore(multi)
+			multiStore, err := testutils.InitStore(multi)
 			Expect(err).ToNot(HaveOccurred())
+			store := store.NewProxy(multiStore, store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
-			client := NewClient(logger, 32, 8, time.Second, store)
+			client := NewClient(logger, store, 32, 8, time.Second)
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response, 1)
 
@@ -122,12 +124,13 @@ var _ = Describe("RPC client", func() {
 			defer server.Close()
 			multi, err := testutils.ServerMultiAddress(server)
 			Expect(err).ToNot(HaveOccurred())
-			store, err := testutils.InitStore(multi)
+			multiStore, err := testutils.InitStore(multi)
 			Expect(err).ToNot(HaveOccurred())
+			store := store.NewProxy(multiStore, store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
-			client := NewClient(logger, 32, 8, time.Second, store)
+			client := NewClient(logger, store, 32, 8, time.Second)
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response, 1)
 
@@ -163,12 +166,13 @@ var _ = Describe("RPC client", func() {
 			defer close(done)
 			multi, err := peer.NewMultiAddr("/ip4/0.0.0.0/tcp/18515/ren/8MKXcuQAjR2eEq8bsSHDPkYEmqmjtj", 1, [65]byte{})
 			Expect(err).NotTo(HaveOccurred())
-			store, err := testutils.InitStore(multi)
+			multiStore, err := testutils.InitStore(multi)
 			Expect(err).ToNot(HaveOccurred())
+			store := store.NewProxy(multiStore, store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
-			client := NewClient(logger, 32, 8, time.Second, store)
+			client := NewClient(logger, store, 32, 8, time.Second)
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response, 1)
 
@@ -200,12 +204,13 @@ var _ = Describe("RPC client", func() {
 			defer server.Close()
 			multi, err := testutils.ServerMultiAddress(server)
 			Expect(err).ToNot(HaveOccurred())
-			store, err := testutils.InitStore(multi)
+			multiStore, err := testutils.InitStore(multi)
 			Expect(err).ToNot(HaveOccurred())
+			store := store.NewProxy(multiStore, store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
-			client := NewClient(logger, 32, 8, time.Second, store)
+			client := NewClient(logger, store, 32, 8, time.Second)
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response, 1)
 
@@ -237,12 +242,13 @@ var _ = Describe("RPC client", func() {
 			defer server.Close()
 			multi, err := testutils.ServerMultiAddress(server)
 			Expect(err).ToNot(HaveOccurred())
-			store, err := testutils.InitStore(multi)
+			multiStore, err := testutils.InitStore(multi)
 			Expect(err).ToNot(HaveOccurred())
+			store := store.NewProxy(multiStore, store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
-			client := NewClient(logger, 32, 8, time.Second, store)
+			client := NewClient(logger, store, 32, 8, time.Second)
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response, 1)
 

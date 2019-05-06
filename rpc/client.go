@@ -16,7 +16,6 @@ import (
 	"github.com/renproject/lightnode/store"
 	"github.com/republicprotocol/co-go"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
-	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
@@ -33,13 +32,13 @@ var (
 // Client is used to send RPC requests.
 type Client struct {
 	logger  logrus.FieldLogger
-	store   store.KVStore
+	store   store.Proxy
 	queue   chan RPCCall
 	timeout time.Duration
 }
 
 // NewClient returns a new Client task.
-func NewClient(logger logrus.FieldLogger, cap, numWorkers int, timeout time.Duration, store store.KVStore) tau.Task {
+func NewClient(logger logrus.FieldLogger, store store.Proxy, cap, numWorkers int, timeout time.Duration) tau.Task {
 	client := &Client{
 		logger:  logger,
 		store:   store,
@@ -158,8 +157,8 @@ func (client *Client) handleRequest(request interface{}, method string, addresse
 		}
 
 		// Get multi-address of the darknode from store.
-		var multi peer.MultiAddr
-		if err := client.store.Read(address.String(), &multi); err != nil {
+		multi, err := client.store.MultiAddress(address)
+		if err != nil {
 			client.logger.Warnf("cannot read multi-address of %v from the store: %v", address.String(), err)
 			return
 		}

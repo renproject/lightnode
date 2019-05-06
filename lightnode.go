@@ -36,12 +36,13 @@ func New(logger logrus.FieldLogger, cap, workers, timeout int, port string, boot
 	// Construct client and server.
 	multiStore := store.NewCache(0)
 	statsStore := store.NewCache(0)
-	client := rpc.NewClient(logger, cap, workers, time.Duration(timeout)*time.Second, multiStore)
+	store := store.NewProxy(multiStore, statsStore)
+	client := rpc.NewClient(logger, store, cap, workers, time.Duration(timeout)*time.Second)
 	requests := make(chan jsonrpc.Request, cap)
 	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second)
 	server := rpc.NewServer(logger, cap, requests)
 
-	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, multiStore, statsStore, bootstrapMultiAddrs, pollRate, multiAddrCount)
+	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, store, bootstrapMultiAddrs, pollRate, multiAddrCount)
 	lightnode.handler = cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,

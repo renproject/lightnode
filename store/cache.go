@@ -7,14 +7,16 @@ import (
 	"time"
 )
 
-// ErrDataExpired is returned when the data is expired.
-var ErrDataExpired = errors.New("data expired")
+var (
+	// ErrDataExpired is returned when the data is expired.
+	ErrDataExpired = errors.New("data expired")
 
-// ErrNoMoreItems is returned when no more items left in the iterator.
-var ErrNoMoreItems = errors.New("no more items in iterator")
+	// ErrNoMoreItems is returned when no more items left in the iterator.
+	ErrNoMoreItems = errors.New("no more items in iterator")
+)
 
-// cache is an in-memory implementation of the KVStore. It is safe for concurrent read and write. The data stored will
-// have a valid duration. After the data expired, it will returns ErrDataExpired error to alert user to update the data.
+// cache is an in-memory implementation of the KVStore. After the data expires, it returns ErrDataExpired if the data is
+// out of date. This store is safe for concurrent read and write.
 type cache struct {
 	mu         *sync.RWMutex
 	data       map[string][]byte
@@ -22,7 +24,7 @@ type cache struct {
 	timeToLive int64
 }
 
-// NewCache returns a new cached KVStore. If the `timeToLive` is less than or equal to 0, the data will not have
+// NewCache returns a new cached KVStore. If the `timeToLive` is less than or equal to 0, the data will not have an
 // expiration time.
 func NewCache(timeToLive int64) KVStore {
 	return cache{
