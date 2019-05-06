@@ -11,7 +11,6 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/p2p"
 
-	"github.com/renproject/lightnode/rpc"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
@@ -34,21 +33,29 @@ var _ = Describe("RPC client", func() {
 				ID:      request.ID,
 			}
 
-			// Construct 5 random peers for the response message.
-			peers := make([]string, numPeers)
-			for i := range peers {
-				peers[i] = fmt.Sprintf("/ip4/0.0.0.0/tcp/800%d/ren/8MKXcuQAjR2eEq8bsSHDPkYEmqmjt%s", i, string('A'+i))
-			}
-
-			resp := jsonrpc.QueryPeersResponse{
-				Peers: peers,
-			}
-			respBytes, err := json.Marshal(resp)
-			Expect(err).ToNot(HaveOccurred())
-
 			switch request.Method {
 			case jsonrpc.MethodQueryPeers:
-				response.Result = json.RawMessage(respBytes)
+				// Construct 5 random peers for the response message.
+				peers := make([]string, numPeers)
+				for i := range peers {
+					peers[i] = fmt.Sprintf("/ip4/0.0.0.0/tcp/800%d/ren/8MKXcuQAjR2eEq8bsSHDPkYEmqmjt%s", i, string('A'+i))
+				}
+
+				peersResp := jsonrpc.QueryPeersResponse{
+					Peers: peers,
+				}
+				peersRespBytes, err := json.Marshal(peersResp)
+				Expect(err).ToNot(HaveOccurred())
+
+				response.Result = json.RawMessage(peersRespBytes)
+			case jsonrpc.MethodQueryStats:
+				statsResp := jsonrpc.QueryStatsResponse{
+					Location: "New York",
+				}
+				statsRespBytes, err := json.Marshal(statsResp)
+				Expect(err).ToNot(HaveOccurred())
+
+				response.Result = json.RawMessage(statsRespBytes)
 			default:
 				panic("unknown message type")
 			}
@@ -120,7 +127,7 @@ var _ = Describe("RPC client", func() {
 
 			// Send a QueryPeers message to the task.
 			responder := make(chan jsonrpc.Response, 1)
-			p2p.IO().InputWriter() <- rpc.QueryMessage{
+			p2p.IO().InputWriter() <- InvokeQuery{
 				Request: jsonrpc.QueryPeersRequest{
 					Responder: responder,
 				},
@@ -148,7 +155,7 @@ var _ = Describe("RPC client", func() {
 
 			// Send a QueryPeers message to the task.
 			responder := make(chan jsonrpc.Response, 1)
-			p2p.IO().InputWriter() <- rpc.QueryMessage{
+			p2p.IO().InputWriter() <- InvokeQuery{
 				Request: jsonrpc.QueryPeersRequest{
 					Responder: responder,
 				},
