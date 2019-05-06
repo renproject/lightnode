@@ -175,8 +175,8 @@ var _ = Describe("light nodes local tests", func() {
 			defer close(done)
 
 			bootstrapAddrs := initNodes(8, done, logger)
-			lightNode := NewLightnode(logger, 128, 3, 60, "5000", bootstrapAddrs)
-			go lightNode.Run(done)
+			lightnode := New(logger, 128, 3, 60, "5000", bootstrapAddrs, 5*time.Minute, 5)
+			go lightnode.Run(done)
 
 			time.Sleep(5 * time.Second)
 			testSendMessage()

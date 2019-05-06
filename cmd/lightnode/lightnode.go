@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -29,7 +30,18 @@ func main() {
 	if err != nil {
 		timeout = 60
 	}
+	pollRate, err := strconv.Atoi(os.Getenv("POLL_RATE"))
+	if err != nil {
+		pollRate = 300
+	}
+	multiAddrCount, err := strconv.Atoi(os.Getenv("MULTI_ADDRESS_COUNT"))
+	if err != nil {
+		multiAddrCount = 5
+	}
 	addresses := strings.Split(os.Getenv("ADDRESSES"), ",")
+
+	// Seed random number generator.
+	rand.Seed(time.Now().UnixNano())
 
 	// Setup logger and attach Sentry hook.
 	logger := logrus.New()
@@ -60,6 +72,6 @@ func main() {
 
 	// Start running Lightnode.
 	done := make(chan struct{})
-	node := lightnode.NewLightnode(logger, cap, workers, timeout, port, bootstrapMultiAddrs)
+	node := lightnode.New(logger, cap, workers, timeout, port, bootstrapMultiAddrs, time.Duration(pollRate)*time.Second, multiAddrCount)
 	node.Run(done)
 }

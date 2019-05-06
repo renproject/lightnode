@@ -79,7 +79,7 @@ func (client *Client) invoke(message InvokeRPC) tau.Message {
 // runWorkers starts running a given number of workers. They each try to read from the request queue and send the
 // request.
 func (client *Client) runWorkers(n int) {
-	go co.ParForAll(n, func(i int) {
+	go co.ForAll(n, func(i int) {
 		// For each RPC call inside the queue.
 		for call := range client.queue {
 			// Construct a new JSON client and send the request.

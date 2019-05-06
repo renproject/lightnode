@@ -3,6 +3,7 @@ package p2p_test
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -20,6 +21,8 @@ import (
 )
 
 var _ = Describe("RPC client", func() {
+	rand.Seed(time.Now().UnixNano())
+
 	// Construct a mock Darknode server.
 	initServer := func(address string, numPeers int) *http.Server {
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +94,7 @@ var _ = Describe("RPC client", func() {
 
 		// Initialise the P2P task.
 		logger := logrus.New()
-		p2p := New(logger, 128, time.Second, multiStore, store.NewCache(0), bootstrapAddrs)
+		p2p := New(logger, 128, time.Second, multiStore, store.NewCache(0), bootstrapAddrs, 5*time.Minute, 5)
 		go func() {
 			defer GinkgoRecover()
 			p2p.Run(done)
@@ -99,27 +102,6 @@ var _ = Describe("RPC client", func() {
 
 		return p2p, multiStore, servers
 	}
-
-	Context("when sending a tick message", func() {
-		It("should update the multi-address store", func() {
-			numPeers := 5
-			numBootstrapAddresses := 2
-			done := make(chan struct{})
-			defer close(done)
-
-			p2p, store, servers := initTask(done, numPeers, numBootstrapAddresses)
-			for _, server := range servers {
-				defer server.Close()
-			}
-
-			// Send a Tick message to the task and wait for it to query the bootstrap addresses and update its store.
-			p2p.IO().InputWriter() <- Tick{}
-			time.Sleep(1 * time.Second)
-
-			// Note: we add 1 because the store will include its own multi-address.
-			Expect(store.Entries()).To(Equal(numPeers + numBootstrapAddresses + 1))
-		})
-	})
 
 	Context("when sending a query peers message", func() {
 		It("should return the correct number of peers", func() {
@@ -133,8 +115,7 @@ var _ = Describe("RPC client", func() {
 				defer server.Close()
 			}
 
-			// Send a Tick message to the task and wait for it to query the bootstrap addresses and update its store.
-			p2p.IO().InputWriter() <- Tick{}
+			// Wait for it to P2P task to query the Bootstrap nodes and update its store.
 			time.Sleep(1 * time.Second)
 
 			// Send a QueryPeers message to the task.
@@ -154,7 +135,7 @@ var _ = Describe("RPC client", func() {
 			}
 		})
 
-		It("should return no peers if a tick has not been called", func() {
+		It("should return no peers if the P2P task has not finished querying the Bootstrap nodes", func() {
 			numPeers := 5
 			numBootstrapAddresses := 2
 			done := make(chan struct{})
