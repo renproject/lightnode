@@ -197,6 +197,8 @@ github.com/republicprotocol/darknode-go v0.0.0-20190506005139-2d5f1558cd94/go.mo
 github.com/republicprotocol/libbtc-go v0.0.0-20190218031145-13bd5bd75d7c/go.mod h1:piHewjEGMHuvrbWYZ14DtdJNpotcmVjMKCp/Xey+Xao=
 github.com/republicprotocol/registry v0.0.0-20190415061645-12929f382dc0 h1:NLjFns7Syff6HqFbTANTHUDtPJRb9U7KsoW8xM29lG4=
 github.com/republicprotocol/registry v0.0.0-20190415061645-12929f382dc0/go.mod h1:6rF1prrnJLQflVV4yB8uF1ewexB125OBH+mNaoafOsM=
+github.com/republicprotocol/ren-go v0.0.0-20190502043720-ab1b1c793fd1 h1:MloUjeGM49IMsAaM1qKcGp+aokA9cfq5P+LSvFR38Ac=
+github.com/republicprotocol/ren-go v0.0.0-20190502043720-ab1b1c793fd1/go.mod h1:VY9MvsDDMySmGPaolEUVIKOLSPtLtV7KPuO6dEHgCl4=
 github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be h1:E9fhHqqrVhY/iGt5VX9afQ3Z4YtZoAO+uTPG17tENuI=
 github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be/go.mod h1:oQVfcQeN/dloadjgPBuTOKInaw7c39TsXpLBoz0xoYU=
 github.com/republicprotocol/renvm-go v0.0.0-20190320052535-795f34011fa2/go.mod h1:cqu/ZRgyxN3+O2CgRdOjDtr0BV98tdqH+fZA9eqdCB8=

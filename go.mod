@@ -15,6 +15,7 @@ require (
 	github.com/renproject/mercury v0.0.0-20190503040154-3f1d8caf4572 // indirect
 	github.com/republicprotocol/co-go v0.0.0-20180723052914-4e299fdb0e80
 	github.com/republicprotocol/darknode-go v0.0.0-20190506005139-2d5f1558cd94
+	github.com/republicprotocol/ren-go v0.0.0-20190502043720-ab1b1c793fd1
 	github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be
 	github.com/republicprotocol/tau v0.0.0-20190116001021-54c2ea27fbc3
 	github.com/rs/cors v1.6.0

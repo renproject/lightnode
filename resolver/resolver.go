@@ -46,7 +46,9 @@ func (resolver *Resolver) Reduce(message tau.Message) tau.Message {
 		})
 	case rpc.QueryMessage:
 		resolver.server.Send(rpc.NewAccept())
-		resolver.p2p.Send(message)
+		resolver.p2p.Send(p2p.InvokeQuery{
+			Request: message.Request,
+		})
 	case tau.Error:
 		resolver.logger.Errorln(message.Error())
 	case p2p.Tick:

@@ -36,9 +36,9 @@ func (server *Server) accept() tau.Message {
 	select {
 	case req := <-server.jsonRPCQueue:
 		switch req.(type) {
-		case jsonrpc.QueryPeersRequest, jsonrpc.QueryNumPeersRequest:
+		case jsonrpc.QueryPeersRequest, jsonrpc.QueryNumPeersRequest, jsonrpc.QueryStatsRequest:
 			return NewQueryMessage(req)
-		case jsonrpc.SendMessageRequest, jsonrpc.ReceiveMessageRequest, jsonrpc.QueryStatsRequest:
+		case jsonrpc.SendMessageRequest, jsonrpc.ReceiveMessageRequest:
 			return NewSendMessage(req)
 		default:
 			server.logger.Panicf("unknown request type: %T", req)
