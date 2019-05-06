@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"github.com/renproject/lightnode/p2p"
 	"github.com/renproject/lightnode/rpc"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
