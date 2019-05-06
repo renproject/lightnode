@@ -34,6 +34,10 @@ func main() {
 	if err != nil {
 		pollRate = 300
 	}
+	multiAddrCount, err := strconv.Atoi(os.Getenv("MULTI_ADDRESS_COUNT"))
+	if err != nil {
+		multiAddrCount = 5
+	}
 	addresses := strings.Split(os.Getenv("ADDRESSES"), ",")
 
 	// Seed random number generator.
@@ -68,6 +72,6 @@ func main() {
 
 	// Start running Lightnode.
 	done := make(chan struct{})
-	node := lightnode.New(logger, cap, workers, timeout, port, bootstrapAddrs, time.Duration(pollRate)*time.Second)
+	node := lightnode.New(logger, cap, workers, timeout, port, bootstrapAddrs, time.Duration(pollRate)*time.Second, multiAddrCount)
 	node.Run(done)
 }

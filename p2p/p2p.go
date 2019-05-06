@@ -26,16 +26,18 @@ type P2P struct {
 	logger         logrus.FieldLogger
 	store          store.KVStore
 	pollRate       time.Duration
+	multiAddrCount int
 }
 
 // New returns a new P2P task.
-func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.KVStore, bootstrapAddrs []peer.MultiAddr, pollRate time.Duration) tau.Task {
+func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.KVStore, bootstrapAddrs []peer.MultiAddr, pollRate time.Duration, multiAddrCount int) tau.Task {
 	p2p := &P2P{
 		timeout:        timeout,
 		logger:         logger,
 		store:          store,
 		bootstrapAddrs: bootstrapAddrs,
 		pollRate:       pollRate,
+		multiAddrCount: multiAddrCount,
 	}
 
 	// Start background polling service.
@@ -129,7 +131,7 @@ func (p2p *P2P) handleQuery(message rpc.QueryMessage) tau.Message {
 	case jsonrpc.QueryPeersRequest:
 		// Return at most 5 random addresses from the multi-address store.
 		iter := p2p.store.Iterator()
-		addresses := p2p.randomPeers(iter, 5)
+		addresses := p2p.randomPeers(iter)
 		response = jsonrpc.QueryPeersResponse{
 			Peers: addresses,
 		}
@@ -156,7 +158,7 @@ func (p2p *P2P) handleQuery(message rpc.QueryMessage) tau.Message {
 }
 
 // randomPeers returns at most 5 random multi-addresses from the store.
-func (p2p *P2P) randomPeers(iter store.KVStoreIterator, num int) []string {
+func (p2p *P2P) randomPeers(iter store.KVStoreIterator) []string {
 	// Retrieve all the Darknode multi-addresses in the store.
 	addresses := make([]string, 0, p2p.store.Entries())
 	for iter.Next() {
@@ -175,8 +177,8 @@ func (p2p *P2P) randomPeers(iter store.KVStoreIterator, num int) []string {
 	})
 
 	// Return at most 5 addresses.
-	length := 5
-	if len(addresses) < 5 {
+	length := p2p.multiAddrCount
+	if len(addresses) < p2p.multiAddrCount {
 		length = len(addresses)
 	}
 
