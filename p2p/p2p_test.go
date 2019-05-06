@@ -115,7 +115,7 @@ var _ = Describe("RPC client", func() {
 				defer server.Close()
 			}
 
-			// Wait for it to P2P task to query the Bootstrap nodes and update its store.
+			// Wait for the P2P task to query the Bootstrap nodes and update its store.
 			time.Sleep(1 * time.Second)
 
 			// Send a QueryPeers message to the task.

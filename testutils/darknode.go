@@ -41,8 +41,12 @@ func (node *MockDarknode) Run(done <-chan struct{}) {
 			response.Result = json.RawMessage([]byte(`{"values":[{"type":"private","value":"0"}]}`))
 		case jsonrpc.MethodQueryPeers:
 			response.Result = json.RawMessage([]byte(`{"peers": null}`))
+		case jsonrpc.MethodQueryNumPeers:
+			response.Result = json.RawMessage([]byte(`{"numPeers": 0}`))
+		case jsonrpc.MethodQueryStats:
+			response.Result = json.RawMessage([]byte(`{"version": "1.0", "address": "abc", "cpus": null, "ram": 0, "disk": 8, "location": "New York"}`))
 		default:
-			panic("unknown message type")
+			panic(fmt.Sprintf("unknown method %s", request.Method))
 		}
 
 		time.Sleep(100 * time.Millisecond)
