@@ -124,6 +124,7 @@ func (p2p *P2P) Run() {
 func (p2p *P2P) handleQuery(message rpc.QueryMessage) tau.Message {
 	var response jsonrpc.Response
 	var responder chan<- jsonrpc.Response
+
 	switch request := message.Request.(type) {
 	case jsonrpc.QueryPeersRequest:
 		// Return at most 5 random addresses from the multi-address store.
