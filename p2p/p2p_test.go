@@ -94,7 +94,7 @@ var _ = Describe("RPC client", func() {
 
 		// Initialise the P2P task.
 		logger := logrus.New()
-		p2p := New(logger, 128, time.Second, store, bootstrapAddrs, 5*time.Minute)
+		p2p := New(logger, 128, time.Second, store, bootstrapAddrs, 5*time.Minute, 5)
 		go func() {
 			defer GinkgoRecover()
 			p2p.Run(done)
