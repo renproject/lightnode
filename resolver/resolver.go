@@ -1,7 +1,6 @@
 package resolver
 
 import (
-	"github.com/renproject/lightnode/p2p"
 	"github.com/renproject/lightnode/rpc"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
@@ -46,9 +45,7 @@ func (resolver *Resolver) Reduce(message tau.Message) tau.Message {
 		})
 	case rpc.QueryMessage:
 		resolver.server.Send(rpc.NewAccept())
-		resolver.p2p.Send(p2p.InvokeQuery{
-			Request: message.Request,
-		})
+		resolver.p2p.Send(message)
 	case tau.Error:
 		resolver.logger.Errorln(message.Error())
 	default:

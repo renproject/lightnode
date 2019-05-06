@@ -9,6 +9,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/renproject/lightnode/rpc"
 	jrpc "github.com/renproject/lightnode/rpc/jsonrpc"
 	"github.com/renproject/lightnode/store"
 	"github.com/republicprotocol/co-go"
@@ -48,43 +49,43 @@ func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.
 
 // Reduce implements the `tau.Task` interface.
 func (p2p *P2P) Reduce(message tau.Message) tau.Message {
-	switch message := message.(type) {
-	case InvokeQuery:
-		return p2p.invoke(message)
+	switch request := message.(type) {
+	case rpc.QueryMessage:
+		p2p.handleQuery(request.Request)
 	default:
 		p2p.logger.Panicf("unexpected message type %T", message)
 	}
 	return nil
 }
 
-// invoke retrieves the result for the query by delegating the request to a helper function and writes the result to the
-// responder channel in the request. If the queue is full, the message will be dropped.
-func (p2p *P2P) invoke(message InvokeQuery) tau.Message {
+// handleQuery retrieves the result for the query by delegating the request to a helper function and writes the result
+// to the responder channel in the request. If the queue is full, the message will be dropped.
+func (p2p *P2P) handleQuery(request jsonrpc.Request) {
 	var response jsonrpc.Response
 	var responder chan<- jsonrpc.Response
-	switch request := message.Request.(type) {
+
+	switch req := request.(type) {
 	case jsonrpc.QueryPeersRequest:
-		response = p2p.handleQueryPeers(request)
-		responder = request.Responder
+		response = p2p.handleQueryPeers(req)
+		responder = req.Responder
 	case jsonrpc.QueryNumPeersRequest:
-		response = p2p.handleQueryNumPeers(request)
-		responder = request.Responder
+		response = p2p.handleQueryNumPeers(req)
+		responder = req.Responder
 	case jsonrpc.QueryStatsRequest:
-		response = p2p.handleQueryStats(request)
-		responder = request.Responder
+		response = p2p.handleQueryStats(req)
+		responder = req.Responder
 	default:
 		p2p.logger.Panicf("unexpected message type %T", request)
 	}
 
 	responder <- response
-	return nil
 }
 
 // Run starts a background routine querying the Bootstrap nodes for their peers and health information. Upon receiving
 // responses, we update the stats store with the health information and the multi-address store with the address of the
 // node we queried, as well as any nodes it returns. If we do not receive a response, we remove it from the store if it
-// previously existed. After the querying is complete, this service waits for `pollRate` before querying the nodes
-// again.
+// previously existed. After the querying is complete, this service waits for `pollRate` seconds before querying the
+// nodes again.
 func (p2p *P2P) Run() {
 	peersRequest := jsonrpc.JSONRequest{
 		JSONRPC: "2.0",
@@ -152,7 +153,10 @@ func (p2p *P2P) Run() {
 					return
 				}
 			})
+
 			p2p.logger.Infof("querying %v darknodes", p2p.store.MultiAddressEntries())
+
+			// Sleep before `pollRate` seconds.
 			time.Sleep(p2p.pollRate)
 		}
 	}()
@@ -227,13 +231,4 @@ func (p2p *P2P) handleQueryNumPeers(request jsonrpc.QueryNumPeersRequest) jsonrp
 // handleQueryStats retrieves the stats for the given Darknode address from the store.
 func (p2p *P2P) handleQueryStats(request jsonrpc.QueryStatsRequest) jsonrpc.Response {
 	return p2p.store.Stats(addr.New(request.DarknodeID))
-}
-
-// InvokeRPC is tau.Message contains a `jsonrpc.Request`.
-type InvokeQuery struct {
-	Request jsonrpc.Request
-}
-
-// IsMessage implements the `tau.Message` interface.
-func (InvokeQuery) IsMessage() {
 }

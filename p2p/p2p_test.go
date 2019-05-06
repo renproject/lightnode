@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/p2p"
+	"github.com/renproject/lightnode/rpc"
 
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
@@ -128,7 +129,7 @@ var _ = Describe("RPC client", func() {
 
 			// Send a QueryPeers message to the task.
 			responder := make(chan jsonrpc.Response, 1)
-			p2p.IO().InputWriter() <- InvokeQuery{
+			p2p.IO().InputWriter() <- rpc.QueryMessage{
 				Request: jsonrpc.QueryPeersRequest{
 					Responder: responder,
 				},
@@ -156,7 +157,7 @@ var _ = Describe("RPC client", func() {
 
 			// Send a QueryPeers message to the task.
 			responder := make(chan jsonrpc.Response, 1)
-			p2p.IO().InputWriter() <- InvokeQuery{
+			p2p.IO().InputWriter() <- rpc.QueryMessage{
 				Request: jsonrpc.QueryPeersRequest{
 					Responder: responder,
 				},
