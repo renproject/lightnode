@@ -281,8 +281,8 @@ func (client *Client) handleQueryStatsRequest(request jsonrpc.QueryStatsRequest,
 	return nil
 }
 
-// InvokeRPC is tau.Message contains a `jsonrpc.Request` and a list of target darknodes address. The client task is to
-// send the request to the given addresses and returned the results to the responder channel in the request.
+// InvokeRPC is tau.Message contains a `jsonrpc.Request` and a list of target Darknode addresses. The client task sends
+// the request to the given addresses and returns the results to the responder channel in the request.
 type InvokeRPC struct {
 	Request   jsonrpc.Request
 	Addresses []addr.Addr
@@ -292,8 +292,8 @@ type InvokeRPC struct {
 func (InvokeRPC) IsMessage() {
 }
 
-// RPCCall contains everything the `jsonrpc.Client` needs to send the request. The response will be written to the
-// responder channel which we can assume it has a buffer size of 1.
+// RPCCall contains the information `jsonrpc.Client` requires in order to send the request. The response will be written
+// to the responder channel which is assumed to have a buffer size of 1.
 type RPCCall struct {
 	Request   jsonrpc.JSONRequest
 	URL       string
