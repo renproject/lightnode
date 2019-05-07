@@ -20,9 +20,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var _ = Describe("RPC client", func() {
+func init(){
 	rand.Seed(time.Now().UnixNano())
+}
 
+var _ = Describe("RPC client", func() {
 	// Construct a mock Darknode server.
 	initServer := func(address string, numPeers int) *http.Server {
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
