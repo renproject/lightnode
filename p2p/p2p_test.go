@@ -20,7 +20,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func init(){
+func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
