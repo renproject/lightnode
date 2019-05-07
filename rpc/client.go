@@ -9,11 +9,15 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net"
 	"time"
 
 	jrpc "github.com/renproject/lightnode/rpc/jsonrpc"
+	"github.com/renproject/lightnode/store"
 	"github.com/republicprotocol/co-go"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/renp2p-go/core/peer"
+	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
 )
@@ -29,14 +33,16 @@ var (
 // Client is used to send RPC requests.
 type Client struct {
 	logger  logrus.FieldLogger
+	store   store.KVStore
 	queue   chan RPCCall
 	timeout time.Duration
 }
 
-// NewClient returns a new Client.
-func NewClient(logger logrus.FieldLogger, cap, numWorkers int, timeout time.Duration) tau.Task {
+// NewClient returns a new Client task.
+func NewClient(logger logrus.FieldLogger, cap, numWorkers int, timeout time.Duration, store store.KVStore) tau.Task {
 	client := &Client{
 		logger:  logger,
+		store:   store,
 		queue:   make(chan RPCCall, cap),
 		timeout: timeout,
 	}
@@ -50,8 +56,9 @@ func (client *Client) Reduce(message tau.Message) tau.Message {
 	case InvokeRPC:
 		return client.invoke(message)
 	default:
-		panic(fmt.Errorf("unexpected message type %T", message))
+		client.logger.Panicf("unexpected message type %T", message)
 	}
+	return nil
 }
 
 // invoke sends the given message to the target addresses. If the queue is full, the message will be dropped.
@@ -62,14 +69,15 @@ func (client *Client) invoke(message InvokeRPC) tau.Message {
 	case jsonrpc.ReceiveMessageRequest:
 		return client.handleReceiveMessageRequest(request, jsonrpc.MethodReceiveMessage, message.Addresses)
 	default:
-		panic("unknown message type")
+		client.logger.Panicf("unexpected message type %T", request)
 	}
+	return nil
 }
 
 // runWorkers starts running a given number of workers. They each try to read from the request queue and send the
 // request.
 func (client *Client) runWorkers(n int) {
-	go co.ParForAll(n, func(i int) {
+	go co.ForAll(n, func(i int) {
 		// For each RPC call inside the queue.
 		for call := range client.queue {
 			// Construct a new JSON client and send the request.
@@ -77,11 +85,12 @@ func (client *Client) runWorkers(n int) {
 			response, err := jsonClient.Call(call.URL, call.Request)
 			if err != nil {
 				close(call.Responder)
-				client.logger.Warn("cannot send message to %v: %v", call.URL, err)
+				client.logger.Warnf("cannot send message to %v: %v", call.URL, err)
 				continue
 			}
 
-			// Unmarshal the response and write it to the responder channel.
+			// Unmarshal the response and write it to the responder channel. Make sure the responder channel always has
+			// buffer size of 1.
 			switch call.Request.Method {
 			case jsonrpc.MethodSendMessage:
 				var resp jsonrpc.SendMessageResponse
@@ -92,12 +101,7 @@ func (client *Client) runWorkers(n int) {
 					client.logger.Errorf("cannot unmarshal SendMessageResponse from Darknode: %v", err)
 					continue
 				}
-
-				select {
-				case call.Responder <- resp:
-				case <-time.After(client.timeout):
-					client.logger.Errorf("cannot write response to the responder channel")
-				}
+				call.Responder <- resp
 			case jsonrpc.MethodReceiveMessage:
 				var resp jsonrpc.ReceiveMessageResponse
 				if response.Error != nil {
@@ -107,30 +111,34 @@ func (client *Client) runWorkers(n int) {
 					client.logger.Errorf("cannot unmarshal ReceiveMessageResponse from Darknode: %v", err)
 					continue
 				}
-
-				select {
-				case call.Responder <- resp:
-				case <-time.After(client.timeout):
-					client.logger.Errorf("cannot write response to the responder channel")
-				}
+				call.Responder <- resp
 			}
 		}
 	})
 }
 
 // handleRequest handles writing the request for each Darknode to the queue and reading each of the responses.
-func (client *Client) handleRequest(request interface{}, method string, addresses []string) []interface{} {
+func (client *Client) handleRequest(request interface{}, method string, addresses []addr.Addr) []interface{} {
 	results := make([]interface{}, len(addresses))
 
 	// Loop through the provided addresses.
 	co.ParForAll(addresses, func(i int) {
 		address := addresses[i]
-		responder := make(chan jsonrpc.Response)
+		responder := make(chan jsonrpc.Response, 1)
 		data, err := json.Marshal(request)
 		if err != nil {
 			client.logger.Errorf("failed to marshal the SendMessageRequest: %v", err)
 			return
 		}
+
+		// Get multi-address of the darknode from store.
+		var multi peer.MultiAddr
+		if err := client.store.Read(address.String(), &multi); err != nil {
+			client.logger.Errorf("cannot read multi-address of %v from the store: %v", address.String(), err)
+			return
+		}
+		netAddr := multi.ResolveTCPAddr().(*net.TCPAddr)
+		netAddr.Port += 1
 		call := RPCCall{
 			Request: jsonrpc.JSONRequest{
 				JSONRPC: "2.0",
@@ -138,7 +146,7 @@ func (client *Client) handleRequest(request interface{}, method string, addresse
 				Params:  data,
 				ID:      rand.Int31(),
 			},
-			URL:       address,
+			URL:       "http://" + netAddr.String(),
 			Responder: responder,
 		}
 
@@ -161,7 +169,7 @@ func (client *Client) handleRequest(request interface{}, method string, addresse
 	return results
 }
 
-func (client *Client) handleSendMessageRequest(request jsonrpc.SendMessageRequest, method string, addresses []string) tau.Message {
+func (client *Client) handleSendMessageRequest(request jsonrpc.SendMessageRequest, method string, addresses []addr.Addr) tau.Message {
 	results := client.handleRequest(request, method, addresses)
 
 	// Check if the majority of the Darknodes return the same result and if so write the response back to the parent
@@ -177,25 +185,27 @@ func (client *Client) handleSendMessageRequest(request jsonrpc.SendMessageReques
 		}
 	}
 
+	// Write the response returned by most darknode to the user
 	for id, num := range messageIDs {
 		if num >= (len(addresses)+1)*2/3 {
-			select {
-			case request.Responder <- jsonrpc.SendMessageResponse{
+			request.Responder <- jsonrpc.SendMessageResponse{
 				MessageID: id,
 				Ok:        true,
-			}:
-			case <-time.After(client.timeout):
-				client.logger.Errorf("cannot write response to the responder channel")
 			}
 
 			return nil
 		}
 	}
 
-	return tau.NewError(ErrNotEnoughResultsReturned)
+	// Write error back if we don't get enough results from darknodes.
+	request.Responder <- jsonrpc.SendMessageResponse{
+		Error: ErrNotEnoughResultsReturned,
+	}
+
+	return nil
 }
 
-func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessageRequest, method string, addresses []string) tau.Message {
+func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessageRequest, method string, addresses []addr.Addr) tau.Message {
 	results := client.handleRequest(request, method, addresses)
 
 	// TODO: We currently forward the first non-error response we receive. In future we may want to do some basic
@@ -214,17 +224,27 @@ func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessage
 		return nil
 	}
 
-	return tau.NewError(ErrNoResultReceived)
+	// If all result are bad, return an error to the sender.
+	request.Responder <- jsonrpc.ReceiveMessageResponse{
+		Error: ErrNotEnoughResultsReturned,
+	}
+
+	return nil
 }
 
+// InvokeRPC is tau.Message contains a `jsonrpc.Request` and a list of target darknodes address. The client task is to
+// send the request to the given addresses and returned the results to the responder channel in the request.
 type InvokeRPC struct {
 	Request   jsonrpc.Request
-	Addresses []string
+	Addresses []addr.Addr
 }
 
+// IsMessage implements the `tau.Message` interface.
 func (InvokeRPC) IsMessage() {
 }
 
+// RPCCall contains everything the `jsonrpc.Client` needs to send the request. The response will be written to the
+// responder channel which we can assume it has a buffer size of 1.
 type RPCCall struct {
 	Request   jsonrpc.JSONRequest
 	URL       string

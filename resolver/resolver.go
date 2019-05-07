@@ -1,10 +1,8 @@
 package resolver
 
 import (
-	"fmt"
-
 	"github.com/renproject/lightnode/rpc"
-	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
 )
@@ -14,45 +12,45 @@ type Resolver struct {
 	logger    logrus.FieldLogger
 	client    tau.Task
 	server    tau.Task
-	addresses []string
+	p2p       tau.Task
+	addresses []addr.Addr
 }
 
 // newResolver returns a new Resolver.
-func newResolver(logger logrus.FieldLogger, client, server tau.Task, addresses []string) *Resolver {
+func newResolver(logger logrus.FieldLogger, client, server, p2p tau.Task, addresses []addr.Addr) *Resolver {
 	return &Resolver{
 		logger:    logger,
 		client:    client,
 		server:    server,
+		p2p:       p2p,
 		addresses: addresses,
 	}
 }
 
 // New returns a new Resolver task.
-func New(cap int, logger logrus.FieldLogger, client, server tau.Task, addresses []string) tau.Task {
-	resolver := newResolver(logger, client, server, addresses)
+func New(cap int, logger logrus.FieldLogger, client, server, p2p tau.Task, addresses []addr.Addr) tau.Task {
+	resolver := newResolver(logger, client, server, p2p, addresses)
 	resolver.server.Send(rpc.NewAccept())
-	return tau.New(tau.NewIO(cap), resolver, client, server)
+	return tau.New(tau.NewIO(cap), resolver, client, server, p2p)
 }
 
 // Reduce implements the `tau.Task` interface.
 func (resolver *Resolver) Reduce(message tau.Message) tau.Message {
 	switch message := message.(type) {
-	case rpc.MessageAccepted:
+	case rpc.SendMessage:
 		resolver.server.Send(rpc.NewAccept())
-		return resolver.handleServerMessage(message.Request)
+		resolver.client.Send(rpc.InvokeRPC{
+			Request:   message.Request,
+			Addresses: resolver.addresses,
+		})
+	case rpc.QueryMessage:
+		resolver.server.Send(rpc.NewAccept())
+		resolver.p2p.Send(message)
 	case tau.Error:
 		resolver.logger.Errorln(message.Error())
-		return nil
 	default:
-		panic(fmt.Errorf("unexpected message type %T", message))
+		resolver.logger.Panicf("unexpected message type %T", message)
 	}
-}
-
-func (resolver *Resolver) handleServerMessage(request jsonrpc.Request) tau.Message {
-	resolver.client.Send(rpc.InvokeRPC{
-		Request:   request,
-		Addresses: resolver.addresses,
-	})
 
 	return nil
 }
