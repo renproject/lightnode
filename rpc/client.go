@@ -67,8 +67,6 @@ func (client *Client) invoke(message InvokeRPC) tau.Message {
 		return client.handleSendMessageRequest(request, jsonrpc.MethodSendMessage, message.Addresses)
 	case jsonrpc.ReceiveMessageRequest:
 		return client.handleReceiveMessageRequest(request, jsonrpc.MethodReceiveMessage, message.Addresses)
-	case jsonrpc.QueryStatsRequest:
-		return client.handleQueryStatsRequest(request, jsonrpc.MethodQueryStats)
 	default:
 		client.logger.Panicf("unexpected message type %T", request)
 	}
@@ -252,29 +250,6 @@ func (client *Client) handleReceiveMessageRequest(request jsonrpc.ReceiveMessage
 	// If all result are bad, return an error to the sender.
 	request.Responder <- jsonrpc.ReceiveMessageResponse{
 		Error: ErrNotEnoughResultsReturned,
-	}
-
-	return nil
-}
-
-func (client *Client) handleQueryStatsRequest(request jsonrpc.QueryStatsRequest, method string) tau.Message {
-	if request.DarknodeID == "" {
-		// TODO: We likely want to return the Lightnode stats if the request does not contain a Darknode ID.
-		request.Responder <- jsonrpc.QueryStatsResponse{
-			Error: errors.New("missing darknode ID"),
-		}
-	}
-
-	addresses := []addr.Addr{addr.New(request.DarknodeID)}
-	results := client.handleRequest(request, method, addresses)
-
-	if len(results) == 0 || results[0] == nil {
-		request.Responder <- jsonrpc.QueryStatsResponse{
-			Error: ErrNoResultReceived,
-		}
-	} else {
-		result := results[0].(jsonrpc.QueryStatsResponse)
-		request.Responder <- result
 	}
 
 	return nil
