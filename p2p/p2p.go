@@ -87,7 +87,6 @@ func (p2p *P2P) Run() {
 					}
 					return
 				}
-				fmt.Println("writing multi for", multi.Addr().String())
 				if err := p2p.store.Write(multi.Addr().String(), multi); err != nil {
 					p2p.logger.Errorf("cannot add multi-address to store: %v", err)
 					return
