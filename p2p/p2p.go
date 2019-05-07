@@ -230,5 +230,8 @@ func (p2p *P2P) handleQueryNumPeers(request jsonrpc.QueryNumPeersRequest) jsonrp
 
 // handleQueryStats retrieves the stats for the given Darknode address from the store.
 func (p2p *P2P) handleQueryStats(request jsonrpc.QueryStatsRequest) jsonrpc.Response {
+	if request.DarknodeID == "" {
+		// TODO: Return Lightnode stats.
+	}
 	return p2p.store.Stats(addr.New(request.DarknodeID))
 }
