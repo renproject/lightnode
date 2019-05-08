@@ -17,7 +17,7 @@ import (
 func main() {
 	// Retrieve environment variables.
 	port := os.Getenv("PORT")
-	version := os.Getenv("SOURCE_VERSION")
+	version := os.Getenv("HEROKU_SLUG_COMMIT")[:7]
 	sentryURL := os.Getenv("SENTRY_URL")
 	cap, err := strconv.Atoi(os.Getenv("CAP"))
 	if err != nil {
