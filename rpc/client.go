@@ -88,7 +88,8 @@ func (client *Client) runWorkers(n int) {
 				continue
 			}
 
-			// Unmarshal the response and write it to the responder channel.
+			// Unmarshal the response and write it to the responder channel. Make sure the responder channel always has
+			// buffer size of 1.
 			switch call.Request.Method {
 			case jsonrpc.MethodSendMessage:
 				var resp jsonrpc.SendMessageResponse
@@ -99,12 +100,7 @@ func (client *Client) runWorkers(n int) {
 					client.logger.Errorf("cannot unmarshal SendMessageResponse from Darknode: %v", err)
 					continue
 				}
-
-				select {
-				case call.Responder <- resp:
-				case <-time.After(client.timeout):
-					client.logger.Errorf("cannot write response to the responder channel")
-				}
+				call.Responder <- resp
 			case jsonrpc.MethodReceiveMessage:
 				var resp jsonrpc.ReceiveMessageResponse
 				if response.Error != nil {
@@ -114,27 +110,7 @@ func (client *Client) runWorkers(n int) {
 					client.logger.Errorf("cannot unmarshal ReceiveMessageResponse from Darknode: %v", err)
 					continue
 				}
-
-				select {
-				case call.Responder <- resp:
-				case <-time.After(client.timeout):
-					client.logger.Errorf("cannot write response to the responder channel")
-				}
-			case jsonrpc.MethodQueryStats:
-				var resp jsonrpc.QueryStatsResponse
-				if response.Error != nil {
-					resp.Error = fmt.Errorf("%v", response.Error.Message)
-				} else if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
-					close(call.Responder)
-					client.logger.Errorf("cannot unmarshal QueryStatsResponse from Darknode: %v", err)
-					continue
-				}
-
-				select {
-				case call.Responder <- resp:
-				case <-time.After(client.timeout):
-					client.logger.Errorf("cannot write response to the responder channel")
-				}
+				call.Responder <- resp
 			}
 		}
 	})
