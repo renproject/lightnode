@@ -82,10 +82,14 @@ var _ = Describe("Proxy store", func() {
 			Expect(store.InsertMultiAddress(sndAddr, sndMulti)).To(Succeed())
 
 			// Retrieve multi-addresses using proxy.
-			value := store.MultiAddresses()
-			Expect(len(value)).To(Equal(2))
-			Expect(value[0]).To(Equal(fstMulti.Value()))
-			Expect(value[1]).To(Equal(sndMulti.Value()))
+			values := store.MultiAddresses()
+			Expect(len(values)).To(Equal(2))
+
+			for _, value := range values {
+				if value != fstMulti.Value() && value != sndMulti.Value() {
+					Fail("unknown value")
+				}
+			}
 		})
 
 		It("should be able to retrieve the number of multi-addresses", func() {
