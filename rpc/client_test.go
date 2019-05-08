@@ -76,7 +76,7 @@ var _ = Describe("RPC client", func() {
 		return server
 	}
 
-	initTimeoutServer := func () *http.Server{
+	initTimeoutServer := func() *http.Server {
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(time.Minute)
 		})
@@ -289,8 +289,8 @@ var _ = Describe("RPC client", func() {
 		})
 	})
 
-	Context ("the darknode takes longer time to respond", func() {
-		FIt("should not block other sendMessage", func() {
+	Context("the darknode takes longer time to respond", func() {
+		It("should not block other sendMessage", func() {
 			// Initialise Darknode and two servers .
 			done := make(chan struct{})
 			defer close(done)
@@ -317,7 +317,7 @@ var _ = Describe("RPC client", func() {
 			for i := 0; i < 2; i++ {
 				responder := make(chan jsonrpc.Response, 1)
 				address := badMulti.Addr()
-				if i % 2 != 0 {
+				if i%2 != 0 {
 					address = multi.Addr()
 				}
 
@@ -329,7 +329,7 @@ var _ = Describe("RPC client", func() {
 				}
 
 				// Since the client task has two workers, we should get a response from the good server.
-				if i % 2 != 0 {
+				if i%2 != 0 {
 					select {
 					case response := <-responder:
 						resp, ok := response.(jsonrpc.SendMessageResponse)
