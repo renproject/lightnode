@@ -47,12 +47,12 @@ var _ = Describe("light nodes local tests", func() {
 				Keystore:    keyStore,
 				Address:     keyStore.Address(),
 				Host:        "0.0.0.0",
-				Port:        fmt.Sprintf("%d", 6000+2*i),
-				JSONRPCPort: fmt.Sprintf("%d", 6000+2*i+1),
+				Port:        fmt.Sprintf("%d", 5550+2*i),
+				JSONRPCPort: fmt.Sprintf("%d", 5550+2*i+1),
 				Home:        fmt.Sprintf("%s/.darknode_test/darknode_%d", os.Getenv("HOME"), i),
 			}
 
-			multiAddr, err := peer.NewMultiAddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%s/ren/%s", fmt.Sprintf("%d", 6000+2*i), keyStore.Address()), 0, [65]byte{})
+			multiAddr, err := peer.NewMultiAddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%s/ren/%s", fmt.Sprintf("%d", 5550+2*i), keyStore.Address()), 0, [65]byte{})
 			Expect(err).NotTo(HaveOccurred())
 			multiAddrs[i] = multiAddr
 		}
