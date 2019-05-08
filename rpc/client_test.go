@@ -8,8 +8,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/rpc"
-	"github.com/renproject/lightnode/store"
 
+	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/republicprotocol/darknode-go/processor"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
@@ -47,7 +47,7 @@ var _ = Describe("RPC client", func() {
 			defer GinkgoRecover()
 
 			Expect(func() {
-				server.ListenAndServe()
+				Expect(server.ListenAndServe()).To(Equal(http.ErrServerClosed))
 			}).NotTo(Panic())
 		}()
 
@@ -63,13 +63,30 @@ var _ = Describe("RPC client", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 		})
-		server := &http.Server{Addr: "0.0.0.0:18515", Handler: handler}
+		server := &http.Server{Addr: "0.0.0.0:18516", Handler: handler}
 
 		go func() {
 			defer GinkgoRecover()
 
 			Expect(func() {
-				server.ListenAndServe()
+				Expect(server.ListenAndServe()).To(Equal(http.ErrServerClosed))
+			}).NotTo(Panic())
+		}()
+
+		return server
+	}
+
+	initTimeoutServer := func() *http.Server {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(time.Minute)
+		})
+		server := &http.Server{Addr: "0.0.0.0:18517", Handler: handler}
+
+		go func() {
+			defer GinkgoRecover()
+
+			Expect(func() {
+				Expect(server.ListenAndServe()).To(Equal(http.ErrServerClosed))
 			}).NotTo(Panic())
 		}()
 
@@ -78,7 +95,7 @@ var _ = Describe("RPC client", func() {
 
 	Context("when we receive an InvokeRPC message", func() {
 		It("should get a response from the server for a SendMessageRequest", func() {
-			// Intialise Darknode.
+			// Initialise darknodes.
 			done := make(chan struct{})
 			defer close(done)
 			server := initServer()
@@ -117,7 +134,7 @@ var _ = Describe("RPC client", func() {
 		})
 
 		It("should get a response from the server for a ReceiveMessageRequest", func() {
-			// Intialise Darknode.
+			// Initialise darknodes.
 			done := make(chan struct{})
 			defer close(done)
 			server := initServer()
@@ -268,6 +285,60 @@ var _ = Describe("RPC client", func() {
 				Expect(resp.Error).NotTo(BeNil())
 			case <-time.After(time.Second):
 				Fail("timeout")
+			}
+		})
+	})
+
+	Context("when the darknode takes too long to respond", func() {
+		It("should not block other send message requests", func() {
+			// Initialise Darknodes.
+			done := make(chan struct{})
+			defer close(done)
+			server := initServer()
+			defer server.Close()
+			badServer := initTimeoutServer()
+			defer badServer.Close()
+
+			// Construct the store for the client.
+			multi, err := testutils.ServerMultiAddress(server)
+			Expect(err).ToNot(HaveOccurred())
+			badMulti, err := testutils.ServerMultiAddress(badServer)
+			Expect(err).ToNot(HaveOccurred())
+			multiStore, err := testutils.InitStore(multi, badMulti)
+			Expect(err).ToNot(HaveOccurred())
+			store := store.NewProxy(multiStore, store.NewCache(0))
+
+			// Initialise the client task.
+			logger := logrus.New()
+			client := NewClient(logger, store, 4, 2, time.Minute)
+			go client.Run(done)
+
+			// Send a request to the task.
+			for i := 0; i < 2; i++ {
+				responder := make(chan jsonrpc.Response, 1)
+				address := badMulti.Addr()
+				if i%2 != 0 {
+					address = multi.Addr()
+				}
+
+				client.IO().InputWriter() <- InvokeRPC{
+					Request: jsonrpc.SendMessageRequest{
+						Responder: responder,
+					},
+					Addresses: []addr.Addr{address},
+				}
+
+				// Since the client task has two workers, we should get a response from the good server.
+				if i%2 != 0 {
+					select {
+					case response := <-responder:
+						resp, ok := response.(jsonrpc.SendMessageResponse)
+						Expect(ok).To(BeTrue())
+						Expect(resp.Ok).To(BeTrue())
+					case <-time.After(time.Second):
+						Fail("timeout")
+					}
+				}
 			}
 		})
 	})
