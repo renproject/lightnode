@@ -24,6 +24,14 @@ func InitStore(multis ...peer.MultiAddr) (store.KVStore, error) {
 	return store, nil
 }
 
+func RandomAddress() (addr.Addr, error) {
+	ecdsaPK, err := ecdsa.GenerateKey(secp256k1.S256(), rand.Reader)
+	if err != nil {
+		return addr.Addr{}, nil
+	}
+	return addr.FromPublicKey(&ecdsaPK.PublicKey), nil
+}
+
 func ServerMultiAddress(server *http.Server) (peer.MultiAddr, error) {
 	url := strings.TrimPrefix(server.Addr, "http://")
 	address, err := net.ResolveTCPAddr("tcp", url)
