@@ -17,6 +17,7 @@ import (
 func main() {
 	// Retrieve environment variables.
 	port := os.Getenv("PORT")
+	version := os.Getenv("SOURCE_VERSION")
 	sentryURL := os.Getenv("SENTRY_URL")
 	cap, err := strconv.Atoi(os.Getenv("CAP"))
 	if err != nil {
@@ -72,6 +73,6 @@ func main() {
 
 	// Start running Lightnode.
 	done := make(chan struct{})
-	node := lightnode.New(logger, cap, workers, timeout, port, bootstrapMultiAddrs, time.Duration(pollRate)*time.Second, multiAddrCount)
+	node := lightnode.New(logger, cap, workers, timeout, version, port, bootstrapMultiAddrs, time.Duration(pollRate)*time.Second, multiAddrCount)
 	node.Run(done)
 }

@@ -10,12 +10,14 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/p2p"
-	"github.com/renproject/lightnode/rpc"
 
+	"github.com/renproject/lightnode/rpc"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
+	"github.com/republicprotocol/darknode-go/health"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
+	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
 )
@@ -105,7 +107,8 @@ var _ = Describe("RPC client", func() {
 		// Initialise the P2P task.
 		logger := logrus.New()
 		store := store.NewProxy(multiStore, store.NewCache(0))
-		p2p := New(logger, 128, time.Second, store, bootstrapAddrs, 5*time.Minute, 5)
+		health := health.NewHealthCheck("1.0", addr.New(""))
+		p2p := New(logger, 128, time.Second, store, health, bootstrapAddrs, 5*time.Minute, 5)
 		go func() {
 			defer GinkgoRecover()
 			p2p.Run(done)

@@ -13,6 +13,7 @@ import (
 	jrpc "github.com/renproject/lightnode/rpc/jsonrpc"
 	"github.com/renproject/lightnode/store"
 	"github.com/republicprotocol/co-go"
+	"github.com/republicprotocol/darknode-go/health"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
@@ -26,16 +27,18 @@ type P2P struct {
 	bootstrapAddrs []peer.MultiAddr
 	logger         logrus.FieldLogger
 	store          store.Proxy
+	health         health.HealthCheck
 	pollRate       time.Duration
 	multiAddrCount int
 }
 
 // New returns a new P2P task.
-func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.Proxy, bootstrapAddrs []peer.MultiAddr, pollRate time.Duration, multiAddrCount int) tau.Task {
+func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.Proxy, health health.HealthCheck, bootstrapAddrs []peer.MultiAddr, pollRate time.Duration, multiAddrCount int) tau.Task {
 	p2p := &P2P{
 		timeout:        timeout,
 		logger:         logger,
 		store:          store,
+		health:         health,
 		bootstrapAddrs: bootstrapAddrs,
 		pollRate:       pollRate,
 		multiAddrCount: multiAddrCount,
@@ -231,7 +234,30 @@ func (p2p *P2P) handleQueryNumPeers(request jsonrpc.QueryNumPeersRequest) jsonrp
 // handleQueryStats retrieves the stats for the given Darknode address from the store.
 func (p2p *P2P) handleQueryStats(request jsonrpc.QueryStatsRequest) jsonrpc.Response {
 	if request.DarknodeID == "" {
-		// TODO: Return Lightnode stats.
+		// If no Darknode ID is provided, return the stats for the Lightnode.
+		cpus, err := p2p.health.CPUs()
+		if err != nil {
+			return nil
+		}
+		ram, err := p2p.health.RAM()
+		if err != nil {
+			return nil
+		}
+		disk, err := p2p.health.HardDrive()
+		if err != nil {
+			return nil
+		}
+		location, err := p2p.health.Location()
+		if err != nil {
+			return nil
+		}
+		return jsonrpc.QueryStatsResponse{
+			Version:  p2p.health.Version(),
+			CPUs:     cpus,
+			RAM:      ram,
+			Disk:     disk,
+			Location: location,
+		}
 	}
 	return p2p.store.Stats(addr.New(request.DarknodeID))
 }
