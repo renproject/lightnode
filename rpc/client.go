@@ -22,10 +22,13 @@ import (
 )
 
 var (
-	// ErrNotEnoughResultsReturned is returned if we do not get enough successful responses from Darknodes.
+	// ErrNotEnoughResultsReturned is returned if we do not get enough successful responses from the Darknodes.
 	ErrNotEnoughResultsReturned = errors.New("not enough results returned")
 
-	// ErrTooManyRequests is returned when there is too much back pressure
+	// ErrNoResultsReturned is returned if we do not get any responses from the Darknodes.
+	ErrNoResultsReturned = errors.New("no results returned")
+
+	// ErrTooManyRequests is returned when there is too much back pressure.
 	ErrTooManyRequests = errors.New("dropping request: too much back pressure")
 )
 
@@ -45,7 +48,8 @@ func NewClient(logger logrus.FieldLogger, store store.Proxy, cap, numWorkers int
 		queue:   make(chan RPCCall, cap),
 		timeout: timeout,
 	}
-	// start running the background workers.
+
+	// Start running the background workers.
 	go client.runWorkers(numWorkers)
 	return tau.New(tau.NewIO(cap), client)
 }
@@ -57,6 +61,19 @@ func (client *Client) Reduce(message tau.Message) tau.Message {
 		return client.invoke(message)
 	default:
 		client.logger.Panicf("unexpected message type %T", message)
+	}
+	return nil
+}
+
+// invoke sends the given message to the target addresses. If the queue is full, the message will be dropped.
+func (client *Client) invoke(message InvokeRPC) tau.Message {
+	switch request := message.Request.(type) {
+	case jsonrpc.SendMessageRequest:
+		return client.handleMessage(request, jsonrpc.MethodSendMessage, message.Addresses)
+	case jsonrpc.ReceiveMessageRequest:
+		return client.handleMessage(request, jsonrpc.MethodReceiveMessage, message.Addresses)
+	default:
+		client.logger.Panicf("unexpected message type %T", request)
 	}
 	return nil
 }
@@ -102,19 +119,6 @@ func (client *Client) runWorkers(n int) {
 			}
 		}
 	})
-}
-
-// invoke sends the given message to the target addresses. If the queue is full, the message will be dropped.
-func (client *Client) invoke(message InvokeRPC) tau.Message {
-	switch request := message.Request.(type) {
-	case jsonrpc.SendMessageRequest:
-		return client.handleMessage(request, jsonrpc.MethodSendMessage, message.Addresses)
-	case jsonrpc.ReceiveMessageRequest:
-		return client.handleMessage(request, jsonrpc.MethodReceiveMessage, message.Addresses)
-	default:
-		client.logger.Panicf("unexpected message type %T", request)
-	}
-	return nil
 }
 
 func (client *Client) handleMessage(request jsonrpc.Request, method string, addresses []addr.Addr) tau.Message {
@@ -172,30 +176,32 @@ func (client *Client) handleRequest(method string, data []byte, address addr.Add
 	case client.queue <- call:
 		return nil
 	default:
-		return errors.New("dropping request: too much back pressure")
+		return ErrTooManyRequests
 	}
 }
 
-// handleSendMessageResults reads and validate the responses from the workers. It will write a response to the user when
-// 1) we get enough results from the darknodes.
-// 2) timeout
+// handleSendMessageResults reads and validates the responses from the workers. It will write a response to the user
+// when we get enough results from the Darknodes. If it does not receive sufficient responses before a `tick` message is
+// received, it writes an error.
 func (client *Client) handleSendMessageResults(request jsonrpc.Request, tick <-chan time.Time, results chan jsonrpc.Response, total int) {
 	messageIDs := map[string]int{}
 	counter := 0
 	req, ok := request.(jsonrpc.SendMessageRequest)
 	if !ok {
-		client.logger.Panicf("invalid request type, expect `jsonrpc.SendMessageRequest`, got %T", request)
+		client.logger.Panicf("invalid request type: expected jsonrpc.SendMessageRequest, got %T", request)
 	}
 
 Loop:
 	for {
 		select {
 		case <-tick:
+			// The Darknodes failed to provide a response within the given time.
 			break Loop
 		case result := <-results:
 			counter++
 			if result == nil {
 				if counter == total {
+					// All of the Darknodes have returned a nil message.
 					break Loop
 				}
 				continue
@@ -205,59 +211,65 @@ Loop:
 				messageIDs[res.MessageID]++
 			}
 
-			// Write the response returned by most darknode to the user if there is any.
+			// If the majority of the Darknodes return the same message, write it to the user.
 			for id, num := range messageIDs {
 				if num >= (total+1)*2/3 {
 					req.Responder <- jsonrpc.SendMessageResponse{
 						MessageID: id,
 						Ok:        true,
 					}
-
 					return
 				}
 			}
 
 			if counter == total {
+				// We have not received a consistent response from the Darknodes.
 				break Loop
 			}
 		}
 	}
 
-	// Write error back if we don't get enough results from darknodes.
+	// Write an error back if we do not get enough results from the Darknodes.
 	req.Responder <- jsonrpc.SendMessageResponse{
 		Error: ErrNotEnoughResultsReturned,
 	}
 }
 
-// TODO: We currently forward the first non-error response we receive. In future we may want to do some basic
-// validation here to ensure it is consistent with the responses returned by the other Darknodes.
+// handleSendMessageResults reads responses from the workers and writes the first non-nil response to the user. If it
+// does not receive a response before a `tick` message is received, it writes an error.
 func (client *Client) handleReceiveMessageResults(request jsonrpc.Request, tick <-chan time.Time, results chan jsonrpc.Response, total int) {
 	counter := 0
 	req, ok := request.(jsonrpc.ReceiveMessageRequest)
 	if !ok {
-		client.logger.Panicf("invalid request type, expect `jsonrpc.ReceiveMessageRequest`, got %T", request)
+		client.logger.Panicf("invalid request type: expected jsonrpc.ReceiveMessageRequest, got %T", request)
 	}
+
 Loop:
 	for {
 		select {
 		case <-tick:
+			// The Darknodes failed to provide a response within the given time.
+			break Loop
 		case result := <-results:
 			counter++
 			if result == nil {
 				if counter == total {
+					// All of the Darknodes returned a nil message.
 					break Loop
 				}
 				continue
 			}
-			req.Responder <- result.(jsonrpc.ReceiveMessageResponse)
 
+			// TODO: We currently forward the first non-error response we receive. In the future we may want to do some basic
+			// validation here to ensure it is consistent with the responses returned by the other Darknodes.
+			req.Responder <- result.(jsonrpc.ReceiveMessageResponse)
 			return
 		}
 	}
 
-	// If all result are bad, return an error to the sender.
+	// Write an error back if we do not get any results back from the Darknodes.
 	req.Responder <- jsonrpc.ReceiveMessageResponse{
-		Error: ErrNotEnoughResultsReturned,
+		Error: ErrNoResultsReturned,
 	}
 }
 
