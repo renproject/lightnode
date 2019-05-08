@@ -39,7 +39,7 @@ var _ = Describe("RPC client", func() {
 			// Construct 5 random peers for the response message.
 			peers := make([]string, numPeers)
 			for i := range peers {
-				peers[i] = fmt.Sprintf("/ip4/0.0.0.0/tcp/800%d/ren/8MKXcuQAjR2eEq8bsSHDPkYEmqmjt%s", i, string('A'+i))
+				peers[i] = fmt.Sprintf("/ip4/0.0.0.0/tcp/888%d/ren/8MKXcuQAjR2eEq8bsSHDPkYEmqmjt%s", i, string('A'+i))
 			}
 
 			resp := jsonrpc.QueryPeersResponse{
@@ -75,7 +75,7 @@ var _ = Describe("RPC client", func() {
 		servers := make([]*http.Server, numBootstrapAddresses+1)
 
 		// Intialise Darknode.
-		server := initServer("0.0.0.0:5000", numPeers)
+		server := initServer("0.0.0.0:8000", numPeers)
 		servers[0] = server
 
 		multi, err := testutils.ServerMultiAddress(server)
@@ -86,7 +86,7 @@ var _ = Describe("RPC client", func() {
 		// Intialise Bootstrap nodes.
 		bootstrapAddrs := make([]peer.MultiAddr, numBootstrapAddresses)
 		for i := range bootstrapAddrs {
-			bootstrapServer := initServer(fmt.Sprintf("0.0.0.0:500%d", i+1), numPeers)
+			bootstrapServer := initServer(fmt.Sprintf("0.0.0.0:800%d", i+1), numPeers)
 			servers[i+1] = bootstrapServer
 
 			multiAddr, err := testutils.ServerMultiAddress(bootstrapServer)
