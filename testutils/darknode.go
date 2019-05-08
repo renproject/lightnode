@@ -54,8 +54,8 @@ func (node *MockDarknode) Run(done <-chan struct{}) {
 			log.Fatal(err)
 		}
 	})
-	address := fmt.Sprintf("0.0.0.0:%v", node.config.JSONRPCPort)
 
+	address := fmt.Sprintf("0.0.0.0:%v", node.config.JSONRPCPort)
 	server := &http.Server{Addr: address, Handler: handler}
 
 	go func() {
@@ -63,7 +63,9 @@ func (node *MockDarknode) Run(done <-chan struct{}) {
 		server.Close()
 	}()
 
-	server.ListenAndServe()
+	if err := server.ListenAndServe(); err != nil {
+		log.Printf("failed to serve: %v", err)
+	}
 }
 
 func (node *MockDarknode) writeError(w http.ResponseWriter, err error) {

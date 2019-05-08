@@ -55,7 +55,7 @@ var _ = Describe("RPC client", func() {
 				response.Result = json.RawMessage(peersRespBytes)
 			case jsonrpc.MethodQueryStats:
 				statsResp := jsonrpc.QueryStatsResponse{
-					Location: "New York",
+					Location: "Sydney",
 				}
 				statsRespBytes, err := json.Marshal(statsResp)
 				Expect(err).ToNot(HaveOccurred())
@@ -242,7 +242,7 @@ var _ = Describe("RPC client", func() {
 			case response := <-responder:
 				resp, ok := response.(jsonrpc.QueryStatsResponse)
 				Expect(ok).To(BeTrue())
-				Expect(resp.Location).To(Equal("New York"))
+				Expect(resp.Location).To(Equal("Sydney"))
 			}
 		})
 
