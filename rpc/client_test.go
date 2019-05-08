@@ -47,7 +47,7 @@ var _ = Describe("RPC client", func() {
 			defer GinkgoRecover()
 
 			Expect(func() {
-				server.ListenAndServe()
+				Expect(server.ListenAndServe()).To(Equal(http.ErrServerClosed))
 			}).NotTo(Panic())
 		}()
 
@@ -69,7 +69,7 @@ var _ = Describe("RPC client", func() {
 			defer GinkgoRecover()
 
 			Expect(func() {
-				server.ListenAndServe()
+				Expect(server.ListenAndServe()).To(Equal(http.ErrServerClosed))
 			}).NotTo(Panic())
 		}()
 
@@ -86,7 +86,7 @@ var _ = Describe("RPC client", func() {
 			defer GinkgoRecover()
 
 			Expect(func() {
-				server.ListenAndServe()
+				Expect(server.ListenAndServe()).To(Equal(http.ErrServerClosed))
 			}).NotTo(Panic())
 		}()
 
@@ -95,7 +95,7 @@ var _ = Describe("RPC client", func() {
 
 	Context("when we receive an InvokeRPC message", func() {
 		It("should get a response from the server for a SendMessageRequest", func() {
-			// Intialise Darknode.
+			// Initialise darknodes.
 			done := make(chan struct{})
 			defer close(done)
 			server := initServer()
@@ -134,7 +134,7 @@ var _ = Describe("RPC client", func() {
 		})
 
 		It("should get a response from the server for a ReceiveMessageRequest", func() {
-			// Intialise Darknode.
+			// Initialise darknodes.
 			done := make(chan struct{})
 			defer close(done)
 			server := initServer()
@@ -299,7 +299,7 @@ var _ = Describe("RPC client", func() {
 			badServer := initTimeoutServer()
 			defer badServer.Close()
 
-			// Contruct the store for the client.
+			// Construct the store for the client.
 			multi, err := testutils.ServerMultiAddress(server)
 			Expect(err).ToNot(HaveOccurred())
 			badMulti, err := testutils.ServerMultiAddress(badServer)
