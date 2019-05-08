@@ -25,6 +25,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const Version = "1.0"
+
 var _ = Describe("light nodes local tests", func() {
 
 	generateConfigs := func(n int) []darknode.Config {
@@ -45,12 +47,12 @@ var _ = Describe("light nodes local tests", func() {
 				Keystore:    keyStore,
 				Address:     keyStore.Address(),
 				Host:        "0.0.0.0",
-				Port:        fmt.Sprintf("%d", 6000+2*i),
-				JSONRPCPort: fmt.Sprintf("%d", 6000+2*i+1),
+				Port:        fmt.Sprintf("%d", 5550+2*i),
+				JSONRPCPort: fmt.Sprintf("%d", 5550+2*i+1),
 				Home:        fmt.Sprintf("%s/.darknode_test/darknode_%d", os.Getenv("HOME"), i),
 			}
 
-			multiAddr, err := peer.NewMultiAddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%s/ren/%s", fmt.Sprintf("%d", 6000+2*i), keyStore.Address()), 0, [65]byte{})
+			multiAddr, err := peer.NewMultiAddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%s/ren/%s", fmt.Sprintf("%d", 5550+2*i), keyStore.Address()), 0, [65]byte{})
 			Expect(err).NotTo(HaveOccurred())
 			multiAddrs[i] = multiAddr
 		}
@@ -109,7 +111,7 @@ var _ = Describe("light nodes local tests", func() {
 		Expect(response.Error).Should(BeNil())
 
 		var resp jsonrpc.SendMessageResponse
-		Expect(json.Unmarshal(response.Result, &resp)).NotTo(HaveOccurred())
+		Expect(json.Unmarshal(response.Result, &resp)).To(Succeed())
 		Expect(resp.Err()).Should(BeNil())
 		Expect(resp.MessageID).ShouldNot(BeEmpty())
 	}
@@ -131,7 +133,7 @@ var _ = Describe("light nodes local tests", func() {
 		Expect(response.Error).Should(BeNil())
 
 		var resp jsonrpc.ReceiveMessageResponse
-		Expect(json.Unmarshal(response.Result, &resp)).NotTo(HaveOccurred())
+		Expect(json.Unmarshal(response.Result, &resp)).To(Succeed())
 		Expect(resp.Err()).Should(BeNil())
 	}
 
@@ -147,7 +149,7 @@ var _ = Describe("light nodes local tests", func() {
 		Expect(response.Error).Should(BeNil())
 
 		var resp jsonrpc.QueryPeersResponse
-		Expect(json.Unmarshal(response.Result, &resp)).NotTo(HaveOccurred())
+		Expect(json.Unmarshal(response.Result, &resp)).To(Succeed())
 		Expect(len(resp.Peers)).Should(BeNumerically(">", 0))
 	}
 
@@ -163,9 +165,27 @@ var _ = Describe("light nodes local tests", func() {
 		Expect(response.Error).Should(BeNil())
 
 		var resp jsonrpc.QueryNumPeersResponse
-		Expect(json.Unmarshal(response.Result, &resp)).NotTo(HaveOccurred())
+		Expect(json.Unmarshal(response.Result, &resp)).To(Succeed())
 		Expect(resp.Error).Should(BeNil())
 		Expect(resp.NumPeers).Should(Equal(8))
+	}
+
+	testQueryStats := func() {
+		client := jrpc.NewClient(time.Minute)
+		request := jsonrpc.JSONRequest{
+			JSONRPC: "2.0",
+			Method:  jsonrpc.MethodQueryStats,
+			ID:      "100",
+		}
+		response, err := client.Call("http://0.0.0.0:5000", request)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(response.Error).Should(BeNil())
+
+		var resp jsonrpc.QueryStatsResponse
+		Expect(json.Unmarshal(response.Result, &resp)).To(Succeed())
+		Expect(resp.Error).Should(BeNil())
+		Expect(resp.Version).Should(Equal(Version))
+		Expect(len(resp.CPUs)).Should(BeNumerically(">", 0))
 	}
 
 	Context("when querying the light nodes", func() {
@@ -175,7 +195,7 @@ var _ = Describe("light nodes local tests", func() {
 			defer close(done)
 
 			bootstrapAddrs := initNodes(8, done, logger)
-			lightnode := New(logger, 128, 3, 60, "5000", bootstrapAddrs, 5*time.Minute, 5)
+			lightnode := New(logger, 128, 3, 60, Version, "5000", bootstrapAddrs, 5*time.Minute, 5)
 			go lightnode.Run(done)
 
 			time.Sleep(5 * time.Second)
@@ -183,6 +203,7 @@ var _ = Describe("light nodes local tests", func() {
 			testReceiveMessage()
 			testQueryPeers()
 			testQueryNumPeers()
+			testQueryStats()
 		})
 	})
 })

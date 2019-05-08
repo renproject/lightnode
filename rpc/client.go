@@ -93,8 +93,8 @@ func (client *Client) runWorkers(n int) {
 				continue
 			}
 
-			// Unmarshal the response and write it to the responder channel. Make sure the responder channel always has
-			// buffer size of 1.
+			// Unmarshal the response and write it to the responder channel. We assume the responder channel always has
+			// a buffer size of 1.
 			switch call.Request.Method {
 			case jsonrpc.MethodSendMessage:
 				var resp jsonrpc.SendMessageResponse
