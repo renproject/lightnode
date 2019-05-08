@@ -28,7 +28,7 @@ type Lightnode struct {
 }
 
 // New constructs a new Lightnode.
-func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port string, bootstrapMultiAddrs []peer.MultiAddr, pollRate time.Duration, multiAddrCount int) *Lightnode {
+func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port string, bootstrapMultiAddrs []peer.MultiAddr, pollRate time.Duration, peerCount int) *Lightnode {
 	lightnode := &Lightnode{
 		port:   port,
 		logger: logger,
@@ -44,7 +44,7 @@ func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port str
 	server := rpc.NewServer(logger, cap, requests)
 
 	health := health.NewHealthCheck(version, addr.New(""))
-	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, store, health, bootstrapMultiAddrs, pollRate, multiAddrCount)
+	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, store, health, bootstrapMultiAddrs, pollRate, peerCount)
 	lightnode.handler = cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,

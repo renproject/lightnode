@@ -29,11 +29,12 @@ type P2P struct {
 	store          store.Proxy
 	health         health.HealthCheck
 	pollRate       time.Duration
-	multiAddrCount int
+	peerCount      int
 }
 
-// New returns a new P2P task.
-func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.Proxy, health health.HealthCheck, bootstrapAddrs []peer.MultiAddr, pollRate time.Duration, multiAddrCount int) tau.Task {
+// New returns a new P2P task. `pollRate` is the amount of time to sleep after each round of Darknode queries.
+// `peerCount` is the number of multi-addresses that should be returned when querying for peers.
+func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.Proxy, health health.HealthCheck, bootstrapAddrs []peer.MultiAddr, pollRate time.Duration, peerCount int) tau.Task {
 	p2p := &P2P{
 		timeout:        timeout,
 		logger:         logger,
@@ -41,7 +42,7 @@ func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.
 		health:         health,
 		bootstrapAddrs: bootstrapAddrs,
 		pollRate:       pollRate,
-		multiAddrCount: multiAddrCount,
+		peerCount:      peerCount,
 	}
 
 	// Start background polling service.
@@ -87,8 +88,8 @@ func (p2p *P2P) handleQuery(request jsonrpc.Request) {
 // Run starts a background routine querying the Bootstrap nodes for their peers and health information. Upon receiving
 // responses, we update the stats store with the health information and the multi-address store with the address of the
 // node we queried, as well as any nodes it returns. If we do not receive a response, we remove it from the store if it
-// previously existed. After the querying is complete, this service waits for `pollRate` seconds before querying the
-// nodes again.
+// previously existed. After the querying is complete, this service sleeps for `pollRate` amount of time before querying
+// the nodes again.
 func (p2p *P2P) Run() {
 	peersRequest := jsonrpc.JSONRequest{
 		JSONRPC: "2.0",
@@ -159,7 +160,7 @@ func (p2p *P2P) Run() {
 
 			p2p.logger.Infof("querying %v darknodes", p2p.store.MultiAddressEntries())
 
-			// Sleep before `pollRate` seconds.
+			// Sleep for `pollRate` time.
 			time.Sleep(p2p.pollRate)
 		}
 	}()
@@ -213,8 +214,8 @@ func (p2p *P2P) randomPeers() []string {
 	})
 
 	// Return at most 5 addresses.
-	length := p2p.multiAddrCount
-	if len(addresses) < p2p.multiAddrCount {
+	length := p2p.peerCount
+	if len(addresses) < p2p.peerCount {
 		length = len(addresses)
 	}
 
