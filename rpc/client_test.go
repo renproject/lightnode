@@ -289,9 +289,9 @@ var _ = Describe("RPC client", func() {
 		})
 	})
 
-	Context("the darknode takes longer time to respond", func() {
-		It("should not block other sendMessage", func() {
-			// Initialise Darknode and two servers .
+	Context("when the darknode takes too long to respond", func() {
+		It("should not block other send message requests", func() {
+			// Initialise Darknodes.
 			done := make(chan struct{})
 			defer close(done)
 			server := initServer()
