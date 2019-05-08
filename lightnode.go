@@ -10,6 +10,7 @@ import (
 	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/lightnode/rpc"
 	"github.com/renproject/lightnode/store"
+	"github.com/republicprotocol/darknode-go/health"
 	"github.com/republicprotocol/darknode-go/server/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
@@ -27,7 +28,7 @@ type Lightnode struct {
 }
 
 // New constructs a new Lightnode.
-func New(logger logrus.FieldLogger, cap, workers, timeout int, port string, bootstrapMultiAddrs []peer.MultiAddr, pollRate time.Duration, multiAddrCount int) *Lightnode {
+func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port string, bootstrapMultiAddrs []peer.MultiAddr, pollRate time.Duration, peerCount int) *Lightnode {
 	lightnode := &Lightnode{
 		port:   port,
 		logger: logger,
@@ -42,7 +43,8 @@ func New(logger logrus.FieldLogger, cap, workers, timeout int, port string, boot
 	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second)
 	server := rpc.NewServer(logger, cap, requests)
 
-	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, store, bootstrapMultiAddrs, pollRate, multiAddrCount)
+	health := health.NewHealthCheck(version, addr.New(""))
+	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, store, health, bootstrapMultiAddrs, pollRate, peerCount)
 	lightnode.handler = cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,
