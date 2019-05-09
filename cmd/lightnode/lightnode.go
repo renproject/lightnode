@@ -40,6 +40,10 @@ func main() {
 	if err != nil {
 		peerCount = 5
 	}
+	maxBatchSize, err := strconv.Atoi(os.Getenv("MAX_BATCH_SIZE"))
+	if err != nil {
+		maxBatchSize = 10
+	}
 	addresses := strings.Split(os.Getenv("ADDRESSES"), ",")
 
 	// Seed random number generator.
@@ -74,6 +78,6 @@ func main() {
 
 	// Start running Lightnode.
 	done := make(chan struct{})
-	node := lightnode.New(logger, cap, workers, timeout, version+"-"+commit, port, bootstrapMultiAddrs, time.Duration(pollRate)*time.Second, peerCount)
+	node := lightnode.New(logger, cap, workers, timeout, version+"-"+commit, port, bootstrapMultiAddrs, time.Duration(pollRate)*time.Second, peerCount, maxBatchSize)
 	node.Run(done)
 }

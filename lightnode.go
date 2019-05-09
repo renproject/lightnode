@@ -28,7 +28,7 @@ type Lightnode struct {
 }
 
 // New constructs a new Lightnode.
-func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port string, bootstrapMultiAddrs []peer.MultiAddr, pollRate time.Duration, peerCount int) *Lightnode {
+func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port string, bootstrapMultiAddrs []peer.MultiAddr, pollRate time.Duration, peerCount, maxBatchSize int) *Lightnode {
 	lightnode := &Lightnode{
 		port:   port,
 		logger: logger,
@@ -40,7 +40,7 @@ func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port str
 	store := store.NewProxy(multiStore, statsStore)
 	client := rpc.NewClient(logger, store, cap, workers, time.Duration(timeout)*time.Second)
 	requests := make(chan jsonrpc.Request, cap)
-	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second)
+	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second, maxBatchSize)
 	server := rpc.NewServer(logger, cap, requests)
 
 	health := health.NewHealthCheck(version, addr.New(""))
