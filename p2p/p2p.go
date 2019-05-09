@@ -83,9 +83,11 @@ func (p2p *P2P) handleQuery(request jsonrpc.Request) {
 // previously existed. After the querying is complete, this service sleeps for `pollRate` amount of time before querying
 // the nodes again.
 func (p2p *P2P) run() {
+	go p2p.updateMultiAddress()
+	go p2p.updateStats()
+
 	ticker := time.NewTicker(p2p.pollRate)
 	defer ticker.Stop()
-
 	for range ticker.C {
 		go p2p.updateMultiAddress()
 		go p2p.updateStats()
