@@ -12,7 +12,7 @@ import (
 	. "github.com/renproject/lightnode/rpc/jsonrpc"
 
 	"github.com/republicprotocol/darknode-go/processor"
-	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 )
 
 var _ = Describe("JSON-RPC Client", func() {
@@ -76,7 +76,7 @@ var _ = Describe("JSON-RPC Client", func() {
 
 	Context("when sending a SendMessageRequest", func() {
 		It("should get a valid response", func() {
-			// Intialise Darknode.
+			// Initialise Darknode.
 			server := initServer()
 			defer server.Close()
 
@@ -100,7 +100,7 @@ var _ = Describe("JSON-RPC Client", func() {
 
 	Context("when sending a ReceiveMessageRequest", func() {
 		It("should get a valid response", func() {
-			// Intialise Darknode.
+			// Initialise Darknode.
 			server := initServer()
 			defer server.Close()
 
@@ -125,7 +125,7 @@ var _ = Describe("JSON-RPC Client", func() {
 
 	Context("when sending an invalid request", func() {
 		It("should return an error before calling the server", func() {
-			// Intialise Darknode.
+			// Initialise Darknode.
 			server := initServer()
 			defer server.Close()
 
@@ -139,7 +139,7 @@ var _ = Describe("JSON-RPC Client", func() {
 
 	Context("when the server is not working", func() {
 		It("should timeout if we do not receive a response", func() {
-			// Intialise Darknode.
+			// Initialise Darknode.
 			server := initServer()
 			defer server.Close()
 

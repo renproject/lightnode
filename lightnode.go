@@ -10,7 +10,8 @@ import (
 	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/lightnode/rpc"
 	"github.com/renproject/lightnode/store"
-	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/darknode-go/health"
+	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
@@ -27,20 +28,23 @@ type Lightnode struct {
 }
 
 // New constructs a new Lightnode.
-func New(logger logrus.FieldLogger, cap, workers, timeout int, port string, bootstrapAddrs []peer.MultiAddr, pollRate time.Duration, multiAddrCount int) *Lightnode {
+func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port string, bootstrapMultiAddrs []peer.MultiAddr, pollRate time.Duration, peerCount int) *Lightnode {
 	lightnode := &Lightnode{
 		port:   port,
 		logger: logger,
 	}
 
 	// Construct client and server.
-	addrStore := store.NewCache(0)
-	client := rpc.NewClient(logger, cap, workers, time.Duration(timeout)*time.Second, addrStore)
+	multiStore := store.NewCache(0)
+	statsStore := store.NewCache(0)
+	store := store.NewProxy(multiStore, statsStore)
+	client := rpc.NewClient(logger, store, cap, workers, time.Duration(timeout)*time.Second)
 	requests := make(chan jsonrpc.Request, cap)
 	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second)
 	server := rpc.NewServer(logger, cap, requests)
 
-	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, addrStore, bootstrapAddrs, pollRate, multiAddrCount)
+	health := health.NewHealthCheck(version, addr.New(""))
+	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, store, health, bootstrapMultiAddrs, pollRate, peerCount)
 	lightnode.handler = cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,
@@ -50,17 +54,17 @@ func New(logger logrus.FieldLogger, cap, workers, timeout int, port string, boot
 	}).Handler(jsonrpcService)
 
 	// Construct resolver.
-	addrs := make([]addr.Addr, len(bootstrapAddrs))
-	for i := range bootstrapAddrs {
-		addrs[i] = bootstrapAddrs[i].Addr()
+	bootstrapAddrs := make([]addr.Addr, len(bootstrapMultiAddrs))
+	for i := range bootstrapMultiAddrs {
+		bootstrapAddrs[i] = bootstrapMultiAddrs[i].Addr()
 	}
 
-	lightnode.resolver = resolver.New(cap, logger, client, server, p2pService, addrs)
+	lightnode.resolver = resolver.New(cap, logger, client, server, p2pService, bootstrapAddrs)
 
 	return lightnode
 }
 
-// Run starts listening for requests using a HTTP server.
+// run starts listening for requests using a HTTP server.
 func (node *Lightnode) Run(done <-chan struct{}) {
 	node.logger.Infof("JSON-RPC server listening on 0.0.0.0:%v...", node.port)
 	go func() {

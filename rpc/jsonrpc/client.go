@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 )
 
 // Client is able to send JSON-RPC 2.0 request through http.

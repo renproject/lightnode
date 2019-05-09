@@ -5,7 +5,7 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/rpc"
 
-	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 	"github.com/sirupsen/logrus"
 )
 

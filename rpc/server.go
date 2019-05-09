@@ -1,7 +1,7 @@
 package rpc
 
 import (
-	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
 )
@@ -36,7 +36,7 @@ func (server *Server) accept() tau.Message {
 	select {
 	case req := <-server.jsonRPCQueue:
 		switch req.(type) {
-		case jsonrpc.QueryPeersRequest, jsonrpc.QueryNumPeersRequest:
+		case jsonrpc.QueryPeersRequest, jsonrpc.QueryNumPeersRequest, jsonrpc.QueryStatsRequest:
 			return NewQueryMessage(req)
 		case jsonrpc.SendMessageRequest, jsonrpc.ReceiveMessageRequest:
 			return NewSendMessage(req)
@@ -60,9 +60,9 @@ func NewAccept() Accept {
 	return Accept{}
 }
 
-// SendMessage is created and propagated by the server to its parent when receiving a SendMessage or ReceiveMessage
-// request. These messages get forwarded to Client tasks by the resolver as these requests need to interact with the
-// Darknodes using JSON-RPC.
+// SendMessage is created and propagated by the server to its parent when receiving a SendMessage, ReceiveMessage or
+// QueryStats request. These messages get forwarded to Client tasks by the resolver as these requests need to interact
+// with the Darknodes using JSON-RPC.
 type SendMessage struct {
 	jsonrpc.Request
 }

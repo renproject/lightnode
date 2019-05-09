@@ -17,6 +17,8 @@ import (
 func main() {
 	// Retrieve environment variables.
 	port := os.Getenv("PORT")
+	version := os.Getenv("HEROKU_RELEASE_VERSION")
+	commit := os.Getenv("HEROKU_SLUG_COMMIT")[:7]
 	sentryURL := os.Getenv("SENTRY_URL")
 	cap, err := strconv.Atoi(os.Getenv("CAP"))
 	if err != nil {
@@ -34,9 +36,9 @@ func main() {
 	if err != nil {
 		pollRate = 300
 	}
-	multiAddrCount, err := strconv.Atoi(os.Getenv("MULTI_ADDRESS_COUNT"))
+	peerCount, err := strconv.Atoi(os.Getenv("PEER_COUNT"))
 	if err != nil {
-		multiAddrCount = 5
+		peerCount = 5
 	}
 	addresses := strings.Split(os.Getenv("ADDRESSES"), ",")
 
@@ -61,17 +63,17 @@ func main() {
 	hook.Timeout = 500 * time.Millisecond
 	logger.AddHook(hook)
 
-	bootstrapAddrs := make([]peer.MultiAddr, len(addresses))
+	bootstrapMultiAddrs := make([]peer.MultiAddr, len(addresses))
 	for i := range addresses {
 		multiAddr, err := peer.NewMultiAddr(addresses[i], 0, [65]byte{})
 		if err != nil {
 			logger.Fatalf("invalid bootstrap addresses: %v", err)
 		}
-		bootstrapAddrs[i] = multiAddr
+		bootstrapMultiAddrs[i] = multiAddr
 	}
 
 	// Start running Lightnode.
 	done := make(chan struct{})
-	node := lightnode.New(logger, cap, workers, timeout, port, bootstrapAddrs, time.Duration(pollRate)*time.Second, multiAddrCount)
+	node := lightnode.New(logger, cap, workers, timeout, version+"-"+commit, port, bootstrapMultiAddrs, time.Duration(pollRate)*time.Second, peerCount)
 	node.Run(done)
 }
