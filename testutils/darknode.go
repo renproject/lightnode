@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/republicprotocol/darknode-go"
-	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 )
 
 type MockDarknode struct {

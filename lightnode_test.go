@@ -20,7 +20,7 @@ import (
 	"github.com/republicprotocol/co-go"
 	"github.com/republicprotocol/darknode-go"
 	"github.com/republicprotocol/darknode-go/crypter"
-	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/sirupsen/logrus"
 )

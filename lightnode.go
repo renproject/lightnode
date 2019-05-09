@@ -11,7 +11,7 @@ import (
 	"github.com/renproject/lightnode/rpc"
 	"github.com/renproject/lightnode/store"
 	"github.com/republicprotocol/darknode-go/health"
-	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"

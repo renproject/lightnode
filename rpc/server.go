@@ -1,7 +1,7 @@
 package rpc
 
 import (
-	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
 )

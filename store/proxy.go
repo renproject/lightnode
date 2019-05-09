@@ -3,7 +3,7 @@ package store
 import (
 	"errors"
 
-	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
 )

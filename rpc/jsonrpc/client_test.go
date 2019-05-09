@@ -12,7 +12,7 @@ import (
 	. "github.com/renproject/lightnode/rpc/jsonrpc"
 
 	"github.com/republicprotocol/darknode-go/processor"
-	"github.com/republicprotocol/darknode-go/server/jsonrpc"
+	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 )
 
 var _ = Describe("JSON-RPC Client", func() {
