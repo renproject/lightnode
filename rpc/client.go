@@ -25,9 +25,6 @@ var (
 	// ErrNotEnoughResultsReturned is returned if we do not get enough successful responses from the Darknodes.
 	ErrNotEnoughResultsReturned = errors.New("not enough results returned")
 
-	// ErrNoResultsReturned is returned if we do not get any responses from the Darknodes.
-	ErrNoResultsReturned = errors.New("no results returned")
-
 	// ErrTooManyRequests is returned when there is too much back pressure.
 	ErrTooManyRequests = errors.New("dropping request: too much back pressure")
 )
@@ -269,7 +266,7 @@ Loop:
 
 	// Write an error back if we do not get any results back from the Darknodes.
 	req.Responder <- jsonrpc.ReceiveMessageResponse{
-		Error: ErrNoResultsReturned,
+		Error: jsonrpc.ErrResultNotAvailable,
 	}
 }
 
