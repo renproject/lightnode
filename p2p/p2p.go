@@ -129,10 +129,11 @@ func (p2p *P2P) updateMultiAddress() {
 
 // updateStats pings the Bootstrap nodes to update their heath stats.
 func (p2p *P2P) updateStats() {
-	// TODO: We only update the health stats for the darknodes for now. In the future, we might need to change this to
-	//  loop through the multiAddress store to get stats for all the peers we know.
+	// TODO: We only update the health stats for the hard-coded Darknodes for now. In the future, we might want to
+	// return the stats for all the known peers.
+
 	co.ParForAll(p2p.bootstrapAddrs, func(i int) {
-		// Construct the JSON-RPC request
+		// Construct the JSON-RPC request.
 		multi := p2p.bootstrapAddrs[i]
 		statsParams := jsonrpc.QueryStatsRequest{
 			DarknodeID: multi.Addr().String(),
@@ -174,7 +175,7 @@ func (p2p *P2P) sendRequest(request jsonrpc.JSONRequest, multi peer.MultiAddr) j
 	// port + 1.
 	client := jrpc.NewClient(p2p.timeout)
 	addr := multi.ResolveTCPAddr().(*net.TCPAddr)
-	addr.Port += 1
+	addr.Port++
 
 	// Send the JSON-RPC request.
 	response, err := client.Call(fmt.Sprintf("http://%v", addr.String()), request)
