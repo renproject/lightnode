@@ -84,7 +84,7 @@ var _ = Describe("RPC client", func() {
 	initTask := func(done chan struct{}, numPeers, numBootstrapAddresses int) (tau.Task, []*http.Server, peer.MultiAddrs) {
 		servers := make([]*http.Server, numBootstrapAddresses+1)
 
-		// Intialise Darknode.
+		// Initialise Darknode.
 		server := initServer("0.0.0.0:8000", numPeers)
 		servers[0] = server
 
@@ -93,7 +93,7 @@ var _ = Describe("RPC client", func() {
 		multiStore, err := testutils.InitStore(multi)
 		Expect(err).ToNot(HaveOccurred())
 
-		// Intialise Bootstrap nodes.
+		// Initialise Bootstrap nodes.
 		bootstrapAddrs := make(peer.MultiAddrs, numBootstrapAddresses)
 		for i := range bootstrapAddrs {
 			bootstrapServer := initServer(fmt.Sprintf("0.0.0.0:800%d", i+1), numPeers)
