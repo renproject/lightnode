@@ -4,6 +4,7 @@ package p2p
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -20,6 +21,9 @@ import (
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
 )
+
+// ErrFailedToGetStatistics is returned if we are unable to retrieve the statistics for a node.
+var ErrFailedToGetStatistics = errors.New("failed to get statistics")
 
 // P2P handles the peer-to-peer network of nodes.
 type P2P struct {
@@ -239,22 +243,22 @@ func (p2p *P2P) handleQueryStats(request jsonrpc.QueryStatsRequest) jsonrpc.Resp
 		}
 		cpus, err := p2p.health.CPUs()
 		if err != nil {
-			response.Error = err
+			response.Error = ErrFailedToGetStatistics
 			return response
 		}
 		ram, err := p2p.health.RAM()
 		if err != nil {
-			response.Error = err
+			response.Error = ErrFailedToGetStatistics
 			return response
 		}
 		disk, err := p2p.health.HardDrive()
 		if err != nil {
-			response.Error = err
+			response.Error = ErrFailedToGetStatistics
 			return response
 		}
 		location, err := p2p.health.Location()
 		if err != nil {
-			response.Error = err
+			response.Error = ErrFailedToGetStatistics
 			return response
 		}
 
