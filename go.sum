@@ -199,6 +199,8 @@ github.com/renproject/libeth-go v0.0.0-20190430063350-95b18e30b8af h1:dUjUbky6i5
 github.com/renproject/libeth-go v0.0.0-20190430063350-95b18e30b8af/go.mod h1:nW+XJBkfN1wQcA6eSe0btesaMbHw5SJz1uzYCw0yVEE=
 github.com/renproject/libeth-go v0.0.0-20190509002627-b6d7754bde5c h1:9ym30CdCZ1YwTMLI5Oh1NnjVRlEmFPaiixFVxLaVBAU=
 github.com/renproject/libeth-go v0.0.0-20190509002627-b6d7754bde5c/go.mod h1:nW+XJBkfN1wQcA6eSe0btesaMbHw5SJz1uzYCw0yVEE=
+github.com/renproject/libeth-go v0.0.0-20190509012542-a56a78ea54b8 h1:dVyUrKRxZtgFRVw7YlRVdpKoadGC9wK2A03h6R0Q1Vw=
+github.com/renproject/libeth-go v0.0.0-20190509012542-a56a78ea54b8/go.mod h1:nW+XJBkfN1wQcA6eSe0btesaMbHw5SJz1uzYCw0yVEE=
 github.com/renproject/libzec-go v0.0.0-20190407051230-0c4bd960914c/go.mod h1:KnFxCzHFRfyXNbISwEgo7LRlrpHTQ6GIpUsV/SxyQgI=
 github.com/renproject/libzec-go v0.0.0-20190502035952-8361a5e04bae h1:SDM0w6BsesQbIqEmLuROj4QBMQA+aSqIzvxiloJAsqY=
 github.com/renproject/libzec-go v0.0.0-20190502035952-8361a5e04bae/go.mod h1:mwFmx375bQ+36s/Y453kMZLmzYpU8aickukkgTAs+Cg=
@@ -218,6 +220,7 @@ github.com/republicprotocol/libbtc-go v0.0.0-20190218031145-13bd5bd75d7c/go.mod 
 github.com/republicprotocol/registry v0.0.0-20190415061645-12929f382dc0 h1:NLjFns7Syff6HqFbTANTHUDtPJRb9U7KsoW8xM29lG4=
 github.com/republicprotocol/registry v0.0.0-20190415061645-12929f382dc0/go.mod h1:6rF1prrnJLQflVV4yB8uF1ewexB125OBH+mNaoafOsM=
 github.com/republicprotocol/ren-go v0.0.0-20190222053323-c99864c34acb/go.mod h1:VY9MvsDDMySmGPaolEUVIKOLSPtLtV7KPuO6dEHgCl4=
+github.com/republicprotocol/ren-go v0.0.0-20190502043720-ab1b1c793fd1/go.mod h1:VY9MvsDDMySmGPaolEUVIKOLSPtLtV7KPuO6dEHgCl4=
 github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be h1:E9fhHqqrVhY/iGt5VX9afQ3Z4YtZoAO+uTPG17tENuI=
 github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be/go.mod h1:oQVfcQeN/dloadjgPBuTOKInaw7c39TsXpLBoz0xoYU=
 github.com/republicprotocol/renvm-go v0.0.0-20190320052535-795f34011fa2/go.mod h1:cqu/ZRgyxN3+O2CgRdOjDtr0BV98tdqH+fZA9eqdCB8=
@@ -269,8 +272,10 @@ golang.org/x/crypto v0.0.0-20190506204251-e1dfcc566284/go.mod h1:yigFU9vqHzYiE8U
 golang.org/x/exp v0.0.0-20190121172915-509febef88a4/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
 golang.org/x/exp v0.0.0-20190306152737-a1d7652674e8/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
 golang.org/x/exp v0.0.0-20190429183610-475c5042d3f1/go.mod h1:ZjyILWgesfNpC6sMxTJOJm9Kp84zZh5NQWvqDGG3Qr8=
+golang.org/x/exp v0.0.0-20190509005604-ec0fef3eb65a/go.mod h1:ZjyILWgesfNpC6sMxTJOJm9Kp84zZh5NQWvqDGG3Qr8=
 golang.org/x/image v0.0.0-20190227222117-0694c2d4d067/go.mod h1:kZ7UVZpmo3dzQBMxlp+ypCbDeSB+sBbTgSJuh5dn5js=
 golang.org/x/image v0.0.0-20190501045829-6d32002ffd75/go.mod h1:kZ7UVZpmo3dzQBMxlp+ypCbDeSB+sBbTgSJuh5dn5js=
+golang.org/x/image v0.0.0-20190507092727-e4e5bf290fec/go.mod h1:kZ7UVZpmo3dzQBMxlp+ypCbDeSB+sBbTgSJuh5dn5js=
 golang.org/x/lint v0.0.0-20181026193005-c67002cb31c3/go.mod h1:UVdnD1Gm6xHRNCYTkRU2/jEulfH38KcIWyp/GAMgvoE=
 golang.org/x/lint v0.0.0-20190227174305-5b3e6a55c961/go.mod h1:wehouNa3lNwaWXcvxsM5YxQ5yQlVC4a0KAMCusXpPoU=
 golang.org/x/lint v0.0.0-20190301231843-5614ed5bae6f/go.mod h1:UVdnD1Gm6xHRNCYTkRU2/jEulfH38KcIWyp/GAMgvoE=
@@ -349,6 +354,7 @@ golang.org/x/tools v0.0.0-20190425001055-9e44c1c40307/go.mod h1:RgjU9mgBXZiqYHBn
 golang.org/x/tools v0.0.0-20190425150028-36563e24a262/go.mod h1:RgjU9mgBXZiqYHBnxXauZ1Gv1EHHAz9KjViQ78xBX0Q=
 golang.org/x/tools v0.0.0-20190430194229-2d28432af7a5/go.mod h1:RgjU9mgBXZiqYHBnxXauZ1Gv1EHHAz9KjViQ78xBX0Q=
 golang.org/x/tools v0.0.0-20190501045030-23463209683d/go.mod h1:RgjU9mgBXZiqYHBnxXauZ1Gv1EHHAz9KjViQ78xBX0Q=
+golang.org/x/tools v0.0.0-20190509014725-d996b19ee77c/go.mod h1:RgjU9mgBXZiqYHBnxXauZ1Gv1EHHAz9KjViQ78xBX0Q=
 google.golang.org/api v0.4.0/go.mod h1:8k5glujaEP+g9n7WNsDg8QP6cUVNI86fCNMcbazEtwE=
 google.golang.org/appengine v1.1.0/go.mod h1:EbEs0AVv82hx2wNQdGPgUI5lhzA/G0D9YwlJXL52JkM=
 google.golang.org/appengine v1.4.0/go.mod h1:xpcJRLb0r/rnEns0DIKYYv+WjYCduHsrkT7/EB5XEv4=
