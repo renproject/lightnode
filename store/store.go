@@ -42,7 +42,7 @@ type Proxy interface {
 // KVStore is a generic key-value store. The key must be of type string, though there are no restrictions on the type
 // of the value.
 type KVStore interface {
-	// Read the value associated with the given key. This function returns ErrKeyNotFound if the key cannot be found. I
+	// Read the value associated with the given key. This function returns ErrKeyNotFound if the key cannot be found.
 	Read(key string, value interface{}) error
 
 	// Write writes the key-value into the store.
