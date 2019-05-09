@@ -24,5 +24,3 @@ require (
 	golang.org/x/sys v0.0.0-20190508220229-2d0786266e9c // indirect
 	google.golang.org/genproto v0.0.0-20190508193815-b515fa19cec8 // indirect
 )
-
-replace github.com/republicprotocol/darknode-go => /Users/jaz/Desktop/republic/dev/darknode-go
