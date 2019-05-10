@@ -12,15 +12,17 @@ import (
 var ErrInvalidDarknodeAddress = errors.New("invalid darknode address")
 
 type proxy struct {
-	multiStore KVStore
-	statsStore KVStore
+	multiStore   KVStore
+	statsStore   KVStore
+	messageStore KVStore
 }
 
 // NewProxy returns a new Proxy.
-func NewProxy(multiStore, statsStore KVStore) Proxy {
+func NewProxy(multiStore, statsStore, messageStore KVStore) Proxy {
 	return proxy{
-		multiStore: multiStore,
-		statsStore: statsStore,
+		multiStore:   multiStore,
+		statsStore:   statsStore,
+		messageStore: messageStore,
 	}
 }
 
@@ -32,6 +34,10 @@ func (proxy proxy) InsertMultiAddress(darknodeAddr addr.Addr, value peer.MultiAd
 // InsertStats implements the `store.Proxy` interface.
 func (proxy proxy) InsertStats(darknodeAddr addr.Addr, value jsonrpc.QueryStatsResponse) error {
 	return proxy.statsStore.Write(darknodeAddr.String(), value)
+}
+
+func (proxy proxy) InsertMessage(messageID string, value jsonrpc.ReceiveMessageResponse) error {
+	return proxy.messageStore.Write(messageID, value)
 }
 
 // DeleteMultiAddress implements the `store.Proxy` interface.
@@ -80,4 +86,11 @@ func (proxy proxy) Stats(darknodeAddr addr.Addr) jsonrpc.QueryStatsResponse {
 		value.Error = ErrInvalidDarknodeAddress
 	}
 	return value
+}
+
+// Message implements the `store.Proxy` interface.
+func (proxy proxy) Message(messageID string) (jsonrpc.ReceiveMessageResponse, error) {
+	var value jsonrpc.ReceiveMessageResponse
+	err := proxy.messageStore.Read(messageID, &value)
+	return value, err
 }

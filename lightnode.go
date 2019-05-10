@@ -37,7 +37,8 @@ func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port str
 	// Construct client and server.
 	multiStore := store.NewCache(0)
 	statsStore := store.NewCache(0)
-	store := store.NewProxy(multiStore, statsStore)
+	messageStore := store.NewCache(60)
+	store := store.NewProxy(multiStore, statsStore, messageStore)
 	client := rpc.NewClient(logger, store, cap, workers, time.Duration(timeout)*time.Second)
 	requests := make(chan jsonrpc.Request, cap)
 	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second, maxBatchSize)

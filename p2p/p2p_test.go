@@ -106,7 +106,7 @@ var _ = Describe("RPC client", func() {
 
 		// Initialise the P2P task.
 		logger := logrus.New()
-		store := store.NewProxy(multiStore, store.NewCache(0))
+		store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
 		health := health.NewHealthCheck("1.0", addr.New(""))
 		p2p := New(logger, 128, time.Second, store, health, bootstrapAddrs, 5*time.Minute, 5)
 		go func() {
