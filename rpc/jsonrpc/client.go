@@ -4,26 +4,30 @@ package jsonrpc
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
+	"github.com/sirupsen/logrus"
 )
 
 // Client is able to send JSON-RPC 2.0 request through http.
 type Client struct {
-	http *http.Client
+	http   *http.Client
+	logger logrus.FieldLogger
 }
 
 // NewClient returns a new Client with given timeout.
-func NewClient(timeout time.Duration) Client {
+func NewClient(logger logrus.FieldLogger, timeout time.Duration) Client {
 	httpClient := new(http.Client)
 	httpClient.Timeout = timeout
 
 	return Client{
-		http: httpClient,
+		http:   httpClient,
+		logger: logger,
 	}
 }
 
@@ -34,21 +38,48 @@ func (client Client) Call(url string, request jsonrpc.JSONRequest) (jsonrpc.JSON
 	if err != nil {
 		return jsonrpc.JSONResponse{}, err
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), client.http.Timeout)
+	defer cancel()
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
 	if err != nil {
 		return jsonrpc.JSONResponse{}, err
 	}
+	req = req.WithContext(ctx)
 	req.Header.Set("Content-Type", "application/json")
 
 	// Read response.
-	response, err := client.http.Do(req)
-	if err != nil {
+	var response *http.Response
+	if err := client.backoff(ctx, func() error {
+		response, err = client.http.Do(req)
+		if err != nil {
+			return err
+		}
+		if response.StatusCode != http.StatusOK {
+			return fmt.Errorf("unexpected status code %v", response.StatusCode)
+		}
+		return nil
+	}); err != nil {
 		return jsonrpc.JSONResponse{}, err
 	}
-	if response.StatusCode != http.StatusOK {
-		return jsonrpc.JSONResponse{}, fmt.Errorf("unexpected status code %v", response.StatusCode)
-	}
+
 	var resp jsonrpc.JSONResponse
 	err = json.NewDecoder(response.Body).Decode(&resp)
 	return resp, err
+}
+
+func (client Client) backoff(ctx context.Context, f func() error) error {
+	duration := 5 * time.Second
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			err := f()
+			if err == nil {
+				return nil
+			}
+			client.logger.Infof("%v, will try again in %f sec\n", err, duration.Seconds())
+			time.Sleep(duration)
+		}
+	}
 }
