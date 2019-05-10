@@ -83,8 +83,7 @@ var _ = Describe("light nodes local tests", func() {
 		return multis
 	}
 
-	testSendMessage := func() {
-		client := jrpc.NewClient(time.Minute)
+	testSendMessage := func(client jrpc.Client) {
 		data, err := json.Marshal(jsonrpc.SendMessageRequest{
 			To:    "WarpGate",
 			Nonce: 100,
@@ -116,8 +115,7 @@ var _ = Describe("light nodes local tests", func() {
 		Expect(resp.MessageID).ShouldNot(BeEmpty())
 	}
 
-	testReceiveMessage := func() {
-		client := jrpc.NewClient(time.Minute)
+	testReceiveMessage := func(client jrpc.Client) {
 		data, err := json.Marshal(jsonrpc.ReceiveMessageRequest{
 			MessageID: "messageID",
 		})
@@ -137,8 +135,7 @@ var _ = Describe("light nodes local tests", func() {
 		Expect(resp.Err()).Should(BeNil())
 	}
 
-	testQueryPeers := func() {
-		client := jrpc.NewClient(time.Minute)
+	testQueryPeers := func(client jrpc.Client) {
 		request := jsonrpc.JSONRequest{
 			JSONRPC: "2.0",
 			Method:  jsonrpc.MethodQueryPeers,
@@ -153,8 +150,7 @@ var _ = Describe("light nodes local tests", func() {
 		Expect(len(resp.Peers)).Should(BeNumerically(">", 0))
 	}
 
-	testQueryNumPeers := func() {
-		client := jrpc.NewClient(time.Minute)
+	testQueryNumPeers := func(client jrpc.Client) {
 		request := jsonrpc.JSONRequest{
 			JSONRPC: "2.0",
 			Method:  jsonrpc.MethodQueryNumPeers,
@@ -170,8 +166,7 @@ var _ = Describe("light nodes local tests", func() {
 		Expect(resp.NumPeers).Should(Equal(8))
 	}
 
-	testQueryStats := func() {
-		client := jrpc.NewClient(time.Minute)
+	testQueryStats := func(client jrpc.Client) {
 		request := jsonrpc.JSONRequest{
 			JSONRPC: "2.0",
 			Method:  jsonrpc.MethodQueryStats,
@@ -198,12 +193,14 @@ var _ = Describe("light nodes local tests", func() {
 			lightnode := New(logger, 128, 3, 60, Version, "5000", bootstrapAddrs, 5*time.Minute, 5, 10)
 			go lightnode.Run(done)
 
+			client := jrpc.NewClient(logger, time.Minute)
+
 			time.Sleep(5 * time.Second)
-			testSendMessage()
-			testReceiveMessage()
-			testQueryPeers()
-			testQueryNumPeers()
-			testQueryStats()
+			testSendMessage(client)
+			testReceiveMessage(client)
+			testQueryPeers(client)
+			testQueryNumPeers(client)
+			testQueryStats(client)
 		})
 	})
 })
