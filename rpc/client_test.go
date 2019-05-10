@@ -313,7 +313,7 @@ var _ = Describe("RPC client", func() {
 			client := NewClient(logger, store, 4, 2, time.Minute)
 			go client.Run(done)
 
-			// Send a request to the task.
+			// Send some requests to the task.
 			for i := 0; i < 2; i++ {
 				responder := make(chan jsonrpc.Response, 1)
 				address := badMulti.Addr()
@@ -345,7 +345,7 @@ var _ = Describe("RPC client", func() {
 
 	Context("client should cache the result of receiveMessage result", func() {
 		It("should return the caches result within a certain amount of period", func() {
-			// Initialise darknodes.
+			// Initialise Darknodes.
 			done := make(chan struct{})
 			defer close(done)
 			server := initServer()
@@ -361,7 +361,7 @@ var _ = Describe("RPC client", func() {
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response, 1)
 
-			// Send a couple requests to the task.
+			// Send some requests to the task.
 			for i := 0; i < 32; i++ {
 				client.IO().InputWriter() <- InvokeRPC{
 					Request: jsonrpc.ReceiveMessageRequest{
@@ -370,7 +370,7 @@ var _ = Describe("RPC client", func() {
 					Addresses: []addr.Addr{multi.Addr()},
 				}
 
-				// Expect to receive a cached response from the responder channel.
+				// Expect to receive a cached response in the responder channel.
 				select {
 				case response := <-responder:
 					resp, ok := response.(jsonrpc.ReceiveMessageResponse)
@@ -383,7 +383,7 @@ var _ = Describe("RPC client", func() {
 					Fail("timeout")
 				}
 
-				// Close the server after receiving the first result
+				// Close the server after receiving the first result.
 				if i == 0 {
 					server.Close()
 				}
