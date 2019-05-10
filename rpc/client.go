@@ -68,6 +68,7 @@ func (client *Client) invoke(message InvokeRPC) tau.Message {
 	case jsonrpc.SendMessageRequest:
 		return client.handleMessage(request, jsonrpc.MethodSendMessage, message.Addresses)
 	case jsonrpc.ReceiveMessageRequest:
+		// Check if the message already exists in the store and if so, write it to the responder channel.
 		response, err := client.store.Message(request.MessageID)
 		if err != nil {
 			return client.handleMessage(request, jsonrpc.MethodReceiveMessage, message.Addresses)
@@ -116,8 +117,10 @@ func (client *Client) runWorkers(n int) {
 					client.logger.Errorf("cannot unmarshal ReceiveMessageResponse from Darknode: %v", err)
 					continue
 				}
-				if err := client.updateMessageResult(call.Request, resp); err != nil {
-					client.logger.Warnf("cannot store the receiveMessage result in cache: %v", err)
+
+				// Write result to store.
+				if err := client.insertMessageResult(call.Request, resp); err != nil {
+					client.logger.Errorf("cannot store the ReceiveMessageResponse: %v", err)
 				}
 
 				call.Responder <- resp
@@ -278,7 +281,7 @@ Loop:
 	}
 }
 
-func (client Client) updateMessageResult(jsonRequest jsonrpc.JSONRequest, response jsonrpc.ReceiveMessageResponse) error {
+func (client Client) insertMessageResult(jsonRequest jsonrpc.JSONRequest, response jsonrpc.ReceiveMessageResponse) error {
 	var request jsonrpc.ReceiveMessageRequest
 	if err := json.Unmarshal(jsonRequest.Params, &request); err != nil {
 		return err
