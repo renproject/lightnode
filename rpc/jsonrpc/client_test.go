@@ -154,7 +154,7 @@ var _ = Describe("JSON-RPC Client", func() {
 			// Send request.
 			request := newSendMessageRequest()
 			client := NewClient(time.Second)
-			_, err := client.Call("0.0.0.0:8888", request)
+			_, err := client.Call("http://0.0.0.0:8888", request)
 			Expect(err).To(HaveOccurred())
 		})
 
