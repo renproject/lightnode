@@ -65,7 +65,7 @@ func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port str
 	return lightnode
 }
 
-// run starts listening for requests using a HTTP server.
+// Run starts listening for requests using a HTTP server.
 func (node *Lightnode) Run(done <-chan struct{}) {
 	node.logger.Infof("JSON-RPC server listening on 0.0.0.0:%v...", node.port)
 	go func() {
