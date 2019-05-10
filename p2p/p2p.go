@@ -177,7 +177,7 @@ func (p2p *P2P) updateStats() {
 func (p2p *P2P) sendRequest(request jsonrpc.JSONRequest, multi peer.MultiAddr) json.RawMessage {
 	// Get the net.Addr of the Bootstrap node. We make the assumption that the JSON-RPC port is equivalent to the gRPC
 	// port + 1.
-	client := jrpc.NewClient(p2p.timeout)
+	client := jrpc.NewClient(p2p.logger, p2p.timeout)
 	addr := multi.ResolveTCPAddr().(*net.TCPAddr)
 	addr.Port++
 

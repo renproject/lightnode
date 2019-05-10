@@ -82,7 +82,7 @@ func (client *Client) runWorkers(n int) {
 		// For each RPC call inside the queue.
 		for call := range client.queue {
 			// Construct a new JSON client and send the request.
-			jsonClient := jrpc.NewClient(client.timeout)
+			jsonClient := jrpc.NewClient(client.logger, client.timeout)
 			response, err := jsonClient.Call(call.URL, call.Request)
 			if err != nil {
 				call.Responder <- nil

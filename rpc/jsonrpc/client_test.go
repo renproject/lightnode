@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/rpc/jsonrpc"
+	"github.com/sirupsen/logrus"
 
 	"github.com/republicprotocol/darknode-go/processor"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
@@ -81,8 +82,9 @@ var _ = Describe("JSON-RPC Client", func() {
 			defer server.Close()
 
 			// Send request.
+			logger := logrus.New()
 			request := newSendMessageRequest()
-			client := NewClient(time.Second)
+			client := NewClient(logger, time.Second)
 			jsonResponse, err := client.Call(server.URL, request)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -105,8 +107,9 @@ var _ = Describe("JSON-RPC Client", func() {
 			defer server.Close()
 
 			// Send request.
+			logger := logrus.New()
 			request := newReceiveMessageRequest()
-			client := NewClient(time.Second)
+			client := NewClient(logger, time.Second)
 			jsonResponse, err := client.Call(server.URL, request)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -130,8 +133,9 @@ var _ = Describe("JSON-RPC Client", func() {
 			defer server.Close()
 
 			// Send request.
+			logger := logrus.New()
 			request := newInvalidSendMessageRequest()
-			client := NewClient(time.Second)
+			client := NewClient(logger, time.Second)
 			_, err := client.Call(server.URL, request)
 			Expect(err).To(HaveOccurred())
 		})
@@ -144,16 +148,18 @@ var _ = Describe("JSON-RPC Client", func() {
 			defer server.Close()
 
 			// Send request.
+			logger := logrus.New()
 			request := newSendMessageRequest()
-			client := NewClient(10 * time.Millisecond)
+			client := NewClient(logger, 10*time.Millisecond)
 			_, err := client.Call(server.URL, request)
 			Expect(err).To(HaveOccurred())
 		})
 
 		It("should return an error if the server is offline", func() {
 			// Send request.
+			logger := logrus.New()
 			request := newSendMessageRequest()
-			client := NewClient(time.Second)
+			client := NewClient(logger, time.Second)
 			_, err := client.Call("http://0.0.0.0:8888", request)
 			Expect(err).To(HaveOccurred())
 		})
@@ -164,8 +170,9 @@ var _ = Describe("JSON-RPC Client", func() {
 			defer server.Close()
 
 			// Send request.
+			logger := logrus.New()
 			request := newSendMessageRequest()
-			client := NewClient(time.Second)
+			client := NewClient(logger, time.Second)
 			_, err := client.Call(server.URL, request)
 			Expect(err).To(HaveOccurred())
 		})
