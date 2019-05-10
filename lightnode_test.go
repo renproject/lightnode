@@ -195,7 +195,7 @@ var _ = Describe("light nodes local tests", func() {
 			defer close(done)
 
 			bootstrapAddrs := initNodes(8, done, logger)
-			lightnode := New(logger, 128, 3, 60, Version, "5000", bootstrapAddrs, 5*time.Minute, 5)
+			lightnode := New(logger, 128, 3, 60, Version, "5000", bootstrapAddrs, 5*time.Minute, 5, 10)
 			go lightnode.Run(done)
 
 			time.Sleep(5 * time.Second)
