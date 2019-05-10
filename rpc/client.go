@@ -33,7 +33,7 @@ var (
 type Client struct {
 	logger  logrus.FieldLogger
 	store   store.Proxy
-	queue   chan RPCCall
+	queue   chan rpcCall
 	timeout time.Duration
 }
 
@@ -42,7 +42,7 @@ func NewClient(logger logrus.FieldLogger, store store.Proxy, cap, numWorkers int
 	client := &Client{
 		logger:  logger,
 		store:   store,
-		queue:   make(chan RPCCall, cap),
+		queue:   make(chan rpcCall, cap),
 		timeout: timeout,
 	}
 
@@ -167,8 +167,8 @@ func (client *Client) handleRequest(method string, data []byte, address addr.Add
 	}
 	// We assume the JSON-RPC port = gRPC port + 1
 	netAddr := multi.ResolveTCPAddr().(*net.TCPAddr)
-	netAddr.Port += 1
-	call := RPCCall{
+	netAddr.Port++
+	call := rpcCall{
 		Request: jsonrpc.JSONRequest{
 			JSONRPC: "2.0",
 			Method:  method,
@@ -300,9 +300,9 @@ type InvokeRPC struct {
 func (InvokeRPC) IsMessage() {
 }
 
-// RPCCall contains the information `jsonrpc.Client` requires in order to send the request. The response will be written
+// rpcCall contains the information `jsonrpc.Client` requires in order to send the request. The response will be written
 // to the responder channel which is assumed to have a buffer size of 1.
-type RPCCall struct {
+type rpcCall struct {
 	Request   jsonrpc.JSONRequest
 	URL       string
 	Responder chan<- jsonrpc.Response
