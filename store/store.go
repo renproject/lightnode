@@ -20,6 +20,9 @@ type Proxy interface {
 	// InsertStats inserts the stats for a Darknode mapped to its address.
 	InsertStats(darknodeAddr addr.Addr, value jsonrpc.QueryStatsResponse) error
 
+	// InsertMessage inserts result of the given messageID.
+	InsertMessage(messageID string, value jsonrpc.ReceiveMessageResponse) error
+
 	// DeleteMultiAddress deletes the multi-address for a Darknode using its address.
 	DeleteMultiAddress(darknodeAddr addr.Addr) error
 
@@ -37,6 +40,8 @@ type Proxy interface {
 
 	// Stats retrieves Darknode stats using its address.
 	Stats(darknodeAddr addr.Addr) jsonrpc.QueryStatsResponse
+
+	Message(messageID string) (jsonrpc.ReceiveMessageResponse, error)
 }
 
 // KVStore is a generic key-value store. The key must be of type string, though there are no restrictions on the type

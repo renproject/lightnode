@@ -17,7 +17,8 @@ var _ = Describe("Proxy store", func() {
 	initStores := func() (KVStore, KVStore, Proxy) {
 		multiStore := NewCache(0)
 		statsStore := NewCache(0)
-		store := NewProxy(multiStore, statsStore)
+		messageStore := NewCache(0)
+		store := NewProxy(multiStore, statsStore, messageStore)
 		return multiStore, statsStore, store
 	}
 

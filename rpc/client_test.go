@@ -104,7 +104,7 @@ var _ = Describe("RPC client", func() {
 			Expect(err).ToNot(HaveOccurred())
 			multiStore, err := testutils.InitStore(multi)
 			Expect(err).ToNot(HaveOccurred())
-			store := store.NewProxy(multiStore, store.NewCache(0))
+			store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
@@ -143,7 +143,7 @@ var _ = Describe("RPC client", func() {
 			Expect(err).ToNot(HaveOccurred())
 			multiStore, err := testutils.InitStore(multi)
 			Expect(err).ToNot(HaveOccurred())
-			store := store.NewProxy(multiStore, store.NewCache(0))
+			store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
@@ -185,7 +185,7 @@ var _ = Describe("RPC client", func() {
 			Expect(err).NotTo(HaveOccurred())
 			multiStore, err := testutils.InitStore(multi)
 			Expect(err).ToNot(HaveOccurred())
-			store := store.NewProxy(multiStore, store.NewCache(0))
+			store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
@@ -223,7 +223,7 @@ var _ = Describe("RPC client", func() {
 			Expect(err).ToNot(HaveOccurred())
 			multiStore, err := testutils.InitStore(multi)
 			Expect(err).ToNot(HaveOccurred())
-			store := store.NewProxy(multiStore, store.NewCache(0))
+			store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
@@ -261,7 +261,7 @@ var _ = Describe("RPC client", func() {
 			Expect(err).ToNot(HaveOccurred())
 			multiStore, err := testutils.InitStore(multi)
 			Expect(err).ToNot(HaveOccurred())
-			store := store.NewProxy(multiStore, store.NewCache(0))
+			store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
@@ -306,7 +306,7 @@ var _ = Describe("RPC client", func() {
 			Expect(err).ToNot(HaveOccurred())
 			multiStore, err := testutils.InitStore(multi, badMulti)
 			Expect(err).ToNot(HaveOccurred())
-			store := store.NewProxy(multiStore, store.NewCache(0))
+			store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
