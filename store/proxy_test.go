@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"fmt"
+	"reflect"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -14,12 +15,12 @@ import (
 )
 
 var _ = Describe("Proxy store", func() {
-	initStores := func() (KVStore, KVStore, Proxy) {
+	initStores := func() (KVStore, KVStore,KVStore, Proxy) {
 		multiStore := NewCache(0)
 		statsStore := NewCache(0)
 		messageStore := NewCache(0)
 		store := NewProxy(multiStore, statsStore, messageStore)
-		return multiStore, statsStore, store
+		return multiStore, statsStore, messageStore, store
 	}
 
 	randAddr := func() (addr.Addr, peer.MultiAddr) {
@@ -30,9 +31,16 @@ var _ = Describe("Proxy store", func() {
 		return addr, multiAddr
 	}
 
+	randResponse := func() jsonrpc.ReceiveMessageResponse{
+		return jsonrpc.ReceiveMessageResponse{
+			Result: []byte("{}"),
+		}
+
+	}
+
 	Context("when interacting with multi-address store through the proxy", func() {
 		It("should be able to insert multi-addresses", func() {
-			multiStore, _, store := initStores()
+			multiStore, _, _, store := initStores()
 
 			// Insert multi-address using proxy.
 			addr, multiAddr := randAddr()
@@ -46,7 +54,7 @@ var _ = Describe("Proxy store", func() {
 		})
 
 		It("should be able to delete multi-addresses", func() {
-			multiStore, _, store := initStores()
+			multiStore, _, _, store := initStores()
 
 			// Insert multi-address using proxy.
 			addr, multiAddr := randAddr()
@@ -61,7 +69,7 @@ var _ = Describe("Proxy store", func() {
 		})
 
 		It("should be able to retrieve multi-addresses", func() {
-			_, _, store := initStores()
+			_, _, _, store := initStores()
 
 			// Insert multi-address using proxy.
 			addr, multiAddr := randAddr()
@@ -74,7 +82,7 @@ var _ = Describe("Proxy store", func() {
 		})
 
 		It("should be able to retrieve a list of multi-addresses", func() {
-			_, _, store := initStores()
+			_, _,  _,store := initStores()
 
 			// Insert multi-addresses using proxy.
 			fstAddr, fstMulti := randAddr()
@@ -94,7 +102,7 @@ var _ = Describe("Proxy store", func() {
 		})
 
 		It("should be able to retrieve the number of multi-addresses", func() {
-			_, _, store := initStores()
+			_, _,  _,store := initStores()
 
 			// Insert multi-addresses using proxy.
 			addr, multiAddr := randAddr()
@@ -108,7 +116,7 @@ var _ = Describe("Proxy store", func() {
 		})
 
 		It("should error when retrieving a mult-address that does not exist", func() {
-			_, _, store := initStores()
+			_, _,  _,store := initStores()
 
 			// Try to retrieve multi-address for an address that does not exist.
 			addr, _ := randAddr()
@@ -119,7 +127,7 @@ var _ = Describe("Proxy store", func() {
 
 	Context("when interacting with stats store through the proxy", func() {
 		It("should be able to insert stats", func() {
-			_, statsStore, store := initStores()
+			_, statsStore,  _,store := initStores()
 
 			// Insert stats using proxy.
 			addr, _ := randAddr()
@@ -136,7 +144,7 @@ var _ = Describe("Proxy store", func() {
 		})
 
 		It("should be able to delete stats", func() {
-			_, statsStore, store := initStores()
+			_, statsStore, _, store := initStores()
 
 			// Insert stats using proxy.
 			addr, _ := randAddr()
@@ -152,7 +160,7 @@ var _ = Describe("Proxy store", func() {
 		})
 
 		It("should be able to retrieve stats", func() {
-			_, _, store := initStores()
+			_, _, _, store := initStores()
 
 			// Insert multi-address using proxy.
 			addr, _ := randAddr()
@@ -168,12 +176,34 @@ var _ = Describe("Proxy store", func() {
 		})
 
 		It("should error when retrieving stats that do not exist", func() {
-			_, _, store := initStores()
+			_, _,  _,store := initStores()
 
 			// Try to retrieve stats for an address that does not exist.
 			addr, _ := randAddr()
 			value := store.Stats(addr)
 			Expect(value.Error).To(Equal(ErrInvalidDarknodeAddress))
+		})
+	})
+
+	Context("when interacting with message store through the proxy", func() {
+		It("should be able to insert receiveMessageResponse", func() {
+			_,  _, _, store := initStores()
+			messageID := "messageID"
+			result := randResponse()
+			Expect(store.InsertMessage(messageID , result)).To(Succeed())
+
+			readResult, err  := store.Message(messageID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(reflect.DeepEqual(result, readResult)).Should(BeTrue())
+		})
+
+		It("should error when retrieving message that do not exist", func() {
+			_, _,  _,store := initStores()
+
+			// Try to retrieve stats for an address that does not exist.
+			messageID := "messageID"
+			_, err := store.Message(messageID)
+			Expect(err).NotTo(BeNil())
 		})
 	})
 })
