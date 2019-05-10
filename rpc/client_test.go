@@ -33,15 +33,7 @@ var _ = Describe("RPC client", func() {
 			case jsonrpc.MethodSendMessage:
 				response.Result = json.RawMessage([]byte(`{"messageID":"messageID","ok":true}`))
 			case jsonrpc.MethodReceiveMessage:
-				if request.ID == 0 {
-					response.Error = &jsonrpc.JSONError{
-						Code:    -32000,
-						Message: "no result available",
-						Data:    nil,
-					}
-				} else {
-					response.Result = json.RawMessage([]byte(`{"values":[{"type":"private","value":"0"}]}`))
-				}
+				response.Result = json.RawMessage([]byte(`{"values":[{"type":"private","value":"0"}]}`))
 			default:
 				panic("unknown message type")
 			}
