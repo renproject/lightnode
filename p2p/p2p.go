@@ -88,8 +88,13 @@ func (p2p *P2P) handleQuery(request jsonrpc.Request) {
 // the nodes again.
 func (p2p *P2P) run() {
 	for {
-		go p2p.updateMultiAddress()
-		go p2p.updateStats()
+		co.ParBegin(
+			func() {
+				p2p.updateMultiAddress()
+			},
+			func() {
+				p2p.updateStats()
+			})
 		time.Sleep(p2p.pollRate)
 	}
 }
