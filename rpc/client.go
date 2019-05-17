@@ -13,10 +13,11 @@ import (
 	"time"
 
 	jrpc "github.com/renproject/lightnode/rpc/jsonrpc"
-	"github.com/renproject/lightnode/store"
 	"github.com/republicprotocol/co-go"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
+	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
+	"github.com/republicprotocol/store"
 	"github.com/republicprotocol/tau"
 	"github.com/sirupsen/logrus"
 )
@@ -31,19 +32,21 @@ var (
 
 // Client is used to send RPC requests.
 type Client struct {
-	logger  logrus.FieldLogger
-	store   store.Proxy
-	queue   chan rpcCall
-	timeout time.Duration
+	logger       logrus.FieldLogger
+	multiStore   peer.MultiAddrStore
+	messageStore store.IterableStore
+	queue        chan rpcCall
+	timeout      time.Duration
 }
 
 // NewClient returns a new Client task.
-func NewClient(logger logrus.FieldLogger, store store.Proxy, cap, numWorkers int, timeout time.Duration) tau.Task {
+func NewClient(logger logrus.FieldLogger, multiStore peer.MultiAddrStore, cap, numWorkers int, timeout time.Duration) tau.Task {
 	client := &Client{
-		logger:  logger,
-		store:   store,
-		queue:   make(chan rpcCall, cap),
-		timeout: timeout,
+		logger:       logger,
+		multiStore:   multiStore,
+		messageStore: store.NewIterableCache(300),
+		queue:        make(chan rpcCall, cap),
+		timeout:      timeout,
 	}
 
 	// Start running the background workers.
@@ -68,9 +71,9 @@ func (client *Client) invoke(message InvokeRPC) tau.Message {
 	case jsonrpc.SendMessageRequest:
 		return client.handleMessage(request, jsonrpc.MethodSendMessage, message.Addresses)
 	case jsonrpc.ReceiveMessageRequest:
-		// Check if the message already exists in the store and if so, write it to the responder channel.
-		response, err := client.store.Message(request.MessageID)
-		if err != nil {
+		// Check if the message already exists in the multiStore and if so, write it to the responder channel.
+		var response jsonrpc.ReceiveMessageResponse
+		if err := client.messageStore.Read(request.MessageID, &response); err != nil {
 			return client.handleMessage(request, jsonrpc.MethodReceiveMessage, message.Addresses)
 		}
 		request.Responder <- response
@@ -118,9 +121,9 @@ func (client *Client) runWorkers(n int) {
 					continue
 				}
 
-				// Write result to store.
+				// Write result to multiStore.
 				if err := client.insertMessageResult(call.Request, resp); err != nil {
-					client.logger.Errorf("cannot store the ReceiveMessageResponse: %v", err)
+					client.logger.Errorf("cannot multiStore the ReceiveMessageResponse: %v", err)
 				}
 
 				call.Responder <- resp
@@ -160,8 +163,8 @@ func (client *Client) handleMessage(request jsonrpc.Request, method string, addr
 
 // handleRequest sending the constructed request to the queue.
 func (client *Client) handleRequest(method string, data []byte, address addr.Addr, results chan jsonrpc.Response) error {
-	// Get multi-address of the darknode from store.
-	multi, err := client.store.MultiAddress(address)
+	// Get multi-address of the darknode from multiStore.
+	multi, err := client.multiStore.MultiAddr(address)
 	if err != nil {
 		return err
 	}
@@ -286,7 +289,7 @@ func (client Client) insertMessageResult(jsonRequest jsonrpc.JSONRequest, respon
 	if err := json.Unmarshal(jsonRequest.Params, &request); err != nil {
 		return err
 	}
-	return client.store.InsertMessage(request.MessageID, response)
+	return client.messageStore.Write(request.MessageID, response)
 }
 
 // InvokeRPC is tau.Message contains a `jsonrpc.Request` and a list of target Darknode addresses. The client task sends

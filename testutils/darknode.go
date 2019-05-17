@@ -63,9 +63,7 @@ func (node *MockDarknode) Run(done <-chan struct{}) {
 		server.Close()
 	}()
 
-	if err := server.ListenAndServe(); err != nil {
-		log.Printf("failed to serve: %v", err)
-	}
+	server.ListenAndServe()
 }
 
 func (node *MockDarknode) writeError(w http.ResponseWriter, err error) {

@@ -9,19 +9,21 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
-	"github.com/renproject/lightnode/store"
+	storeAdapter "github.com/republicprotocol/renp2p-go/adapter/store"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
+	"github.com/republicprotocol/store"
 )
 
-func InitStore(multis ...peer.MultiAddr) (store.KVStore, error) {
-	store := store.NewCache(0)
+func InitStore(multis ...peer.MultiAddr) (peer.MultiAddrStore, error) {
+	store := store.NewIterableCache(0)
 	for _, multi := range multis {
 		if err := store.Write(multi.Addr().String(), multi); err != nil {
 			return nil, err
 		}
 	}
-	return store, nil
+
+	return storeAdapter.NewMultiAddrStore(store), nil
 }
 
 func RandomAddress() (addr.Addr, error) {

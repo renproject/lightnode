@@ -9,7 +9,6 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/rpc"
 
-	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/republicprotocol/darknode-go/processor"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
@@ -104,11 +103,10 @@ var _ = Describe("RPC client", func() {
 			Expect(err).ToNot(HaveOccurred())
 			multiStore, err := testutils.InitStore(multi)
 			Expect(err).ToNot(HaveOccurred())
-			store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
-			client := NewClient(logger, store, 32, 8, time.Second)
+			client := NewClient(logger, multiStore, 32, 8, time.Second)
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response, 1)
 
@@ -142,12 +140,10 @@ var _ = Describe("RPC client", func() {
 			multi, err := testutils.ServerMultiAddress(server)
 			Expect(err).ToNot(HaveOccurred())
 			multiStore, err := testutils.InitStore(multi)
-			Expect(err).ToNot(HaveOccurred())
-			store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
-			client := NewClient(logger, store, 32, 8, time.Second)
+			client := NewClient(logger, multiStore, 32, 8, time.Second)
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response, 1)
 
@@ -184,12 +180,10 @@ var _ = Describe("RPC client", func() {
 			multi, err := peer.NewMultiAddr("/ip4/0.0.0.0/tcp/18515/ren/8MKXcuQAjR2eEq8bsSHDPkYEmqmjtj", 1, [65]byte{})
 			Expect(err).NotTo(HaveOccurred())
 			multiStore, err := testutils.InitStore(multi)
-			Expect(err).ToNot(HaveOccurred())
-			store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
-			client := NewClient(logger, store, 32, 8, time.Second)
+			client := NewClient(logger, multiStore, 32, 8, time.Second)
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response, 1)
 
@@ -222,12 +216,10 @@ var _ = Describe("RPC client", func() {
 			multi, err := testutils.ServerMultiAddress(server)
 			Expect(err).ToNot(HaveOccurred())
 			multiStore, err := testutils.InitStore(multi)
-			Expect(err).ToNot(HaveOccurred())
-			store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
-			client := NewClient(logger, store, 32, 8, time.Second)
+			client := NewClient(logger, multiStore, 32, 8, time.Second)
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response, 1)
 
@@ -260,12 +252,10 @@ var _ = Describe("RPC client", func() {
 			multi, err := testutils.ServerMultiAddress(server)
 			Expect(err).ToNot(HaveOccurred())
 			multiStore, err := testutils.InitStore(multi)
-			Expect(err).ToNot(HaveOccurred())
-			store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
-			client := NewClient(logger, store, 32, 8, time.Second)
+			client := NewClient(logger, multiStore, 32, 8, time.Second)
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response, 1)
 
@@ -299,18 +289,16 @@ var _ = Describe("RPC client", func() {
 			badServer := initTimeoutServer()
 			defer badServer.Close()
 
-			// Construct the store for the client.
+			// Construct the multiStore for the client.
 			multi, err := testutils.ServerMultiAddress(server)
 			Expect(err).ToNot(HaveOccurred())
 			badMulti, err := testutils.ServerMultiAddress(badServer)
 			Expect(err).ToNot(HaveOccurred())
 			multiStore, err := testutils.InitStore(multi, badMulti)
-			Expect(err).ToNot(HaveOccurred())
-			store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
-			client := NewClient(logger, store, 4, 2, time.Minute)
+			client := NewClient(logger, multiStore, 4, 2, time.Minute)
 			go client.Run(done)
 
 			// Send some requests to the task.
@@ -352,12 +340,10 @@ var _ = Describe("RPC client", func() {
 			multi, err := testutils.ServerMultiAddress(server)
 			Expect(err).ToNot(HaveOccurred())
 			multiStore, err := testutils.InitStore(multi)
-			Expect(err).ToNot(HaveOccurred())
-			store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
 
 			// Initialise the client task.
 			logger := logrus.New()
-			client := NewClient(logger, store, 32, 8, time.Second)
+			client := NewClient(logger, multiStore, 32, 8, time.Second)
 			go client.Run(done)
 			responder := make(chan jsonrpc.Response, 1)
 
