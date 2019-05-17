@@ -188,6 +188,7 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/renproject/hyperdrive v0.0.0-20190503032041-4ba6bfafeddf h1:neysKGwpOh3IrIAqaTZoDg58LcKCtCFrz9ebR8zysP8=
 github.com/renproject/hyperdrive v0.0.0-20190503032041-4ba6bfafeddf/go.mod h1:dlPxRZQ9T/DWcDHw3jFKZ4ROSuOWys2G+0lTxTAeMz4=
+github.com/renproject/hyperdrive v0.0.0-20190516100856-2ee119f87bfa h1:eAIYwURLRVbUp+9Zn4x5XA5WaOVBljnAYW0XKsWILZs=
 github.com/renproject/hyperdrive v0.0.0-20190516100856-2ee119f87bfa/go.mod h1:dlPxRZQ9T/DWcDHw3jFKZ4ROSuOWys2G+0lTxTAeMz4=
 github.com/renproject/libbtc-go v0.0.0-20190328231045-a06390d7e515/go.mod h1:Cbn7ex/PdqbzlnMk4+hTnE3cdw2a2ZKH2hSSbeW2Z1w=
 github.com/renproject/libbtc-go v0.0.0-20190406053552-a33d87f4d88f/go.mod h1:Cbn7ex/PdqbzlnMk4+hTnE3cdw2a2ZKH2hSSbeW2Z1w=
