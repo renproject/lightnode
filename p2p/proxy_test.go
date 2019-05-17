@@ -2,10 +2,12 @@ package p2p_test
 
 import (
 	"fmt"
+	"reflect"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/p2p"
+	"github.com/republicprotocol/darknode-go/health"
 
 	"github.com/renproject/lightnode/testutils"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
@@ -127,7 +129,12 @@ var _ = Describe("Proxy store", func() {
 			// Insert stats using proxy.
 			addr, _ := randAddr()
 			stats := jsonrpc.QueryStatsResponse{
-				Location: "Earth",
+				Info: health.Info{
+					RAM:       1,
+					HardDrive: 1,
+					Location:  "Canberra",
+					Version:   "1",
+				},
 			}
 			Expect(store.InsertStats(addr, stats)).To(Succeed())
 
@@ -135,7 +142,10 @@ var _ = Describe("Proxy store", func() {
 			var value jsonrpc.QueryStatsResponse
 			Expect(statsStore.Entries()).To(Equal(1))
 			Expect(statsStore.Read(addr.String(), &value)).To(Succeed())
-			Expect(value.Location).To(Equal(stats.Location))
+			Expect(value.Info.Version).To(Equal("1"))
+			Expect(value.Info.RAM).To(Equal(1))
+			Expect(value.Info.HardDrive).To(Equal(1))
+			Expect(value.Info.Location).To(Equal("Canberra"))
 		})
 
 		It("should be able to delete stats", func() {
@@ -160,14 +170,18 @@ var _ = Describe("Proxy store", func() {
 			// Insert multi-address using proxy.
 			addr, _ := randAddr()
 			stats := jsonrpc.QueryStatsResponse{
-				Location: "Earth",
+				Info: health.Info{
+					RAM:       1,
+					HardDrive: 1,
+					Location:  "Canberra",
+					Version:   "1",
+				},
 			}
 			Expect(store.InsertStats(addr, stats)).To(Succeed())
 
 			// Retrieve stats using proxy.
 			value := store.Stats(addr)
-			Expect(value.Error).To(BeNil())
-			Expect(value.Location).To(Equal(stats.Location))
+			Expect(reflect.DeepEqual(value, stats)).To(BeTrue())
 		})
 
 		It("should error when retrieving stats that do not exist", func() {

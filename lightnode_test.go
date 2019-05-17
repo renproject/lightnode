@@ -179,8 +179,10 @@ var _ = Describe("light nodes local tests", func() {
 		var resp jsonrpc.QueryStatsResponse
 		Expect(json.Unmarshal(response.Result, &resp)).To(Succeed())
 		Expect(resp.Error).Should(BeNil())
-		Expect(resp.Version).Should(Equal(Version))
-		Expect(len(resp.CPUs)).Should(BeNumerically(">", 0))
+		Expect(resp.Info.Version).Should(Equal(Version))
+		Expect(resp.Info.RAM).Should(BeNumerically(">", 0))
+		Expect(resp.Info.HardDrive).Should(BeNumerically(">", 0))
+		Expect(len(resp.Info.CPUs)).Should(BeNumerically(">", 0))
 	}
 
 	Context("when querying the light nodes", func() {

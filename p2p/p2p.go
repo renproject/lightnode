@@ -262,34 +262,13 @@ func (p2p *P2P) handleQueryNumPeers(request jsonrpc.QueryNumPeersRequest) jsonrp
 func (p2p *P2P) handleQueryStats(request jsonrpc.QueryStatsRequest) jsonrpc.Response {
 	// If no Darknode ID is provided, return the stats for the Lightnode.
 	if request.DarknodeID == "" {
-		response := jsonrpc.QueryStatsResponse{
-			Version: p2p.health.Version(),
-		}
-		cpus, err := p2p.health.CPUs()
+		var response jsonrpc.QueryStatsResponse
+		info, err := p2p.health.Info()
 		if err != nil {
-			response.Error = ErrFailedToGetStatistics
-			return response
+			p2p.logger.Errorf("fail to get self health info, %v", err)
 		}
-		ram, err := p2p.health.RAM()
-		if err != nil {
-			response.Error = ErrFailedToGetStatistics
-			return response
-		}
-		disk, err := p2p.health.HardDrive()
-		if err != nil {
-			response.Error = ErrFailedToGetStatistics
-			return response
-		}
-		location, err := p2p.health.Location()
-		if err != nil {
-			response.Error = ErrFailedToGetStatistics
-			return response
-		}
-
-		response.CPUs = cpus
-		response.RAM = ram
-		response.Disk = disk
-		response.Location = location
+		response.Info = info
+		response.Error = err
 		return response
 	}
 	return p2p.store.Stats(addr.New(request.DarknodeID))

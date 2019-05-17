@@ -55,7 +55,12 @@ var _ = Describe("RPC client", func() {
 				response.Result = json.RawMessage(peersRespBytes)
 			case jsonrpc.MethodQueryStats:
 				statsResp := jsonrpc.QueryStatsResponse{
-					Location: "Sydney",
+					Info: health.Info{
+						RAM:       1,
+						HardDrive: 1,
+						Location:  "Canberra",
+						Version:   "1",
+					},
 				}
 				statsRespBytes, err := json.Marshal(statsResp)
 				Expect(err).ToNot(HaveOccurred())
@@ -242,7 +247,10 @@ var _ = Describe("RPC client", func() {
 			case response := <-responder:
 				resp, ok := response.(jsonrpc.QueryStatsResponse)
 				Expect(ok).To(BeTrue())
-				Expect(resp.Location).To(Equal("Sydney"))
+				Expect(resp.Info.Version).To(Equal("1"))
+				Expect(resp.Info.RAM).To(Equal(1))
+				Expect(resp.Info.HardDrive).To(Equal(1))
+				Expect(resp.Info.Location).To(Equal("Canberra"))
 			}
 		})
 
@@ -273,7 +281,10 @@ var _ = Describe("RPC client", func() {
 			case response := <-responder:
 				resp, ok := response.(jsonrpc.QueryStatsResponse)
 				Expect(ok).To(BeTrue())
-				Expect(len(resp.CPUs)).To(BeNumerically(">", 0))
+				Expect(resp.Error).Should(BeNil())
+				Expect(resp.Info.RAM).Should(BeNumerically(">", 0))
+				Expect(resp.Info.HardDrive).Should(BeNumerically(">", 0))
+				Expect(len(resp.Info.CPUs)).Should(BeNumerically(">", 0))
 			}
 		})
 	})
