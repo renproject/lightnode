@@ -7,9 +7,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/p2p"
-	"github.com/republicprotocol/darknode-go/health"
 
 	"github.com/renproject/lightnode/testutils"
+	"github.com/republicprotocol/darknode-go/health"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 	storeAdapter "github.com/republicprotocol/renp2p-go/adapter/store"
 	"github.com/republicprotocol/renp2p-go/core/peer"
