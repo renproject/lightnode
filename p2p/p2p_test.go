@@ -75,12 +75,7 @@ var _ = Describe("RPC client", func() {
 		})
 		server := &http.Server{Addr: address, Handler: handler}
 
-		go func() {
-			defer GinkgoRecover()
-			Expect(func() {
-				server.ListenAndServe()
-			}).NotTo(Panic())
-		}()
+		go server.ListenAndServe()
 
 		return server
 	}
@@ -113,11 +108,8 @@ var _ = Describe("RPC client", func() {
 		logger := logrus.New()
 		store := NewProxy(multiStore, store.NewIterableCache(0))
 		health := health.NewHealthCheck("1.0", addr.New(""))
-		p2p := New(logger, 128, time.Second, store, health, bootstrapAddrs, 5*time.Minute, 5)
-		go func() {
-			defer GinkgoRecover()
-			p2p.Run(done)
-		}()
+		p2p := New(logger, 128, 5, time.Second, 5*time.Minute, store, health, bootstrapAddrs)
+		go p2p.Run(done)
 
 		return p2p, servers, bootstrapAddrs
 	}
@@ -286,6 +278,40 @@ var _ = Describe("RPC client", func() {
 				Expect(resp.Info.HardDrive).Should(BeNumerically(">", 0))
 				Expect(len(resp.Info.CPUs)).Should(BeNumerically(">", 0))
 			}
+		})
+	})
+
+	Context("when bootstrap darknodes are offline", func() {
+		It("should be deleted from the store after the query fails", func() {
+			done := make(chan struct{})
+			defer close(done)
+
+			// Generate random number of bootstraps nodes
+			bootstraps := make([]peer.MultiAddr, rand.Intn(10))
+			for i := range bootstraps {
+				var err error
+				bootstraps[i], err = testutils.RandomMultiAddress()
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			// Initialise the P2P task.
+			logger := logrus.New()
+			multiStore, err := testutils.InitStore()
+			Expect(err).ToNot(HaveOccurred())
+			statsStore := store.NewIterableCache(0)
+			store := NewProxy(multiStore, statsStore)
+			health := health.NewHealthCheck("1.0", addr.New(""))
+			p2p := New(logger, 128, 5, time.Second, 5*time.Minute, store, health, bootstraps)
+
+			go p2p.Run(done)
+
+			// Expect all bootstrap nodes been removes from both the mutli-store and the stats store.
+			time.Sleep(3 * time.Second)
+			multis, err := store.MultiAddrs()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(len(multis)).Should(BeZero())
+			iter := statsStore.Iterator()
+			Expect(iter.Next()).Should(BeFalse())
 		})
 	})
 })

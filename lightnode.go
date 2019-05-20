@@ -30,23 +30,22 @@ type Lightnode struct {
 
 // New constructs a new Lightnode.
 func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port string, bootstrapMultiAddrs []peer.MultiAddr, pollRate time.Duration, peerCount, maxBatchSize int) *Lightnode {
+	timeoutSeconds := time.Duration(timeout) * time.Second
 	lightnode := &Lightnode{
 		port:   port,
 		logger: logger,
 	}
 
-	// Construct client and server.
+	// Construct client task.
 	multiStore := storeAdapter.NewMultiAddrStore(store.NewIterableCache(0))
 	statsStore := store.NewIterableCache(0)
-
 	proxyStore := p2p.NewProxy(multiStore, statsStore)
-	client := rpc.NewClient(logger, multiStore, cap, workers, time.Duration(timeout)*time.Second)
-	requests := make(chan jsonrpc.Request, cap)
-	jsonrpcService := jsonrpc.New(logger, requests, time.Duration(timeout)*time.Second, maxBatchSize)
-	server := rpc.NewServer(logger, cap, requests)
+	client := rpc.NewClient(logger, multiStore, cap, workers, timeoutSeconds)
 
-	health := health.NewHealthCheck(version, addr.New(""))
-	p2pService := p2p.New(logger, cap, time.Duration(timeout)*time.Second, proxyStore, health, bootstrapMultiAddrs, pollRate, peerCount)
+	// Construct the json-rpc server handler and server task.
+	requests := make(chan jsonrpc.Request, cap)
+	jsonrpcService := jsonrpc.New(logger, requests, timeoutSeconds, maxBatchSize)
+	server := rpc.NewServer(logger, cap, requests)
 	lightnode.handler = cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,
@@ -55,12 +54,15 @@ func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port str
 		Debug:            os.Getenv("DEBUG") == "true",
 	}).Handler(jsonrpcService)
 
+	// Construct the p2p service
+	health := health.NewHealthCheck(version, addr.New(""))
+	p2pService := p2p.New(logger, cap, peerCount, timeoutSeconds, pollRate, proxyStore, health, bootstrapMultiAddrs)
+
 	// Construct resolver.
 	bootstrapAddrs := make([]addr.Addr, len(bootstrapMultiAddrs))
 	for i := range bootstrapMultiAddrs {
 		bootstrapAddrs[i] = bootstrapMultiAddrs[i].Addr()
 	}
-
 	lightnode.resolver = resolver.New(cap, logger, client, server, p2pService, bootstrapAddrs)
 
 	return lightnode
@@ -69,11 +71,6 @@ func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port str
 // Run starts listening for requests using a HTTP server.
 func (node *Lightnode) Run(done <-chan struct{}) {
 	node.logger.Infof("JSON-RPC server listening on 0.0.0.0:%v...", node.port)
-	go func() {
-		if err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%v", node.port), node.handler); err != nil {
-			node.logger.Errorf("failed to serve: %v", err)
-		}
-	}()
-
+	go http.ListenAndServe(fmt.Sprintf("0.0.0.0:%v", node.port), node.handler)
 	node.resolver.Run(done)
 }

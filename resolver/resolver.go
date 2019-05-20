@@ -39,6 +39,7 @@ func (resolver *Resolver) Reduce(message tau.Message) tau.Message {
 	switch message := message.(type) {
 	case rpc.SendMessage:
 		resolver.server.Send(rpc.NewAccept())
+		// TODO : Addresses are hardcoded for now.
 		resolver.client.Send(rpc.InvokeRPC{
 			Request:   message.Request,
 			Addresses: resolver.addresses,
