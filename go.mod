@@ -17,10 +17,9 @@ require (
 	github.com/renproject/mercury v0.0.0-20190503040154-3f1d8caf4572 // indirect
 	github.com/republicprotocol/co-go v0.0.0-20180723052914-4e299fdb0e80
 	github.com/republicprotocol/darknode-go v0.0.0-20190510044553-b24ee8ea5c68
-	github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be
+	github.com/republicprotocol/renp2p-go v0.0.0-20190507043516-5e72d2b046d2
 	github.com/republicprotocol/tau v0.0.0-20190116001021-54c2ea27fbc3
 	github.com/rs/cors v1.6.0
 	github.com/sirupsen/logrus v1.4.1
-	google.golang.org/appengine v1.4.0 // indirect
 	google.golang.org/genproto v0.0.0-20190508193815-b515fa19cec8 // indirect
 )

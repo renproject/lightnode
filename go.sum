@@ -208,6 +208,8 @@ github.com/republicprotocol/registry v0.0.0-20190415061645-12929f382dc0 h1:NLjFn
 github.com/republicprotocol/registry v0.0.0-20190415061645-12929f382dc0/go.mod h1:6rF1prrnJLQflVV4yB8uF1ewexB125OBH+mNaoafOsM=
 github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be h1:E9fhHqqrVhY/iGt5VX9afQ3Z4YtZoAO+uTPG17tENuI=
 github.com/republicprotocol/renp2p-go v0.0.0-20190417032954-c130cc4287be/go.mod h1:oQVfcQeN/dloadjgPBuTOKInaw7c39TsXpLBoz0xoYU=
+github.com/republicprotocol/renp2p-go v0.0.0-20190507043516-5e72d2b046d2 h1:Gx6pwkaY0qwoaHgor4IUWNu8zoPMlguffEQQ0quBKyw=
+github.com/republicprotocol/renp2p-go v0.0.0-20190507043516-5e72d2b046d2/go.mod h1:oQVfcQeN/dloadjgPBuTOKInaw7c39TsXpLBoz0xoYU=
 github.com/republicprotocol/renvm-go v0.0.0-20190320052535-795f34011fa2/go.mod h1:cqu/ZRgyxN3+O2CgRdOjDtr0BV98tdqH+fZA9eqdCB8=
 github.com/republicprotocol/renvm-go v0.0.0-20190328012735-db6b5c394610/go.mod h1:cqu/ZRgyxN3+O2CgRdOjDtr0BV98tdqH+fZA9eqdCB8=
 github.com/republicprotocol/renvm-go v0.0.0-20190502070319-512d9d69e22c h1:CZCp0oCj7bYFEG/VQgRCYuyc9FIMKgsj2H/Nf4E3GzY=
