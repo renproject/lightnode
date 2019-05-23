@@ -69,6 +69,13 @@ func (client *Client) invoke(message InvokeRPC) tau.Message {
 		return client.handleMessage(request, jsonrpc.MethodSendMessage, message.Addresses)
 	case jsonrpc.ReceiveMessageRequest:
 		return client.handleMessage(request, jsonrpc.MethodReceiveMessage, message.Addresses)
+		// FIXME: Re-enable caching once error field is no longer being omitted in JSON response objects.
+		// Check if the message already exists in the store and if so, write it to the responder channel.
+		/* response, err := client.store.Message(request.MessageID)
+		if err != nil {
+			return client.handleMessage(request, jsonrpc.MethodReceiveMessage, message.Addresses)
+		}
+		request.Responder <- response */
 	default:
 		client.logger.Panicf("unexpected message type %T", request)
 	}
