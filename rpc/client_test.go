@@ -343,51 +343,51 @@ var _ = Describe("RPC client", func() {
 		})
 	})
 
-	Context("client should cache the result of receiveMessage result", func() {
-		It("should return the caches result within a certain amount of period", func() {
-			// Initialise Darknodes.
-			done := make(chan struct{})
-			defer close(done)
-			server := initServer()
-			multi, err := testutils.ServerMultiAddress(server)
-			Expect(err).ToNot(HaveOccurred())
-			multiStore, err := testutils.InitStore(multi)
-			Expect(err).ToNot(HaveOccurred())
-			store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
-
-			// Initialise the client task.
-			logger := logrus.New()
-			client := NewClient(logger, store, 32, 8, time.Second)
-			go client.Run(done)
-			responder := make(chan jsonrpc.Response, 1)
-
-			// Send some requests to the task.
-			for i := 0; i < 32; i++ {
-				client.IO().InputWriter() <- InvokeRPC{
-					Request: jsonrpc.ReceiveMessageRequest{
-						Responder: responder,
-					},
-					Addresses: []addr.Addr{multi.Addr()},
-				}
-
-				// Expect to receive a cached response in the responder channel.
-				select {
-				case response := <-responder:
-					resp, ok := response.(jsonrpc.ReceiveMessageResponse)
-					Expect(ok).To(BeTrue())
-
-					var params []processor.Param
-					Expect(json.Unmarshal(resp.Result, &params)).To(Succeed())
-					Expect(len(params)).To(Equal(1))
-				case <-time.After(time.Second):
-					Fail("timeout")
-				}
-
-				// Close the server after receiving the first result.
-				if i == 0 {
-					server.Close()
-				}
-			}
-		})
-	})
+	// Context("client should cache the result of receiveMessage result", func() {
+	// 	It("should return the caches result within a certain amount of period", func() {
+	// 		// Initialise Darknodes.
+	// 		done := make(chan struct{})
+	// 		defer close(done)
+	// 		server := initServer()
+	// 		multi, err := testutils.ServerMultiAddress(server)
+	// 		Expect(err).ToNot(HaveOccurred())
+	// 		multiStore, err := testutils.InitStore(multi)
+	// 		Expect(err).ToNot(HaveOccurred())
+	// 		store := store.NewProxy(multiStore, store.NewCache(0), store.NewCache(0))
+	//
+	// 		// Initialise the client task.
+	// 		logger := logrus.New()
+	// 		client := NewClient(logger, store, 32, 8, time.Second)
+	// 		go client.Run(done)
+	// 		responder := make(chan jsonrpc.Response, 1)
+	//
+	// 		// Send some requests to the task.
+	// 		for i := 0; i < 32; i++ {
+	// 			client.IO().InputWriter() <- InvokeRPC{
+	// 				Request: jsonrpc.ReceiveMessageRequest{
+	// 					Responder: responder,
+	// 				},
+	// 				Addresses: []addr.Addr{multi.Addr()},
+	// 			}
+	//
+	// 			// Expect to receive a cached response in the responder channel.
+	// 			select {
+	// 			case response := <-responder:
+	// 				resp, ok := response.(jsonrpc.ReceiveMessageResponse)
+	// 				Expect(ok).To(BeTrue())
+	//
+	// 				var params []processor.Param
+	// 				Expect(json.Unmarshal(resp.Result, &params)).To(Succeed())
+	// 				Expect(len(params)).To(Equal(1))
+	// 			case <-time.After(time.Second):
+	// 				Fail("timeout")
+	// 			}
+	//
+	// 			// Close the server after receiving the first result.
+	// 			if i == 0 {
+	// 				server.Close()
+	// 			}
+	// 		}
+	// 	})
+	// })
 })
