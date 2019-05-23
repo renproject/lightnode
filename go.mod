@@ -21,5 +21,6 @@ require (
 	github.com/republicprotocol/tau v0.0.0-20190116001021-54c2ea27fbc3
 	github.com/rs/cors v1.6.0
 	github.com/sirupsen/logrus v1.4.1
+	google.golang.org/appengine v1.4.0 // indirect
 	google.golang.org/genproto v0.0.0-20190508193815-b515fa19cec8 // indirect
 )
