@@ -289,7 +289,7 @@ var _ = Describe("RPC client", func() {
 			badServer := initTimeoutServer()
 			defer badServer.Close()
 
-			// Construct the multiStore for the client.
+			// Construct the multi-address store for the client.
 			multi, err := testutils.ServerMultiAddress(server)
 			Expect(err).ToNot(HaveOccurred())
 			badMulti, err := testutils.ServerMultiAddress(badServer)

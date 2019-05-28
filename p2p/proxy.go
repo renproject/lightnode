@@ -3,10 +3,10 @@ package p2p
 import (
 	"errors"
 
+	"github.com/renproject/kv"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
-	"github.com/republicprotocol/store"
 )
 
 // ErrInvalidDarknodeAddress is returned when we do not have health information for a particular Darknode in the store.
@@ -16,11 +16,11 @@ var ErrInvalidDarknodeAddress = errors.New("invalid darknode address")
 // the KVStore objects.
 type Proxy struct {
 	multiStore peer.MultiAddrStore
-	statsStore store.IterableStore
+	statsStore kv.Iterable
 }
 
 // NewProxy returns a new Proxy.
-func NewProxy(multiStore peer.MultiAddrStore, statsStore store.IterableStore) Proxy {
+func NewProxy(multiStore peer.MultiAddrStore, statsStore kv.Iterable) Proxy {
 	return Proxy{
 		multiStore: multiStore,
 		statsStore: statsStore,
@@ -49,13 +49,13 @@ func (proxy Proxy) DeleteMultiAddr(addr addr.Addr) error {
 
 // InsertStats inserts the stats for a Darknode mapped to its address.
 func (proxy Proxy) InsertStats(darknodeAddr addr.Addr, value jsonrpc.QueryStatsResponse) error {
-	return proxy.statsStore.Write(darknodeAddr.String(), value)
+	return proxy.statsStore.Insert(darknodeAddr.String(), value)
 }
 
 // Stats retrieves Darknode stats using its address.
 func (proxy Proxy) Stats(darknodeAddr addr.Addr) jsonrpc.QueryStatsResponse {
 	var value jsonrpc.QueryStatsResponse
-	if err := proxy.statsStore.Read(darknodeAddr.String(), &value); err != nil {
+	if err := proxy.statsStore.Get(darknodeAddr.String(), &value); err != nil {
 		value.Error = ErrInvalidDarknodeAddress
 	}
 	return value

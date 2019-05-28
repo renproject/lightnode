@@ -79,8 +79,8 @@ func NewSendMessage(req jsonrpc.Request) SendMessage {
 }
 
 // QueryMessage is created and propagated by the server to its parent when receiving a QueryPeers or QueryNumPeers
-// request. These messages get forwarded to the P2P task which queries the multiStore and writes the response in the
-// responder channel.
+// request. These messages get forwarded to the P2P task which queries the multi-address store and writes the response
+// in the responder channel.
 type QueryMessage struct {
 	jsonrpc.Request
 }

@@ -8,19 +8,19 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/p2p"
 
+	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/republicprotocol/darknode-go/health"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 	storeAdapter "github.com/republicprotocol/renp2p-go/adapter/store"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
-	"github.com/republicprotocol/store"
 )
 
 var _ = Describe("Proxy store", func() {
-	initStores := func() (store.IterableStore, store.IterableStore, Proxy) {
-		multiStore := store.NewIterableCache(0)
-		statsStore := store.NewIterableCache(0)
+	initStores := func() (kv.Iterable, kv.Iterable, Proxy) {
+		multiStore := kv.NewJSON(kv.NewMemDB())
+		statsStore := kv.NewJSON(kv.NewMemDB())
 		store := NewProxy(storeAdapter.NewMultiAddrStore(multiStore), statsStore)
 		return multiStore, statsStore, store
 	}
@@ -43,8 +43,10 @@ var _ = Describe("Proxy store", func() {
 
 			// Ensure multi-address was added to the multiStore.
 			var value peer.MultiAddr
-			Expect(multiStore.Entries()).To(Equal(1))
-			Expect(multiStore.Read(addr.String(), &value)).To(Succeed())
+			size, err := multiStore.Size()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(size).To(Equal(1))
+			Expect(multiStore.Get(addr.String(), &value)).To(Succeed())
 			Expect(value.Value()).To(Equal(multiAddr.Value()))
 		})
 
@@ -60,7 +62,7 @@ var _ = Describe("Proxy store", func() {
 
 			// Ensure multi-address was removed from the multiStore.
 			var value peer.MultiAddr
-			Expect(multiStore.Read(addr.String(), &value)).To(Equal(store.ErrKeyNotFound))
+			Expect(multiStore.Get(addr.String(), &value)).To(Equal(kv.ErrNotFound))
 		})
 
 		It("should be able to retrieve multi-addresses", func() {
@@ -140,8 +142,10 @@ var _ = Describe("Proxy store", func() {
 
 			// Ensure stats were added to the statsStore.
 			var value jsonrpc.QueryStatsResponse
-			Expect(statsStore.Entries()).To(Equal(1))
-			Expect(statsStore.Read(addr.String(), &value)).To(Succeed())
+			size, err := statsStore.Size()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(size).To(Equal(1))
+			Expect(statsStore.Get(addr.String(), &value)).To(Succeed())
 			Expect(value.Info.Version).To(Equal("1"))
 			Expect(value.Info.RAM).To(Equal(1))
 			Expect(value.Info.HardDrive).To(Equal(1))
@@ -161,7 +165,7 @@ var _ = Describe("Proxy store", func() {
 
 			// Ensure stats were removed from the statsStore.
 			var value jsonrpc.QueryStatsResponse
-			Expect(statsStore.Read(addr.String(), &value)).To(Equal(store.ErrKeyNotFound))
+			Expect(statsStore.Get(addr.String(), &value)).To(Equal(kv.ErrNotFound))
 		})
 
 		It("should be able to retrieve stats", func() {

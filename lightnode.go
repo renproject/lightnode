@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/p2p"
 	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/lightnode/rpc"
@@ -14,7 +15,6 @@ import (
 	storeAdapter "github.com/republicprotocol/renp2p-go/adapter/store"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
-	"github.com/republicprotocol/store"
 	"github.com/republicprotocol/tau"
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
@@ -37,10 +37,16 @@ func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port str
 	}
 
 	// Construct client task.
-	multiStore := storeAdapter.NewMultiAddrStore(store.NewIterableCache(0))
-	statsStore := store.NewIterableCache(0)
+	multiStore := storeAdapter.NewMultiAddrStore(kv.NewJSON(kv.NewMemDB()))
+	statsStore, err := kv.NewTTLCache(kv.NewJSON(kv.NewMemDB()), 5 * time.Minute)
+	if err != nil {
+		logger.Fatalf("fail to initialize the stats store.")
+	}
 	proxyStore := p2p.NewProxy(multiStore, statsStore)
-	client := rpc.NewClient(logger, multiStore, cap, workers, timeoutSeconds)
+	client,err := rpc.NewClient(logger, multiStore, cap, workers, timeoutSeconds)
+	if err != nil {
+		logger.Fatalf("fail to create the client task")
+	}
 
 	// Construct the json-rpc server handler and server task.
 	requests := make(chan jsonrpc.Request, cap)

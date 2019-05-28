@@ -11,16 +11,16 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
+	"github.com/renproject/kv"
 	storeAdapter "github.com/republicprotocol/renp2p-go/adapter/store"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
-	"github.com/republicprotocol/store"
 )
 
 func InitStore(multis ...peer.MultiAddr) (peer.MultiAddrStore, error) {
-	store := store.NewIterableCache(0)
+	store := kv.NewJSON(kv.NewMemDB())
 	for _, multi := range multis {
-		if err := store.Write(multi.Addr().String(), multi); err != nil {
+		if err := store.Insert(multi.Addr().String(), multi); err != nil {
 			return nil, err
 		}
 	}

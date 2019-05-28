@@ -214,7 +214,7 @@ func (p2p *P2P) handleQueryPeers(request jsonrpc.QueryPeersRequest) jsonrpc.Resp
 	var response jsonrpc.QueryPeersResponse
 	addresses, err := p2p.randomPeers()
 	if err != nil {
-		p2p.logger.Errorf("fail to get random peers from the multiAddress store %v", err)
+		p2p.logger.Errorf("failed to get random peers from the multi-address store: %v", err)
 		response.Error = err
 		return response
 	}
@@ -233,7 +233,7 @@ func (p2p *P2P) handleQueryNumPeers(request jsonrpc.QueryNumPeersRequest) jsonrp
 	var response jsonrpc.QueryNumPeersResponse
 	addresses, err := p2p.store.MultiAddrs()
 	if err != nil {
-		p2p.logger.Errorf("fail to get all peers from the multiAddress store %v", err)
+		p2p.logger.Errorf("failed to get all peers from the multi-address store %v", err)
 		response.Error = err
 		return response
 	}
@@ -249,7 +249,7 @@ func (p2p *P2P) handleQueryStats(request jsonrpc.QueryStatsRequest) jsonrpc.Resp
 		var response jsonrpc.QueryStatsResponse
 		response.Info, response.Error = p2p.health.Info()
 		if response.Error != nil {
-			p2p.logger.Errorf("fail to get self health info, %v", response.Error)
+			p2p.logger.Errorf("failed to get lightnode health information: %v", response.Error)
 		}
 		return response
 	}
