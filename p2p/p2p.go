@@ -187,7 +187,6 @@ func (p2p *P2P) sendRequest(request jsonrpc.JSONRequest, multi peer.MultiAddr) j
 	client := jrpc.NewClient(p2p.logger, p2p.timeout)
 	addr := multi.ResolveTCPAddr().(*net.TCPAddr)
 	addr.Port++
-
 	// Send the JSON-RPC request.
 	response, err := client.Call(fmt.Sprintf("http://%v", addr.String()), request)
 	if err != nil {

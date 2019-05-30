@@ -7,12 +7,11 @@ package rpc
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"time"
 
-	"github.com/renproject/kv"
 	jrpc "github.com/renproject/lightnode/rpc/jsonrpc"
 	"github.com/republicprotocol/co-go"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
@@ -34,29 +33,26 @@ var (
 type Client struct {
 	logger       logrus.FieldLogger
 	multiStore   peer.MultiAddrStore
-	messageStore kv.Iterable
+	messageStore map[string]jsonrpc.ReceiveMessageResponse
+	lastSeen     map[string]time.Time
 	queue        chan rpcCall
 	timeout      time.Duration
 }
 
 // NewClient returns a new Client task.
-func NewClient(logger logrus.FieldLogger, multiStore peer.MultiAddrStore, cap, numWorkers int, timeout time.Duration) (tau.Task, error) {
-	messageStore, err := kv.NewTTLCache(kv.NewJSON(kv.NewMemDB()), 5*time.Minute)
-	if err != nil {
-		return nil, err
-	}
-
+func NewClient(logger logrus.FieldLogger, multiStore peer.MultiAddrStore, cap, numWorkers int, timeout time.Duration) tau.Task {
 	client := &Client{
 		logger:       logger,
 		multiStore:   multiStore,
-		messageStore: messageStore,
+		messageStore: map[string]jsonrpc.ReceiveMessageResponse{},
+		lastSeen:     map[string]time.Time{},
 		queue:        make(chan rpcCall, cap),
 		timeout:      timeout,
 	}
 
 	// Start running the background workers.
 	go client.runWorkers(numWorkers)
-	return tau.New(tau.NewIO(cap), client), nil
+	return tau.New(tau.NewIO(cap), client)
 }
 
 // Reduce implements the `tau.Task` interface.
@@ -77,8 +73,8 @@ func (client *Client) invoke(message InvokeRPC) tau.Message {
 		return client.handleMessage(request, jsonrpc.MethodSendMessage, message.Addresses)
 	case jsonrpc.ReceiveMessageRequest:
 		// Check if the message already exists in the messages store and if so, write it to the responder channel.
-		var response jsonrpc.ReceiveMessageResponse
-		if err := client.messageStore.Get(request.MessageID, &response); err != nil {
+		response, err := client.getMessage(request.MessageID)
+		if err != nil {
 			return client.handleMessage(request, jsonrpc.MethodReceiveMessage, message.Addresses)
 		}
 		request.Responder <- response
@@ -109,26 +105,24 @@ func (client *Client) runWorkers(n int) {
 			case jsonrpc.MethodSendMessage:
 				var resp jsonrpc.SendMessageResponse
 				if response.Error != nil {
-					resp.Error = fmt.Errorf("received response error: %v", response.Error)
-				} else if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
+					client.logger.Debugf("error sendMessage response from %v : %v", call.URL, response.Error)
 					call.Responder <- nil
+				}
+				if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
 					client.logger.Errorf("cannot unmarshal SendMessageResponse from Darknode: %v", err)
+					call.Responder <- nil
 					continue
 				}
 				call.Responder <- resp
 			case jsonrpc.MethodReceiveMessage:
 				var resp jsonrpc.ReceiveMessageResponse
 				if response.Error != nil {
-					resp.Error = fmt.Errorf("%v", response.Error.Message)
+					client.logger.Debugf("error receiveMessage response from %v : %v", call.URL, response.Error)
+					call.Responder <- nil
 				} else if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
 					call.Responder <- nil
 					client.logger.Errorf("cannot unmarshal ReceiveMessageResponse from Darknode: %v", err)
 					continue
-				}
-
-				// Write result to store.
-				if err := client.insertMessageResult(call.Request, resp); err != nil {
-					client.logger.Errorf("cannot store the ReceiveMessageResponse in the messages store: %v", err)
 				}
 
 				call.Responder <- resp
@@ -273,28 +267,45 @@ Loop:
 					// All of the Darknodes returned a nil message.
 					break Loop
 				}
+				log.Print("shouldn't reach here")
 				continue
 			}
 
+			response, ok := result.(jsonrpc.ReceiveMessageResponse)
+			if !ok {
+				client.logger.Errorf("invalid type, expect %v, got %T", "ReceiveMessageResponse", result)
+				continue
+			}
+			client.cacheMessage(req.MessageID, response)
 			// TODO: We currently forward the first non-error response we receive. In the future we may want to do some basic
 			// validation here to ensure it is consistent with the responses returned by the other Darknodes.
-			req.Responder <- result.(jsonrpc.ReceiveMessageResponse)
+			req.Responder <- response
 			return
 		}
 	}
 
-	// Write an error back if we do not get any results back from the Darknodes.
-	req.Responder <- jsonrpc.ReceiveMessageResponse{
+	// Cache the result and write the error back if we do not get result back from any Darknode.
+	response := jsonrpc.ReceiveMessageResponse{
 		Error: jsonrpc.ErrResultNotAvailable,
 	}
+	client.cacheMessage(req.MessageID, response)
+	req.Responder <- response
 }
 
-func (client Client) insertMessageResult(jsonRequest jsonrpc.JSONRequest, response jsonrpc.ReceiveMessageResponse) error {
-	var request jsonrpc.ReceiveMessageRequest
-	if err := json.Unmarshal(jsonRequest.Params, &request); err != nil {
-		return err
+func (client *Client) getMessage(id string) (jsonrpc.ReceiveMessageResponse, error) {
+	response, ok := client.messageStore[id]
+	if !ok {
+		return response, errors.New("response not available")
 	}
-	return client.messageStore.Insert(request.MessageID, response)
+	if time.Now().Sub(client.lastSeen[id]) > 5*time.Minute {
+		return response, errors.New("response expired")
+	}
+	return response, nil
+}
+
+func (client *Client) cacheMessage(id string, response jsonrpc.ReceiveMessageResponse) {
+	client.messageStore[id] = response
+	client.lastSeen[id] = time.Now()
 }
 
 // InvokeRPC is tau.Message contains a `jsonrpc.Request` and a list of target Darknode addresses. The client task sends

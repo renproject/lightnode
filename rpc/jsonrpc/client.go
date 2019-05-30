@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"time"
 
@@ -55,6 +57,12 @@ func (client Client) Call(url string, request jsonrpc.JSONRequest) (jsonrpc.JSON
 			return err
 		}
 		if response.StatusCode != http.StatusOK {
+			errmsg, err := ioutil.ReadAll(response.Body)
+			if err != nil {
+				return err
+			}
+
+			log.Print(string(errmsg))
 			return fmt.Errorf("unexpected status code %v", response.StatusCode)
 		}
 		return nil
