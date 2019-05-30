@@ -16,7 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Client is able to send JSON-RPC 2.0 request through http.
+// Client is able to send JSON-RPC 2.0 request through HTTP.
 type Client struct {
 	http   *http.Client
 	logger logrus.FieldLogger
