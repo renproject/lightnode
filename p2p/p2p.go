@@ -232,7 +232,7 @@ func (p2p *P2P) handleQueryNumPeers(request jsonrpc.QueryNumPeersRequest) jsonrp
 	var response jsonrpc.QueryNumPeersResponse
 	addresses, err := p2p.store.MultiAddrs()
 	if err != nil {
-		p2p.logger.Errorf("failed to get all peers from the multi-address store %v", err)
+		p2p.logger.Errorf("failed to get all peers from the multi-address store: %v", err)
 		response.Error = err
 		return response
 	}

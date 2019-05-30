@@ -42,7 +42,7 @@ func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port str
 	multiStore := storeAdapter.NewMultiAddrStore(kv.NewJSON(kv.NewMemDB()))
 	statsStore, err := kv.NewTTLCache(kv.NewJSON(kv.NewMemDB()), 5*time.Minute)
 	if err != nil {
-		logger.Fatalf("fail to initialize the stats store.")
+		logger.Fatalf("failed to initialise stats store: %v", err)
 	}
 	proxyStore := p2p.NewProxy(multiStore, statsStore)
 	client := rpc.NewClient(logger, multiStore, cap, workers, timeoutSeconds)

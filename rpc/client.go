@@ -7,7 +7,6 @@ package rpc
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"math/rand"
 	"net"
 	"time"
@@ -105,7 +104,7 @@ func (client *Client) runWorkers(n int) {
 			case jsonrpc.MethodSendMessage:
 				var resp jsonrpc.SendMessageResponse
 				if response.Error != nil {
-					client.logger.Debugf("error sendMessage response from %v : %v", call.URL, response.Error)
+					client.logger.Debugf("SendMessageResponse error from %v: %v", call.URL, response.Error)
 					call.Responder <- nil
 				}
 				if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
@@ -117,7 +116,7 @@ func (client *Client) runWorkers(n int) {
 			case jsonrpc.MethodReceiveMessage:
 				var resp jsonrpc.ReceiveMessageResponse
 				if response.Error != nil {
-					client.logger.Debugf("error receiveMessage response from %v : %v", call.URL, response.Error)
+					client.logger.Debugf("ReceiveMessageResponse error from %v: %v", call.URL, response.Error)
 					call.Responder <- nil
 				} else if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
 					call.Responder <- nil
@@ -267,13 +266,12 @@ Loop:
 					// All of the Darknodes returned a nil message.
 					break Loop
 				}
-				log.Print("shouldn't reach here")
 				continue
 			}
 
 			response, ok := result.(jsonrpc.ReceiveMessageResponse)
 			if !ok {
-				client.logger.Errorf("invalid type, expect %v, got %T", "ReceiveMessageResponse", result)
+				client.logger.Errorf("invalid response type: expected jsonrpc.ReceiveMessageResponse, got %T", result)
 				continue
 			}
 			client.cacheMessage(req.MessageID, response)
