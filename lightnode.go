@@ -31,8 +31,7 @@ type Lightnode struct {
 }
 
 // New constructs a new Lightnode.
-func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port string, bootstrapMultiAddrs []peer.MultiAddr, pollRate time.Duration, peerCount, maxBatchSize int) *Lightnode {
-	timeoutSeconds := time.Duration(timeout) * time.Second
+func New(logger logrus.FieldLogger, cap, workers int, timeout, ttl time.Duration, version, port string, bootstrapMultiAddrs []peer.MultiAddr, pollRate time.Duration, peerCount, maxBatchSize int) *Lightnode {
 	lightnode := &Lightnode{
 		port:   port,
 		logger: logger,
@@ -40,24 +39,24 @@ func New(logger logrus.FieldLogger, cap, workers, timeout int, version, port str
 
 	// Construct client task.
 	multiStore := storeAdapter.NewMultiAddrStore(kv.NewJSON(kv.NewMemDB()))
-	statsStore, err := kv.NewTTLCache(kv.NewJSON(kv.NewMemDB()), 5*time.Minute)
+	statsStore, err := kv.NewTTLCache(kv.NewJSON(kv.NewMemDB()), ttl)
 	if err != nil {
 		logger.Fatalf("failed to initialise stats store: %v", err)
 	}
 	proxyStore := p2p.NewProxy(multiStore, statsStore)
-	client := rpc.NewClient(logger, multiStore, cap, workers, timeoutSeconds)
+	client := rpc.NewClient(logger, multiStore, cap, workers, timeout, ttl)
 
 	// Construct the json-rpc server handler and server task.
 	requests := make(chan jsonrpc.Request, cap)
 	queryLimiter := httputils.NewRateLimiter(1, 60)
 	mutationLimiter := httputils.NewRateLimiter(rate.Limit(60.0/3600), 10)
-	jsonrpcService := jsonrpc.New(logger, requests, timeoutSeconds, maxBatchSize, queryLimiter, mutationLimiter)
+	jsonrpcService := jsonrpc.New(logger, requests, timeout, maxBatchSize, queryLimiter, mutationLimiter)
 	server := rpc.NewServer(logger, cap, requests)
 	lightnode.handler = jsonrpcService
 
 	// Construct the p2p service
 	health := health.NewHealthCheck(version, addr.New(""))
-	p2pService := p2p.New(logger, cap, peerCount, timeoutSeconds, pollRate, proxyStore, health, bootstrapMultiAddrs)
+	p2pService := p2p.New(logger, cap, peerCount, timeout, pollRate, proxyStore, health, bootstrapMultiAddrs)
 
 	// Construct resolver.
 	bootstrapAddrs := make([]addr.Addr, len(bootstrapMultiAddrs))

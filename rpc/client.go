@@ -36,10 +36,11 @@ type Client struct {
 	lastSeen     map[string]time.Time
 	queue        chan rpcCall
 	timeout      time.Duration
+	ttl          time.Duration
 }
 
 // NewClient returns a new Client task.
-func NewClient(logger logrus.FieldLogger, multiStore peer.MultiAddrStore, cap, numWorkers int, timeout time.Duration) tau.Task {
+func NewClient(logger logrus.FieldLogger, multiStore peer.MultiAddrStore, cap, numWorkers int, timeout, ttl time.Duration) tau.Task {
 	client := &Client{
 		logger:       logger,
 		multiStore:   multiStore,
@@ -47,6 +48,7 @@ func NewClient(logger logrus.FieldLogger, multiStore peer.MultiAddrStore, cap, n
 		lastSeen:     map[string]time.Time{},
 		queue:        make(chan rpcCall, cap),
 		timeout:      timeout,
+		ttl:          ttl,
 	}
 
 	// Start running the background workers.
@@ -295,7 +297,7 @@ func (client *Client) getMessage(id string) (jsonrpc.ReceiveMessageResponse, err
 	if !ok {
 		return response, errors.New("response not available")
 	}
-	if time.Now().Sub(client.lastSeen[id]) > 5*time.Minute {
+	if time.Now().Sub(client.lastSeen[id]) > client.ttl {
 		return response, errors.New("response expired")
 	}
 	return response, nil

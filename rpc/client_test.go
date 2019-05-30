@@ -130,7 +130,7 @@ var _ = Describe("RPC client", func() {
 			defer server.Close()
 
 			// Initialise the client task.
-			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second)
+			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second, 5*time.Minute)
 			go client.Run(done)
 
 			// Send a request to the task.
@@ -156,7 +156,7 @@ var _ = Describe("RPC client", func() {
 			defer server.Close()
 
 			// Initialise the client task.
-			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second)
+			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second, 5*time.Minute)
 			go client.Run(done)
 
 			// Send a request to the task.
@@ -192,7 +192,7 @@ var _ = Describe("RPC client", func() {
 			multiStore, err := testutils.InitStore(multi)
 
 			// Initialise the client task.
-			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second)
+			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second, 5*time.Minute)
 			go client.Run(done)
 
 			// Expect to receive a response from the responder channel.
@@ -229,7 +229,7 @@ var _ = Describe("RPC client", func() {
 			defer server.Close()
 
 			// Initialise the client task.
-			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second)
+			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second, 5*time.Minute)
 			go client.Run(done)
 
 			// Expect to receive a response from the responder channel.
@@ -264,7 +264,7 @@ var _ = Describe("RPC client", func() {
 			defer server.Close()
 
 			// Initialise the client task.
-			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second)
+			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second, 5*time.Minute)
 			go client.Run(done)
 
 			// Expect to receive a response from the responder channel.
@@ -304,7 +304,7 @@ var _ = Describe("RPC client", func() {
 			Expect(multiStore.InsertMultiAddr(badMulti)).NotTo(HaveOccurred())
 
 			// Initialise the client task.
-			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second)
+			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second, 5*time.Minute)
 			go client.Run(done)
 
 			// Send some requests to the task.
@@ -339,7 +339,7 @@ var _ = Describe("RPC client", func() {
 			defer server.Close()
 
 			// Initialise the client task.
-			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second)
+			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second, 5*time.Minute)
 			go client.Run(done)
 
 			// It should cache successful result.
@@ -374,7 +374,7 @@ var _ = Describe("RPC client", func() {
 			defer server.Close()
 
 			// Initialise the client task.
-			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second)
+			client := NewClient(logrus.New(), multiStore, 32, 8, time.Second, 5*time.Minute)
 			go client.Run(done)
 
 			// It should cache successful result.
