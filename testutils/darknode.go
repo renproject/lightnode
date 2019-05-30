@@ -44,7 +44,7 @@ func (node *MockDarknode) Run(done <-chan struct{}) {
 		case jsonrpc.MethodQueryNumPeers:
 			response.Result = json.RawMessage([]byte(`{"numPeers": 0}`))
 		case jsonrpc.MethodQueryStats:
-			response.Result = json.RawMessage([]byte(`{"version": "1.0", "address": "abc", "cpus": null, "ram": 0, "disk": 8, "location": "New York"}`))
+			response.Result = json.RawMessage([]byte(`{"version": "1.0", "address": "abc", "cpus": null, "ram": 1, "disk": 8, "location": "New York"}`))
 		default:
 			panic(fmt.Sprintf("unknown method %s", request.Method))
 		}
@@ -63,9 +63,7 @@ func (node *MockDarknode) Run(done <-chan struct{}) {
 		server.Close()
 	}()
 
-	if err := server.ListenAndServe(); err != nil {
-		log.Printf("failed to serve: %v", err)
-	}
+	server.ListenAndServe()
 }
 
 func (node *MockDarknode) writeError(w http.ResponseWriter, err error) {

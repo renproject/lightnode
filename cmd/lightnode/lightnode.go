@@ -78,6 +78,6 @@ func main() {
 
 	// Start running Lightnode.
 	done := make(chan struct{})
-	node := lightnode.New(logger, cap, workers, timeout, version+"-"+commit, port, bootstrapMultiAddrs, time.Duration(pollRate)*time.Second, peerCount, maxBatchSize)
+	node := lightnode.New(logger, cap, workers, time.Duration(timeout)*time.Second, 5*time.Minute, version+"-"+commit, port, bootstrapMultiAddrs, time.Duration(pollRate)*time.Second, peerCount, maxBatchSize)
 	node.Run(done)
 }

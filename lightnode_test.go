@@ -29,11 +29,13 @@ const Version = "1.0"
 
 var _ = Describe("light nodes local tests", func() {
 
-	generateConfigs := func(n int) []darknode.Config {
+	// generate configs for n darknodes which connects to each other
+	generateConfigs := func(n int) ([]darknode.Config, []peer.MultiAddr) {
 		configs := make([]darknode.Config, n)
 		multiAddrs := make([]peer.MultiAddr, n)
 
 		for i := 0; i < int(n); i++ {
+			// Create random ECDSA and RSA keys
 			ecdsaKey, err := ecdsa.GenerateKey(secp256k1.S256(), rand.Reader)
 			Expect(err).NotTo(HaveOccurred())
 			rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -47,12 +49,12 @@ var _ = Describe("light nodes local tests", func() {
 				Keystore:    keyStore,
 				Address:     keyStore.Address(),
 				Host:        "0.0.0.0",
-				Port:        fmt.Sprintf("%d", 5550+2*i),
-				JSONRPCPort: fmt.Sprintf("%d", 5550+2*i+1),
+				Port:        fmt.Sprintf("%d", 5500+10*i),
+				JSONRPCPort: fmt.Sprintf("%d", 5500+10*i+1),
 				Home:        fmt.Sprintf("%s/.darknode_test/darknode_%d", os.Getenv("HOME"), i),
 			}
 
-			multiAddr, err := peer.NewMultiAddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%s/ren/%s", fmt.Sprintf("%d", 5550+2*i), keyStore.Address()), 0, [65]byte{})
+			multiAddr, err := peer.NewMultiAddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%s/ren/%s", fmt.Sprintf("%d", 5500+10*i), keyStore.Address()), 0, [65]byte{})
 			Expect(err).NotTo(HaveOccurred())
 			multiAddrs[i] = multiAddr
 		}
@@ -61,15 +63,11 @@ var _ = Describe("light nodes local tests", func() {
 			configs[i].BootstrapMultiAddresses = multiAddrs
 		}
 
-		return configs
+		return configs, multiAddrs
 	}
 
 	initNodes := func(n int, done chan struct{}, logger logrus.FieldLogger) []peer.MultiAddr {
-		configs := generateConfigs(n)
-		multis := make([]peer.MultiAddr, n)
-		for i, config := range configs {
-			multis[i] = config.BootstrapMultiAddresses[i]
-		}
+		configs, multis := generateConfigs(n)
 
 		go co.ParForAll(configs, func(i int) {
 			config := configs[i]
@@ -78,22 +76,27 @@ var _ = Describe("light nodes local tests", func() {
 		})
 
 		log.Print("starting all the darknodes...")
-		time.Sleep(2 * time.Second)
+		time.Sleep(1 * time.Second)
 
 		return multis
 	}
 
 	testSendMessage := func(client jrpc.Client) {
 		data, err := json.Marshal(jsonrpc.SendMessageRequest{
-			To:    "WarpGate",
+			To:    "Shifter",
 			Nonce: 100,
 			Payload: jsonrpc.Payload{
-				Method: "MintZBTC",
+				Method: "ShiftInBTC",
 				Args: json.RawMessage(`[
                 {
                     "name": "uid",
                     "type": "public",
                     "value": "567faC43Fb59a490076B4873dCE351f75a7E5b38"
+                },
+				{
+                    "name": "commitment",
+                    "type": "public",
+                    "value": ""
                 }
             ]`),
 			},
@@ -179,8 +182,10 @@ var _ = Describe("light nodes local tests", func() {
 		var resp jsonrpc.QueryStatsResponse
 		Expect(json.Unmarshal(response.Result, &resp)).To(Succeed())
 		Expect(resp.Error).Should(BeNil())
-		Expect(resp.Version).Should(Equal(Version))
-		Expect(len(resp.CPUs)).Should(BeNumerically(">", 0))
+		Expect(resp.Info.Version).Should(Equal(Version))
+		Expect(resp.Info.RAM).Should(BeNumerically(">", 0))
+		Expect(resp.Info.HardDrive).Should(BeNumerically(">", 0))
+		Expect(len(resp.Info.CPUs)).Should(BeNumerically(">", 0))
 	}
 
 	Context("when querying the light nodes", func() {
@@ -190,12 +195,12 @@ var _ = Describe("light nodes local tests", func() {
 			defer close(done)
 
 			bootstrapAddrs := initNodes(8, done, logger)
-			lightnode := New(logger, 128, 3, 60, Version, "5000", bootstrapAddrs, 5*time.Minute, 5, 10)
+			lightnode := New(logger, 128, 3, 60*time.Second, 5*time.Minute, Version, "5000", bootstrapAddrs, 5*time.Minute, 5, 10)
 			go lightnode.Run(done)
 
 			client := jrpc.NewClient(logger, time.Minute)
 
-			time.Sleep(5 * time.Second)
+			time.Sleep(1 * time.Second)
 			testSendMessage(client)
 			testReceiveMessage(client)
 			testQueryPeers(client)

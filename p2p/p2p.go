@@ -12,7 +12,6 @@ import (
 
 	"github.com/renproject/lightnode/rpc"
 	jrpc "github.com/renproject/lightnode/rpc/jsonrpc"
-	"github.com/renproject/lightnode/store"
 	"github.com/republicprotocol/co-go"
 	"github.com/republicprotocol/darknode-go/health"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
@@ -30,7 +29,7 @@ type P2P struct {
 	peerCount      int
 	bootstrapAddrs []peer.MultiAddr
 	logger         logrus.FieldLogger
-	store          store.Proxy
+	store          Proxy
 	health         health.HealthCheck
 	timeout        time.Duration
 	pollRate       time.Duration
@@ -38,7 +37,7 @@ type P2P struct {
 
 // New returns a new P2P task. `pollRate` is the amount of time to sleep after each round of Darknode queries.
 // `peerCount` is the number of multi-addresses that should be returned when querying for peers.
-func New(logger logrus.FieldLogger, cap int, timeout time.Duration, store store.Proxy, health health.HealthCheck, bootstrapAddrs []peer.MultiAddr, pollRate time.Duration, peerCount int) tau.Task {
+func New(logger logrus.FieldLogger, cap, peerCount int, timeout, pollRate time.Duration, store Proxy, health health.HealthCheck, bootstrapAddrs []peer.MultiAddr) tau.Task {
 	p2p := &P2P{
 		peerCount:      peerCount,
 		bootstrapAddrs: bootstrapAddrs,
@@ -128,7 +127,7 @@ func (p2p *P2P) updateMultiAddress() {
 				p2p.logger.Errorf("invalid QueryPeersResponse from node %v: %v", multi.Addr().String(), err)
 				return
 			}
-			if err := p2p.store.InsertMultiAddress(multiAddr.Addr(), multiAddr); err != nil {
+			if err := p2p.store.InsertMultiAddr(multiAddr); err != nil {
 				p2p.logger.Errorf("cannot add multi-address to store: %v", err)
 				return
 			}
@@ -162,6 +161,9 @@ func (p2p *P2P) updateStats() {
 		// Send request to the node to retrieve its health.
 		statsResponse := p2p.sendRequest(statsRequest, multi)
 		if statsResponse == nil {
+			if err := p2p.store.DeleteStats(multi.Addr()); err != nil {
+				p2p.logger.Errorf("cannot delete stats of darknode %v: %v", multi.Addr().String(), err)
+			}
 			return
 		}
 		var statsResult jsonrpc.QueryStatsResponse
@@ -185,17 +187,16 @@ func (p2p *P2P) sendRequest(request jsonrpc.JSONRequest, multi peer.MultiAddr) j
 	client := jrpc.NewClient(p2p.logger, p2p.timeout)
 	addr := multi.ResolveTCPAddr().(*net.TCPAddr)
 	addr.Port++
-
 	// Send the JSON-RPC request.
 	response, err := client.Call(fmt.Sprintf("http://%v", addr.String()), request)
 	if err != nil {
 		p2p.logger.Warnf("cannot connect to node %v: %v", multi.Addr().String(), err)
-		if err := p2p.store.DeleteMultiAddress(multi.Addr()); err != nil {
+		if err := p2p.store.DeleteMultiAddr(multi.Addr()); err != nil {
 			p2p.logger.Errorf("cannot delete multi-address from store: %v", err)
 		}
 		return nil
 	}
-	if err := p2p.store.InsertMultiAddress(multi.Addr(), multi); err != nil {
+	if err := p2p.store.InsertMultiAddr(multi); err != nil {
 		p2p.logger.Errorf("cannot add multi-address to store: %v", err)
 		return nil
 	}
@@ -209,16 +210,58 @@ func (p2p *P2P) sendRequest(request jsonrpc.JSONRequest, multi peer.MultiAddr) j
 
 // handleQueryPeers retrieves at most 5 random multi-addresses from the store.
 func (p2p *P2P) handleQueryPeers(request jsonrpc.QueryPeersRequest) jsonrpc.Response {
-	addresses := p2p.randomPeers()
-	response := jsonrpc.QueryPeersResponse{
-		Peers: addresses,
+	var response jsonrpc.QueryPeersResponse
+	addresses, err := p2p.randomPeers()
+	if err != nil {
+		p2p.logger.Errorf("failed to get random peers from the multi-address store: %v", err)
+		response.Error = err
+		return response
 	}
+
+	peers := make([]string, len(addresses))
+	for i := range addresses {
+		peers[i] = addresses[i].Value()
+	}
+	response.Peers = peers
+
 	return response
 }
 
-func (p2p *P2P) randomPeers() []string {
+// handleQueryNumPeers retrieves the number of multi-addresses in the store.
+func (p2p *P2P) handleQueryNumPeers(request jsonrpc.QueryNumPeersRequest) jsonrpc.Response {
+	var response jsonrpc.QueryNumPeersResponse
+	addresses, err := p2p.store.MultiAddrs()
+	if err != nil {
+		p2p.logger.Errorf("failed to get all peers from the multi-address store: %v", err)
+		response.Error = err
+		return response
+	}
+
+	response.NumPeers = len(addresses)
+	return response
+}
+
+// handleQueryStats retrieves the stats for the given Darknode address from the store.
+func (p2p *P2P) handleQueryStats(request jsonrpc.QueryStatsRequest) jsonrpc.Response {
+	// If no Darknode ID is provided, return the stats for the Lightnode.
+	if request.DarknodeID == "" {
+		var response jsonrpc.QueryStatsResponse
+		response.Info, response.Error = p2p.health.Info()
+		if response.Error != nil {
+			p2p.logger.Errorf("failed to get lightnode health information: %v", response.Error)
+		}
+		return response
+	}
+	return p2p.store.Stats(addr.New(request.DarknodeID))
+}
+
+// randomPeers select at most p2p.peerCount multi-addresses from the store.
+func (p2p *P2P) randomPeers() ([]peer.MultiAddr, error) {
 	// Retrieve all the Darknode multi-addresses in the store.
-	addresses := p2p.store.MultiAddresses()
+	addresses, err := p2p.store.MultiAddrs()
+	if err != nil {
+		return nil, err
+	}
 
 	// Shuffle the list.
 	rand.Shuffle(len(addresses), func(i, j int) {
@@ -227,51 +270,7 @@ func (p2p *P2P) randomPeers() []string {
 
 	// Return at most p2p.peerCount addresses.
 	if len(addresses) < p2p.peerCount {
-		return addresses
+		return addresses, nil
 	}
-	return addresses[:p2p.peerCount]
-}
-
-// handleQueryNumPeers retrieves the number of multi-addresses in the store.
-func (p2p *P2P) handleQueryNumPeers(request jsonrpc.QueryNumPeersRequest) jsonrpc.Response {
-	return jsonrpc.QueryNumPeersResponse{
-		NumPeers: p2p.store.MultiAddressEntries(),
-	}
-}
-
-// handleQueryStats retrieves the stats for the given Darknode address from the store.
-func (p2p *P2P) handleQueryStats(request jsonrpc.QueryStatsRequest) jsonrpc.Response {
-	// If no Darknode ID is provided, return the stats for the Lightnode.
-	if request.DarknodeID == "" {
-		response := jsonrpc.QueryStatsResponse{
-			Version: p2p.health.Version(),
-		}
-		cpus, err := p2p.health.CPUs()
-		if err != nil {
-			response.Error = ErrFailedToGetStatistics
-			return response
-		}
-		ram, err := p2p.health.RAM()
-		if err != nil {
-			response.Error = ErrFailedToGetStatistics
-			return response
-		}
-		disk, err := p2p.health.HardDrive()
-		if err != nil {
-			response.Error = ErrFailedToGetStatistics
-			return response
-		}
-		location, err := p2p.health.Location()
-		if err != nil {
-			response.Error = ErrFailedToGetStatistics
-			return response
-		}
-
-		response.CPUs = cpus
-		response.RAM = ram
-		response.Disk = disk
-		response.Location = location
-		return response
-	}
-	return p2p.store.Stats(addr.New(request.DarknodeID))
+	return addresses[:p2p.peerCount], nil
 }
