@@ -44,7 +44,7 @@ func New(logger logrus.FieldLogger, cap, workers int, timeout, ttl time.Duration
 		logger.Fatalf("failed to initialise stats store: %v", err)
 	}
 	proxyStore := p2p.NewProxy(multiStore, statsStore)
-	client := rpc.NewClient(logger, multiStore, cap, workers, timeout, time.Minute)
+	client := rpc.NewClient(logger, multiStore, cap, workers, timeout, 10 * time.Second) // todo: caching for 10 seconds
 
 	// Construct the json-rpc server handler and server task.
 	requests := make(chan jsonrpc.Request, cap)
