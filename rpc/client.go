@@ -108,6 +108,7 @@ func (client *Client) runWorkers(n int) {
 				if response.Error != nil {
 					client.logger.Debugf("SendMessageResponse error from %v: %v", call.URL, response.Error)
 					call.Responder <- nil
+					continue
 				}
 				if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
 					client.logger.Errorf("cannot unmarshal SendMessageResponse from Darknode: %v", err)
@@ -120,6 +121,7 @@ func (client *Client) runWorkers(n int) {
 				if response.Error != nil {
 					client.logger.Debugf("ReceiveMessageResponse error from %v: %v", call.URL, response.Error)
 					call.Responder <- nil
+					continue
 				} else if err := json.Unmarshal([]byte(response.Result), &resp); err != nil {
 					call.Responder <- nil
 					client.logger.Errorf("cannot unmarshal ReceiveMessageResponse from Darknode: %v", err)
