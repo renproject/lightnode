@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/evalphobia/logrus_sentry"
-	"github.com/getsentry/raven-go"
 	"github.com/renproject/lightnode"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/sirupsen/logrus"
@@ -17,6 +16,7 @@ import (
 func main() {
 	// Retrieve environment variables.
 	port := os.Getenv("PORT")
+	name := os.Getenv("HEROKU_APP_NAME")
 	version := os.Getenv("HEROKU_RELEASE_VERSION")
 	commit := os.Getenv("HEROKU_SLUG_COMMIT")[:7]
 	sentryURL := os.Getenv("SENTRY_URL")
@@ -51,11 +51,10 @@ func main() {
 
 	// Setup logger and attach Sentry hook.
 	logger := logrus.New()
-	client, err := raven.New(sentryURL)
-	if err != nil {
-		logger.Fatalf("cannot connect to sentry: %v", err)
+	tags := map[string]string{
+		"name": name,
 	}
-	hook, err := logrus_sentry.NewWithClientSentryHook(client, []logrus.Level{
+	hook, err := logrus_sentry.NewWithTagsSentryHook(sentryURL, tags, []logrus.Level{
 		logrus.PanicLevel,
 		logrus.FatalLevel,
 		logrus.ErrorLevel,
