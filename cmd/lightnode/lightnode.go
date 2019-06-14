@@ -51,20 +51,23 @@ func main() {
 
 	// Setup logger and attach Sentry hook.
 	logger := logrus.New()
-	tags := map[string]string{
-		"name": name,
+	if !strings.Contains(name, "devnet") {
+		tags := map[string]string{
+			"name": name,
+		}
+
+		hook, err := logrus_sentry.NewWithTagsSentryHook(sentryURL, tags, []logrus.Level{
+			logrus.PanicLevel,
+			logrus.FatalLevel,
+			logrus.ErrorLevel,
+			logrus.WarnLevel,
+		})
+		if err != nil {
+			logger.Fatalf("cannot create a sentry hook: %v", err)
+		}
+		hook.Timeout = 500 * time.Millisecond
+		logger.AddHook(hook)
 	}
-	hook, err := logrus_sentry.NewWithTagsSentryHook(sentryURL, tags, []logrus.Level{
-		logrus.PanicLevel,
-		logrus.FatalLevel,
-		logrus.ErrorLevel,
-		logrus.WarnLevel,
-	})
-	if err != nil {
-		logger.Fatalf("cannot create a sentry hook: %v", err)
-	}
-	hook.Timeout = 500 * time.Millisecond
-	logger.AddHook(hook)
 
 	bootstrapMultiAddrs := make([]peer.MultiAddr, len(addresses))
 	for i := range addresses {
