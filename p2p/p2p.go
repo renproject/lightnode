@@ -13,8 +13,8 @@ import (
 	"github.com/renproject/lightnode/rpc"
 	jrpc "github.com/renproject/lightnode/rpc/jsonrpc"
 	"github.com/republicprotocol/co-go"
-	"github.com/republicprotocol/darknode-go/health"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
+	"github.com/republicprotocol/darknode-go/stats"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
@@ -30,20 +30,20 @@ type P2P struct {
 	bootstrapAddrs []peer.MultiAddr
 	logger         logrus.FieldLogger
 	store          Proxy
-	health         health.HealthCheck
+	stats         stats.Stats
 	timeout        time.Duration
 	pollRate       time.Duration
 }
 
 // New returns a new P2P task. `pollRate` is the amount of time to sleep after each round of Darknode queries.
 // `peerCount` is the number of multi-addresses that should be returned when querying for peers.
-func New(logger logrus.FieldLogger, cap, peerCount int, timeout, pollRate time.Duration, store Proxy, health health.HealthCheck, bootstrapAddrs []peer.MultiAddr) tau.Task {
+func New(logger logrus.FieldLogger, cap, peerCount int, timeout, pollRate time.Duration, store Proxy, stats stats.Stats, bootstrapAddrs []peer.MultiAddr) tau.Task {
 	p2p := &P2P{
 		peerCount:      peerCount,
 		bootstrapAddrs: bootstrapAddrs,
 		logger:         logger,
 		store:          store,
-		health:         health,
+		stats:         stats,
 		timeout:        timeout,
 		pollRate:       pollRate,
 	}
@@ -246,7 +246,21 @@ func (p2p *P2P) handleQueryStats(request jsonrpc.QueryStatsRequest) jsonrpc.Resp
 	// If no Darknode ID is provided, return the stats for the Lightnode.
 	if request.DarknodeID == "" {
 		var response jsonrpc.QueryStatsResponse
-		response.Info, response.Error = p2p.health.Info()
+		var err error
+		response.Version = p2p.stats.Version()
+		response.Address = p2p.stats.Address().String()
+		if response.CPUs, err = p2p.stats.CPUs(); err != nil {
+			response.Error = err
+		}
+		if response.RAM, err = p2p.stats.RAM(); err != nil {
+			response.Error = err
+		}
+		if response.Disk, err = p2p.stats.HardDrive(); err != nil {
+			response.Error = err
+		}
+		if response.Location, err = p2p.stats.Location(); err != nil {
+			response.Error = err
+		}
 		if response.Error != nil {
 			p2p.logger.Errorf("failed to get lightnode health information: %v", response.Error)
 		}

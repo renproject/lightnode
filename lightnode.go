@@ -10,9 +10,8 @@ import (
 	"github.com/renproject/lightnode/p2p"
 	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/lightnode/rpc"
-	"github.com/republicprotocol/darknode-go/health"
-	httputils "github.com/republicprotocol/darknode-go/http"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
+	"github.com/republicprotocol/darknode-go/stats"
 	storeAdapter "github.com/republicprotocol/renp2p-go/adapter/store"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
@@ -44,19 +43,19 @@ func New(logger logrus.FieldLogger, cap, workers int, timeout, ttl time.Duration
 		logger.Fatalf("failed to initialise stats store: %v", err)
 	}
 	proxyStore := p2p.NewProxy(multiStore, statsStore)
-	client := rpc.NewClient(logger, multiStore, cap, workers, timeout, 10 * time.Second) // todo: caching for 10 seconds
+	client := rpc.NewClient(logger, multiStore, cap, workers, timeout, 10*time.Second) // todo: caching for 10 seconds
 
 	// Construct the json-rpc server handler and server task.
 	requests := make(chan jsonrpc.Request, cap)
-	queryLimiter := httputils.NewRateLimiter(1, 60)
-	mutationLimiter := httputils.NewRateLimiter(rate.Limit(60.0/3600), 10)
+	queryLimiter := jsonrpc.NewRateLimiter(1, 60)
+	mutationLimiter := jsonrpc.NewRateLimiter(rate.Limit(60.0/3600), 10)
 	jsonrpcService := jsonrpc.New(logger, requests, timeout, maxBatchSize, queryLimiter, mutationLimiter)
 	server := rpc.NewServer(logger, cap, requests)
 	lightnode.handler = jsonrpcService
 
 	// Construct the p2p service
-	health := health.NewHealthCheck(version, addr.New(""))
-	p2pService := p2p.New(logger, cap, peerCount, timeout, pollRate, proxyStore, health, bootstrapMultiAddrs)
+	stats := stats.NewStats(version, addr.New(""))
+	p2pService := p2p.New(logger, cap, peerCount, timeout, pollRate, proxyStore, stats, bootstrapMultiAddrs)
 
 	// Construct resolver.
 	bootstrapAddrs := make([]addr.Addr, len(bootstrapMultiAddrs))
@@ -71,16 +70,19 @@ func New(logger logrus.FieldLogger, cap, workers int, timeout, ttl time.Duration
 // Run starts listening for requests using a HTTP server.
 func (node *Lightnode) Run(done <-chan struct{}) {
 	addr := fmt.Sprintf("0.0.0.0:%v", node.port)
-	cors := cors.New(cors.Options{
+	handler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS", "DELETE"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type"},
 		Debug:            os.Getenv("DEBUG") == "true",
-	})
-	server := httputils.NewHttpServer(addr, node.handler, 10*time.Second, nil, cors)
+	}).Handler(node.handler)
 
 	node.logger.Infof("JSON-RPC server listening on %v", addr)
-	go server.ListenAndServe()
+	go func() {
+		if err := http.ListenAndServe(addr, handler); err != nil {
+			node.logger.Errorf("failed to serve: %v", err)
+		}
+	}()
 	node.resolver.Run(done)
 }

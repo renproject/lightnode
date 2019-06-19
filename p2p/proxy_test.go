@@ -10,7 +10,6 @@ import (
 
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/testutils"
-	"github.com/republicprotocol/darknode-go/health"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 	storeAdapter "github.com/republicprotocol/renp2p-go/adapter/store"
 	"github.com/republicprotocol/renp2p-go/core/peer"
@@ -131,12 +130,10 @@ var _ = Describe("Proxy store", func() {
 			// Insert stats using proxy.
 			addr, _ := randAddr()
 			stats := jsonrpc.QueryStatsResponse{
-				Info: health.Info{
-					RAM:       1,
-					HardDrive: 1,
-					Location:  "Canberra",
-					Version:   "1",
-				},
+				RAM:      1,
+				Disk:     1,
+				Location: "Canberra",
+				Version:  "1",
 			}
 			Expect(store.InsertStats(addr, stats)).To(Succeed())
 
@@ -146,10 +143,10 @@ var _ = Describe("Proxy store", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(size).To(Equal(1))
 			Expect(statsStore.Get(addr.String(), &value)).To(Succeed())
-			Expect(value.Info.Version).To(Equal("1"))
-			Expect(value.Info.RAM).To(Equal(1))
-			Expect(value.Info.HardDrive).To(Equal(1))
-			Expect(value.Info.Location).To(Equal("Canberra"))
+			Expect(value.Version).To(Equal("1"))
+			Expect(value.RAM).To(Equal(1))
+			Expect(value.Disk).To(Equal(1))
+			Expect(value.Location).To(Equal("Canberra"))
 		})
 
 		It("should be able to delete stats", func() {
@@ -174,12 +171,10 @@ var _ = Describe("Proxy store", func() {
 			// Insert multi-address using proxy.
 			addr, _ := randAddr()
 			stats := jsonrpc.QueryStatsResponse{
-				Info: health.Info{
-					RAM:       1,
-					HardDrive: 1,
-					Location:  "Canberra",
-					Version:   "1",
-				},
+				RAM:      1,
+				Disk:     1,
+				Location: "Canberra",
+				Version:  "1",
 			}
 			Expect(store.InsertStats(addr, stats)).To(Succeed())
 

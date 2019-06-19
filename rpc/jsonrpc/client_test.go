@@ -12,7 +12,7 @@ import (
 	. "github.com/renproject/lightnode/rpc/jsonrpc"
 	"github.com/sirupsen/logrus"
 
-	"github.com/republicprotocol/darknode-go/processor"
+	"github.com/republicprotocol/darknode-go/abi"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 )
 
@@ -120,9 +120,7 @@ var _ = Describe("JSON-RPC Client", func() {
 
 			var response jsonrpc.ReceiveMessageResponse
 			Expect(json.Unmarshal(jsonResponse.Result, &response)).NotTo(HaveOccurred())
-			var params []processor.Param
-			Expect(json.Unmarshal(response.Result, &params)).To(Succeed())
-			Expect(len(params)).To(Equal(1))
+			Expect(len(response.Result)).To(Equal(1))
 		})
 	})
 
@@ -197,16 +195,14 @@ func constructResponse(req jsonrpc.JSONRequest) (jsonrpc.JSONResponse, error) {
 		}
 		resp.Result = json.RawMessage(resultBytes)
 	case jsonrpc.MethodReceiveMessage:
-		args := []processor.Param{
-			processor.Param{
+		args := abi.ArgsJSON{
+			abi.ArgJSON{
 				Type:  "public",
-				Value: []byte("0"),
+				Value: []byte{},
 			},
 		}
-		argsBytes, err := json.Marshal(args)
-		Expect(err).ToNot(HaveOccurred())
 		result := jsonrpc.ReceiveMessageResponse{
-			Result: argsBytes,
+			Result: args,
 		}
 		resultBytes, err := json.Marshal(result)
 		if err != nil {

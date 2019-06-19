@@ -14,8 +14,8 @@ import (
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/rpc"
 	"github.com/renproject/lightnode/testutils"
-	"github.com/republicprotocol/darknode-go/health"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
+	"github.com/republicprotocol/darknode-go/stats"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
 	"github.com/republicprotocol/tau"
@@ -55,12 +55,10 @@ var _ = Describe("RPC client", func() {
 				response.Result = json.RawMessage(peersRespBytes)
 			case jsonrpc.MethodQueryStats:
 				statsResp := jsonrpc.QueryStatsResponse{
-					Info: health.Info{
-						RAM:       1,
-						HardDrive: 1,
-						Location:  "Canberra",
-						Version:   "1",
-					},
+					RAM:      1,
+					Disk:     1,
+					Location: "Canberra",
+					Version:  "1",
 				}
 				statsRespBytes, err := json.Marshal(statsResp)
 				Expect(err).ToNot(HaveOccurred())
@@ -108,8 +106,8 @@ var _ = Describe("RPC client", func() {
 		logger := logrus.New()
 
 		store := NewProxy(multiStore, kv.NewJSON(kv.NewMemDB()))
-		health := health.NewHealthCheck("1.0", addr.New(""))
-		p2p := New(logger, 128, 5, time.Second, 5*time.Minute, store, health, bootstrapAddrs)
+		stats := stats.NewStats("1.0", addr.New(""))
+		p2p := New(logger, 128, 5, time.Second, 5*time.Minute, store, stats, bootstrapAddrs)
 		go p2p.Run(done)
 
 		return p2p, servers, bootstrapAddrs
@@ -240,10 +238,10 @@ var _ = Describe("RPC client", func() {
 			case response := <-responder:
 				resp, ok := response.(jsonrpc.QueryStatsResponse)
 				Expect(ok).To(BeTrue())
-				Expect(resp.Info.Version).To(Equal("1"))
-				Expect(resp.Info.RAM).To(Equal(1))
-				Expect(resp.Info.HardDrive).To(Equal(1))
-				Expect(resp.Info.Location).To(Equal("Canberra"))
+				Expect(resp.Version).To(Equal("1"))
+				Expect(resp.RAM).To(Equal(1))
+				Expect(resp.Disk).To(Equal(1))
+				Expect(resp.Location).To(Equal("Canberra"))
 			}
 		})
 
@@ -275,9 +273,9 @@ var _ = Describe("RPC client", func() {
 				resp, ok := response.(jsonrpc.QueryStatsResponse)
 				Expect(ok).To(BeTrue())
 				Expect(resp.Error).Should(BeNil())
-				Expect(resp.Info.RAM).Should(BeNumerically(">", 0))
-				Expect(resp.Info.HardDrive).Should(BeNumerically(">", 0))
-				Expect(len(resp.Info.CPUs)).Should(BeNumerically(">", 0))
+				Expect(resp.RAM).Should(BeNumerically(">", 0))
+				Expect(resp.Disk).Should(BeNumerically(">", 0))
+				Expect(len(resp.CPUs)).Should(BeNumerically(">", 0))
 			}
 		})
 	})
@@ -301,8 +299,8 @@ var _ = Describe("RPC client", func() {
 			Expect(err).ToNot(HaveOccurred())
 			statsStore := kv.NewJSON(kv.NewMemDB())
 			store := NewProxy(multiStore, statsStore)
-			health := health.NewHealthCheck("1.0", addr.New(""))
-			p2p := New(logger, 128, 5, time.Second, 5*time.Minute, store, health, bootstraps)
+			stats := stats.NewStats("1.0", addr.New(""))
+			p2p := New(logger, 128, 5, time.Second, 5*time.Minute, store, stats, bootstraps)
 
 			go p2p.Run(done)
 

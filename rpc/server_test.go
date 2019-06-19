@@ -5,6 +5,7 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/rpc"
 
+	"github.com/republicprotocol/darknode-go/abi"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 	"github.com/sirupsen/logrus"
 )
@@ -23,9 +24,7 @@ var _ = Describe("rpc server task", func() {
 			// Simulate the server receiving an Accept message.
 			server.IO().InputWriter() <- Accept{}
 			reqIn := jsonrpc.SendMessageRequest{
-				Nonce:   1,
-				To:      "to",
-				Payload: jsonrpc.Payload{},
+				TxJSON: abi.TxJSON{},
 			}
 			inputs <- reqIn
 
@@ -36,7 +35,6 @@ var _ = Describe("rpc server task", func() {
 			reqOut, ok := message.Request.(jsonrpc.SendMessageRequest)
 			Expect(ok).Should(BeTrue())
 			Expect(reqIn.To).To(Equal(reqOut.To))
-			Expect(reqIn.Nonce).To(Equal(reqOut.Nonce))
 		})
 
 		It("should forward the ReceiveMessageRequest to its parent task", func() {

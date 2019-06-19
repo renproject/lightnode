@@ -10,7 +10,6 @@ import (
 	. "github.com/renproject/lightnode/rpc"
 
 	"github.com/renproject/lightnode/testutils"
-	"github.com/republicprotocol/darknode-go/processor"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/republicprotocol/renp2p-go/foundation/addr"
@@ -169,9 +168,7 @@ var _ = Describe("RPC client", func() {
 					Expect(ok).To(BeTrue())
 
 					if resp.Error == nil {
-						var params []processor.Param
-						Expect(json.Unmarshal(resp.Result, &params)).To(Succeed())
-						Expect(len(params)).To(Equal(1))
+						Expect(len(resp.Result)).To(Equal(1))
 					} else {
 						Expect(resp.Error).Should(Equal(jsonrpc.ErrResultNotAvailable))
 					}
@@ -352,9 +349,7 @@ var _ = Describe("RPC client", func() {
 					resp, ok := response.(jsonrpc.ReceiveMessageResponse)
 					Expect(ok).To(BeTrue())
 
-					var params []processor.Param
-					Expect(json.Unmarshal(resp.Result, &params)).To(Succeed())
-					Expect(len(params)).To(Equal(1))
+					Expect(len(resp.Result)).To(Equal(1))
 				case <-time.After(time.Second):
 					Fail("timeout")
 				}

@@ -19,7 +19,8 @@ import (
 	"github.com/renproject/lightnode/testutils"
 	"github.com/republicprotocol/co-go"
 	"github.com/republicprotocol/darknode-go"
-	"github.com/republicprotocol/darknode-go/crypter"
+	"github.com/republicprotocol/darknode-go/abi"
+	"github.com/republicprotocol/darknode-go/keystore"
 	"github.com/republicprotocol/darknode-go/rpc/jsonrpc"
 	"github.com/republicprotocol/renp2p-go/core/peer"
 	"github.com/sirupsen/logrus"
@@ -40,9 +41,9 @@ var _ = Describe("light nodes local tests", func() {
 			Expect(err).NotTo(HaveOccurred())
 			rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
 			Expect(err).NotTo(HaveOccurred())
-			keyStore := darknode.Keystore{
-				Rsa:   crypter.RsaKey{PrivateKey: rsaKey},
-				Ecdsa: crypter.EcdsaKey{PrivateKey: ecdsaKey},
+			keyStore := keystore.Keystore{
+				Rsa:   keystore.Rsa{PrivateKey: rsaKey},
+				Ecdsa: keystore.Ecdsa{PrivateKey: ecdsaKey},
 			}
 
 			configs[i] = darknode.Config{
@@ -83,22 +84,20 @@ var _ = Describe("light nodes local tests", func() {
 
 	testSendMessage := func(client jrpc.Client) {
 		data, err := json.Marshal(jsonrpc.SendMessageRequest{
-			To:    "Shifter",
-			Nonce: 100,
-			Payload: jsonrpc.Payload{
-				Method: "ShiftInBTC",
-				Args: json.RawMessage(`[
-                {
-                    "name": "uid",
-                    "type": "public",
-                    "value": "567faC43Fb59a490076B4873dCE351f75a7E5b38"
-                },
-				{
-                    "name": "commitment",
-                    "type": "public",
-                    "value": ""
-                }
-            ]`),
+			TxJSON: abi.TxJSON{
+				To: "Shifter",
+				ArgsJSON: abi.ArgsJSON{
+					abi.ArgJSON{
+						Name:  "uid",
+						Type:  "public",
+						Value: []byte{},
+					},
+					abi.ArgJSON{
+						Name:  "commitment",
+						Type:  "public",
+						Value: []byte{},
+					},
+				},
 			},
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -182,10 +181,10 @@ var _ = Describe("light nodes local tests", func() {
 		var resp jsonrpc.QueryStatsResponse
 		Expect(json.Unmarshal(response.Result, &resp)).To(Succeed())
 		Expect(resp.Error).Should(BeNil())
-		Expect(resp.Info.Version).Should(Equal(Version))
-		Expect(resp.Info.RAM).Should(BeNumerically(">", 0))
-		Expect(resp.Info.HardDrive).Should(BeNumerically(">", 0))
-		Expect(len(resp.Info.CPUs)).Should(BeNumerically(">", 0))
+		Expect(resp.Version).Should(Equal(Version))
+		Expect(resp.RAM).Should(BeNumerically(">", 0))
+		Expect(resp.Disk).Should(BeNumerically(">", 0))
+		Expect(len(resp.CPUs)).Should(BeNumerically(">", 0))
 	}
 
 	Context("when querying the light nodes", func() {
