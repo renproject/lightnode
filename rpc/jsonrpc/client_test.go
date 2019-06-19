@@ -198,7 +198,7 @@ func constructResponse(req jsonrpc.JSONRequest) (jsonrpc.JSONResponse, error) {
 		args := abi.ArgsJSON{
 			abi.ArgJSON{
 				Type:  "public",
-				Value: []byte{},
+				Value: []byte("{}"),
 			},
 		}
 		result := jsonrpc.ReceiveMessageResponse{

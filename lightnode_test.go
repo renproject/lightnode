@@ -90,12 +90,12 @@ var _ = Describe("light nodes local tests", func() {
 					abi.ArgJSON{
 						Name:  "uid",
 						Type:  "public",
-						Value: []byte{},
+						Value: []byte("{}"),
 					},
 					abi.ArgJSON{
 						Name:  "commitment",
 						Type:  "public",
-						Value: []byte{},
+						Value: []byte("{}"),
 					},
 				},
 			},

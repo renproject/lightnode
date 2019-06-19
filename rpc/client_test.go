@@ -45,7 +45,7 @@ var _ = Describe("RPC client", func() {
 		case jsonrpc.MethodSendMessage:
 			response.Result = json.RawMessage([]byte(`{"messageID":"messageID","ok":true}`))
 		case jsonrpc.MethodReceiveMessage:
-			response.Result = json.RawMessage([]byte(`{"values":[{"type":"private","value":"0"}]}`))
+			response.Result = json.RawMessage([]byte(`{"out":[{"type":"private","value":"0"}]}`))
 		default:
 			panic("unknown message type")
 		}
