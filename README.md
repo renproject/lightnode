@@ -1,4 +1,4 @@
-# Lightnode
+# `🚀 lightnode`
 
 [![CircleCI](https://circleci.com/gh/renproject/lightnode/tree/master.svg?style=svg)](https://circleci.com/gh/renproject/lightnode/tree/master)
 
