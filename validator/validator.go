@@ -9,11 +9,11 @@ import (
 
 type Validator struct {
 	logger logrus.FieldLogger
-	cache  phi.Sender
+	cacher phi.Sender
 }
 
-func New(cache phi.Sender, logger logrus.FieldLogger, opts phi.Options) phi.Task {
-	return phi.New(&Validator{logger, cache}, opts)
+func New(cacher phi.Sender, logger logrus.FieldLogger, opts phi.Options) phi.Task {
+	return phi.New(&Validator{logger, cacher}, opts)
 }
 
 func (validator *Validator) Handle(_ phi.Task, message phi.Message) {
@@ -23,7 +23,7 @@ func (validator *Validator) Handle(_ phi.Task, message phi.Message) {
 	}
 
 	if isValid(msg.Request) {
-		validator.cache.Send(msg)
+		validator.cacher.Send(msg)
 	} else {
 		// TODO: Populate response with appropriate error fields.
 		msg.Responder <- jsonrpc.Response{}
