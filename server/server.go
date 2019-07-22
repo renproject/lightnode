@@ -105,7 +105,7 @@ type Request interface {
 }
 
 type RequestWithResponder struct {
-	req       jsonrpc.Request
+	Request   jsonrpc.Request
 	Responder chan jsonrpc.Response
 }
 
