@@ -7,6 +7,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/renproject/phi"
+	"github.com/republicprotocol/darknode-go/jsonrpc"
 	"github.com/republicprotocol/darknode-go/p2p"
 	"github.com/republicprotocol/darknode-go/stat"
 	"github.com/republicprotocol/darknode-go/sync"
@@ -23,7 +24,7 @@ type Server struct {
 	port        string
 	logger      logrus.FieldLogger
 	options     Options
-	rateLimiter RateLimiter
+	rateLimiter jsonrpc.RateLimiter
 	validator   phi.Sender
 }
 
@@ -50,7 +51,8 @@ func (server *Server) Run() {
 }
 
 func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
-	if !server.rateLimiter.Allow(r.RemoteAddr) {
+	// TODO: Rate limit request types individually.
+	if !server.rateLimiter.IPAddressLimiter(r.RemoteAddr).Allow() {
 		// TODO: Return error response.
 		return
 	}
@@ -60,17 +62,17 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 		// TODO: Return error response.
 	}
 	// Unmarshal requests with support for batching
-	reqs := []Request{}
+	reqs := []jsonrpc.Request{}
 	if err := json.Unmarshal(rawMessage, &reqs); err != nil {
 		// If we fail to unmarshal the raw message into a list of JSON-RPC 2.0
 		// requests, try to unmarshal the raw messgae into a single JSON-RPC 2.0
 		// request
-		var req Request
+		var req jsonrpc.Request
 		if err := json.Unmarshal(rawMessage, &req); err != nil {
 			// TODO: Return error response.
 			return
 		}
-		reqs = []Request{req}
+		reqs = []jsonrpc.Request{req}
 	}
 
 	// Check that batch size does not exceed the maximum allowed batch size
@@ -81,16 +83,38 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 
 	// Handle all requests concurrently and, after all responses have been
 	// received, write all responses back to the http.ResponseWriter
-	responses := make([]Response, len(reqs))
+	responses := make([]jsonrpc.Response, len(reqs))
 	phi.ParForAll(reqs, func(i int) {
-		// Each request is rate-limited independently, because all methods have
-		// potentially different rate-limits
-		responses[i] = server.handleRequest(ctx, r.RemoteAddr, reqs[i])
+		reqWithResponder, responder := NewRequestWithResponder(reqs[i])
+		server.validator.Send(reqWithResponder)
+		responses[i] = <-responder
 	})
+	w.Header().Set("Content-Type", "application/json")
+	if len(responses) == 1 {
+		if err := json.NewEncoder(w).Encode(responses[0]); err != nil {
+			server.logger.Errorf("error writing http response: %v", err)
+		}
+	}
+	if err := json.NewEncoder(w).Encode(responses); err != nil {
+		server.logger.Errorf("error writing http response: %v", err)
+	}
 }
 
 type Request interface {
 	IsRequest()
+}
+
+type RequestWithResponder struct {
+	req       jsonrpc.Request
+	Responder chan jsonrpc.Response
+}
+
+func (RequestWithResponder) IsMessage() {}
+func (RequestWithResponder) IsRequest() {}
+
+func NewRequestWithResponder(req jsonrpc.Request) (RequestWithResponder, chan jsonrpc.Response) {
+	responder := make(chan jsonrpc.Response, 1)
+	return RequestWithResponder{req, responder}, responder
 }
 
 type SubmitTx struct {
