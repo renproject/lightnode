@@ -7,6 +7,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/lightnode/server/ratelimiter"
 	"github.com/renproject/phi"
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
@@ -20,12 +21,12 @@ type Server struct {
 	port        string
 	logger      logrus.FieldLogger
 	options     Options
-	rateLimiter *jsonrpc.RateLimiter
+	rateLimiter ratelimiter.RateLimiter
 	validator   phi.Sender
 }
 
 func New(logger logrus.FieldLogger, port string, options Options, validator phi.Sender) *Server {
-	rateLimiter := jsonrpc.NewRateLimiter(1.0, 1)
+	rateLimiter := ratelimiter.New()
 	return &Server{
 		port,
 		logger,
@@ -51,12 +52,6 @@ func (server *Server) Run() {
 }
 
 func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
-	// TODO: Rate limit request types individually.
-	if !server.rateLimiter.IPAddressLimiter(r.RemoteAddr).Allow() {
-		// TODO: Return error response.
-		return
-	}
-
 	rawMessage := json.RawMessage{}
 	if err := json.NewDecoder(r.Body).Decode(&rawMessage); err != nil {
 		// TODO: Return error response.
@@ -85,6 +80,12 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 	// received, write all responses back to the http.ResponseWriter
 	responses := make([]jsonrpc.Response, len(reqs))
 	phi.ParForAll(reqs, func(i int) {
+		method := reqs[i].Method
+		if !server.rateLimiter.Allow(method, r.RemoteAddr) {
+			// TODO: Return error response.
+			return
+		}
+
 		reqWithResponder, responder := NewRequestWithResponder(reqs[i])
 		server.validator.Send(reqWithResponder)
 		responses[i] = <-responder

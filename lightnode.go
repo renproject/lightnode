@@ -47,11 +47,9 @@ func New(logger logrus.FieldLogger, timeout time.Duration, cap int, port string,
 	return Lightnode{
 		logger,
 		server,
-
 		validator,
 		cacher,
 		dispatcher,
-
 		updater,
 	}
 }
