@@ -1,6 +1,8 @@
 package dispatcher
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/renproject/darknode/addr"
@@ -44,8 +46,10 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 			client := client.New(dispatcher.timeout)
 			response, err := client.SendToDarknode(addrs[i], msg.Request)
 			if err != nil {
-				// TODO: Return more appropriate error message.
-				responses <- jsonrpc.Response{}
+				errMsg := fmt.Sprintf("lightnode could not forward response to darknode: %v", err)
+				err := jsonrpc.NewError(server.ErrorCodeForwardingError, errMsg, json.RawMessage{})
+				response := jsonrpc.NewResponse(0, nil, &err)
+				responses <- response
 			} else {
 				responses <- response
 			}
@@ -53,18 +57,17 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 		close(responses)
 	}()
 
-	i := 1
-	for res := range responses {
-		done, response := resIter.update(res, i == len(addrs))
-		if done {
-			msg.Responder <- response
-			return
+	go func() {
+		i := 1
+		for res := range responses {
+			done, response := resIter.update(res, i == len(addrs))
+			if done {
+				msg.Responder <- response
+				return
+			}
+			i++
 		}
-		i++
-	}
-
-	// TODO: Return more appropriate error response.
-	msg.Responder <- jsonrpc.Response{}
+	}()
 }
 
 func (dispatcher *Dispatcher) multiAddrs(method string) addr.MultiAddresses {

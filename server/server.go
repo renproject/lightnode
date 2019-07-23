@@ -14,8 +14,18 @@ import (
 )
 
 var (
+	// ErrorCodeMaxBatchSizeExceeded is an implemementation specific error code
+	// that indicates that the maximum batch size has been exceeded.
 	ErrorCodeMaxBatchSizeExceeded = -32001
-	ErrorCodeRateLimitExceeded    = -32002
+
+	// ErrorCodeRateLimitExceeded is an implementation specific error code that
+	// indicates that the client has been rate limited.
+	ErrorCodeRateLimitExceeded = -32002
+
+	// ErrorCodeForwardingError is an implementation specific error code that
+	// indicates that a http error occurred when forwarding a request to a
+	// darknode.
+	ErrorCodeForwardingError = -32003
 )
 
 type Options struct {

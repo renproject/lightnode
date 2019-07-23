@@ -20,6 +20,8 @@ func New(timeout time.Duration) Client {
 	return Client{timeout}
 }
 
+// NOTE: If err is not nil, it is expected that the caller will construct an
+// appropriate error response message.
 func (client *Client) SendToDarknode(addr addr.MultiAddress, req jsonrpc.Request) (jsonrpc.Response, error) {
 	httpClient := new(http.Client)
 	httpClient.Timeout = client.timeout
@@ -29,13 +31,13 @@ func (client *Client) SendToDarknode(addr addr.MultiAddress, req jsonrpc.Request
 	// Construct HTTP request.
 	body, err := json.Marshal(req)
 	if err != nil {
-		return jsonrpc.Response{}, err
+		panic(fmt.Sprintf("[client] could not marshal request: %v", err))
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), httpClient.Timeout)
 	defer cancel()
 	r, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
 	if err != nil {
-		return jsonrpc.Response{}, err
+		panic(fmt.Sprintf("[client] could not create http request: %v", err))
 	}
 	r = r.WithContext(ctx)
 	r.Header.Set("Content-Type", "application/json")
