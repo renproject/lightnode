@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"time"
 
+	"github.com/renproject/kv/db"
 	"github.com/renproject/lightnode/client"
 	"github.com/renproject/lightnode/server"
 	"github.com/renproject/phi"
@@ -13,17 +14,17 @@ import (
 )
 
 type Dispatcher struct {
-	logger  logrus.FieldLogger
-	addrs   addr.MultiAddresses
-	timeout time.Duration
+	logger     logrus.FieldLogger
+	timeout    time.Duration
+	multiStore db.Iterable
 }
 
-func New(logger logrus.FieldLogger, timeout time.Duration, opts phi.Options) phi.Task {
+func New(logger logrus.FieldLogger, timeout time.Duration, multiStore db.Iterable, opts phi.Options) phi.Task {
 	return phi.New(
 		&Dispatcher{
-			logger:  logger,
-			addrs:   addr.MultiAddresses{},
-			timeout: timeout,
+			logger:     logger,
+			timeout:    timeout,
+			multiStore: multiStore,
 		},
 		opts,
 	)
@@ -69,7 +70,19 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 
 func (dispatcher *Dispatcher) multiAddrs(method string) addr.MultiAddresses {
 	// TODO: Implement method based address fetching.
-	return addr.MultiAddresses{dispatcher.addrs[0]}
+	iter := dispatcher.multiStore.Iterator()
+	if !iter.Next() {
+		panic("[dispatcher] empty address store")
+	}
+	str, err := iter.Key()
+	if err != nil {
+		panic("[dispatcher] empty address store")
+	}
+	address, err := addr.NewMultiAddressFromString(str)
+	if err != nil {
+		panic("[dispatcher] incorrectly stored multi address")
+	}
+	return addr.MultiAddresses{address}
 }
 
 func (dispatcher *Dispatcher) responseIterator(method string) ResponseIterator {

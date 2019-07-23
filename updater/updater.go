@@ -1,0 +1,111 @@
+package updater
+
+import (
+	"context"
+	"encoding/json"
+	"math/rand"
+	"time"
+
+	"github.com/renproject/kv"
+	"github.com/renproject/kv/db"
+	"github.com/renproject/lightnode/client"
+	"github.com/republicprotocol/co-go"
+	"github.com/republicprotocol/darknode-go/addr"
+	"github.com/republicprotocol/darknode-go/jsonrpc"
+	"github.com/republicprotocol/darknode-go/p2p"
+	"github.com/sirupsen/logrus"
+)
+
+type Updater struct {
+	logger         logrus.FieldLogger
+	bootstrapAddrs addr.MultiAddresses
+	multiStore     db.Iterable
+	pollRate       time.Duration
+	timeout        time.Duration
+}
+
+func NewUpdater(logger logrus.FieldLogger, bootstrapAddrs addr.MultiAddresses, multiStore db.Iterable, pollRate, timeout time.Duration) Updater {
+	multiStore = kv.NewMemDB()
+	return Updater{
+		logger:         logger,
+		bootstrapAddrs: bootstrapAddrs,
+		multiStore:     multiStore,
+		pollRate:       pollRate,
+		timeout:        timeout,
+	}
+}
+
+func (updater *Updater) Run(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			updater.updateMultiAddress()
+			time.Sleep(updater.pollRate)
+		}
+	}
+}
+
+func (updater *Updater) updateMultiAddress() {
+	params, err := json.Marshal(jsonrpc.ParamsQueryPeers{})
+	if err != nil {
+		updater.logger.Errorf("cannot marshal query peers params: %v", err)
+		return
+	}
+
+	addrs := updater.GetQueryAddresses()
+
+	co.ParForAll(addrs, func(i int) {
+		multi := addrs[i]
+		client := client.New(updater.timeout)
+
+		// Send request to the node to retrieve its peers.
+		request := jsonrpc.Request{
+			Version: "2.0",
+			ID:      rand.Int31(),
+			Method:  jsonrpc.MethodQueryPeers,
+			Params:  params,
+		}
+		response, err := client.SendToDarknode(multi, request)
+
+		// TODO: Maybe we shouldn't always delete an address when we can't
+		// query it; probably put some more intelligent logic here.
+		if err != nil {
+			updater.logger.Warnf("cannot connect to node %v: %v", multi.String(), err)
+			updater.deleteMultiAddr(multi)
+			return
+		}
+
+		// Parse the response and write any multi-addresses returned by the node to the store.
+		resp, ok := response.Result.(p2p.QueryPeersResponse)
+		if !ok {
+			updater.logger.Panicf("unexpected response type %T", response.Result)
+		}
+		for _, node := range resp.MultiAddresses {
+			multiAddr, err := addr.NewMultiAddressFromString(node.String())
+			if err != nil {
+				updater.logger.Errorf("invalid QueryPeersResponse from node %v: %v", multi.String(), err)
+				return
+			}
+			if err := updater.insertMultiAddr(multiAddr); err != nil {
+				updater.logger.Errorf("cannot add multi-address to store: %v", err)
+				return
+			}
+		}
+	})
+}
+
+func (updater *Updater) GetQueryAddresses() addr.MultiAddresses {
+	// TODO: Select a random subset of known addresses.
+	return updater.bootstrapAddrs
+}
+
+func (updater *Updater) insertMultiAddr(addr addr.MultiAddress) error {
+	return updater.multiStore.Insert(addr.String(), []byte(addr.String()))
+}
+
+func (updater *Updater) deleteMultiAddr(addr addr.MultiAddress) {
+	// NOTE: The `Delete` function always returns a nil error, so we ignore it.
+	_ = updater.multiStore.Delete(addr.String())
+}
