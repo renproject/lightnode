@@ -10,10 +10,12 @@ import (
 type Cacher struct {
 	logger     logrus.FieldLogger
 	dispatcher phi.Sender
+
+	cache map[interface{}]jsonrpc.Response
 }
 
-func New(dispatcher phi.Sender, logger logrus.FieldLogger, opts phi.Options) phi.Task {
-	return phi.New(&Cacher{logger, dispatcher}, opts)
+func New(dispatcher phi.Sender, logger logrus.FieldLogger, cap int, opts phi.Options) phi.Task {
+	return phi.New(&Cacher{logger, dispatcher, make(map[interface{}]jsonrpc.Response, cap)}, opts)
 }
 
 func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
@@ -22,15 +24,28 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		cacher.logger.Panicf("[dispatcher] unexpected message type %T", message)
 	}
 
-	response, cached := cacher.get(msg.Request)
+	response, cached := cacher.get(msg.Request.ID)
 	if cached {
 		msg.Responder <- response
 	} else {
-		cacher.dispatcher.Send(msg)
+		responder := make(chan jsonrpc.Response, 1)
+		cacher.dispatcher.Send(server.RequestWithResponder{
+			Request:   msg.Request,
+			Responder: responder,
+		})
+
+		response := <-responder
+		cacher.insert(msg.Request.ID, response)
+		msg.Responder <- response
 	}
 }
 
-func (cacher *Cacher) get(message jsonrpc.Request) (jsonrpc.Response, bool) {
-	// TODO: Implement caching.
-	return jsonrpc.Response{}, false
+func (cacher *Cacher) insert(id interface{}, response jsonrpc.Response) {
+	cacher.cache[id] = response
+	return
+}
+
+func (cacher *Cacher) get(id interface{}) (jsonrpc.Response, bool) {
+	response, ok := cacher.cache[id]
+	return response, ok
 }
