@@ -6,12 +6,12 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/p2p"
+	"github.com/renproject/darknode/stat"
+	"github.com/renproject/darknode/sync"
+	"github.com/renproject/darknode/txcheck"
 	"github.com/renproject/phi"
-	"github.com/republicprotocol/darknode-go/jsonrpc"
-	"github.com/republicprotocol/darknode-go/p2p"
-	"github.com/republicprotocol/darknode-go/stat"
-	"github.com/republicprotocol/darknode-go/sync"
-	"github.com/republicprotocol/darknode-go/txcheck"
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 )

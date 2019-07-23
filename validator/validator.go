@@ -1,9 +1,9 @@
 package validator
 
 import (
+	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/server"
 	"github.com/renproject/phi"
-	"github.com/republicprotocol/darknode-go/jsonrpc"
 	"github.com/sirupsen/logrus"
 )
 

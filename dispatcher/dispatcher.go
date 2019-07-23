@@ -3,13 +3,12 @@ package dispatcher
 import (
 	"time"
 
+	"github.com/renproject/darknode/addr"
+	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv/db"
 	"github.com/renproject/lightnode/client"
 	"github.com/renproject/lightnode/server"
 	"github.com/renproject/phi"
-	"github.com/republicprotocol/co-go"
-	"github.com/republicprotocol/darknode-go/addr"
-	"github.com/republicprotocol/darknode-go/jsonrpc"
 	"github.com/sirupsen/logrus"
 )
 
@@ -41,7 +40,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 	resIter := dispatcher.responseIterator(msg.Request.Method)
 
 	go func() {
-		co.ParForAll(addrs, func(i int) {
+		phi.ParForAll(addrs, func(i int) {
 			client := client.New(dispatcher.timeout)
 			response, err := client.SendToDarknode(addrs[i], msg.Request)
 			if err != nil {

@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/republicprotocol/darknode-go/addr"
-	"github.com/republicprotocol/darknode-go/jsonrpc"
+	"github.com/renproject/darknode/addr"
+	"github.com/renproject/darknode/jsonrpc"
 )
 
 type Client struct {
@@ -23,10 +24,7 @@ func (client *Client) SendToDarknode(addr addr.MultiAddress, req jsonrpc.Request
 	httpClient := new(http.Client)
 	httpClient.Timeout = client.timeout
 
-	// FIXME: This will give the wrong port, we need to instead use the jsonrpc
-	// port.
-	netAddr := addr.NetworkAddress()
-	url := "http://" + netAddr.String()
+	url := fmt.Sprintf("http://%s:%v", addr.IP4(), addr.Port()+1)
 
 	// Construct HTTP request.
 	body, err := json.Marshal(req)

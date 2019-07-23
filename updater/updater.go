@@ -6,13 +6,13 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/renproject/darknode/addr"
+	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/p2p"
 	"github.com/renproject/kv"
 	"github.com/renproject/kv/db"
 	"github.com/renproject/lightnode/client"
-	"github.com/republicprotocol/co-go"
-	"github.com/republicprotocol/darknode-go/addr"
-	"github.com/republicprotocol/darknode-go/jsonrpc"
-	"github.com/republicprotocol/darknode-go/p2p"
+	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
 
@@ -56,7 +56,7 @@ func (updater *Updater) updateMultiAddress() {
 
 	addrs := updater.GetQueryAddresses()
 
-	co.ParForAll(addrs, func(i int) {
+	phi.ParForAll(addrs, func(i int) {
 		multi := addrs[i]
 		client := client.New(updater.timeout)
 
