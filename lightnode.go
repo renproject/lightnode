@@ -27,7 +27,7 @@ type Lightnode struct {
 	updater updater.Updater
 }
 
-func New(logger logrus.FieldLogger, timeout time.Duration, cap int, port string, maxBatchSize int, bootstrapAddrs addr.MultiAddresses, pollRate time.Duration) Lightnode {
+func New(logger logrus.FieldLogger, timeout time.Duration, cap, cacheCap int, port string, maxBatchSize int, bootstrapAddrs addr.MultiAddresses, pollRate time.Duration) Lightnode {
 	// All tasks have the same capacity, and no scaling
 	opts := phi.Options{Cap: cap}
 
@@ -40,7 +40,7 @@ func New(logger logrus.FieldLogger, timeout time.Duration, cap int, port string,
 
 	updater := updater.New(logger, bootstrapAddrs, multiStore, pollRate, timeout)
 	dispatcher := dispatcher.New(logger, timeout, multiStore, opts)
-	cacher := cacher.New(dispatcher, logger, cap, opts)
+	cacher := cacher.New(dispatcher, logger, cacheCap, opts)
 	validator := validator.New(cacher, logger, opts)
 	server := server.New(logger, port, options, validator)
 
