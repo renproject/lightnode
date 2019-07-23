@@ -9,7 +9,6 @@ import (
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/p2p"
-	"github.com/renproject/kv"
 	"github.com/renproject/kv/db"
 	"github.com/renproject/lightnode/client"
 	"github.com/renproject/phi"
@@ -24,8 +23,7 @@ type Updater struct {
 	timeout        time.Duration
 }
 
-func NewUpdater(logger logrus.FieldLogger, bootstrapAddrs addr.MultiAddresses, multiStore db.Iterable, pollRate, timeout time.Duration) Updater {
-	multiStore = kv.NewMemDB()
+func New(logger logrus.FieldLogger, bootstrapAddrs addr.MultiAddresses, multiStore db.Iterable, pollRate, timeout time.Duration) Updater {
 	return Updater{
 		logger:         logger,
 		bootstrapAddrs: bootstrapAddrs,

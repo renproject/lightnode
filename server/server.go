@@ -24,14 +24,18 @@ type Server struct {
 	port        string
 	logger      logrus.FieldLogger
 	options     Options
-	rateLimiter jsonrpc.RateLimiter
+	rateLimiter *jsonrpc.RateLimiter
 	validator   phi.Sender
 }
 
-func NewServer(logger logrus.FieldLogger, port string) *Server {
+func New(logger logrus.FieldLogger, port string, options Options, validator phi.Sender) *Server {
+	rateLimiter := jsonrpc.NewRateLimiter(1.0, 1)
 	return &Server{
-		port:   port,
-		logger: logger,
+		port,
+		logger,
+		options,
+		rateLimiter,
+		validator,
 	}
 }
 
