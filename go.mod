@@ -19,6 +19,7 @@ require (
 	github.com/renproject/phi v0.0.0-20190713013721-51f586bc4816
 	github.com/rs/cors v1.6.0
 	github.com/sirupsen/logrus v1.4.2
+	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
 	golang.org/x/net v0.0.0-20190628185345-da137c7871d7 // indirect
 	golang.org/x/sys v0.0.0-20190712062909-fae7ac547cb7 // indirect
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
