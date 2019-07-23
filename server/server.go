@@ -54,7 +54,10 @@ func (server *Server) Run() {
 func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 	rawMessage := json.RawMessage{}
 	if err := json.NewDecoder(r.Body).Decode(&rawMessage); err != nil {
-		// TODO: Return error response.
+		err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidJSON, "lightnode could not decode JSON request", json.RawMessage{})
+		response := jsonrpc.NewResponse(0, nil, &err)
+		server.writeResponses(w, []jsonrpc.Response{response})
+		return
 	}
 	// Unmarshal requests with support for batching
 	reqs := []jsonrpc.Request{}
@@ -64,15 +67,21 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 		// request
 		var req jsonrpc.Request
 		if err := json.Unmarshal(rawMessage, &req); err != nil {
-			// TODO: Return error response.
+			err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidJSON, "lightnode could not parse JSON request", json.RawMessage{})
+			response := jsonrpc.NewResponse(0, nil, &err)
+			server.writeResponses(w, []jsonrpc.Response{response})
 			return
 		}
 		reqs = []jsonrpc.Request{req}
 	}
 
 	// Check that batch size does not exceed the maximum allowed batch size
-	if len(reqs) > server.options.MaxBatchSize {
+	batchSize := len(reqs)
+	if batchSize > server.options.MaxBatchSize {
 		// TODO: Return error response.
+		err := jsonrpc.NewError(ErrorCodeMaxBatchSizeExceeded, fmt.Sprintf("maximum batch size exceeded: maximum is %v but got %v", server.options.MaxBatchSize, batchSize), json.RawMessage{})
+		response := jsonrpc.NewResponse(0, nil, &err)
+		server.writeResponses(w, []jsonrpc.Response{response})
 		return
 	}
 
@@ -86,18 +95,25 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		reqWithResponder, responder := NewRequestWithResponder(reqs[i])
+		reqWithResponder := NewRequestWithResponder(reqs[i])
 		server.validator.Send(reqWithResponder)
-		responses[i] = <-responder
+		responses[i] = <-reqWithResponder.Responder
 	})
+
+	server.writeResponses(w, responses)
+}
+
+func (server *Server) writeResponses(w http.ResponseWriter, responses []jsonrpc.Response) {
 	w.Header().Set("Content-Type", "application/json")
 	if len(responses) == 1 {
 		if err := json.NewEncoder(w).Encode(responses[0]); err != nil {
 			server.logger.Errorf("error writing http response: %v", err)
+			return
 		}
 	}
 	if err := json.NewEncoder(w).Encode(responses); err != nil {
 		server.logger.Errorf("error writing http response: %v", err)
+		return
 	}
 }
 
@@ -113,7 +129,7 @@ type RequestWithResponder struct {
 func (RequestWithResponder) IsMessage() {}
 func (RequestWithResponder) IsRequest() {}
 
-func NewRequestWithResponder(req jsonrpc.Request) (RequestWithResponder, chan jsonrpc.Response) {
+func NewRequestWithResponder(req jsonrpc.Request) RequestWithResponder {
 	responder := make(chan jsonrpc.Response, 1)
-	return RequestWithResponder{req, responder}, responder
+	return RequestWithResponder{req, responder}
 }
