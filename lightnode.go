@@ -40,7 +40,7 @@ func New(logger logrus.FieldLogger, timeout time.Duration, cap int, port string,
 
 	updater := updater.New(logger, bootstrapAddrs, multiStore, pollRate, timeout)
 	dispatcher := dispatcher.New(logger, timeout, multiStore, opts)
-	cacher := cacher.New(dispatcher, logger, opts)
+	cacher := cacher.New(dispatcher, logger, cap, opts)
 	validator := validator.New(cacher, logger, opts)
 	server := server.New(logger, port, options, validator)
 
