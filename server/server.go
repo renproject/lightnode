@@ -15,6 +15,7 @@ import (
 
 var (
 	ErrorCodeMaxBatchSizeExceeded = -32001
+	ErrorCodeRateLimitExceeded    = -32002
 )
 
 type Options struct {
@@ -95,7 +96,9 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 	phi.ParForAll(reqs, func(i int) {
 		method := reqs[i].Method
 		if !server.rateLimiter.Allow(method, r.RemoteAddr) {
-			// TODO: Return error response.
+			err := jsonrpc.NewError(ErrorCodeRateLimitExceeded, "rate limit exceeded", json.RawMessage{})
+			response := jsonrpc.NewResponse(0, nil, &err)
+			server.writeResponses(w, []jsonrpc.Response{response})
 			return
 		}
 
