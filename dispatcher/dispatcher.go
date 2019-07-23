@@ -1,12 +1,9 @@
 package dispatcher
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"net/http"
 	"time"
 
+	"github.com/renproject/lightnode/client"
 	"github.com/renproject/lightnode/server"
 	"github.com/renproject/phi"
 	"github.com/republicprotocol/co-go"
@@ -44,7 +41,8 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 
 	go func() {
 		co.ParForAll(addrs, func(i int) {
-			response, err := dispatcher.sendToDarknode(addrs[i], msg.Request)
+			client := client.New(dispatcher.timeout)
+			response, err := client.SendToDarknode(addrs[i], msg.Request)
 			if err != nil {
 				// TODO: Return more appropriate error message.
 				responses <- jsonrpc.Response{}
@@ -91,38 +89,4 @@ func NewFirstResponseIterator() ResponseIterator {
 
 func (FirstResponseIterator) update(res jsonrpc.Response, final bool) (bool, jsonrpc.Response) {
 	return true, res
-}
-
-func (dispatcher *Dispatcher) sendToDarknode(addr addr.MultiAddress, req jsonrpc.Request) (jsonrpc.Response, error) {
-	httpClient := new(http.Client)
-	httpClient.Timeout = dispatcher.timeout
-
-	// FIXME: This will give the wrong port, we need to instead use the jsonrpc
-	// port.
-	netAddr := addr.NetworkAddress()
-	url := "http://" + netAddr.String()
-
-	// Construct HTTP request.
-	body, err := json.Marshal(req)
-	if err != nil {
-		return jsonrpc.Response{}, err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), httpClient.Timeout)
-	defer cancel()
-	r, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
-	if err != nil {
-		return jsonrpc.Response{}, err
-	}
-	r = r.WithContext(ctx)
-	r.Header.Set("Content-Type", "application/json")
-
-	// Read response.
-	response, err := httpClient.Do(r)
-	if err != nil {
-		return jsonrpc.Response{}, err
-	}
-
-	var resp jsonrpc.Response
-	err = json.NewDecoder(response.Body).Decode(&resp)
-	return resp, err
 }
