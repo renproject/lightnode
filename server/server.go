@@ -13,6 +13,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var (
+	ErrorCodeMaxBatchSizeExceeded = -32001
+)
+
 type Options struct {
 	MaxBatchSize int
 }
@@ -78,8 +82,8 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 	// Check that batch size does not exceed the maximum allowed batch size
 	batchSize := len(reqs)
 	if batchSize > server.options.MaxBatchSize {
-		// TODO: Return error response.
-		err := jsonrpc.NewError(ErrorCodeMaxBatchSizeExceeded, fmt.Sprintf("maximum batch size exceeded: maximum is %v but got %v", server.options.MaxBatchSize, batchSize), json.RawMessage{})
+		errMsg := fmt.Sprintf("maximum batch size exceeded: maximum is %v but got %v", server.options.MaxBatchSize, batchSize)
+		err := jsonrpc.NewError(ErrorCodeMaxBatchSizeExceeded, errMsg, json.RawMessage{})
 		response := jsonrpc.NewResponse(0, nil, &err)
 		server.writeResponses(w, []jsonrpc.Response{response})
 		return
