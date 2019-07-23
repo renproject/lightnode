@@ -134,17 +134,12 @@ func (server *Server) writeResponses(w http.ResponseWriter, responses []jsonrpc.
 	}
 }
 
-type Request interface {
-	IsRequest()
-}
-
 type RequestWithResponder struct {
 	Request   jsonrpc.Request
 	Responder chan jsonrpc.Response
 }
 
 func (RequestWithResponder) IsMessage() {}
-func (RequestWithResponder) IsRequest() {}
 
 func NewRequestWithResponder(req jsonrpc.Request) RequestWithResponder {
 	responder := make(chan jsonrpc.Response, 1)
