@@ -113,8 +113,11 @@ func hasValidParams(message jsonrpc.Request) (bool, string) {
 			return false, "parameters object does not match method"
 		}
 		return validQueryStatParams(params)
+	default:
+		// TODO: Is it ok to panic at this level, or should all panics happen
+		// through a logger?
+		panic(fmt.Sprintf("[validator] unsupported method %s encountered which should have been rejected by the previous checks", message.Method))
 	}
-	return true, ""
 }
 
 func validQueryBlockParams(params sync.QueryBlock) (bool, string) {
