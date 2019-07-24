@@ -67,7 +67,6 @@ func (server *Server) Run() {
 }
 
 func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("received message")
 	rawMessage := json.RawMessage{}
 	if err := json.NewDecoder(r.Body).Decode(&rawMessage); err != nil {
 		err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidJSON, "lightnode could not decode JSON request", json.RawMessage{})
