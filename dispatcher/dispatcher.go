@@ -82,21 +82,21 @@ func (dispatcher *Dispatcher) multiAddrs(method string) addr.MultiAddresses {
 	// updated when these policies have been decided in more detail.
 	switch method {
 	case jsonrpc.MethodQueryBlock:
-		return dispatcher.AddrsRandom(1)
+		return dispatcher.AddrsRandom(3)
 	case jsonrpc.MethodQueryBlocks:
-		return dispatcher.AddrsRandom(1)
+		return dispatcher.AddrsRandom(3)
 	case jsonrpc.MethodSubmitTx:
 		return dispatcher.AddrsAll()
 	case jsonrpc.MethodQueryTx:
-		return dispatcher.AddrsRandom(1)
+		return dispatcher.AddrsRandom(3)
 	case jsonrpc.MethodQueryNumPeers:
-		return dispatcher.AddrsRandom(1)
+		return dispatcher.AddrsRandom(3)
 	case jsonrpc.MethodQueryPeers:
-		return dispatcher.AddrsRandom(1)
+		return dispatcher.AddrsRandom(3)
 	case jsonrpc.MethodQueryEpoch:
-		return dispatcher.AddrsRandom(1)
+		return dispatcher.AddrsRandom(3)
 	case jsonrpc.MethodQueryStat:
-		return dispatcher.AddrsRandom(1)
+		return dispatcher.AddrsRandom(3)
 	default:
 		dispatcher.logger.Panicf("[dispatcher] unsupported method %s encountered which should have been rejected by the validator", method)
 		panic("unreachable")
