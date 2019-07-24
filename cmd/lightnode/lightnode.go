@@ -36,7 +36,7 @@ func main() {
 	port := os.Getenv("PORT")
 
 	r := mux.NewRouter()
-	r.HandleFunc("", p.handler()).Methods("POST")
+	r.HandleFunc("/", p.handler()).Methods("POST")
 	handler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,
