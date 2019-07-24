@@ -56,7 +56,6 @@ func (updater *Updater) updateMultiAddress() {
 
 	phi.ParForAll(addrs, func(i int) {
 		multi := addrs[i]
-		client := client.New(updater.timeout)
 
 		// Send request to the node to retrieve its peers.
 		request := jsonrpc.Request{
@@ -65,7 +64,7 @@ func (updater *Updater) updateMultiAddress() {
 			Method:  jsonrpc.MethodQueryPeers,
 			Params:  params,
 		}
-		response, err := client.SendToDarknode(multi, request)
+		response, err := client.SendToDarknode(client.URLFromMulti(multi), request, updater.timeout)
 
 		// TODO: Maybe we shouldn't always delete an address when we can't
 		// query it; probably put some more intelligent logic here.

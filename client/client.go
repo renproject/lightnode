@@ -12,30 +12,22 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 )
 
-type Client struct {
-	timeout time.Duration
-}
-
-func New(timeout time.Duration) Client {
-	return Client{timeout}
-}
-
-func (client *Client) SendToDarknode(addr addr.MultiAddress, req jsonrpc.Request) (jsonrpc.Response, error) {
+// NOTE: If err is not nil, it is expected that the caller will construct an
+// appropriate error response message.
+func SendToDarknode(url string, req jsonrpc.Request, timeout time.Duration) (jsonrpc.Response, error) {
 	httpClient := new(http.Client)
-	httpClient.Timeout = client.timeout
-
-	url := fmt.Sprintf("http://%s:%v", addr.IP4(), addr.Port()+1)
+	httpClient.Timeout = timeout
 
 	// Construct HTTP request.
 	body, err := json.Marshal(req)
 	if err != nil {
-		return jsonrpc.Response{}, err
+		panic(fmt.Sprintf("[client] could not marshal request: %v", err))
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), httpClient.Timeout)
 	defer cancel()
 	r, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
 	if err != nil {
-		return jsonrpc.Response{}, err
+		panic(fmt.Sprintf("[client] could not create http request: %v", err))
 	}
 	r = r.WithContext(ctx)
 	r.Header.Set("Content-Type", "application/json")
@@ -49,4 +41,8 @@ func (client *Client) SendToDarknode(addr addr.MultiAddress, req jsonrpc.Request
 	var resp jsonrpc.Response
 	err = json.NewDecoder(response.Body).Decode(&resp)
 	return resp, err
+}
+
+func URLFromMulti(addr addr.MultiAddress) string {
+	return fmt.Sprintf("http://%s:%v", addr.IP4(), addr.Port()+1)
 }

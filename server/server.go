@@ -14,7 +14,22 @@ import (
 )
 
 var (
+	// ErrorCodeMaxBatchSizeExceeded is an implemementation specific error code
+	// that indicates that the maximum batch size has been exceeded.
 	ErrorCodeMaxBatchSizeExceeded = -32001
+
+	// ErrorCodeRateLimitExceeded is an implementation specific error code that
+	// indicates that the client has been rate limited.
+	ErrorCodeRateLimitExceeded = -32002
+
+	// ErrorCodeForwardingError is an implementation specific error code that
+	// indicates that a http error occurred when forwarding a request to a
+	// darknode.
+	ErrorCodeForwardingError = -32003
+
+	// ErrorCodeInvalidParams is ann implementation specific error code that
+	// indicates that a request object has invalid parameters.
+	ErrorCodeInvalidParams = -32004
 )
 
 type Options struct {
@@ -95,7 +110,9 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 	phi.ParForAll(reqs, func(i int) {
 		method := reqs[i].Method
 		if !server.rateLimiter.Allow(method, r.RemoteAddr) {
-			// TODO: Return error response.
+			err := jsonrpc.NewError(ErrorCodeRateLimitExceeded, "rate limit exceeded", json.RawMessage{})
+			response := jsonrpc.NewResponse(0, nil, &err)
+			server.writeResponses(w, []jsonrpc.Response{response})
 			return
 		}
 
@@ -121,17 +138,13 @@ func (server *Server) writeResponses(w http.ResponseWriter, responses []jsonrpc.
 	}
 }
 
-type Request interface {
-	IsRequest()
-}
-
 type RequestWithResponder struct {
 	Request   jsonrpc.Request
 	Responder chan jsonrpc.Response
 }
 
+// IsMessage implements the `phi.Message` interface.
 func (RequestWithResponder) IsMessage() {}
-func (RequestWithResponder) IsRequest() {}
 
 func NewRequestWithResponder(req jsonrpc.Request) RequestWithResponder {
 	responder := make(chan jsonrpc.Response, 1)

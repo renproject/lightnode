@@ -1,6 +1,9 @@
 package dispatcher
 
 import (
+	"encoding/json"
+	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/renproject/darknode/addr"
@@ -37,15 +40,16 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 
 	addrs := dispatcher.multiAddrs(msg.Request.Method)
 	responses := make(chan jsonrpc.Response, len(addrs))
-	resIter := dispatcher.responseIterator(msg.Request.Method)
+	resIter := responseIterator(msg.Request.Method)
 
 	go func() {
 		phi.ParForAll(addrs, func(i int) {
-			client := client.New(dispatcher.timeout)
-			response, err := client.SendToDarknode(addrs[i], msg.Request)
+			response, err := client.SendToDarknode(client.URLFromMulti(addrs[i]), msg.Request, dispatcher.timeout)
 			if err != nil {
-				// TODO: Return more appropriate error message.
-				responses <- jsonrpc.Response{}
+				errMsg := fmt.Sprintf("lightnode could not forward response to darknode: %v", err)
+				err := jsonrpc.NewError(server.ErrorCodeForwardingError, errMsg, json.RawMessage{})
+				response := jsonrpc.NewResponse(0, nil, &err)
+				responses <- response
 			} else {
 				responses <- response
 			}
@@ -53,40 +57,108 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 		close(responses)
 	}()
 
-	i := 1
-	for res := range responses {
-		done, response := resIter.update(res, i == len(addrs))
-		if done {
-			msg.Responder <- response
-			return
+	go func() {
+		i := 1
+		for res := range responses {
+			done, response := resIter.update(res, i == len(addrs))
+			if done {
+				msg.Responder <- response
+				return
+			}
+			i++
 		}
-		i++
-	}
-
-	// TODO: Return more appropriate error response.
-	msg.Responder <- jsonrpc.Response{}
+	}()
 }
 
 func (dispatcher *Dispatcher) multiAddrs(method string) addr.MultiAddresses {
-	// TODO: Implement method based address fetching.
-	iter := dispatcher.multiStore.Iterator()
-	if !iter.Next() {
-		panic("[dispatcher] empty address store")
+	// The method `Size` for a `memdb` always returns a nil error, so we ignore
+	// it
+	// NOTE: This is commented out for now but address selection policies used
+	// in the future should make use of this number.
+	// numDarknodes, _ := dispatcher.multiStore.Size()
+
+	// TODO: The following is an initial choice of darknode selection policies,
+	// which are likely to not be what we use long term. These should be
+	// updated when these policies have been decided in more detail.
+	switch method {
+	case jsonrpc.MethodQueryBlock:
+		return dispatcher.AddrsRandom(1)
+	case jsonrpc.MethodQueryBlocks:
+		return dispatcher.AddrsRandom(1)
+	case jsonrpc.MethodSubmitTx:
+		return dispatcher.AddrsAll()
+	case jsonrpc.MethodQueryTx:
+		return dispatcher.AddrsRandom(1)
+	case jsonrpc.MethodQueryNumPeers:
+		return dispatcher.AddrsRandom(1)
+	case jsonrpc.MethodQueryPeers:
+		return dispatcher.AddrsRandom(1)
+	case jsonrpc.MethodQueryEpoch:
+		return dispatcher.AddrsRandom(1)
+	case jsonrpc.MethodQueryStat:
+		return dispatcher.AddrsRandom(1)
+	default:
+		dispatcher.logger.Panicf("[dispatcher] unsupported method %s encountered which should have been rejected by the validator", method)
+		panic("unreachable")
 	}
-	str, err := iter.Key()
-	if err != nil {
-		panic("[dispatcher] empty address store")
-	}
-	address, err := addr.NewMultiAddressFromString(str)
-	if err != nil {
-		panic("[dispatcher] incorrectly stored multi address")
-	}
-	return addr.MultiAddresses{address}
 }
 
-func (dispatcher *Dispatcher) responseIterator(method string) ResponseIterator {
-	// TODO: Implement method based result iterator return values.
-	return NewFirstResponseIterator()
+func (dispatcher *Dispatcher) AddrsAll() addr.MultiAddresses {
+	addrs := addr.MultiAddresses{}
+	for iter := dispatcher.multiStore.Iterator(); iter.Next(); {
+		str, err := iter.Key()
+		if err != nil {
+			panic("[dispatcher] iterator invariant violated")
+		}
+		address, err := addr.NewMultiAddressFromString(str)
+		if err != nil {
+			panic("[dispatcher] incorrectly stored multi address")
+		}
+		addrs = append(addrs, address)
+	}
+
+	return addrs
+}
+
+func (dispatcher *Dispatcher) AddrsRandom(n int) addr.MultiAddresses {
+	addrs := dispatcher.AddrsAll()
+
+	rand.Shuffle(len(addrs), func(i, j int) {
+		addrs[i], addrs[j] = addrs[j], addrs[i]
+	})
+
+	if len(addrs) < n {
+		return addrs
+	}
+	return addrs[:n]
+}
+
+func responseIterator(method string) ResponseIterator {
+	// TODO: The following is an initial choice of response aggregation
+	// policies, which are likely to not be what we use long term. These should
+	// be updated when these policies have been decided in more detail.
+	switch method {
+	case jsonrpc.MethodQueryBlock:
+		return NewFirstResponseIterator()
+	case jsonrpc.MethodQueryBlocks:
+		return NewFirstResponseIterator()
+	case jsonrpc.MethodSubmitTx:
+		// TODO: This should instead return an iterator that will check for a
+		// threshold of consistent responses.
+		return NewFirstResponseIterator()
+	case jsonrpc.MethodQueryTx:
+		return NewFirstResponseIterator()
+	case jsonrpc.MethodQueryNumPeers:
+		return NewFirstResponseIterator()
+	case jsonrpc.MethodQueryPeers:
+		return NewFirstResponseIterator()
+	case jsonrpc.MethodQueryEpoch:
+		return NewFirstResponseIterator()
+	case jsonrpc.MethodQueryStat:
+		return NewFirstResponseIterator()
+	default:
+		panic(fmt.Sprintf("[dispatcher] unsupported method %s encountered which should have been rejected by the validator", method))
+	}
 }
 
 type ResponseIterator interface {
