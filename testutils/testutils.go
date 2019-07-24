@@ -1,6 +1,8 @@
 package testutils
 
 import (
+	"encoding/json"
+
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/phi"
 )
@@ -21,8 +23,62 @@ func (inspector *Inspector) Handle(_ phi.Task, message phi.Message) {
 }
 
 func ValidRequest(method string) jsonrpc.Request {
-	return jsonrpc.Request{
-		Version: "2.0",
-		Method:  method,
+	switch method {
+	case jsonrpc.MethodQueryBlock:
+		return jsonrpc.Request{
+			Version: "2.0",
+			Method:  method,
+			Params:  json.RawMessage{},
+		}
+	case jsonrpc.MethodQueryBlocks:
+		return jsonrpc.Request{
+			Version: "2.0",
+			Method:  method,
+			Params:  json.RawMessage{},
+		}
+	case jsonrpc.MethodSubmitTx:
+		// TODO: Add fields to params struct.
+		rawMsg, err := json.Marshal(jsonrpc.ParamsSubmitTx{})
+		if err != nil {
+			panic("marshalling error")
+		}
+		return jsonrpc.Request{
+			Version: "2.0",
+			Method:  method,
+			Params:  rawMsg,
+		}
+	case jsonrpc.MethodQueryTx:
+		// TODO: Add fields to params struct.
+		rawMsg, err := json.Marshal(jsonrpc.ParamsQueryTx{})
+		if err != nil {
+			panic("marshalling error")
+		}
+		return jsonrpc.Request{
+			Version: "2.0",
+			Method:  method,
+			Params:  rawMsg,
+		}
+	case jsonrpc.MethodQueryNumPeers:
+		return jsonrpc.Request{
+			Version: "2.0",
+			Method:  method,
+			Params:  json.RawMessage{},
+		}
+	case jsonrpc.MethodQueryPeers:
+		return jsonrpc.Request{
+			Version: "2.0",
+			Method:  method,
+			Params:  json.RawMessage{},
+		}
+	case jsonrpc.MethodQueryEpoch:
+		panic("unsupported method")
+	case jsonrpc.MethodQueryStat:
+		return jsonrpc.Request{
+			Version: "2.0",
+			Method:  method,
+			Params:  json.RawMessage{},
+		}
+	default:
+		panic("invalid method")
 	}
 }

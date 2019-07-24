@@ -5,10 +5,6 @@ import (
 	"fmt"
 
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/darknode/p2p"
-	"github.com/renproject/darknode/stat"
-	"github.com/renproject/darknode/sync"
-	"github.com/renproject/darknode/txcheck"
 	"github.com/renproject/lightnode/server"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
@@ -67,52 +63,47 @@ func isSupported(method string) bool {
 func hasValidParams(message jsonrpc.Request) (bool, string) {
 	switch message.Method {
 	case jsonrpc.MethodQueryBlock:
-		var params sync.QueryBlock
-		if err := json.Unmarshal(message.Params, &params); err != nil {
+		if len(message.Params) != 0 {
 			return false, "parameters object does not match method"
 		}
-		return validQueryBlockParams(params)
+		return validQueryBlockParams(message.Params)
 	case jsonrpc.MethodQueryBlocks:
-		var params sync.QueryBlocks
-		if err := json.Unmarshal(message.Params, &params); err != nil {
+		if len(message.Params) != 0 {
 			return false, "parameters object does not match method"
 		}
-		return validQueryBlocksParams(params)
+		return validQueryBlocksParams(message.Params)
 	case jsonrpc.MethodSubmitTx:
-		var params txcheck.AcceptTx
+		var params jsonrpc.ParamsSubmitTx
 		if err := json.Unmarshal(message.Params, &params); err != nil {
 			return false, "parameters object does not match method"
 		}
 		return validSubmitTxParams(params)
 	case jsonrpc.MethodQueryTx:
-		var params sync.QueryTx
+		var params jsonrpc.ParamsQueryTx
 		if err := json.Unmarshal(message.Params, &params); err != nil {
 			return false, "parameters object does not match method"
 		}
 		return validQueryTxParams(params)
 	case jsonrpc.MethodQueryNumPeers:
-		var params p2p.QueryNumPeers
-		if err := json.Unmarshal(message.Params, &params); err != nil {
+		if len(message.Params) != 0 {
 			return false, "parameters object does not match method"
 		}
-		return validQueryNumPeersParams(params)
+		return validQueryNumPeersParams(message.Params)
 	case jsonrpc.MethodQueryPeers:
-		var params p2p.QueryPeers
-		if err := json.Unmarshal(message.Params, &params); err != nil {
+		if len(message.Params) != 0 {
 			return false, "parameters object does not match method"
 		}
-		return validQueryPeersParams(params)
+		return validQueryPeersParams(message.Params)
 	case jsonrpc.MethodQueryEpoch:
 		// TODO: At the time of writing this method is not supported by the
 		// darknode. This should be implemented once it is implemented in the
 		// darknode.
 		return false, "method QueryEpoch is not supported"
 	case jsonrpc.MethodQueryStat:
-		var params stat.QueryStat
-		if err := json.Unmarshal(message.Params, &params); err != nil {
+		if len(message.Params) != 0 {
 			return false, "parameters object does not match method"
 		}
-		return validQueryStatParams(params)
+		return validQueryStatParams(message.Params)
 	default:
 		// TODO: Is it ok to panic at this level, or should all panics happen
 		// through a logger?
@@ -120,38 +111,38 @@ func hasValidParams(message jsonrpc.Request) (bool, string) {
 	}
 }
 
-func validQueryBlockParams(params sync.QueryBlock) (bool, string) {
+func validQueryBlockParams(params json.RawMessage) (bool, string) {
 	// This parameter type has no fields, so there is nothing to check.
 	return true, ""
 }
 
-func validQueryBlocksParams(params sync.QueryBlocks) (bool, string) {
+func validQueryBlocksParams(params json.RawMessage) (bool, string) {
 	// This parameter type has no fields, so there is nothing to check.
 	return true, ""
 }
 
-func validSubmitTxParams(params txcheck.AcceptTx) (bool, string) {
+func validSubmitTxParams(params jsonrpc.ParamsSubmitTx) (bool, string) {
 	// TODO: Check fields.
 	return true, ""
 }
 
-func validQueryTxParams(params sync.QueryTx) (bool, string) {
+func validQueryTxParams(params jsonrpc.ParamsQueryTx) (bool, string) {
 	// Currently the only field in the parameters is a hash field, which can't
 	// really be checked for validity here
 	return true, ""
 }
 
-func validQueryNumPeersParams(params p2p.QueryNumPeers) (bool, string) {
+func validQueryNumPeersParams(params json.RawMessage) (bool, string) {
 	// This parameter type has no fields, so there is nothing to check.
 	return true, ""
 }
 
-func validQueryPeersParams(params p2p.QueryPeers) (bool, string) {
+func validQueryPeersParams(params json.RawMessage) (bool, string) {
 	// This parameter type has no fields, so there is nothing to check.
 	return true, ""
 }
 
-func validQueryStatParams(params stat.QueryStat) (bool, string) {
+func validQueryStatParams(params json.RawMessage) (bool, string) {
 	// This parameter type has no fields, so there is nothing to check.
 	return true, ""
 }
