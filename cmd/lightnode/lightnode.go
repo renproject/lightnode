@@ -29,7 +29,7 @@ func main() {
 	hook.Timeout = 500 * time.Millisecond
 	logger.AddHook(hook)
 
-	p := proxy{
+	p := &proxy{
 		url:    os.Getenv("DARKNODE_URL"),
 		logger: logger,
 	}
@@ -37,6 +37,7 @@ func main() {
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", p.handler()).Methods("POST")
+	r.Use(p.recoveryHandler)
 	handler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,
@@ -76,4 +77,16 @@ func (proxy *proxy) writeError(w http.ResponseWriter, r *http.Request, statusCod
 		proxy.logger.Warningf("failed to call %s with error %v", r.URL.String(), err)
 	}
 	http.Error(w, fmt.Sprintf("{ \"error\": \"%s\" }", err), statusCode)
+}
+
+func (proxy *proxy) recoveryHandler(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if r := recover(); r != nil {
+				proxy.logger.Error(r)
+				http.Error(w, fmt.Sprintf("recovered from: %v", r), http.StatusInternalServerError)
+			}
+		}()
+		h.ServeHTTP(w, r)
+	})
 }
