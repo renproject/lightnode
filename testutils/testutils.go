@@ -27,14 +27,14 @@ func ValidRequest(method string) jsonrpc.Request {
 	case jsonrpc.MethodQueryBlock:
 		return jsonrpc.Request{
 			Version: "2.0",
-			ID:      1,
+			ID:      float64(1),
 			Method:  method,
 			Params:  json.RawMessage{},
 		}
 	case jsonrpc.MethodQueryBlocks:
 		return jsonrpc.Request{
 			Version: "2.0",
-			ID:      1,
+			ID:      float64(1),
 			Method:  method,
 			Params:  json.RawMessage{},
 		}
@@ -46,7 +46,7 @@ func ValidRequest(method string) jsonrpc.Request {
 		}
 		return jsonrpc.Request{
 			Version: "2.0",
-			ID:      1,
+			ID:      float64(1),
 			Method:  method,
 			Params:  rawMsg,
 		}
@@ -58,21 +58,21 @@ func ValidRequest(method string) jsonrpc.Request {
 		}
 		return jsonrpc.Request{
 			Version: "2.0",
-			ID:      1,
+			ID:      float64(1),
 			Method:  method,
 			Params:  rawMsg,
 		}
 	case jsonrpc.MethodQueryNumPeers:
 		return jsonrpc.Request{
 			Version: "2.0",
-			ID:      1,
+			ID:      float64(1),
 			Method:  method,
 			Params:  json.RawMessage{},
 		}
 	case jsonrpc.MethodQueryPeers:
 		return jsonrpc.Request{
 			Version: "2.0",
-			ID:      1,
+			ID:      float64(1),
 			Method:  method,
 			Params:  json.RawMessage{},
 		}
@@ -81,7 +81,7 @@ func ValidRequest(method string) jsonrpc.Request {
 	case jsonrpc.MethodQueryStat:
 		return jsonrpc.Request{
 			Version: "2.0",
-			ID:      1,
+			ID:      float64(1),
 			Method:  method,
 			Params:  json.RawMessage{},
 		}
