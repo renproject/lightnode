@@ -1,85 +1,79 @@
 package main
 
 import (
-	"math/rand"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/evalphobia/logrus_sentry"
-	"github.com/renproject/lightnode"
-	"github.com/republicprotocol/renp2p-go/core/peer"
+	"github.com/gorilla/mux"
+	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	// Retrieve environment variables.
-	port := os.Getenv("PORT")
-	name := os.Getenv("HEROKU_APP_NAME")
-	version := os.Getenv("HEROKU_RELEASE_VERSION")
-	commit := os.Getenv("HEROKU_SLUG_COMMIT")[:7]
-	sentryURL := os.Getenv("SENTRY_URL")
-	cap, err := strconv.Atoi(os.Getenv("CAP"))
-	if err != nil {
-		cap = 128
-	}
-	workers, err := strconv.Atoi(os.Getenv("WORKERS"))
-	if err != nil {
-		workers = 16
-	}
-	timeout, err := strconv.Atoi(os.Getenv("TIMEOUT"))
-	if err != nil {
-		timeout = 60
-	}
-	pollRate, err := strconv.Atoi(os.Getenv("POLL_RATE"))
-	if err != nil {
-		pollRate = 300
-	}
-	peerCount, err := strconv.Atoi(os.Getenv("PEER_COUNT"))
-	if err != nil {
-		peerCount = 5
-	}
-	maxBatchSize, err := strconv.Atoi(os.Getenv("MAX_BATCH_SIZE"))
-	if err != nil {
-		maxBatchSize = 10
-	}
-	addresses := strings.Split(os.Getenv("ADDRESSES"), ",")
-
-	// Seed random number generator.
-	rand.Seed(time.Now().UnixNano())
-
 	// Setup logger and attach Sentry hook.
 	logger := logrus.New()
-	if !strings.Contains(name, "devnet") {
-		tags := map[string]string{
-			"name": name,
-		}
-
-		hook, err := logrus_sentry.NewWithTagsSentryHook(sentryURL, tags, []logrus.Level{
-			logrus.PanicLevel,
-			logrus.FatalLevel,
-			logrus.ErrorLevel,
-			logrus.WarnLevel,
-		})
-		if err != nil {
-			logger.Fatalf("cannot create a sentry hook: %v", err)
-		}
-		hook.Timeout = 500 * time.Millisecond
-		logger.AddHook(hook)
+	hook, err := logrus_sentry.NewSentryHook(os.Getenv("SENTRY_DSN"), []logrus.Level{
+		logrus.PanicLevel,
+		logrus.FatalLevel,
+		logrus.ErrorLevel,
+		logrus.WarnLevel,
+	})
+	if err != nil {
+		logger.Fatalf("cannot create a sentry hook: %v", err)
 	}
+	hook.Timeout = 500 * time.Millisecond
+	logger.AddHook(hook)
 
-	bootstrapMultiAddrs := make([]peer.MultiAddr, len(addresses))
-	for i := range addresses {
-		multiAddr, err := peer.NewMultiAddr(addresses[i], 0, [65]byte{})
-		if err != nil {
-			logger.Fatalf("invalid bootstrap addresses: %v", err)
-		}
-		bootstrapMultiAddrs[i] = multiAddr
+	p := proxy{
+		url:    os.Getenv("DARKNODE_URL"),
+		logger: logger,
 	}
+	port := os.Getenv("PORT")
 
-	// Start running Lightnode.
-	done := make(chan struct{})
-	node := lightnode.New(logger, cap, workers, time.Duration(timeout)*time.Second, 5*time.Minute, version+"-"+commit, port, bootstrapMultiAddrs, time.Duration(pollRate)*time.Second, peerCount, maxBatchSize)
-	node.Run(done)
+	r := mux.NewRouter()
+	r.HandleFunc("", p.handler()).Methods("POST")
+	handler := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowCredentials: true,
+		AllowedMethods:   []string{"POST"},
+	}).Handler(r)
+	log.Printf("Listening on port %v...", port)
+	http.ListenAndServe(fmt.Sprintf(":%v", port), handler)
+}
+
+type proxy struct {
+	url    string
+	logger logrus.FieldLogger
+}
+
+func (proxy *proxy) handler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		resp, err := http.Post(proxy.url, "application/json", r.Body)
+		if err != nil {
+			proxy.writeError(w, r, resp.StatusCode, err)
+			return
+		}
+		data, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			proxy.writeError(w, r, resp.StatusCode, err)
+			return
+		}
+		w.WriteHeader(resp.StatusCode)
+		w.Write(data)
+	}
+}
+
+func (proxy *proxy) writeError(w http.ResponseWriter, r *http.Request, statusCode int, err error) {
+	if statusCode >= 500 {
+		proxy.logger.Errorf("failed to call %s with error %v", r.URL.String(), err)
+	}
+	if statusCode >= 400 {
+		proxy.logger.Warningf("failed to call %s with error %v", r.URL.String(), err)
+	}
+	http.Error(w, fmt.Sprintf("{ \"error\": \"%s\" }", err), statusCode)
 }
