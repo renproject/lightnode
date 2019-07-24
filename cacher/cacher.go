@@ -1,6 +1,7 @@
 package cacher
 
 import (
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/server"
 	"github.com/renproject/phi"
@@ -14,11 +15,15 @@ type Cacher struct {
 	logger     logrus.FieldLogger
 	dispatcher phi.Sender
 
-	cache map[ID]jsonrpc.Response
+	cache *lru.Cache
 }
 
 func New(dispatcher phi.Sender, logger logrus.FieldLogger, cap int, opts phi.Options) phi.Task {
-	return phi.New(&Cacher{logger, dispatcher, make(map[ID]jsonrpc.Response, cap)}, opts)
+	cache, err := lru.New(cap)
+	if err != nil {
+		logger.Panicf("[cacher] cannot create LRU cache: %v", err)
+	}
+	return phi.New(&Cacher{logger, dispatcher, cache}, opts)
 }
 
 func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
@@ -28,7 +33,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	}
 
 	request, err := msg.Request.Params.MarshalJSON()
-	{
+	if err != nil {
 		cacher.logger.Errorf("[cacher] cannot marshal request to json: %v", err)
 	}
 
@@ -51,13 +56,14 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 }
 
 func (cacher *Cacher) insert(id ID, response jsonrpc.Response) {
-	cacher.cache[id] = response
-	return
+	cacher.cache.Add(id, response)
 }
 
 func (cacher *Cacher) get(id ID) (jsonrpc.Response, bool) {
-	response, ok := cacher.cache[id]
-	return response, ok
+	if response, ok := cacher.cache.Get(id); ok {
+		return response.(jsonrpc.Response), ok
+	}
+	return jsonrpc.Response{}, false
 }
 
 func hash(data []byte) ID {

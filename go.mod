@@ -8,6 +8,7 @@ require (
 	github.com/golang/protobuf v1.3.2 // indirect
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/gorilla/mux v1.7.3
+	github.com/hashicorp/golang-lru v0.5.1
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/miguelmota/go-ethereum-hdwallet v0.0.0-20190720004541-5f6b3168e4a0 // indirect
 	github.com/onsi/ginkgo v1.8.0
