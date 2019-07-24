@@ -15,29 +15,46 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var IP4 = "0.0.0.0"
+var PORT = "5000"
+
+func initServer(ctx context.Context) <-chan phi.Message {
+	logger := logrus.New()
+	options := server.Options{MaxBatchSize: 2}
+	inspector, messages := testutils.NewInspector(100)
+	server := server.New(logger, PORT, options, inspector)
+
+	go inspector.Run(ctx)
+	go server.Run()
+
+	waitForInit(messages)
+	return messages
+}
+
+func sendRequest(request jsonrpc.Request) {
+	timeout := time.Second
+	url := fmt.Sprintf("http://%s:%s", IP4, PORT)
+	client.SendToDarknode(url, request, timeout)
+}
+
+func waitForInit(messages <-chan phi.Message) {
+	for {
+		request := jsonrpc.Request{
+			Version: "2.0",
+			Method:  jsonrpc.MethodSubmitTx,
+		}
+		sendRequest(request)
+
+		select {
+		case <-time.After(10 * time.Millisecond):
+			continue
+		case <-messages:
+			return
+		}
+	}
+}
+
 var _ = Describe("Lightnode server", func() {
-	IP4 := "0.0.0.0"
-	PORT := "5000"
-
-	initServer := func(ctx context.Context) <-chan phi.Message {
-		logger := logrus.New()
-		options := server.Options{MaxBatchSize: 2}
-		inspector, messages := testutils.NewInspector(100)
-		server := server.New(logger, PORT, options, inspector)
-
-		go inspector.Run(ctx)
-		go server.Run()
-
-		return messages
-	}
-
-	sendRequest := func(request jsonrpc.Request) {
-		timeout := time.Second
-		url := fmt.Sprintf("http://%s:%s", IP4, PORT)
-		fmt.Printf("sending request to %s\n", url)
-		client.SendToDarknode(url, request, timeout)
-	}
-
 	Context("When Running a server", func() {
 		It("Should pass a valid message through", func() {
 			ctx, cancel := context.WithCancel(context.Background())
@@ -48,7 +65,6 @@ var _ = Describe("Lightnode server", func() {
 				Method:  jsonrpc.MethodSubmitTx,
 			}
 
-			time.Sleep(50 * time.Millisecond)
 			sendRequest(request)
 			select {
 			case <-time.After(time.Second):
