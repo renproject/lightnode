@@ -2,6 +2,8 @@ package validator_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -34,11 +36,15 @@ var _ = Describe("Validator", func() {
 			validator, messages := initValidator(ctx)
 
 			for method, _ := range jsonrpc.RPCs {
+				// TODO: This method is not supported right now, but when it is
+				// this case should be tested too.
 				if method == jsonrpc.MethodQueryEpoch {
 					continue
 				}
+
 				request := testutils.ValidRequest(method)
 				validator.Send(server.NewRequestWithResponder(request))
+
 				select {
 				case <-time.After(time.Second):
 					Fail("timeout")
@@ -47,6 +53,107 @@ var _ = Describe("Validator", func() {
 					Expect(ok).To(BeTrue())
 					Expect(req.Request).To(Equal(request))
 					Expect(req.Responder).To(Not(BeNil()))
+					Eventually(req.Responder).ShouldNot(Receive())
+				}
+			}
+		})
+
+		It("Should return an error response when the jsonrpc field of the request is not 2.0", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			validator, messages := initValidator(ctx)
+
+			// TODO: Is it worth fuzz testing on the other request fields?
+			request := testutils.ValidRequest(jsonrpc.MethodQueryBlock)
+			request.Version = "1.0"
+			req := server.NewRequestWithResponder(request)
+			validator.Send(req)
+
+			select {
+			case <-time.After(time.Second):
+				Fail("timeout")
+			case res := <-req.Responder:
+				expectedErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidRequest, fmt.Sprintf("invalid jsonrpc field: expected \"2.0\", got \"%s\"", request.Version), json.RawMessage{})
+
+				Expect(res.Version).To(Equal("2.0"))
+				Expect(res.ID).To(Equal(request.ID))
+				Expect(res.Result).To(BeNil())
+				Expect(*res.Error).To(Equal(expectedErr))
+				Eventually(messages).ShouldNot(Receive())
+			}
+		})
+
+		It("Should return an error response when the method is not supported", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			validator, messages := initValidator(ctx)
+
+			// TODO: Is it worth fuzz testing on the other request fields?
+			request := testutils.ValidRequest(jsonrpc.MethodQueryBlock)
+			request.Method = "method"
+			req := server.NewRequestWithResponder(request)
+			validator.Send(req)
+
+			select {
+			case <-time.After(time.Second):
+				Fail("timeout")
+			case res := <-req.Responder:
+				expectedErr := jsonrpc.NewError(jsonrpc.ErrorCodeMethodNotFound, fmt.Sprintf("unsupported method %s", request.Method), json.RawMessage{})
+
+				Expect(res.Version).To(Equal("2.0"))
+				Expect(res.ID).To(Equal(request.ID))
+				Expect(res.Result).To(BeNil())
+				Expect(*res.Error).To(Equal(expectedErr))
+				Eventually(messages).ShouldNot(Receive())
+			}
+		})
+
+		It("Should return an error response when the method does not match the parameters", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			validator, messages := initValidator(ctx)
+
+			for method, _ := range jsonrpc.RPCs {
+				// TODO: Is it worth fuzz testing on the other request fields?
+				var params json.RawMessage
+				var err error
+				switch method {
+				case jsonrpc.MethodQueryBlock,
+					jsonrpc.MethodQueryBlocks,
+					jsonrpc.MethodQueryNumPeers,
+					jsonrpc.MethodQueryPeers,
+					jsonrpc.MethodQueryStat:
+					params, err = json.Marshal("{field: value}")
+					if err != nil {
+						panic(fmt.Sprintf("marshalling error: %v", err))
+					}
+				case jsonrpc.MethodSubmitTx:
+					params = json.RawMessage{}
+				case jsonrpc.MethodQueryTx:
+					params = json.RawMessage{}
+				case jsonrpc.MethodQueryEpoch:
+					// TODO: This method is not supported right now, but when
+					// it is this case should be tested too.
+					continue
+				default:
+					panic(fmt.Sprintf("unexpected method %s", method))
+				}
+				request := testutils.ValidRequest(method)
+				request.Params = params
+				req := server.NewRequestWithResponder(request)
+				validator.Send(req)
+
+				select {
+				case <-time.After(time.Second):
+					Fail("timeout")
+				case res := <-req.Responder:
+					expectedErr := jsonrpc.NewError(server.ErrorCodeInvalidParams, "invalid parameters in request: parameters object does not match method", json.RawMessage{})
+
+					Expect(res.Version).To(Equal("2.0"))
+					Expect(res.ID).To(Equal(request.ID))
+					Expect(res.Result).To(BeNil())
+					Expect(*res.Error).To(Equal(expectedErr))
+					Eventually(messages).ShouldNot(Receive())
 				}
 			}
 		})
