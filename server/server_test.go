@@ -39,10 +39,7 @@ func sendRequest(request jsonrpc.Request) {
 
 func waitForInit(messages <-chan phi.Message) {
 	for {
-		request := jsonrpc.Request{
-			Version: "2.0",
-			Method:  jsonrpc.MethodSubmitTx,
-		}
+		request := testutils.ValidRequest(jsonrpc.MethodSubmitTx)
 		sendRequest(request)
 
 		select {
@@ -60,10 +57,7 @@ var _ = Describe("Lightnode server", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			messages := initServer(ctx)
-			request := jsonrpc.Request{
-				Version: "2.0",
-				Method:  jsonrpc.MethodSubmitTx,
-			}
+			request := testutils.ValidRequest(jsonrpc.MethodSubmitTx)
 
 			sendRequest(request)
 			select {
