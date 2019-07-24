@@ -64,6 +64,7 @@ func (proxy *proxy) handler() http.HandlerFunc {
 			proxy.writeError(w, r, resp.StatusCode, err)
 			return
 		}
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(resp.StatusCode)
 		w.Write(data)
 	}
