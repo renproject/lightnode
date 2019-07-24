@@ -43,8 +43,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 
 	go func() {
 		phi.ParForAll(addrs, func(i int) {
-			client := client.New(dispatcher.timeout)
-			response, err := client.SendToDarknode(addrs[i], msg.Request)
+			response, err := client.SendToDarknode(client.URLFromMulti(addrs[i]), msg.Request, dispatcher.timeout)
 			if err != nil {
 				errMsg := fmt.Sprintf("lightnode could not forward response to darknode: %v", err)
 				err := jsonrpc.NewError(server.ErrorCodeForwardingError, errMsg, json.RawMessage{})

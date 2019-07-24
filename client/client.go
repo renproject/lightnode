@@ -12,21 +12,11 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 )
 
-type Client struct {
-	timeout time.Duration
-}
-
-func New(timeout time.Duration) Client {
-	return Client{timeout}
-}
-
 // NOTE: If err is not nil, it is expected that the caller will construct an
 // appropriate error response message.
-func (client *Client) SendToDarknode(addr addr.MultiAddress, req jsonrpc.Request) (jsonrpc.Response, error) {
+func SendToDarknode(url string, req jsonrpc.Request, timeout time.Duration) (jsonrpc.Response, error) {
 	httpClient := new(http.Client)
-	httpClient.Timeout = client.timeout
-
-	url := fmt.Sprintf("http://%s:%v", addr.IP4(), addr.Port()+1)
+	httpClient.Timeout = timeout
 
 	// Construct HTTP request.
 	body, err := json.Marshal(req)
@@ -51,4 +41,8 @@ func (client *Client) SendToDarknode(addr addr.MultiAddress, req jsonrpc.Request
 	var resp jsonrpc.Response
 	err = json.NewDecoder(response.Body).Decode(&resp)
 	return resp, err
+}
+
+func URLFromMulti(addr addr.MultiAddress) string {
+	return fmt.Sprintf("http://%s:%v", addr.IP4(), addr.Port()+1)
 }
