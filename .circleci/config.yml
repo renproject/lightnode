@@ -12,7 +12,12 @@ jobs:
       - checkout
       - restore_cache: # Restore saved cache if no changes are detected since last run
           key: go-mod-v1-{{ checksum "go.sum" }}
-      - run: go test -v ./...
+      - run:
+        name: Run tests
+        command: go test -v ./...
+      - run:
+        name: Run linter
+        command: golint ./...
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
