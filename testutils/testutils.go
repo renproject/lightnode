@@ -89,3 +89,12 @@ func ValidRequest(method string) jsonrpc.Request {
 		panic("invalid method")
 	}
 }
+
+func ErrorResponse(id interface{}) jsonrpc.Response {
+	err := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "test error message", json.RawMessage([]byte("{}")))
+	return jsonrpc.Response{
+		Version: "2.0",
+		ID:      id,
+		Error:   &err,
+	}
+}

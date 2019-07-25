@@ -122,7 +122,8 @@ func validQueryBlocksParams(params json.RawMessage) (bool, string) {
 }
 
 func validSubmitTxParams(params jsonrpc.ParamsSubmitTx) (bool, string) {
-	// TODO: Check fields.
+	// TODO: Check fields. Do we want to use the entire darknode transform
+	// pipeline to check validity?
 	return true, ""
 }
 
