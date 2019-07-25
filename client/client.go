@@ -12,6 +12,9 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 )
 
+// SendToDarknode sends a given request to the darknode at the given url. The
+// timeout is the timeout for the request.
+//
 // NOTE: If err is not nil, it is expected that the caller will construct an
 // appropriate error response message.
 func SendToDarknode(url string, req jsonrpc.Request, timeout time.Duration) (jsonrpc.Response, error) {
@@ -43,6 +46,10 @@ func SendToDarknode(url string, req jsonrpc.Request, timeout time.Duration) (jso
 	return resp, err
 }
 
+// URLFromMulti converts a `addr.MultiAddress` to a url string appropriate for
+// sending a JSON-RPC request to a darknode. The port is defined in the multi
+// address is incremented by one because of darknode specific logic about what
+// the JSON-RPC port is.
 func URLFromMulti(addr addr.MultiAddress) string {
 	return fmt.Sprintf("http://%s:%v", addr.IP4(), addr.Port()+1)
 }

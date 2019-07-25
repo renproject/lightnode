@@ -12,12 +12,22 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+// ID is a key for a cached response.
 type ID [32]byte
 
 func (id ID) String() string {
 	return string(id[:32])
 }
 
+// Cacher is a task responsible for caching responses for corresponding
+// requests. Upon receiving a request (in the current architecture this request
+// comes from the `Validator`) it will check its cache to see if it has a
+// cached response. If it does, it will write this immediately as a repsonse,
+// otherwise it will forward the request on to the `Dispatcher`. Once the
+// `Dispatcher` has a response ready, the `Cacher` will store this response in
+// its cache with a key derived from the request, and then pass the repsonse
+// along to be given to the client. Currently, idempotent requests are stored
+// in a LRU cache, and non-idempotent requests are stored in a TTL cache.
 type Cacher struct {
 	logger     logrus.FieldLogger
 	dispatcher phi.Sender
@@ -27,6 +37,7 @@ type Cacher struct {
 	ttlCache kv.Iterable
 }
 
+// New constructs a new `Cacher` as a `phi.Task` which can be `Run()`.
 func New(dispatcher phi.Sender, logger logrus.FieldLogger, cap int, ttl time.Duration, opts phi.Options) phi.Task {
 	cache, err := lru.New(cap)
 	if err != nil {
@@ -39,6 +50,7 @@ func New(dispatcher phi.Sender, logger logrus.FieldLogger, cap int, ttl time.Dur
 	return phi.New(&Cacher{logger, dispatcher, cache, ttlCache}, opts)
 }
 
+// Handle implements the `phi.Handler` interface.
 func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	msg, ok := message.(server.RequestWithResponder)
 	if !ok {

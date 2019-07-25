@@ -32,10 +32,13 @@ var (
 	ErrorCodeInvalidParams = -32004
 )
 
+// Options are used when constructing a `Server`.
 type Options struct {
+	// Maximum JSON-RPC batch size that will be accepted.
 	MaxBatchSize int
 }
 
+// Server defines the HTTP server for the lightnode.
 type Server struct {
 	port        string
 	logger      logrus.FieldLogger
@@ -44,6 +47,7 @@ type Server struct {
 	validator   phi.Sender
 }
 
+// New constructs a new `Server` with the given options.
 func New(logger logrus.FieldLogger, port string, options Options, validator phi.Sender) *Server {
 	rateLimiter := ratelimiter.New()
 	return &Server{
@@ -55,6 +59,7 @@ func New(logger logrus.FieldLogger, port string, options Options, validator phi.
 	}
 }
 
+// Run starts the `Server` listening on its port. This function is blocking.
 func (server *Server) Run() {
 	r := mux.NewRouter()
 	r.HandleFunc("/", server.handleFunc)
@@ -138,6 +143,8 @@ func (server *Server) writeResponses(w http.ResponseWriter, responses []jsonrpc.
 	}
 }
 
+// RequestWithResponder wraps a `jsonrpc.Request` with a responder channel that
+// the response will be written to.
 type RequestWithResponder struct {
 	Request   jsonrpc.Request
 	Responder chan jsonrpc.Response
@@ -146,6 +153,7 @@ type RequestWithResponder struct {
 // IsMessage implements the `phi.Message` interface.
 func (RequestWithResponder) IsMessage() {}
 
+// NewRequestWithResponder constructs a new request wrapper object.
 func NewRequestWithResponder(req jsonrpc.Request) RequestWithResponder {
 	responder := make(chan jsonrpc.Response, 1)
 	return RequestWithResponder{req, responder}

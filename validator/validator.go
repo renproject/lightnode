@@ -10,15 +10,21 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// A Validator takes as input requests and checks whether they meet some
+// baseline criteria that the darknodes expect. This means that obviously
+// invalid requests will not make it to the darknodes, but not all invalid
+// requests will get rejected.
 type Validator struct {
 	logger logrus.FieldLogger
 	cacher phi.Sender
 }
 
+// New constructs a new `Validator`.
 func New(cacher phi.Sender, logger logrus.FieldLogger, opts phi.Options) phi.Task {
 	return phi.New(&Validator{logger, cacher}, opts)
 }
 
+// Handle implements the `phi.Handler` interface.
 func (validator *Validator) Handle(_ phi.Task, message phi.Message) {
 	msg, ok := message.(server.RequestWithResponder)
 	if !ok {

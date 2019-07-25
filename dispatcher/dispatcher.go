@@ -3,25 +3,31 @@ package dispatcher
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/kv/db"
 	"github.com/renproject/lightnode/client"
 	"github.com/renproject/lightnode/server"
+	"github.com/renproject/lightnode/store"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
 
+// A Dispatcher is a task that is responsible for taking a request, sending it
+// to a subset of the darknodes, waiting for the corresponding results, and the
+// finally aggregating the results into a single result to be returned to the
+// client of the lightnode. The addresses of known darknodes are stored in a
+// store that is shared by the `Updater`, which will periodically update the
+// store so that the addresses of the known darkndoes are kept up to date.
 type Dispatcher struct {
 	logger     logrus.FieldLogger
 	timeout    time.Duration
-	multiStore db.Iterable
+	multiStore store.MultiAddrStore
 }
 
-func New(logger logrus.FieldLogger, timeout time.Duration, multiStore db.Iterable, opts phi.Options) phi.Task {
+// New constructs a new `Dispatcher`.
+func New(logger logrus.FieldLogger, timeout time.Duration, multiStore store.MultiAddrStore, opts phi.Options) phi.Task {
 	return phi.New(
 		&Dispatcher{
 			logger:     logger,
@@ -32,6 +38,7 @@ func New(logger logrus.FieldLogger, timeout time.Duration, multiStore db.Iterabl
 	)
 }
 
+// Handle implements the `phi.Handler` interface.
 func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 	msg, ok := message.(server.RequestWithResponder)
 	if !ok {
@@ -40,7 +47,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 
 	addrs := dispatcher.multiAddrs(msg.Request.Method)
 	responses := make(chan jsonrpc.Response, len(addrs))
-	resIter := responseIterator(msg.Request.Method)
+	resIter := newResponseIter(msg.Request.Method)
 
 	go func() {
 		phi.ParForAll(addrs, func(i int) {
@@ -82,95 +89,65 @@ func (dispatcher *Dispatcher) multiAddrs(method string) addr.MultiAddresses {
 	// updated when these policies have been decided in more detail.
 	switch method {
 	case jsonrpc.MethodQueryBlock:
-		return dispatcher.AddrsRandom(3)
+		return dispatcher.multiStore.AddrsRandom(3)
 	case jsonrpc.MethodQueryBlocks:
-		return dispatcher.AddrsRandom(3)
+		return dispatcher.multiStore.AddrsRandom(3)
 	case jsonrpc.MethodSubmitTx:
-		return dispatcher.AddrsAll()
+		return dispatcher.multiStore.AddrsAll()
 	case jsonrpc.MethodQueryTx:
-		return dispatcher.AddrsRandom(3)
+		return dispatcher.multiStore.AddrsRandom(3)
 	case jsonrpc.MethodQueryNumPeers:
-		return dispatcher.AddrsRandom(3)
+		return dispatcher.multiStore.AddrsRandom(3)
 	case jsonrpc.MethodQueryPeers:
-		return dispatcher.AddrsRandom(3)
+		return dispatcher.multiStore.AddrsRandom(3)
 	case jsonrpc.MethodQueryEpoch:
-		return dispatcher.AddrsRandom(3)
+		return dispatcher.multiStore.AddrsRandom(3)
 	case jsonrpc.MethodQueryStat:
-		return dispatcher.AddrsRandom(3)
+		return dispatcher.multiStore.AddrsRandom(3)
 	default:
 		dispatcher.logger.Panicf("[dispatcher] unsupported method %s encountered which should have been rejected by the validator", method)
 		panic("unreachable")
 	}
 }
 
-func (dispatcher *Dispatcher) AddrsAll() addr.MultiAddresses {
-	addrs := addr.MultiAddresses{}
-	for iter := dispatcher.multiStore.Iterator(); iter.Next(); {
-		str, err := iter.Key()
-		if err != nil {
-			panic("[dispatcher] iterator invariant violated")
-		}
-		address, err := addr.NewMultiAddressFromString(str)
-		if err != nil {
-			panic("[dispatcher] incorrectly stored multi address")
-		}
-		addrs = append(addrs, address)
-	}
-
-	return addrs
-}
-
-func (dispatcher *Dispatcher) AddrsRandom(n int) addr.MultiAddresses {
-	addrs := dispatcher.AddrsAll()
-
-	rand.Shuffle(len(addrs), func(i, j int) {
-		addrs[i], addrs[j] = addrs[j], addrs[i]
-	})
-
-	if len(addrs) < n {
-		return addrs
-	}
-	return addrs[:n]
-}
-
-func responseIterator(method string) ResponseIterator {
+func newResponseIter(method string) responseIterator {
 	// TODO: The following is an initial choice of response aggregation
 	// policies, which are likely to not be what we use long term. These should
 	// be updated when these policies have been decided in more detail.
 	switch method {
 	case jsonrpc.MethodQueryBlock:
-		return NewFirstResponseIterator()
+		return newFirstResponseIterator()
 	case jsonrpc.MethodQueryBlocks:
-		return NewFirstResponseIterator()
+		return newFirstResponseIterator()
 	case jsonrpc.MethodSubmitTx:
 		// TODO: This should instead return an iterator that will check for a
 		// threshold of consistent responses.
-		return NewFirstResponseIterator()
+		return newFirstResponseIterator()
 	case jsonrpc.MethodQueryTx:
-		return NewFirstResponseIterator()
+		return newFirstResponseIterator()
 	case jsonrpc.MethodQueryNumPeers:
-		return NewFirstResponseIterator()
+		return newFirstResponseIterator()
 	case jsonrpc.MethodQueryPeers:
-		return NewFirstResponseIterator()
+		return newFirstResponseIterator()
 	case jsonrpc.MethodQueryEpoch:
-		return NewFirstResponseIterator()
+		return newFirstResponseIterator()
 	case jsonrpc.MethodQueryStat:
-		return NewFirstResponseIterator()
+		return newFirstResponseIterator()
 	default:
 		panic(fmt.Sprintf("[dispatcher] unsupported method %s encountered which should have been rejected by the validator", method))
 	}
 }
 
-type ResponseIterator interface {
+type responseIterator interface {
 	update(jsonrpc.Response, bool) (bool, jsonrpc.Response)
 }
 
-type FirstResponseIterator struct{}
+type firstResponseIterator struct{}
 
-func NewFirstResponseIterator() ResponseIterator {
-	return FirstResponseIterator{}
+func newFirstResponseIterator() responseIterator {
+	return firstResponseIterator{}
 }
 
-func (FirstResponseIterator) update(res jsonrpc.Response, final bool) (bool, jsonrpc.Response) {
+func (firstResponseIterator) update(res jsonrpc.Response, final bool) (bool, jsonrpc.Response) {
 	return true, res
 }

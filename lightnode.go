@@ -9,12 +9,15 @@ import (
 	"github.com/renproject/lightnode/cacher"
 	"github.com/renproject/lightnode/dispatcher"
 	"github.com/renproject/lightnode/server"
+	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/updater"
 	"github.com/renproject/lightnode/validator"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
 
+// Lightnode is the top level container that encapsulates the functionality of
+// the lightnode.
 type Lightnode struct {
 	logger logrus.FieldLogger
 	server *server.Server
@@ -27,6 +30,7 @@ type Lightnode struct {
 	updater updater.Updater
 }
 
+// New constructs a new `Lightnode`.
 func New(logger logrus.FieldLogger, timeout time.Duration, cap, cacheCap int, port string, maxBatchSize int, bootstrapAddrs addr.MultiAddresses, pollRate, ttl time.Duration) Lightnode {
 	// All tasks have the same capacity, and no scaling
 	opts := phi.Options{Cap: cap}
@@ -34,11 +38,10 @@ func New(logger logrus.FieldLogger, timeout time.Duration, cap, cacheCap int, po
 	// Server options
 	options := server.Options{MaxBatchSize: maxBatchSize}
 
-	// Store to be used by both the updater (which updates the store) and the
-	// dispatcher (which reads from the store)
-	multiStore := kv.NewMemDB()
+	// TODO: Insert the bootstrap addresses into the store first.
+	multiStore := store.New(kv.NewMemDB())
 
-	updater := updater.New(logger, bootstrapAddrs, multiStore, pollRate, timeout)
+	updater := updater.New(logger, multiStore, pollRate, timeout)
 	dispatcher := dispatcher.New(logger, timeout, multiStore, opts)
 	cacher := cacher.New(dispatcher, logger, cacheCap, ttl, opts)
 	validator := validator.New(cacher, logger, opts)
@@ -54,6 +57,7 @@ func New(logger logrus.FieldLogger, timeout time.Duration, cap, cacheCap int, po
 	}
 }
 
+// Run starts the `Lightnode`. This function call is blocking.
 func (lightnode Lightnode) Run(ctx context.Context) {
 	go lightnode.updater.Run(ctx)
 	go lightnode.validator.Run(ctx)
