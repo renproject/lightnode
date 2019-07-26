@@ -78,22 +78,22 @@ func (updater *Updater) updateMultiAddress() {
 		// TODO: Maybe we shouldn't always delete an address when we can't
 		// query it; probably put some more intelligent logic here.
 		if err != nil {
-			updater.logger.Warnf("cannot connect to node %v: %v", multi.String(), err)
+			updater.logger.Warnf("[updater] cannot connect to node %v: %v", multi.String(), err)
 			updater.multiStore.Delete(multi)
 			return
 		}
 
 		// Parse the response and write any multi-addresses returned by the node to the store.
-		resp, ok := response.Result.(p2p.QueryPeersResponse)
-		if !ok {
-			updater.logger.Panicf("unexpected response type %T", response.Result)
+		raw, err := json.Marshal(response.Result)
+		if err != nil {
+			updater.logger.Panicf("[updater] error marshaling and already unmarshaled result: %v", err)
 		}
-		for _, node := range resp.MultiAddresses {
-			multiAddr, err := addr.NewMultiAddressFromString(node.String())
-			if err != nil {
-				updater.logger.Errorf("invalid QueryPeersResponse from node %v: %v", multi.String(), err)
-				return
-			}
+		var resp p2p.QueryPeersResponse
+		err = json.Unmarshal(raw, &resp)
+		if err != nil {
+			updater.logger.Panicf("[updater] could not unmarshal into expected result type: %v", err)
+		}
+		for _, multiAddr := range resp.MultiAddresses {
 			if err := updater.multiStore.Insert(multiAddr); err != nil {
 				updater.logger.Errorf("cannot add multi-address to store: %v", err)
 				return

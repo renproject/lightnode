@@ -35,13 +35,13 @@ func (inspector *Inspector) Handle(_ phi.Task, message phi.Message) {
 // A MockDarknode simulates a darknode by providing basic responses to incoming
 // requests.
 type MockDarknode struct {
-	port  string
+	port  int
 	peers addr.MultiAddresses
 }
 
 // NewMockDarknode constructs a new `MockDarknode` that will (when `Run()`)
 // listen on the given port.
-func NewMockDarknode(port string, peers addr.MultiAddresses) MockDarknode {
+func NewMockDarknode(port int, peers addr.MultiAddresses) MockDarknode {
 	return MockDarknode{port, peers}
 }
 
@@ -58,7 +58,7 @@ func (dn MockDarknode) Run() {
 	}).Handler(r)
 
 	// Start running the server.
-	http.ListenAndServe(fmt.Sprintf(":%s", dn.port), httpHandler)
+	http.ListenAndServe(fmt.Sprintf(":%v", dn.port), httpHandler)
 }
 
 func (dn *MockDarknode) handleFunc(w http.ResponseWriter, r *http.Request) {
@@ -194,4 +194,16 @@ func ErrorResponse(id interface{}) jsonrpc.Response {
 		ID:      id,
 		Error:   &err,
 	}
+}
+
+// NewMultiFromIPAndPort creates a new multi address with the given ip addres
+// and port, where the REN address is constant and valid.
+func NewMultiFromIPAndPort(ip string, port int) addr.MultiAddress {
+	address := addr.FromBase58("8MJcAFBHuYBeJp7zP1rXYMPTeJoYjs")
+	value := fmt.Sprintf("/ren/%s/ip4/%v/tcp/%v", address, ip, port)
+	multi, err := addr.NewMultiAddressFromString(value)
+	if err != nil {
+		panic("could not create multi address")
+	}
+	return multi
 }

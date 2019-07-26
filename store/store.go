@@ -19,6 +19,7 @@ func New(store db.Iterable) MultiAddrStore {
 
 // Insert puts the given multi address into the store.
 func (multiStore *MultiAddrStore) Insert(addr addr.MultiAddress) error {
+	// TODO: What is a better key/value pair to store?
 	return multiStore.store.Insert(addr.String(), []byte(addr.String()))
 }
 
@@ -26,6 +27,16 @@ func (multiStore *MultiAddrStore) Insert(addr addr.MultiAddress) error {
 func (multiStore *MultiAddrStore) Delete(addr addr.MultiAddress) {
 	// NOTE: The `Delete` function always returns a nil error, so we ignore it.
 	_ = multiStore.store.Delete(addr.String())
+}
+
+// Size returns the number of entries in the store.
+func (multiStore *MultiAddrStore) Size() int {
+	size, err := multiStore.store.Size()
+	if err != nil {
+		// TODO: Is it ok to panic here?
+		panic("[store] could not get size of store")
+	}
+	return size
 }
 
 // AddrsAll returns all of the multi addressses that are currently in the
