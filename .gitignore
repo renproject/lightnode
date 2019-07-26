@@ -1,11 +1,3 @@
-# IDE
-.idea
-
-# Dependencies
-vendor
-
 # Test coverage
 *.coverprofile
-
-# Environment variables
-.env
+*.html
