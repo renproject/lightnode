@@ -83,13 +83,17 @@ func (dn *MockDarknode) handleFunc(w http.ResponseWriter, r *http.Request) {
 func (dn *MockDarknode) response(req jsonrpc.Request) jsonrpc.Response {
 	switch req.Method {
 	case jsonrpc.MethodQueryBlock:
-		panic("unimplemented")
+		// TODO: Send a more appropriate response.
+		return ErrorResponse(req.ID)
 	case jsonrpc.MethodQueryBlocks:
-		panic("unimplemented")
+		// TODO: Send a more appropriate response.
+		return ErrorResponse(req.ID)
 	case jsonrpc.MethodSubmitTx:
-		panic("unimplemented")
+		// TODO: Send a more appropriate response.
+		return ErrorResponse(req.ID)
 	case jsonrpc.MethodQueryTx:
-		panic("unimplemented")
+		// TODO: Send a more appropriate response.
+		return ErrorResponse(req.ID)
 	case jsonrpc.MethodQueryNumPeers:
 		result := p2p.QueryNumPeersResponse{Err: nil, NumPeers: len(dn.peers)}
 		return jsonrpcResponse(req.ID, result, nil)
@@ -100,7 +104,8 @@ func (dn *MockDarknode) response(req jsonrpc.Request) jsonrpc.Response {
 		// TODO: Implement once this method is supported by the darknodes.
 		panic("[mock darknode] querying epochs not yet supported")
 	case jsonrpc.MethodQueryStat:
-		panic("unimplemented")
+		// TODO: Send a more appropriate response.
+		return ErrorResponse(req.ID)
 	default:
 		panic(fmt.Sprintf("[mock darknode] unsupported method %s", req.Method))
 	}

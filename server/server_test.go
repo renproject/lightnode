@@ -68,6 +68,8 @@ var _ = Describe("Lightnode server", func() {
 				Expect(ok).To(BeTrue())
 				Expect(req.Request).To(Equal(request))
 				Expect(req.Responder).To(Not(BeNil()))
+
+				req.Responder <- testutils.ErrorResponse(req.Request.ID)
 			}
 		})
 	})
