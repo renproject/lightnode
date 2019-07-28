@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -52,16 +53,25 @@ type proxy struct {
 	logger logrus.FieldLogger
 }
 
+// Error defines a JSON error object that is compatible with the JSON-RPC 2.0
+// specification. See https://www.jsonrpc.org/specification for more
+// information.
+type Error struct {
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data"`
+}
+
 func (proxy *proxy) handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		resp, err := http.Post(proxy.url, "application/json", r.Body)
 		if err != nil {
-			proxy.writeError(w, r, resp.StatusCode, err)
+			proxy.writeError(w, r, resp.StatusCode, Error{Code: -32097, Message: fmt.Sprintf("failed to talk to the darknode at %s: %v", proxy.url, err)})
 			return
 		}
 		data, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			proxy.writeError(w, r, resp.StatusCode, err)
+			proxy.writeError(w, r, resp.StatusCode, Error{Code: -32098, Message: fmt.Sprintf("failed to read the response from the darknode at %s: %v", proxy.url, err)})
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -70,22 +80,31 @@ func (proxy *proxy) handler() http.HandlerFunc {
 	}
 }
 
-func (proxy *proxy) writeError(w http.ResponseWriter, r *http.Request, statusCode int, err error) {
+func (proxy *proxy) writeError(w http.ResponseWriter, r *http.Request, statusCode int, err Error) {
 	if statusCode >= 500 {
 		proxy.logger.Errorf("failed to call %s with error %v", r.URL.String(), err)
 	}
 	if statusCode >= 400 {
 		proxy.logger.Warningf("failed to call %s with error %v", r.URL.String(), err)
 	}
-	http.Error(w, fmt.Sprintf("{ \"error\": \"%s\" }", err), statusCode)
+	if err := json.NewEncoder(w).Encode(err); err != nil {
+		proxy.logger.Errorf("failed to send an error back: %v", r.URL.String(), err)
+	}
 }
 
 func (proxy *proxy) recoveryHandler(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
-			if r := recover(); r != nil {
-				proxy.logger.Error(r)
-				http.Error(w, fmt.Sprintf("recovered from: %v", r), http.StatusInternalServerError)
+			if err := recover(); err != nil {
+				proxy.writeError(
+					w,
+					r,
+					http.StatusInternalServerError,
+					Error{
+						Code:    -32099,
+						Message: fmt.Sprintf("recovered from a panic in the lightnode: %v", err),
+					},
+				)
 			}
 		}()
 		h.ServeHTTP(w, r)
