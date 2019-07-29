@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -64,29 +64,27 @@ type Error struct {
 
 func (proxy *proxy) handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		resp, err := http.Post(proxy.url, "application/json", r.Body)
 		if err != nil {
-			proxy.writeError(w, r, resp.StatusCode, Error{Code: -32097, Message: fmt.Sprintf("failed to talk to the darknode at %s: %v", proxy.url, err)})
+			proxy.writeError(w, r, http.StatusInternalServerError, Error{Code: -32097, Message: fmt.Sprintf("failed to talk to the darknode at %s: %v", proxy.url, err)})
 			return
 		}
-		data, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			proxy.writeError(w, r, resp.StatusCode, Error{Code: -32098, Message: fmt.Sprintf("failed to read the response from the darknode at %s: %v", proxy.url, err)})
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(resp.StatusCode)
-		w.Write(data)
+		if _, err := io.Copy(w, resp.Body); err != nil {
+			proxy.writeError(w, r, http.StatusInternalServerError, Error{Code: -32098, Message: fmt.Sprintf("failed to copy the response from the darknode at %s: %v", proxy.url, err)})
+			return
+		}
 	}
 }
 
 func (proxy *proxy) writeError(w http.ResponseWriter, r *http.Request, statusCode int, err Error) {
 	if statusCode >= 500 {
 		proxy.logger.Errorf("failed to call %s with error %v", r.URL.String(), err)
-	}
-	if statusCode >= 400 {
+	} else if statusCode >= 400 {
 		proxy.logger.Warningf("failed to call %s with error %v", r.URL.String(), err)
 	}
+	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(err); err != nil {
 		proxy.logger.Errorf("failed to send an error back: %v", r.URL.String(), err)
 	}
