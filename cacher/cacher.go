@@ -80,6 +80,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		// dispatcher, which is probably not ideal.
 		go func() {
 			response := <-responder
+			// TODO: Consider thread safety of insertion.
 			cacher.insert(reqID, response, msg.Request.Method)
 			msg.Responder <- response
 		}()

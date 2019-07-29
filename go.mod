@@ -3,6 +3,7 @@ module github.com/renproject/lightnode
 go 1.12
 
 require (
+	github.com/evalphobia/logrus_sentry v0.8.2
 	github.com/go-kit/kit v0.9.0 // indirect
 	github.com/go-logfmt/logfmt v0.4.0 // indirect
 	github.com/golang/protobuf v1.3.2 // indirect

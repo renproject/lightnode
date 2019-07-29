@@ -31,7 +31,7 @@ type Lightnode struct {
 }
 
 // New constructs a new `Lightnode`.
-func New(logger logrus.FieldLogger, timeout time.Duration, cap, cacheCap int, port string, maxBatchSize int, bootstrapAddrs addr.MultiAddresses, pollRate, ttl time.Duration) Lightnode {
+func New(logger logrus.FieldLogger, cap, cacheCap, maxBatchSize int, timeout, ttl, pollRate time.Duration, port string, bootstrapAddrs addr.MultiAddresses) Lightnode {
 	// All tasks have the same capacity, and no scaling
 	opts := phi.Options{Cap: cap}
 
