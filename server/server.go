@@ -78,7 +78,7 @@ func (server *Server) Run() {
 func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 	rawMessage := json.RawMessage{}
 	if err := json.NewDecoder(r.Body).Decode(&rawMessage); err != nil {
-		err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidJSON, "lightnode could not decode JSON request", json.RawMessage{})
+		err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidJSON, "lightnode could not decode JSON request", nil)
 		response := jsonrpc.NewResponse(0, nil, &err)
 		server.writeResponses(w, []jsonrpc.Response{response})
 		return
@@ -91,7 +91,7 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 		// request
 		var req jsonrpc.Request
 		if err := json.Unmarshal(rawMessage, &req); err != nil {
-			err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidJSON, "lightnode could not parse JSON request", json.RawMessage{})
+			err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidJSON, "lightnode could not parse JSON request", nil)
 			response := jsonrpc.NewResponse(0, nil, &err)
 			server.writeResponses(w, []jsonrpc.Response{response})
 			return
@@ -103,7 +103,7 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 	batchSize := len(reqs)
 	if batchSize > server.options.MaxBatchSize {
 		errMsg := fmt.Sprintf("maximum batch size exceeded: maximum is %v but got %v", server.options.MaxBatchSize, batchSize)
-		err := jsonrpc.NewError(ErrorCodeMaxBatchSizeExceeded, errMsg, json.RawMessage{})
+		err := jsonrpc.NewError(ErrorCodeMaxBatchSizeExceeded, errMsg, nil)
 		response := jsonrpc.NewResponse(0, nil, &err)
 		server.writeResponses(w, []jsonrpc.Response{response})
 		return
@@ -115,7 +115,7 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 	phi.ParForAll(reqs, func(i int) {
 		method := reqs[i].Method
 		if !server.rateLimiter.Allow(method, r.RemoteAddr) {
-			err := jsonrpc.NewError(ErrorCodeRateLimitExceeded, "rate limit exceeded", json.RawMessage{})
+			err := jsonrpc.NewError(ErrorCodeRateLimitExceeded, "rate limit exceeded", nil)
 			response := jsonrpc.NewResponse(0, nil, &err)
 			server.writeResponses(w, []jsonrpc.Response{response})
 			return
