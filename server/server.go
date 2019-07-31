@@ -126,22 +126,37 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 		responses[i] = <-reqWithResponder.Responder
 	})
 
-	server.writeResponses(w, responses)
+	if err := server.writeResponses(w, responses); err != nil {
+		server.logger.Errorf("error writing http response: %v", err)
+	}
 }
 
-func (server *Server) writeResponses(w http.ResponseWriter, responses []jsonrpc.Response) {
+func (server *Server) writeResponses(w http.ResponseWriter, responses []jsonrpc.Response) error {
 	w.Header().Set("Content-Type", "application/json")
 	if len(responses) == 1 {
-		if err := json.NewEncoder(w).Encode(responses[0]); err != nil {
-			server.logger.Errorf("error writing http response: %v", err)
-			return
+		// We use the `writeError` function to determine the relevant status code
+		// as we do not want to return a `http.StatusOK`.
+		if responses[0].Error != nil {
+			return writeError(w, responses[0].ID, *responses[0].Error)
 		}
-		return
+		return json.NewEncoder(w).Encode(responses[0])
 	}
-	if err := json.NewEncoder(w).Encode(responses); err != nil {
-		server.logger.Errorf("error writing http response: %v", err)
-		return
+	return json.NewEncoder(w).Encode(responses)
+}
+
+func writeError(w http.ResponseWriter, id interface{}, err jsonrpc.Error) error {
+	var statusCode int
+	switch err.Code {
+	case jsonrpc.ErrorCodeInvalidJSON, jsonrpc.ErrorCodeInvalidParams, jsonrpc.ErrorCodeInvalidRequest:
+		statusCode = http.StatusBadRequest
+	case jsonrpc.ErrorCodeMethodNotFound, jsonrpc.ErrorCodeResultNotFound:
+		statusCode = http.StatusNotFound
+	default:
+		statusCode = http.StatusInternalServerError
 	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	return json.NewEncoder(w).Encode(jsonrpc.NewResponse(id, nil, &err))
 }
 
 // RequestWithResponder wraps a `jsonrpc.Request` with a responder channel that
