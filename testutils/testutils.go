@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/p2p"
+	"github.com/renproject/lightnode/client"
 	"github.com/renproject/phi"
 	"github.com/rs/cors"
 )
@@ -47,7 +49,7 @@ func NewMockDarknode(port int, peers addr.MultiAddresses) MockDarknode {
 
 // Run starts the `MockDarknode` listening on its port. This function call is
 // blocking.
-func (dn MockDarknode) Run() {
+func (dn MockDarknode) Run() <-chan struct{} {
 	r := mux.NewRouter()
 	r.HandleFunc("/", dn.handleFunc)
 
@@ -57,8 +59,27 @@ func (dn MockDarknode) Run() {
 		AllowedMethods:   []string{"POST"},
 	}).Handler(r)
 
+	init := make(chan struct{}, 1)
+
 	// Start running the server.
-	http.ListenAndServe(fmt.Sprintf(":%v", dn.port), httpHandler)
+	go phi.ParBegin(
+		func() { http.ListenAndServe(fmt.Sprintf(":%v", dn.port), httpHandler) },
+		func() {
+			req := ValidRequest(jsonrpc.MethodQueryPeers)
+			for {
+				_, err := client.SendToDarknode(fmt.Sprintf("http://0.0.0.0:%v", dn.port), req, time.Second)
+				if err == nil {
+					break
+				}
+
+				time.Sleep(10 * time.Millisecond)
+			}
+			init <- struct{}{}
+			close(init)
+		},
+	)
+
+	return init
 }
 
 func (dn *MockDarknode) handleFunc(w http.ResponseWriter, r *http.Request) {
