@@ -91,14 +91,8 @@ func hasValidParams(message jsonrpc.Request) (bool, string) {
 		}
 		return validQueryTxParams(params)
 	case jsonrpc.MethodQueryNumPeers:
-		if len(message.Params) != 0 {
-			return false, "parameters object does not match method"
-		}
 		return validQueryNumPeersParams(message.Params)
 	case jsonrpc.MethodQueryPeers:
-		if len(message.Params) != 0 {
-			return false, "parameters object does not match method"
-		}
 		return validQueryPeersParams(message.Params)
 	case jsonrpc.MethodQueryEpoch:
 		// TODO: At the time of writing this method is not supported by the

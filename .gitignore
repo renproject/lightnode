@@ -2,3 +2,6 @@
 *.coverprofile
 *.out
 *.html
+
+# Environment variables
+.env
