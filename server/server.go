@@ -136,6 +136,7 @@ func (server *Server) writeResponses(w http.ResponseWriter, responses []jsonrpc.
 			server.logger.Errorf("error writing http response: %v", err)
 			return
 		}
+		return
 	}
 	if err := json.NewEncoder(w).Encode(responses); err != nil {
 		server.logger.Errorf("error writing http response: %v", err)
