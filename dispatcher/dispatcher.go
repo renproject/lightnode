@@ -45,7 +45,10 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 		dispatcher.logger.Panicf("[dispatcher] unexpected message type %T", message)
 	}
 
-	addrs := dispatcher.multiAddrs(msg.Request.Method)
+	addrs, err := dispatcher.multiAddrs(msg.Request.Method)
+	if err != nil {
+		dispatcher.logger.Panicf("[dispatcher] error getting multi-addresses: %v", err)
+	}
 	responses := make(chan jsonrpc.Response, len(addrs))
 	resIter := newResponseIter(msg.Request.Method)
 
@@ -77,7 +80,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 	}()
 }
 
-func (dispatcher *Dispatcher) multiAddrs(method string) addr.MultiAddresses {
+func (dispatcher *Dispatcher) multiAddrs(method string) (addr.MultiAddresses, error) {
 	// The method `Size` for a `memdb` always returns a nil error, so we ignore
 	// it
 	// NOTE: This is commented out for now but address selection policies used

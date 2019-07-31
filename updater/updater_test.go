@@ -54,7 +54,7 @@ var _ = Describe("Updater", func() {
 			initDNs(numDNs)
 			multiStore := initUpdater(ctx, bootstrapAddrs, pollRate, timeout)
 
-			Eventually(func() int { return multiStore.Size() }).Should(Equal(6))
+			Eventually(func() int { size, err := multiStore.Size(); Expect(err).ShouldNot(HaveOccurred()); return size }).Should(Equal(6))
 		})
 	})
 })

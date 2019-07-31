@@ -221,15 +221,3 @@ func ErrorResponse(id interface{}) jsonrpc.Response {
 		Error:   &err,
 	}
 }
-
-// NewMultiFromIPAndPort creates a new multi address with the given ip addres
-// and port, where the REN address is constant and valid.
-func NewMultiFromIPAndPort(ip string, port int) addr.MultiAddress {
-	address := addr.FromBase58("8MJcAFBHuYBeJp7zP1rXYMPTeJoYjs")
-	value := fmt.Sprintf("/ren/%s/ip4/%v/tcp/%v", address, ip, port)
-	multi, err := addr.NewMultiAddressFromString(value)
-	if err != nil {
-		panic("could not create multi address")
-	}
-	return multi
-}
