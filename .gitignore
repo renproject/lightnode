@@ -1,3 +1,4 @@
 # Test coverage
 *.coverprofile
+*.out
 *.html
