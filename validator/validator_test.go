@@ -113,7 +113,7 @@ var _ = Describe("Validator", func() {
 			defer cancel()
 			validator, messages := initValidator(ctx)
 
-			for method, _ := range jsonrpc.RPCs {
+			for method := range jsonrpc.RPCs {
 				// TODO: Is it worth fuzz testing on the other request fields?
 				var params json.RawMessage
 				var err error
