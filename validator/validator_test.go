@@ -73,7 +73,7 @@ var _ = Describe("Validator", func() {
 			case <-time.After(time.Second):
 				Fail("timeout")
 			case res := <-req.Responder:
-				expectedErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidRequest, fmt.Sprintf("invalid jsonrpc field: expected \"2.0\", got \"%s\"", request.Version), json.RawMessage{})
+				expectedErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidRequest, fmt.Sprintf("invalid jsonrpc field: expected \"2.0\", got \"%s\"", request.Version), nil)
 
 				Expect(res.Version).To(Equal("2.0"))
 				Expect(res.ID).To(Equal(request.ID))
@@ -98,7 +98,7 @@ var _ = Describe("Validator", func() {
 			case <-time.After(time.Second):
 				Fail("timeout")
 			case res := <-req.Responder:
-				expectedErr := jsonrpc.NewError(jsonrpc.ErrorCodeMethodNotFound, fmt.Sprintf("unsupported method %s", request.Method), json.RawMessage{})
+				expectedErr := jsonrpc.NewError(jsonrpc.ErrorCodeMethodNotFound, fmt.Sprintf("unsupported method %s", request.Method), nil)
 
 				Expect(res.Version).To(Equal("2.0"))
 				Expect(res.ID).To(Equal(request.ID))
@@ -123,13 +123,12 @@ var _ = Describe("Validator", func() {
 					jsonrpc.MethodQueryNumPeers,
 					jsonrpc.MethodQueryPeers,
 					jsonrpc.MethodQueryStat:
-					params, err = json.Marshal("{field: value}")
+					params, err = json.Marshal("{\"field\": \"value\"}")
 					if err != nil {
 						panic(fmt.Sprintf("marshalling error: %v", err))
 					}
-				case jsonrpc.MethodSubmitTx:
-					params = json.RawMessage{}
-				case jsonrpc.MethodQueryTx:
+				case jsonrpc.MethodSubmitTx,
+					jsonrpc.MethodQueryTx:
 					params = json.RawMessage{}
 				case jsonrpc.MethodQueryEpoch:
 					// TODO: This method is not supported right now, but when
@@ -147,7 +146,7 @@ var _ = Describe("Validator", func() {
 				case <-time.After(time.Second):
 					Fail("timeout")
 				case res := <-req.Responder:
-					expectedErr := jsonrpc.NewError(server.ErrorCodeInvalidParams, "invalid parameters in request: parameters object does not match method", json.RawMessage{})
+					expectedErr := jsonrpc.NewError(server.ErrorCodeInvalidParams, "invalid parameters in request: parameters object does not match method", nil)
 
 					Expect(res.Version).To(Equal("2.0"))
 					Expect(res.ID).To(Equal(request.ID))
