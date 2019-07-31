@@ -41,20 +41,20 @@ func (validator *Validator) Handle(_ phi.Task, message phi.Message) {
 func isValid(message jsonrpc.Request) *jsonrpc.Error {
 	// Reject requests that don't conform to the JSON-RPC standard
 	if message.Version != "2.0" {
-		err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidRequest, fmt.Sprintf("invalid jsonrpc field: expected \"2.0\", got \"%s\"", message.Version), json.RawMessage{})
+		err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidRequest, fmt.Sprintf("invalid jsonrpc field: expected \"2.0\", got \"%s\"", message.Version), nil)
 		return &err
 	}
 
 	// Reject unsupported methods
 	method := message.Method
 	if !isSupported(method) {
-		err := jsonrpc.NewError(jsonrpc.ErrorCodeMethodNotFound, fmt.Sprintf("unsupported method %s", method), json.RawMessage{})
+		err := jsonrpc.NewError(jsonrpc.ErrorCodeMethodNotFound, fmt.Sprintf("unsupported method %s", method), nil)
 		return &err
 	}
 
 	// Reject requests with invalid parameters
 	if ok, msg := hasValidParams(message); !ok {
-		err := jsonrpc.NewError(server.ErrorCodeInvalidParams, fmt.Sprintf("invalid parameters in request: %s", msg), json.RawMessage{})
+		err := jsonrpc.NewError(server.ErrorCodeInvalidParams, fmt.Sprintf("invalid parameters in request: %s", msg), nil)
 		return &err
 	}
 
