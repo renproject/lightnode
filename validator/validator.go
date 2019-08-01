@@ -11,9 +11,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// ErrInvalidParams is returned when the parameters for a request do not match
-// those defined in the specification.
-var ErrInvalidParams = errors.New("parameters object does not match method")
+var (
+	// ErrInvalidParams is returned when the parameters for a request do not
+	// match those defined in the specification.
+	ErrInvalidParams = errors.New("parameters object does not match method")
+)
 
 // A Validator takes as input requests and checks whether they meet some
 // baseline criteria that the darknodes expect. This means that obviously
@@ -74,36 +76,16 @@ func isSupported(method string) bool {
 func hasValidParams(message jsonrpc.Request) (bool, error) {
 	switch message.Method {
 	case jsonrpc.MethodQueryBlock:
-		if len(message.Params) != 0 {
-			return false, ErrInvalidParams
-		}
 		return validQueryBlockParams(message.Params)
 	case jsonrpc.MethodQueryBlocks:
-		if len(message.Params) != 0 {
-			return false, ErrInvalidParams
-		}
 		return validQueryBlocksParams(message.Params)
 	case jsonrpc.MethodSubmitTx:
-		var params jsonrpc.ParamsSubmitTx
-		if err := json.Unmarshal(message.Params, &params); err != nil {
-			return false, ErrInvalidParams
-		}
-		return validSubmitTxParams(params)
+		return validSubmitTxParams(message.Params)
 	case jsonrpc.MethodQueryTx:
-		var params jsonrpc.ParamsQueryTx
-		if err := json.Unmarshal(message.Params, &params); err != nil {
-			return false, ErrInvalidParams
-		}
-		return validQueryTxParams(params)
+		return validQueryTxParams(message.Params)
 	case jsonrpc.MethodQueryNumPeers:
-		if len(message.Params) != 0 {
-			return false, ErrInvalidParams
-		}
 		return validQueryNumPeersParams(message.Params)
 	case jsonrpc.MethodQueryPeers:
-		if len(message.Params) != 0 {
-			return false, ErrInvalidParams
-		}
 		return validQueryPeersParams(message.Params)
 	case jsonrpc.MethodQueryEpoch:
 		// TODO: At the time of writing this method is not supported by the
@@ -111,9 +93,6 @@ func hasValidParams(message jsonrpc.Request) (bool, error) {
 		// darknode.
 		return false, errors.New("method QueryEpoch is not supported")
 	case jsonrpc.MethodQueryStat:
-		if len(message.Params) != 0 {
-			return false, ErrInvalidParams
-		}
 		return validQueryStatParams(message.Params)
 	default:
 		// TODO: Is it ok to panic at this level, or should all panics happen
@@ -132,13 +111,21 @@ func validQueryBlocksParams(params json.RawMessage) (bool, error) {
 	return true, nil
 }
 
-func validSubmitTxParams(params jsonrpc.ParamsSubmitTx) (bool, error) {
+func validSubmitTxParams(params json.RawMessage) (bool, error) {
+	var data jsonrpc.ParamsSubmitTx
+	if err := json.Unmarshal(params, &data); err != nil {
+		return false, ErrInvalidParams
+	}
 	// TODO: Check fields. Do we want to use the entire darknode transform
 	// pipeline to check validity?
 	return true, nil
 }
 
-func validQueryTxParams(params jsonrpc.ParamsQueryTx) (bool, error) {
+func validQueryTxParams(params json.RawMessage) (bool, error) {
+	var data jsonrpc.ParamsQueryTx
+	if err := json.Unmarshal(params, &data); err != nil {
+		return false, ErrInvalidParams
+	}
 	// Currently the only field in the parameters is a hash field, which can't
 	// really be checked for validity here
 	return true, nil
