@@ -117,7 +117,7 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 		if !server.rateLimiter.Allow(method, r.RemoteAddr) {
 			err := jsonrpc.NewError(ErrorCodeRateLimitExceeded, "rate limit exceeded", nil)
 			response := jsonrpc.NewResponse(reqs[i].ID, nil, &err)
-			server.writeResponses(w, []jsonrpc.Response{response})
+			responses[i] = response
 			return
 		}
 
