@@ -43,7 +43,7 @@ func main() {
 	var ttl time.Duration
 	ttlInt, err := strconv.Atoi(os.Getenv("TTL"))
 	if err != nil {
-		ttl = 5 * time.Minute
+		ttl = 1 * time.Minute
 	} else {
 		ttl = time.Duration(ttlInt) * time.Minute
 	}
