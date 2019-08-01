@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"math/rand"
 
 	"github.com/renproject/darknode/addr"
@@ -49,6 +50,22 @@ func (multiStore *MultiAddrStore) AddrsAll() (addr.MultiAddresses, error) {
 		addrs = append(addrs, address)
 	}
 	return addrs, nil
+}
+
+// AddrsFirst returns the first multi addressses in the store.
+func (multiStore *MultiAddrStore) AddrsFirst() (addr.MultiAddresses, error) {
+	for iter := multiStore.store.Iterator(); iter.Next(); {
+		str, err := iter.Key()
+		if err != nil {
+			return nil, err
+		}
+		address, err := addr.NewMultiAddressFromString(str)
+		if err != nil {
+			return nil, err
+		}
+		return addr.MultiAddresses{address}, nil
+	}
+	return nil, errors.New("no multi address in store")
 }
 
 // AddrsRandom returns a random number of addresses from the store.

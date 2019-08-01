@@ -1,6 +1,7 @@
 package cacher
 
 import (
+	"fmt"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
@@ -65,8 +66,9 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	data := append(params, []byte(msg.Request.Method)...)
 	reqID := hash(data)
 
+	cachable := isCachable(msg.Request.Method)
 	response, cached := cacher.get(reqID)
-	if cached {
+	if cachable && cached {
 		msg.Responder <- response
 	} else {
 		responder := make(chan jsonrpc.Response, 1)
@@ -110,6 +112,25 @@ func (cacher *Cacher) get(id ID) (jsonrpc.Response, bool) {
 	}
 
 	return jsonrpc.Response{}, false
+}
+
+func isCachable(method string) bool {
+	switch method {
+	case jsonrpc.MethodQueryBlock,
+		jsonrpc.MethodQueryBlocks,
+		jsonrpc.MethodQueryNumPeers,
+		jsonrpc.MethodQueryPeers,
+		jsonrpc.MethodQueryEpoch,
+		jsonrpc.MethodQueryStat:
+		return true
+	case jsonrpc.MethodSubmitTx,
+		jsonrpc.MethodQueryTx:
+		// TODO: We need to make sure these are the only methods that we want to
+		// avoid caching.
+		return false
+	default:
+		panic(fmt.Sprintf("[cacher] unsupported method %s encountered which should have been rejected by the previous checks", method))
+	}
 }
 
 func hash(data []byte) ID {

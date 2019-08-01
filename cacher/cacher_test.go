@@ -70,6 +70,11 @@ var _ = Describe("Cacher", func() {
 					continue
 				}
 
+				// We have disabled caching for these methods.
+				if method == jsonrpc.MethodSubmitTx || method == jsonrpc.MethodQueryTx {
+					continue
+				}
+
 				// Send the first request
 				request := testutils.ValidRequest(method)
 				reqWithRes := server.NewRequestWithResponder(request)

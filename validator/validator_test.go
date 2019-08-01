@@ -116,26 +116,14 @@ var _ = Describe("Validator", func() {
 			for method := range jsonrpc.RPCs {
 				// TODO: Is it worth fuzz testing on the other request fields?
 				var params json.RawMessage
-				var err error
 				switch method {
-				case jsonrpc.MethodQueryBlock,
-					jsonrpc.MethodQueryBlocks,
-					jsonrpc.MethodQueryNumPeers,
-					jsonrpc.MethodQueryPeers,
-					jsonrpc.MethodQueryStat:
-					params, err = json.Marshal("{\"field\": \"value\"}")
-					if err != nil {
-						panic(fmt.Sprintf("marshalling error: %v", err))
-					}
 				case jsonrpc.MethodSubmitTx,
 					jsonrpc.MethodQueryTx:
 					params = json.RawMessage{}
-				case jsonrpc.MethodQueryEpoch:
-					// TODO: This method is not supported right now, but when
-					// it is this case should be tested too.
-					continue
 				default:
-					panic(fmt.Sprintf("unexpected method %s", method))
+					// TODO: This method is either not supported, or does not
+					// require any parameters.
+					continue
 				}
 				request := testutils.ValidRequest(method)
 				request.Params = params

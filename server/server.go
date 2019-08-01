@@ -62,7 +62,8 @@ func New(logger logrus.FieldLogger, port string, options Options, validator phi.
 // Run starts the `Server` listening on its port. This function is blocking.
 func (server *Server) Run() {
 	r := mux.NewRouter()
-	r.HandleFunc("/", server.handleFunc)
+	r.HandleFunc("/", server.handleFunc).Methods("POST")
+	r.Use(recoveryHandler)
 
 	httpHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
@@ -80,7 +81,7 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&rawMessage); err != nil {
 		err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidJSON, "lightnode could not decode JSON request", nil)
 		response := jsonrpc.NewResponse(0, nil, &err)
-		server.writeResponses(w, []jsonrpc.Response{response})
+		writeResponses(w, []jsonrpc.Response{response})
 		return
 	}
 	// Unmarshal requests with support for batching
@@ -93,7 +94,7 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 		if err := json.Unmarshal(rawMessage, &req); err != nil {
 			err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidJSON, "lightnode could not parse JSON request", nil)
 			response := jsonrpc.NewResponse(0, nil, &err)
-			server.writeResponses(w, []jsonrpc.Response{response})
+			writeResponses(w, []jsonrpc.Response{response})
 			return
 		}
 		reqs = []jsonrpc.Request{req}
@@ -105,7 +106,7 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 		errMsg := fmt.Sprintf("maximum batch size exceeded: maximum is %v but got %v", server.options.MaxBatchSize, batchSize)
 		err := jsonrpc.NewError(ErrorCodeMaxBatchSizeExceeded, errMsg, nil)
 		response := jsonrpc.NewResponse(0, nil, &err)
-		server.writeResponses(w, []jsonrpc.Response{response})
+		writeResponses(w, []jsonrpc.Response{response})
 		return
 	}
 
@@ -114,10 +115,20 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 	responses := make([]jsonrpc.Response, len(reqs))
 	phi.ParForAll(reqs, func(i int) {
 		method := reqs[i].Method
+
+		// Ensure method exists prior to checking rate limit.
+		_, ok := jsonrpc.RPCs[method]
+		if !ok {
+			err := jsonrpc.NewError(ErrorCodeRateLimitExceeded, "unsupported method", nil)
+			response := jsonrpc.NewResponse(reqs[i].ID, nil, &err)
+			responses[i] = response
+			return
+		}
+
 		if !server.rateLimiter.Allow(method, r.RemoteAddr) {
 			err := jsonrpc.NewError(ErrorCodeRateLimitExceeded, "rate limit exceeded", nil)
-			response := jsonrpc.NewResponse(0, nil, &err)
-			server.writeResponses(w, []jsonrpc.Response{response})
+			response := jsonrpc.NewResponse(reqs[i].ID, nil, &err)
+			responses[i] = response
 			return
 		}
 
@@ -126,12 +137,12 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 		responses[i] = <-reqWithResponder.Responder
 	})
 
-	if err := server.writeResponses(w, responses); err != nil {
+	if err := writeResponses(w, responses); err != nil {
 		server.logger.Errorf("error writing http response: %v", err)
 	}
 }
 
-func (server *Server) writeResponses(w http.ResponseWriter, responses []jsonrpc.Response) error {
+func writeResponses(w http.ResponseWriter, responses []jsonrpc.Response) error {
 	w.Header().Set("Content-Type", "application/json")
 	if len(responses) == 1 {
 		// We use the `writeError` function to determine the relevant status code
@@ -157,6 +168,18 @@ func writeError(w http.ResponseWriter, id interface{}, err jsonrpc.Error) error 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	return json.NewEncoder(w).Encode(jsonrpc.NewResponse(id, nil, &err))
+}
+
+func recoveryHandler(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				jsonErr := jsonrpc.NewError(ErrorCodeRateLimitExceeded, fmt.Sprintf("recovered from a panic in the lightnode: %v", err), nil)
+				writeError(w, 0, jsonErr)
+			}
+		}()
+		h.ServeHTTP(w, r)
+	})
 }
 
 // RequestWithResponder wraps a `jsonrpc.Request` with a responder channel that
