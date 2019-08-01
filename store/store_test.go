@@ -35,9 +35,12 @@ var _ = Describe("Store", func() {
 
 		It("should insert multi-addrs and delete multi-addrs", func() {
 			multiaddrStore := New(kv.NewMemDB())
-			expectedSize := rand.Intn(100)
 
+			// We need to increment the size by 1 since zero can be returned by rand.Intn
+			// and if we call rand.Intn(0) it will panic
+			expectedSize := rand.Intn(100) + 1
 			deleteIndex := rand.Intn(expectedSize)
+
 			multiAddr := addr.MultiAddress{}
 			for i := 0; i < expectedSize; i++ {
 				if i == deleteIndex {
