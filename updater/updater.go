@@ -61,7 +61,11 @@ func (updater *Updater) updateMultiAddress() {
 		return
 	}
 
-	addrs := updater.getQueryAddresses()
+	addrs, err := updater.getQueryAddresses()
+	if err != nil {
+		updater.logger.Errorf("cannot get query addresses: %v", err)
+		return
+	}
 
 	phi.ParForAll(addrs, func(i int) {
 		multi := addrs[i]
@@ -102,7 +106,7 @@ func (updater *Updater) updateMultiAddress() {
 	})
 }
 
-func (updater *Updater) getQueryAddresses() addr.MultiAddresses {
+func (updater *Updater) getQueryAddresses() (addr.MultiAddresses, error) {
 	// TODO: Should this be a constant number of random addresses always? If
 	// so, is this the right constant?
 	return updater.multiStore.AddrsRandom(3)
