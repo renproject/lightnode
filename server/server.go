@@ -27,7 +27,7 @@ var (
 	// darknode.
 	ErrorCodeForwardingError = -32003
 
-	// ErrorCodeInvalidParams is ann implementation specific error code that
+	// ErrorCodeInvalidParams is an implementation specific error code that
 	// indicates that a request object has invalid parameters.
 	ErrorCodeInvalidParams = -32004
 )
@@ -119,7 +119,7 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 		// Ensure method exists prior to checking rate limit.
 		_, ok := jsonrpc.RPCs[method]
 		if !ok {
-			err := jsonrpc.NewError(ErrorCodeRateLimitExceeded, "unsupported method", nil)
+			err := jsonrpc.NewError(jsonrpc.ErrorCodeMethodNotFound, "unsupported method", nil)
 			response := jsonrpc.NewResponse(reqs[i].ID, nil, &err)
 			responses[i] = response
 			return
@@ -174,7 +174,7 @@ func recoveryHandler(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {
-				jsonErr := jsonrpc.NewError(ErrorCodeRateLimitExceeded, fmt.Sprintf("recovered from a panic in the lightnode: %v", err), nil)
+				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, fmt.Sprintf("recovered from a panic in the lightnode: %v", err), nil)
 				writeError(w, 0, jsonErr)
 			}
 		}()
