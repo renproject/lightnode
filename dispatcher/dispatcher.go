@@ -88,7 +88,7 @@ func (dispatcher *Dispatcher) multiAddrs(method string) (addr.MultiAddresses, er
 	case jsonrpc.MethodQueryBlocks:
 		return dispatcher.multiStore.AddrsRandom(3)
 	case jsonrpc.MethodSubmitTx:
-		return dispatcher.multiStore.AddrsAll()
+		return dispatcher.multiStore.AddrsFirst()
 	case jsonrpc.MethodQueryTx:
 		return dispatcher.multiStore.AddrsRandom(3)
 	case jsonrpc.MethodQueryNumPeers:
@@ -115,7 +115,7 @@ func newResponseIter(method string) responseIterator {
 	case jsonrpc.MethodQueryBlocks:
 		return newFirstResponseIterator()
 	case jsonrpc.MethodSubmitTx:
-		return newMajorityResponseIterator()
+		return newFirstResponseIterator()
 	case jsonrpc.MethodQueryTx:
 		return newFirstResponseIterator()
 	case jsonrpc.MethodQueryNumPeers:
