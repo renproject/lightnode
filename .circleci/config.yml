@@ -14,10 +14,29 @@ jobs:
           key: go-mod-v1-{{ checksum "go.sum" }}
       - run:
           name: Install tools
-          command: go get -u golang.org/x/lint/golint
+          command: |
+            go get -u golang.org/x/lint/golint
+            go get -u github.com/onsi/ginkgo/ginkgo
+            go get -u github.com/loongy/covermerge
+            go get -u github.com/mattn/goveralls
       - run:
           name: Run tests
-          command: go test -v ./...
+          command: |
+            # make sure all the tests pass
+            go test -v ./...
+            # all the tests passed so update coverage
+            CI=true /go/bin/ginkgo -v --race --cover --coverprofile coverprofile.out ./...
+            /go/bin/covermerge \
+            validator/coverprofile.out \
+            coverprofile.out \
+            dispatcher/coverprofile.out \
+            server/ratelimiter/coverprofile.out \
+            server/coverprofile.out \
+            updater/coverprofile.out \
+            client/coverprofile.out \
+            cacher/coverprofile.out \
+            store/coverprofile.out > covermerge.out
+            goveralls -coverprofile=covermerge.out -service=circleci
       - run:
           name: Run linter
           command: golint ./...
