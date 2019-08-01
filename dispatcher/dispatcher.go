@@ -1,10 +1,12 @@
 package dispatcher
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/client"
@@ -56,27 +58,17 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 		phi.ParForAll(addrs, func(i int) {
 			response, err := client.SendToDarknode(client.URLFromMulti(addrs[i]), msg.Request, dispatcher.timeout)
 			if err != nil {
-				errMsg := fmt.Sprintf("lightnode could not forward response to darknode: %v", err)
-				err := jsonrpc.NewError(server.ErrorCodeForwardingError, errMsg, json.RawMessage{})
-				response := jsonrpc.NewResponse(0, nil, &err)
-				responses <- response
-			} else {
-				responses <- response
+				errMsg := fmt.Errorf("lightnode could not forward request to darknode: %v", err)
+				jsonErr := jsonrpc.NewError(server.ErrorCodeForwardingError, errMsg.Error(), nil)
+				response = jsonrpc.NewResponse(msg.Request.ID, nil, &jsonErr)
 			}
+			responses <- response
 		})
 		close(responses)
 	}()
 
 	go func() {
-		i := 1
-		for res := range responses {
-			done, response := resIter.update(res, i == len(addrs))
-			if done {
-				msg.Responder <- response
-				return
-			}
-			i++
-		}
+		msg.Responder <- resIter.get(responses)
 	}()
 }
 
@@ -123,9 +115,7 @@ func newResponseIter(method string) responseIterator {
 	case jsonrpc.MethodQueryBlocks:
 		return newFirstResponseIterator()
 	case jsonrpc.MethodSubmitTx:
-		// TODO: This should instead return an iterator that will check for a
-		// threshold of consistent responses.
-		return newFirstResponseIterator()
+		return newMajorityResponseIterator()
 	case jsonrpc.MethodQueryTx:
 		return newFirstResponseIterator()
 	case jsonrpc.MethodQueryNumPeers:
@@ -142,7 +132,7 @@ func newResponseIter(method string) responseIterator {
 }
 
 type responseIterator interface {
-	update(jsonrpc.Response, bool) (bool, jsonrpc.Response)
+	get(<-chan jsonrpc.Response) jsonrpc.Response
 }
 
 type firstResponseIterator struct{}
@@ -151,6 +141,54 @@ func newFirstResponseIterator() responseIterator {
 	return firstResponseIterator{}
 }
 
-func (firstResponseIterator) update(res jsonrpc.Response, final bool) (bool, jsonrpc.Response) {
-	return true, res
+func (firstResponseIterator) get(responses <-chan jsonrpc.Response) jsonrpc.Response {
+	// Return the first response from the channel.
+	select {
+	case response := <-responses:
+		return response
+	}
+}
+
+type majorityResponseIterator struct{}
+
+func newMajorityResponseIterator() responseIterator {
+	return majorityResponseIterator{}
+}
+
+func (iter majorityResponseIterator) get(responses <-chan jsonrpc.Response) jsonrpc.Response {
+	// The key in these maps is the hash of the result or error (depending on
+	// whether or not the error is nil).
+	responseCount := map[string]int{}
+	responseMap := map[string]jsonrpc.Response{}
+	for response := range responses {
+		// Hash the response/error.
+		var bytes []byte
+		var err error
+		if response.Error == nil {
+			bytes, err = json.Marshal(response.Result)
+		} else {
+			bytes, err = json.Marshal(response.Error)
+		}
+		if err != nil {
+			return response
+		}
+		hash := hex.EncodeToString(crypto.Keccak256(bytes))
+
+		// Increment the count of the hash and store the response in a map for
+		// easy access.
+		responseCount[hash]++
+		responseMap[hash] = response
+	}
+
+	var response jsonrpc.Response
+	for hash, count := range responseCount {
+		if count >= (len(responses)+1)*2/3 {
+			return responseMap[hash]
+		}
+		response = responseMap[hash]
+	}
+
+	// TODO: If the response is not consistent across the majority, we just
+	// return an arbitrary one. We may want to return an error instead?
+	return response
 }
