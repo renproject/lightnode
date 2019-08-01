@@ -29,13 +29,8 @@ func New() RateLimiter {
 // been exceeded. It will also return false if the method is not supported
 // (i.e. unsupported methods have rate limits of 0/s).
 func (rl *RateLimiter) Allow(method, addr string) bool {
-	limiter, ok := rl.limiters[method]
-	if !ok {
-		// NOTE: This return value hides the fact that the method is not
-		// supported. The fact that the method is not supported should be
-		// checked elsewhere and suitable indication that this is the case
-		// should be provided.
-		return false
-	}
+	// NOTE: We assume it has been made sure that the method exists prior to
+	// this stage.
+	limiter := rl.limiters[method]
 	return limiter.IPAddressLimiter(addr).Allow()
 }

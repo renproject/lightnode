@@ -114,6 +114,16 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 	responses := make([]jsonrpc.Response, len(reqs))
 	phi.ParForAll(reqs, func(i int) {
 		method := reqs[i].Method
+
+		// Ensure method exists prior to checking rate limit.
+		_, ok := jsonrpc.RPCs[method]
+		if !ok {
+			err := jsonrpc.NewError(ErrorCodeRateLimitExceeded, "unsupported method", nil)
+			response := jsonrpc.NewResponse(reqs[i].ID, nil, &err)
+			responses[i] = response
+			return
+		}
+
 		if !server.rateLimiter.Allow(method, r.RemoteAddr) {
 			err := jsonrpc.NewError(ErrorCodeRateLimitExceeded, "rate limit exceeded", nil)
 			response := jsonrpc.NewResponse(reqs[i].ID, nil, &err)
