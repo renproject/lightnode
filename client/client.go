@@ -35,15 +35,27 @@ func SendToDarknode(url string, req jsonrpc.Request, timeout time.Duration) (jso
 	r = r.WithContext(ctx)
 	r.Header.Set("Content-Type", "application/json")
 
-	// Read response.
-	response, err := httpClient.Do(r)
-	if err != nil {
-		return jsonrpc.Response{}, err
-	}
+	endTime := time.Now().Add(timeout)
+	for {
+		// Retry until timeout.
+		if time.Now().After(endTime) {
+			return jsonrpc.Response{}, fmt.Errorf("timeout: %v", err)
+		}
 
-	var resp jsonrpc.Response
-	err = json.NewDecoder(response.Body).Decode(&resp)
-	return resp, err
+		// Send request.
+		response, err := httpClient.Do(r)
+		if err != nil {
+			continue
+		}
+
+		// Read response.
+		var resp jsonrpc.Response
+		if err := json.NewDecoder(response.Body).Decode(&resp); err != nil {
+			continue
+		}
+
+		return resp, nil
+	}
 }
 
 // URLFromMulti converts a `addr.MultiAddress` to a url string appropriate for
