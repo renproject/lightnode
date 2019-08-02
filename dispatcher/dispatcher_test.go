@@ -68,7 +68,7 @@ var _ = Describe("Dispatcher", func() {
 				ok := dispatcher.Send(req)
 				Expect(ok).To(BeTrue())
 
-				Eventually(req.Responder).Should(Receive())
+				Eventually(req.Responder, timeout*2).Should(Receive())
 			}
 		})
 	})
