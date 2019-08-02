@@ -62,6 +62,7 @@ func New(logger logrus.FieldLogger, port string, options Options, validator phi.
 // Run starts the `Server` listening on its port. This function is blocking.
 func (server *Server) Run() {
 	r := mux.NewRouter()
+	r.HandleFunc("/health", server.healthCheck).Methods("GET")
 	r.HandleFunc("/", server.handleFunc).Methods("POST")
 	r.Use(recoveryHandler)
 
@@ -74,6 +75,11 @@ func (server *Server) Run() {
 	// Start running the server.
 	server.logger.Infof("lightnode listening on 0.0.0.0:%v...", server.port)
 	http.ListenAndServe(fmt.Sprintf(":%s", server.port), httpHandler)
+}
+
+func (server *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	return
 }
 
 func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
