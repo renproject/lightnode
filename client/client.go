@@ -24,13 +24,13 @@ func SendToDarknode(url string, req jsonrpc.Request, timeout time.Duration) (jso
 	// Construct HTTP request.
 	body, err := json.Marshal(req)
 	if err != nil {
-		panic(fmt.Sprintf("[client] could not marshal request: %v", err))
+		return jsonrpc.Response{}, fmt.Errorf("[client] could not marshal request: %v", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), httpClient.Timeout)
 	defer cancel()
 	r, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
 	if err != nil {
-		panic(fmt.Sprintf("[client] could not create http request: %v", err))
+		return jsonrpc.Response{}, fmt.Errorf("[client] could not create http request: %v", err)
 	}
 	r = r.WithContext(ctx)
 	r.Header.Set("Content-Type", "application/json")
