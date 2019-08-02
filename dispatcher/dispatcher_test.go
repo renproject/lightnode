@@ -17,7 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func initDispatcher(ctx context.Context, bootstrapAddrs addr.MultiAddresses, pollRate, timeout time.Duration) phi.Sender {
+func initDispatcher(ctx context.Context, bootstrapAddrs addr.MultiAddresses, timeout time.Duration) phi.Sender {
 	opts := phi.Options{Cap: 10}
 	logger := logrus.New()
 	multiStore := store.New(kv.NewMemDB())
@@ -55,7 +55,7 @@ var _ = Describe("Dispatcher", func() {
 			}
 
 			initDNs(numDNs)
-			dispatcher := initDispatcher(ctx, bootstrapAddrs, timeout, timeout)
+			dispatcher := initDispatcher(ctx, bootstrapAddrs, timeout)
 
 			for method, _ := range jsonrpc.RPCs {
 				// TODO: This method is not supported right now, but when it is
