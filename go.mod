@@ -19,7 +19,6 @@ require (
 	github.com/renproject/darknode v0.0.0-20190812021458-45e76a442f83
 	github.com/renproject/kv v0.0.0-20190807023401-42be8ac11bb8
 	github.com/renproject/phi v0.0.0-20190713013721-51f586bc4816
-	github.com/republicprotocol/secp256k1-go v0.0.0-20190607010717-73731d50b8f1 // indirect
 	github.com/rs/cors v1.6.0
 	github.com/sirupsen/logrus v1.4.2
 	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
