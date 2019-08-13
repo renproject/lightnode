@@ -46,7 +46,7 @@ func New(logger logrus.FieldLogger, cap, cacheCap, maxBatchSize int, timeout, tt
 		}
 	}
 
-	updater := updater.New(logger, multiStore, pollRate, timeout)
+	updater := updater.New(logger, bootstrapAddrs, multiStore, pollRate, timeout)
 	dispatcher := dispatcher.New(logger, timeout, multiStore, opts)
 	cacher := cacher.New(dispatcher, logger, cacheCap, ttl, opts)
 	validator := validator.New(cacher, logger, opts)

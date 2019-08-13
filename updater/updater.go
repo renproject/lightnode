@@ -21,22 +21,24 @@ import (
 // darknodes to a store. This store is shared by the `Dispatcher`, which needs
 // to know about the darknodes in the network.
 type Updater struct {
-	logger     logrus.FieldLogger
-	multiStore store.MultiAddrStore
-	pollRate   time.Duration
-	timeout    time.Duration
+	logger         logrus.FieldLogger
+	bootstrapAddrs addr.MultiAddresses
+	multiStore     store.MultiAddrStore
+	pollRate       time.Duration
+	timeout        time.Duration
 }
 
 // New constructs a new `Updater`. If the given store of multi addresses is
 // empty, then the constructed `Updater` will be useless since it will not know
 // any darknodes to query. Therefore the given store must contain some number
 // of bootstrap addresses.
-func New(logger logrus.FieldLogger, multiStore store.MultiAddrStore, pollRate, timeout time.Duration) Updater {
+func New(logger logrus.FieldLogger, bootstrapAddrs addr.MultiAddresses, multiStore store.MultiAddrStore, pollRate, timeout time.Duration) Updater {
 	return Updater{
-		logger:     logger,
-		multiStore: multiStore,
-		pollRate:   pollRate,
-		timeout:    timeout,
+		logger:         logger,
+		bootstrapAddrs: bootstrapAddrs,
+		multiStore:     multiStore,
+		pollRate:       pollRate,
+		timeout:        timeout,
 	}
 }
 
@@ -78,12 +80,20 @@ func (updater *Updater) updateMultiAddress() {
 			Params:  params,
 		}
 		response, err := client.SendToDarknode(client.URLFromMulti(multi), request, updater.timeout)
-
-		// TODO: Maybe we shouldn't always delete an address when we can't
-		// query it; probably put some more intelligent logic here.
 		if err != nil {
 			updater.logger.Warnf("[updater] cannot connect to node %v: %v", multi.String(), err)
-			updater.multiStore.Delete(multi)
+
+			// Delete address if we do not receive a response.
+			isBootstrap := false
+			for _, bootstrapAddr := range updater.bootstrapAddrs {
+				if multi.Equal(bootstrapAddr) {
+					isBootstrap = true
+				}
+			}
+
+			if !isBootstrap {
+				updater.multiStore.Delete(multi)
+			}
 			return
 		}
 
