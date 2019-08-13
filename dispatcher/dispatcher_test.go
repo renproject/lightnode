@@ -64,7 +64,7 @@ var _ = Describe("Dispatcher", func() {
 					continue
 				}
 
-				req := server.NewRequestWithResponder(testutils.ValidRequest(method))
+				req := server.NewRequestWithResponder(testutils.ValidRequest(method), "")
 				ok := dispatcher.Send(req)
 				Expect(ok).To(BeTrue())
 

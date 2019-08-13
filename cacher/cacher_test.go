@@ -41,7 +41,7 @@ var _ = Describe("Cacher", func() {
 				}
 
 				request := testutils.ValidRequest(method)
-				cacher.Send(server.NewRequestWithResponder(request))
+				cacher.Send(server.NewRequestWithResponder(request, ""))
 
 				select {
 				case <-time.After(time.Second):
@@ -77,7 +77,7 @@ var _ = Describe("Cacher", func() {
 
 				// Send the first request
 				request := testutils.ValidRequest(method)
-				reqWithRes := server.NewRequestWithResponder(request)
+				reqWithRes := server.NewRequestWithResponder(request, "")
 				cacher.Send(reqWithRes)
 				forwardedReq := <-messages
 				res := testutils.ErrorResponse(request.ID)
@@ -92,7 +92,7 @@ var _ = Describe("Cacher", func() {
 
 				// Send the second request and expect a cached response
 				request = testutils.ValidRequest(method)
-				reqWithRes = server.NewRequestWithResponder(request)
+				reqWithRes = server.NewRequestWithResponder(request, "")
 				cacher.Send(reqWithRes)
 
 				select {

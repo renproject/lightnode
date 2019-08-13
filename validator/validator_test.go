@@ -43,7 +43,7 @@ var _ = Describe("Validator", func() {
 				}
 
 				request := testutils.ValidRequest(method)
-				validator.Send(server.NewRequestWithResponder(request))
+				validator.Send(server.NewRequestWithResponder(request, ""))
 
 				select {
 				case <-time.After(time.Second):
@@ -66,7 +66,7 @@ var _ = Describe("Validator", func() {
 			// TODO: Is it worth fuzz testing on the other request fields?
 			request := testutils.ValidRequest(jsonrpc.MethodQueryBlock)
 			request.Version = "1.0"
-			req := server.NewRequestWithResponder(request)
+			req := server.NewRequestWithResponder(request, "")
 			validator.Send(req)
 
 			select {
@@ -91,7 +91,7 @@ var _ = Describe("Validator", func() {
 			// TODO: Is it worth fuzz testing on the other request fields?
 			request := testutils.ValidRequest(jsonrpc.MethodQueryBlock)
 			request.Method = "method"
-			req := server.NewRequestWithResponder(request)
+			req := server.NewRequestWithResponder(request, "")
 			validator.Send(req)
 
 			select {
@@ -127,7 +127,7 @@ var _ = Describe("Validator", func() {
 				}
 				request := testutils.ValidRequest(method)
 				request.Params = params
-				req := server.NewRequestWithResponder(request)
+				req := server.NewRequestWithResponder(request, "")
 				validator.Send(req)
 
 				select {
