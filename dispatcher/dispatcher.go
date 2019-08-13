@@ -47,10 +47,21 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 		dispatcher.logger.Panicf("[dispatcher] unexpected message type %T", message)
 	}
 
-	addrs, err := dispatcher.multiAddrs(msg.Request.Method)
-	if err != nil {
-		dispatcher.logger.Panicf("[dispatcher] error getting multi-addresses: %v", err)
+	var addrs addr.MultiAddresses
+	var err error
+	if msg.DarknodeID != "" {
+		addr, err := dispatcher.multiStore.Get(msg.DarknodeID)
+		if err != nil {
+			dispatcher.logger.Panicf("[dispatcher] error getting multi-address: %v", err)
+		}
+		addrs = append(addrs, addr)
+	} else {
+		addrs, err = dispatcher.multiAddrs(msg.Request.Method)
+		if err != nil {
+			dispatcher.logger.Panicf("[dispatcher] error getting multi-addresses: %v", err)
+		}
 	}
+
 	responses := make(chan jsonrpc.Response, len(addrs))
 	resIter := newResponseIter(msg.Request.Method)
 

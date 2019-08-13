@@ -18,15 +18,23 @@ func New(store db.Iterable) MultiAddrStore {
 	return MultiAddrStore{store}
 }
 
+// Get retrieves a multi address from the store.
+func (multiStore *MultiAddrStore) Get(id string) (addr.MultiAddress, error) {
+	bytes, err := multiStore.store.Get(id)
+	if err != nil {
+		return addr.MultiAddress{}, err
+	}
+	return addr.NewMultiAddressFromString(string(bytes))
+}
+
 // Insert puts the given multi address into the store.
 func (multiStore *MultiAddrStore) Insert(addr addr.MultiAddress) error {
-	// TODO: What is a better key/value pair to store?
-	return multiStore.store.Insert(addr.String(), []byte(addr.String()))
+	return multiStore.store.Insert(addr.ID().ToBase58(), []byte(addr.String()))
 }
 
 // Delete removes the given multi address from the store.
 func (multiStore *MultiAddrStore) Delete(addr addr.MultiAddress) error {
-	return multiStore.store.Delete(addr.String())
+	return multiStore.store.Delete(addr.ID().ToBase58())
 }
 
 // Size returns the number of entries in the store.
@@ -39,11 +47,11 @@ func (multiStore *MultiAddrStore) Size() (int, error) {
 func (multiStore *MultiAddrStore) AddrsAll() (addr.MultiAddresses, error) {
 	addrs := addr.MultiAddresses{}
 	for iter := multiStore.store.Iterator(); iter.Next(); {
-		str, err := iter.Key()
+		id, err := iter.Key()
 		if err != nil {
 			return nil, err
 		}
-		address, err := addr.NewMultiAddressFromString(str)
+		address, err := multiStore.Get(id)
 		if err != nil {
 			return nil, err
 		}
@@ -55,11 +63,11 @@ func (multiStore *MultiAddrStore) AddrsAll() (addr.MultiAddresses, error) {
 // AddrsFirst returns the first multi addressses in the store.
 func (multiStore *MultiAddrStore) AddrsFirst() (addr.MultiAddresses, error) {
 	for iter := multiStore.store.Iterator(); iter.Next(); {
-		str, err := iter.Key()
+		id, err := iter.Key()
 		if err != nil {
 			return nil, err
 		}
-		address, err := addr.NewMultiAddressFromString(str)
+		address, err := multiStore.Get(id)
 		if err != nil {
 			return nil, err
 		}

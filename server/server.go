@@ -83,6 +83,9 @@ func (server *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
+	v := r.URL.Query()
+	darknodeID := v.Get("id")
+
 	rawMessage := json.RawMessage{}
 	if err := json.NewDecoder(r.Body).Decode(&rawMessage); err != nil {
 		err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidJSON, "lightnode could not decode JSON request", nil)
@@ -138,7 +141,7 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		reqWithResponder := NewRequestWithResponder(reqs[i])
+		reqWithResponder := NewRequestWithResponder(reqs[i], darknodeID)
 		server.validator.Send(reqWithResponder)
 		responses[i] = <-reqWithResponder.Responder
 	})
@@ -191,15 +194,16 @@ func recoveryHandler(h http.Handler) http.Handler {
 // RequestWithResponder wraps a `jsonrpc.Request` with a responder channel that
 // the response will be written to.
 type RequestWithResponder struct {
-	Request   jsonrpc.Request
-	Responder chan jsonrpc.Response
+	Request    jsonrpc.Request
+	Responder  chan jsonrpc.Response
+	DarknodeID string
 }
 
 // IsMessage implements the `phi.Message` interface.
 func (RequestWithResponder) IsMessage() {}
 
 // NewRequestWithResponder constructs a new request wrapper object.
-func NewRequestWithResponder(req jsonrpc.Request) RequestWithResponder {
+func NewRequestWithResponder(req jsonrpc.Request, darknodeAddr string) RequestWithResponder {
 	responder := make(chan jsonrpc.Response, 1)
-	return RequestWithResponder{req, responder}
+	return RequestWithResponder{req, responder, darknodeAddr}
 }

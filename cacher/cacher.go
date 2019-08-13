@@ -67,14 +67,15 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	reqID := hash(data)
 
 	cachable := isCachable(msg.Request.Method)
-	response, cached := cacher.get(reqID)
+	response, cached := cacher.get(reqID, msg.DarknodeID)
 	if cachable && cached {
 		msg.Responder <- response
 	} else {
 		responder := make(chan jsonrpc.Response, 1)
 		cacher.dispatcher.Send(server.RequestWithResponder{
-			Request:   msg.Request,
-			Responder: responder,
+			Request:    msg.Request,
+			Responder:  responder,
+			DarknodeID: msg.DarknodeID,
 		})
 
 		// TODO: What do we do when a second request comes in that is already
@@ -83,17 +84,19 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		go func() {
 			response := <-responder
 			// TODO: Consider thread safety of insertion.
-			cacher.insert(reqID, response, msg.Request.Method)
+			cacher.insert(reqID, msg.DarknodeID, response, msg.Request.Method)
 			msg.Responder <- response
 		}()
 	}
 }
 
-func (cacher *Cacher) insert(id ID, response jsonrpc.Response, method string) {
+func (cacher *Cacher) insert(reqID ID, darknodeID string, response jsonrpc.Response, method string) {
+	id := reqID.String() + darknodeID
+
 	// It is assumed at this point that the method is valid, so we can safely
 	// avoid the case of undefined methods.
 	if method != jsonrpc.MethodSubmitTx {
-		if err := cacher.ttlCache.Insert(id.String(), response); err != nil {
+		if err := cacher.ttlCache.Insert(id, response); err != nil {
 			cacher.logger.Panicf("[cacher] could not insert response into TTL cache: %v", err)
 		}
 	} else {
@@ -101,13 +104,14 @@ func (cacher *Cacher) insert(id ID, response jsonrpc.Response, method string) {
 	}
 }
 
-func (cacher *Cacher) get(id ID) (jsonrpc.Response, bool) {
+func (cacher *Cacher) get(reqID ID, darknodeID string) (jsonrpc.Response, bool) {
+	id := reqID.String() + darknodeID
 	if response, ok := cacher.cache.Get(id); ok {
 		return response.(jsonrpc.Response), true
 	}
 
 	var response jsonrpc.Response
-	if err := cacher.ttlCache.Get(id.String(), &response); err == nil {
+	if err := cacher.ttlCache.Get(id, &response); err == nil {
 		return response, true
 	}
 
