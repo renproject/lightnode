@@ -26,10 +26,6 @@ var (
 	// indicates that a http error occurred when forwarding a request to a
 	// darknode.
 	ErrorCodeForwardingError = -32003
-
-	// ErrorCodeInvalidParams is an implementation specific error code that
-	// indicates that a request object has invalid parameters.
-	ErrorCodeInvalidParams = -32004
 )
 
 // Options are used when constructing a `Server`.

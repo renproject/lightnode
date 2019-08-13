@@ -137,7 +137,7 @@ var _ = Describe("Validator", func() {
 				case <-time.After(time.Second):
 					Fail("timeout")
 				case res := <-req.Responder:
-					expectedErr := jsonrpc.NewError(server.ErrorCodeInvalidParams, "invalid parameters in request: parameters object does not match method", nil)
+					expectedErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, "invalid parameters in request: parameters object does not match method", nil)
 
 					Expect(res.Version).To(Equal("2.0"))
 					Expect(res.ID).To(Equal(request.ID))
