@@ -9,7 +9,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/server"
+	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/lightnode/validator"
 	"github.com/renproject/phi"
@@ -20,7 +22,8 @@ func initValidator(ctx context.Context) (phi.Sender, <-chan phi.Message) {
 	opts := phi.Options{Cap: 10}
 	logger := logrus.New()
 	inspector, messages := testutils.NewInspector(10)
-	validator := validator.New(inspector, logger, opts)
+	multiStore := store.New(kv.NewMemDB())
+	validator := validator.New(logger, inspector, multiStore, opts)
 
 	go validator.Run(ctx)
 	go inspector.Run(ctx)

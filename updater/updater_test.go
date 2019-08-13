@@ -20,7 +20,7 @@ func initUpdater(ctx context.Context, bootstrapAddrs addr.MultiAddresses, pollRa
 	for _, addr := range bootstrapAddrs {
 		multiStore.Insert(addr)
 	}
-	updater := updater.New(logger, multiStore, pollRate, timeout)
+	updater := updater.New(logger, bootstrapAddrs, multiStore, pollRate, timeout)
 
 	go updater.Run(ctx)
 
