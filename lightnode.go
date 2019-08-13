@@ -49,7 +49,7 @@ func New(logger logrus.FieldLogger, cap, cacheCap, maxBatchSize int, timeout, tt
 	updater := updater.New(logger, bootstrapAddrs, multiStore, pollRate, timeout)
 	dispatcher := dispatcher.New(logger, timeout, multiStore, opts)
 	cacher := cacher.New(dispatcher, logger, cacheCap, ttl, opts)
-	validator := validator.New(cacher, logger, opts)
+	validator := validator.New(logger, cacher, multiStore, opts)
 	server := server.New(logger, port, options, validator)
 
 	return Lightnode{

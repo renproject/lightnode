@@ -7,6 +7,7 @@ import (
 
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/server"
+	"github.com/renproject/lightnode/store"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -22,13 +23,14 @@ var (
 // invalid requests will not make it to the darknodes, but not all invalid
 // requests will get rejected.
 type Validator struct {
-	logger logrus.FieldLogger
-	cacher phi.Sender
+	logger     logrus.FieldLogger
+	cacher     phi.Sender
+	multiStore store.MultiAddrStore
 }
 
 // New constructs a new `Validator`.
-func New(cacher phi.Sender, logger logrus.FieldLogger, opts phi.Options) phi.Task {
-	return phi.New(&Validator{logger, cacher}, opts)
+func New(logger logrus.FieldLogger, cacher phi.Sender, multiStore store.MultiAddrStore, opts phi.Options) phi.Task {
+	return phi.New(&Validator{logger, cacher, multiStore}, opts)
 }
 
 // Handle implements the `phi.Handler` interface.
@@ -38,31 +40,41 @@ func (validator *Validator) Handle(_ phi.Task, message phi.Message) {
 		validator.logger.Panicf("[validator] unexpected message type %T", message)
 	}
 
-	if err := isValid(msg.Request); err != nil {
+	if err := validator.isValid(msg); err != nil {
 		msg.Responder <- jsonrpc.NewResponse(msg.Request.ID, nil, err)
 		return
 	}
 	validator.cacher.Send(msg)
 }
 
-func isValid(message jsonrpc.Request) *jsonrpc.Error {
-	// Reject requests that don't conform to the JSON-RPC standard
-	if message.Version != "2.0" {
-		err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidRequest, fmt.Sprintf("invalid jsonrpc field: expected \"2.0\", got \"%s\"", message.Version), nil)
+func (validator *Validator) isValid(msg server.RequestWithResponder) *jsonrpc.Error {
+	// Reject requests that don't conform to the JSON-RPC standard.
+	if msg.Request.Version != "2.0" {
+		err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidRequest, fmt.Sprintf("invalid jsonrpc field: expected \"2.0\", got \"%s\"", msg.Request.Version), nil)
 		return &err
 	}
 
-	// Reject unsupported methods
-	method := message.Method
+	// Reject unsupported methods.
+	method := msg.Request.Method
 	if !isSupported(method) {
 		err := jsonrpc.NewError(jsonrpc.ErrorCodeMethodNotFound, fmt.Sprintf("unsupported method %s", method), nil)
 		return &err
 	}
 
-	// Reject requests with invalid parameters
-	if ok, msg := hasValidParams(message); !ok {
-		err := jsonrpc.NewError(server.ErrorCodeInvalidParams, fmt.Sprintf("invalid parameters in request: %s", msg), nil)
+	// Reject requests with invalid parameters.
+	if ok, msg := hasValidParams(msg.Request); !ok {
+		err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("invalid parameters in request: %s", msg), nil)
 		return &err
+	}
+
+	// Reject requests with invalid Darknode IDs.
+	darknodeID := msg.DarknodeID
+	if darknodeID != "" {
+		_, err := validator.multiStore.Get(darknodeID)
+		if err != nil {
+			err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("unknown darknode id %s", darknodeID), nil)
+			return &err
+		}
 	}
 
 	return nil
