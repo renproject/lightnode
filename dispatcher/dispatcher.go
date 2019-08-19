@@ -101,7 +101,8 @@ func (dispatcher *Dispatcher) multiAddrs(method string) (addr.MultiAddresses, er
 	case jsonrpc.MethodSubmitTx:
 		// TODO: Eventually, we would want a more sophisticated way of sending
 		// these messages.
-		return dispatcher.multiStore.AddrsFirst()
+		firstAddr := dispatcher.multiStore.AddrsFirst()
+		return addr.MultiAddresses{firstAddr}, nil
 	case jsonrpc.MethodQueryTx:
 		return dispatcher.multiStore.AddrsRandom(3)
 	case jsonrpc.MethodQueryNumPeers:

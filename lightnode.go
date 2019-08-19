@@ -39,7 +39,8 @@ func New(logger logrus.FieldLogger, cap, cacheCap, maxBatchSize int, timeout, tt
 	options := server.Options{MaxBatchSize: maxBatchSize}
 
 	// Create the store and insert the bootstrap addresses.
-	multiStore := store.New(kv.NewMemDB())
+	firstBootstrapAddr := bootstrapAddrs[0]
+	multiStore := store.New(kv.NewMemDB(), firstBootstrapAddr)
 	for _, bootstrapAddr := range bootstrapAddrs {
 		if err := multiStore.Insert(bootstrapAddr); err != nil {
 			logger.Fatalf("cannot insert bootstrap address: %v", err)
