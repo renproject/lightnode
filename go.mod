@@ -16,8 +16,8 @@ require (
 	github.com/miguelmota/go-ethereum-hdwallet v0.0.0-20190720004541-5f6b3168e4a0 // indirect
 	github.com/onsi/ginkgo v1.8.0
 	github.com/onsi/gomega v1.5.0
-	github.com/renproject/darknode v0.0.0-20190812021458-45e76a442f83
-	github.com/renproject/kv v0.0.0-20190807023401-42be8ac11bb8
+	github.com/renproject/darknode v0.0.0-20190818235646-ec65da9435b8
+	github.com/renproject/kv v0.1.0
 	github.com/renproject/phi v0.0.0-20190713013721-51f586bc4816
 	github.com/rs/cors v1.6.0
 	github.com/sirupsen/logrus v1.4.2
