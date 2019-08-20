@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	lru "github.com/hashicorp/golang-lru"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/server"
@@ -33,22 +32,16 @@ type Cacher struct {
 	logger     logrus.FieldLogger
 	dispatcher phi.Sender
 
-	// TODO: Should these two caches be encapsulated into a single object?
-	cache    *lru.Cache
 	ttlCache kv.Iterable
 }
 
 // New constructs a new `Cacher` as a `phi.Task` which can be `Run()`.
 func New(dispatcher phi.Sender, logger logrus.FieldLogger, cap int, ttl time.Duration, opts phi.Options) phi.Task {
-	cache, err := lru.New(cap)
-	if err != nil {
-		logger.Panicf("[cacher] cannot create LRU cache: %v", err)
-	}
 	ttlCache, err := kv.NewTTLCache(kv.NewJSON(kv.NewMemDB()), ttl)
 	if err != nil {
 		logger.Panicf("[cacher] cannot create TTL cache: %v", err)
 	}
-	return phi.New(&Cacher{logger, dispatcher, cache, ttlCache}, opts)
+	return phi.New(&Cacher{logger, dispatcher, ttlCache}, opts)
 }
 
 // Handle implements the `phi.Handler` interface.
@@ -92,23 +85,13 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 
 func (cacher *Cacher) insert(reqID ID, darknodeID string, response jsonrpc.Response, method string) {
 	id := reqID.String() + darknodeID
-
-	// It is assumed at this point that the method is valid, so we can safely
-	// avoid the case of undefined methods.
-	if method != jsonrpc.MethodSubmitTx {
-		if err := cacher.ttlCache.Insert(id, response); err != nil {
-			cacher.logger.Panicf("[cacher] could not insert response into TTL cache: %v", err)
-		}
-	} else {
-		cacher.cache.Add(id, response)
+	if err := cacher.ttlCache.Insert(id, response); err != nil {
+		cacher.logger.Panicf("[cacher] could not insert response into TTL cache: %v", err)
 	}
 }
 
 func (cacher *Cacher) get(reqID ID, darknodeID string) (jsonrpc.Response, bool) {
 	id := reqID.String() + darknodeID
-	if response, ok := cacher.cache.Get(id); ok {
-		return response.(jsonrpc.Response), true
-	}
 
 	var response jsonrpc.Response
 	if err := cacher.ttlCache.Get(id, &response); err == nil {
