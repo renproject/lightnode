@@ -15,14 +15,18 @@ import (
 var _ = Describe("Store", func() {
 	Context("when running", func() {
 		It("should insert multi-addrs and return the correct size", func() {
-			multiaddrStore := New(kv.NewMemDB())
+			expectedSize := rand.Intn(100)
+			multiaddrs := make(addr.MultiAddresses, expectedSize)
+			for i := 0; i < expectedSize; i++ {
+				multiaddrs[i] = testutils.RandomMultiAddress()
+			}
+			multiaddrStore := New(kv.NewMemDB(), multiaddrs[0])
 			size, err := multiaddrStore.Size()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(size).To((Equal(0)))
 
-			expectedSize := rand.Intn(100)
 			for i := 0; i < expectedSize; i++ {
-				Expect(multiaddrStore.Insert(testutils.RandomMultiAddress())).ShouldNot(HaveOccurred())
+				Expect(multiaddrStore.Insert(multiaddrs[i])).ShouldNot(HaveOccurred())
 				size, err = multiaddrStore.Size()
 				Expect(err).ShouldNot(HaveOccurred())
 				Expect(size).To((Equal(i + 1)))
@@ -34,23 +38,27 @@ var _ = Describe("Store", func() {
 		})
 
 		It("should insert multi-addrs and delete multi-addrs", func() {
-			multiaddrStore := New(kv.NewMemDB())
+			expectedSize := rand.Intn(100) + 1
+			multiaddrs := make(addr.MultiAddresses, expectedSize)
+			for i := 0; i < expectedSize; i++ {
+				multiaddrs[i] = testutils.RandomMultiAddress()
+			}
+			multiaddrStore := New(kv.NewMemDB(), multiaddrs[0])
 
 			// We need to increment the size by 1 since zero can be returned by rand.Intn
 			// and if we call rand.Intn(0) it will panic
-			expectedSize := rand.Intn(100) + 1
 			deleteIndex := rand.Intn(expectedSize)
 
-			multiAddr := addr.MultiAddress{}
+			multiaddr := addr.MultiAddress{}
 			for i := 0; i < expectedSize; i++ {
 				if i == deleteIndex {
-					multiAddr = testutils.RandomMultiAddress()
-					Expect(multiaddrStore.Insert(multiAddr)).ShouldNot(HaveOccurred())
+					multiaddr = multiaddrs[i]
+					Expect(multiaddrStore.Insert(multiaddr)).ShouldNot(HaveOccurred())
 					continue
 				}
-				Expect(multiaddrStore.Insert(testutils.RandomMultiAddress())).ShouldNot(HaveOccurred())
+				Expect(multiaddrStore.Insert(multiaddrs[i])).ShouldNot(HaveOccurred())
 			}
-			Expect(multiaddrStore.Delete(multiAddr)).ShouldNot(HaveOccurred())
+			Expect(multiaddrStore.Delete(multiaddr)).ShouldNot(HaveOccurred())
 
 			size, err := multiaddrStore.Size()
 			Expect(err).ShouldNot(HaveOccurred())
@@ -58,11 +66,15 @@ var _ = Describe("Store", func() {
 		})
 
 		It("should return all multi-addrs on AddrsAll", func() {
-			multiaddrStore := New(kv.NewMemDB())
-			expectedSize := rand.Intn(100)
+			expectedSize := rand.Intn(100) + 1
+			multiaddrs := make(addr.MultiAddresses, expectedSize)
+			for i := 0; i < expectedSize; i++ {
+				multiaddrs[i] = testutils.RandomMultiAddress()
+			}
+			multiaddrStore := New(kv.NewMemDB(), multiaddrs[0])
 
 			for i := 0; i < expectedSize; i++ {
-				Expect(multiaddrStore.Insert(testutils.RandomMultiAddress())).ShouldNot(HaveOccurred())
+				Expect(multiaddrStore.Insert(multiaddrs[i])).ShouldNot(HaveOccurred())
 			}
 			addrs, err := multiaddrStore.AddrsAll()
 			Expect(err).ShouldNot(HaveOccurred())
@@ -70,11 +82,15 @@ var _ = Describe("Store", func() {
 		})
 
 		It("should return random multi-addrs on AddrsRandom", func() {
-			multiaddrStore := New(kv.NewMemDB())
-			expectedSize := rand.Intn(100)
+			expectedSize := rand.Intn(100) + 1
+			multiaddrs := make(addr.MultiAddresses, expectedSize)
+			for i := 0; i < expectedSize; i++ {
+				multiaddrs[i] = testutils.RandomMultiAddress()
+			}
+			multiaddrStore := New(kv.NewMemDB(), multiaddrs[0])
 
 			for i := 0; i < expectedSize; i++ {
-				Expect(multiaddrStore.Insert(testutils.RandomMultiAddress())).ShouldNot(HaveOccurred())
+				Expect(multiaddrStore.Insert(multiaddrs[i])).ShouldNot(HaveOccurred())
 			}
 			addrs, err := multiaddrStore.AddrsRandom(expectedSize + 1)
 			Expect(err).ShouldNot(HaveOccurred())
