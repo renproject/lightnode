@@ -83,10 +83,11 @@ func (updater *Updater) updateMultiAddress() {
 		if err != nil {
 			updater.logger.Warnf("[updater] cannot connect to node %v: %v", multi.String(), err)
 
-			// Delete address if we do not receive a response.
+			// Delete address if it is not a Boostrap node and we do not receive
+			// a response.
 			isBootstrap := false
 			for _, bootstrapAddr := range updater.bootstrapAddrs {
-				if multi.Equal(bootstrapAddr) {
+				if multi.String() == bootstrapAddr.String() {
 					isBootstrap = true
 				}
 			}
