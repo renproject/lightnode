@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -79,7 +80,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 	}()
 
 	go func() {
-		msg.Responder <- resIter.get(responses)
+		msg.Responder <- resIter.get(msg.Request.ID, responses)
 	}()
 }
 
@@ -146,7 +147,7 @@ func newResponseIter(method string) responseIterator {
 }
 
 type responseIterator interface {
-	get(<-chan jsonrpc.Response) jsonrpc.Response
+	get(interface{}, <-chan jsonrpc.Response) jsonrpc.Response
 }
 
 type firstResponseIterator struct{}
@@ -155,7 +156,7 @@ func newFirstResponseIterator() responseIterator {
 	return firstResponseIterator{}
 }
 
-func (firstResponseIterator) get(responses <-chan jsonrpc.Response) jsonrpc.Response {
+func (firstResponseIterator) get(id interface{}, responses <-chan jsonrpc.Response) jsonrpc.Response {
 	// Return the first response from the channel.
 	select {
 	case response := <-responses:
@@ -169,7 +170,7 @@ func newMajorityResponseIterator() responseIterator {
 	return majorityResponseIterator{}
 }
 
-func (iter majorityResponseIterator) get(responses <-chan jsonrpc.Response) jsonrpc.Response {
+func (iter majorityResponseIterator) get(id interface{}, responses <-chan jsonrpc.Response) jsonrpc.Response {
 	// The key in these maps is the hash of the result or error (depending on
 	// whether or not the error is nil).
 	responseCount := map[string]int{}
@@ -192,17 +193,16 @@ func (iter majorityResponseIterator) get(responses <-chan jsonrpc.Response) json
 		// easy access.
 		responseCount[hash]++
 		responseMap[hash] = response
-	}
 
-	var response jsonrpc.Response
-	for hash, count := range responseCount {
-		if count >= (len(responses)+1)*2/3 {
+		if responseCount[hash] >= (cap(responses)+1)*2/3 {
 			return responseMap[hash]
 		}
-		response = responseMap[hash]
 	}
 
-	// TODO: If the response is not consistent across the majority, we just
-	// return an arbitrary one. We may want to return an error instead?
+	// Return an error response if we do not receive a consistent response from
+	// the Darknodes.
+	errMsg := errors.New("lightnode did not receive a consistent response from the darknodes")
+	jsonErr := jsonrpc.NewError(server.ErrorCodeForwardingError, errMsg.Error(), nil)
+	response := jsonrpc.NewResponse(id, nil, &jsonErr)
 	return response
 }
