@@ -39,13 +39,13 @@ func main() {
 	} else {
 		timeout = time.Duration(timeoutInt) * time.Second
 	}
-	// Specified in Minutes
+	// Specified in seconds
 	var ttl time.Duration
 	ttlInt, err := strconv.Atoi(os.Getenv("TTL"))
 	if err != nil {
-		ttl = 15 * time.Second
+		ttl = 3 * time.Second
 	} else {
-		ttl = time.Duration(ttlInt) * time.Minute
+		ttl = time.Duration(ttlInt) * time.Second
 	}
 	// Specified in seconds
 	var pollRate time.Duration
