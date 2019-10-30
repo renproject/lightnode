@@ -1,0 +1,7 @@
+# Test coverage
+*.coverprofile
+*.out
+*.html
+
+# Environment variables
+.env
