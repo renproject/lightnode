@@ -3,7 +3,6 @@ package dispatcher
 import (
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -201,7 +200,7 @@ func (iter majorityResponseIterator) get(id interface{}, responses <-chan jsonrp
 
 	// Return an error response if we do not receive a consistent response from
 	// the Darknodes.
-	errMsg := errors.New("lightnode did not receive a consistent response from the darknodes")
+	errMsg := fmt.Errorf("lightnode did not receive a consistent response from the darknodes: %v", responseMap)
 	jsonErr := jsonrpc.NewError(server.ErrorCodeForwardingError, errMsg.Error(), nil)
 	response := jsonrpc.NewResponse(id, nil, &jsonErr)
 	return response
