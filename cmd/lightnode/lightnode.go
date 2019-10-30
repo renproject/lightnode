@@ -1,110 +1,96 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
-	"log"
-	"net/http"
+	"context"
+	"math/rand"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/evalphobia/logrus_sentry"
-	"github.com/gorilla/mux"
-	"github.com/rs/cors"
+	"github.com/renproject/darknode/addr"
+	"github.com/renproject/lightnode"
 	"github.com/sirupsen/logrus"
 )
 
 func main() {
+	// Retrieve environment variables.
+	port := os.Getenv("PORT")
+	name := os.Getenv("HEROKU_APP_NAME")
+	sentryURL := os.Getenv("SENTRY_URL")
+	cap, err := strconv.Atoi(os.Getenv("CAP"))
+	if err != nil {
+		cap = 128
+	}
+	cacheCap, err := strconv.Atoi(os.Getenv("CACHE_CAP"))
+	if err != nil {
+		cacheCap = 128
+	}
+	maxBatchSize, err := strconv.Atoi(os.Getenv("MAX_BATCH_SIZE"))
+	if err != nil {
+		maxBatchSize = 10
+	}
+	// Specified in seconds
+	var timeout time.Duration
+	timeoutInt, err := strconv.Atoi(os.Getenv("TIMEOUT"))
+	if err != nil {
+		timeout = time.Minute
+	} else {
+		timeout = time.Duration(timeoutInt) * time.Second
+	}
+	// Specified in seconds
+	var ttl time.Duration
+	ttlInt, err := strconv.Atoi(os.Getenv("TTL"))
+	if err != nil {
+		ttl = 3 * time.Second
+	} else {
+		ttl = time.Duration(ttlInt) * time.Second
+	}
+	// Specified in seconds
+	var pollRate time.Duration
+	pollRateInt, err := strconv.Atoi(os.Getenv("POLL_RATE"))
+	if err != nil {
+		pollRate = 5 * time.Minute
+	} else {
+		pollRate = time.Duration(pollRateInt) * time.Second
+	}
+	addresses := strings.Split(os.Getenv("ADDRESSES"), ",")
+
+	// Seed random number generator.
+	rand.Seed(time.Now().UnixNano())
+
 	// Setup logger and attach Sentry hook.
 	logger := logrus.New()
-	hook, err := logrus_sentry.NewSentryHook(os.Getenv("SENTRY_DSN"), []logrus.Level{
-		logrus.PanicLevel,
-		logrus.FatalLevel,
-		logrus.ErrorLevel,
-		logrus.WarnLevel,
-	})
-	if err != nil {
-		logger.Fatalf("cannot create a sentry hook: %v", err)
-	}
-	hook.Timeout = 500 * time.Millisecond
-	logger.AddHook(hook)
+	if !strings.Contains(name, "devnet") {
+		tags := map[string]string{
+			"name": name,
+		}
 
-	p := &proxy{
-		url:    os.Getenv("DARKNODE_URL"),
-		logger: logger,
-	}
-	port := os.Getenv("PORT")
-
-	r := mux.NewRouter()
-	r.HandleFunc("/", p.handler()).Methods("POST")
-	r.Use(p.recoveryHandler)
-	handler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowCredentials: true,
-		AllowedMethods:   []string{"POST"},
-	}).Handler(r)
-	log.Printf("Listening on port %v...", port)
-	http.ListenAndServe(fmt.Sprintf(":%v", port), handler)
-}
-
-type proxy struct {
-	url    string
-	logger logrus.FieldLogger
-}
-
-// Error defines a JSON error object that is compatible with the JSON-RPC 2.0
-// specification. See https://www.jsonrpc.org/specification for more
-// information.
-type Error struct {
-	Code    int             `json:"code"`
-	Message string          `json:"message"`
-	Data    json.RawMessage `json:"data"`
-}
-
-func (proxy *proxy) handler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		resp, err := http.Post(proxy.url, "application/json", r.Body)
+		hook, err := logrus_sentry.NewWithTagsSentryHook(sentryURL, tags, []logrus.Level{
+			logrus.PanicLevel,
+			logrus.FatalLevel,
+			logrus.ErrorLevel,
+			logrus.WarnLevel,
+		})
 		if err != nil {
-			proxy.writeError(w, r, http.StatusInternalServerError, Error{Code: -32097, Message: fmt.Sprintf("failed to talk to the darknode at %s: %v", proxy.url, err)})
-			return
+			logger.Fatalf("cannot create a sentry hook: %v", err)
 		}
-		w.WriteHeader(resp.StatusCode)
-		if _, err := io.Copy(w, resp.Body); err != nil {
-			proxy.writeError(w, r, http.StatusInternalServerError, Error{Code: -32098, Message: fmt.Sprintf("failed to copy the response from the darknode at %s: %v", proxy.url, err)})
-			return
+		hook.Timeout = 500 * time.Millisecond
+		logger.AddHook(hook)
+	}
+
+	bootstrapMultiAddrs := make(addr.MultiAddresses, len(addresses))
+	for i := range addresses {
+		multiAddr, err := addr.NewMultiAddressFromString(addresses[i])
+		if err != nil {
+			logger.Fatalf("invalid bootstrap addresses: %v", err)
 		}
+		bootstrapMultiAddrs[i] = multiAddr
 	}
-}
 
-func (proxy *proxy) writeError(w http.ResponseWriter, r *http.Request, statusCode int, err Error) {
-	if statusCode >= 500 {
-		proxy.logger.Errorf("failed to call %s with error %v", r.URL.String(), err)
-	} else if statusCode >= 400 {
-		proxy.logger.Warningf("failed to call %s with error %v", r.URL.String(), err)
-	}
-	w.WriteHeader(statusCode)
-	if err := json.NewEncoder(w).Encode(err); err != nil {
-		proxy.logger.Errorf("failed to send an error back: %v", r.URL.String(), err)
-	}
-}
-
-func (proxy *proxy) recoveryHandler(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if err := recover(); err != nil {
-				proxy.writeError(
-					w,
-					r,
-					http.StatusInternalServerError,
-					Error{
-						Code:    -32099,
-						Message: fmt.Sprintf("recovered from a panic in the lightnode: %v", err),
-					},
-				)
-			}
-		}()
-		h.ServeHTTP(w, r)
-	})
+	// Start running Lightnode.
+	ctx := context.Background()
+	node := lightnode.New(logger, cap, cacheCap, maxBatchSize, timeout, ttl, pollRate, port, bootstrapMultiAddrs)
+	node.Run(ctx)
 }
