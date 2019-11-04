@@ -125,13 +125,16 @@ func newResponseIter(method string) responseIterator {
 	// be updated when these policies have been decided in more detail.
 	switch method {
 	case jsonrpc.MethodQueryBlock:
-		return newMajorityResponseIterator()
+		// TODO: Use majority response iterator.
+		return newFirstResponseIterator()
 	case jsonrpc.MethodQueryBlocks:
-		return newMajorityResponseIterator()
+		// TODO: Use majority response iterator.
+		return newFirstResponseIterator()
 	case jsonrpc.MethodSubmitTx:
 		return newFirstResponseIterator()
 	case jsonrpc.MethodQueryTx:
-		return newMajorityResponseIterator()
+		// TODO: Use majority response iterator.
+		return newFirstResponseIterator()
 	case jsonrpc.MethodQueryNumPeers:
 		return newFirstResponseIterator()
 	case jsonrpc.MethodQueryPeers:
