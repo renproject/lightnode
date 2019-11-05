@@ -9,7 +9,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/darknode/p2p"
 	"github.com/renproject/lightnode/client"
 	"github.com/renproject/phi"
 	"github.com/rs/cors"
@@ -116,10 +115,14 @@ func (dn *MockDarknode) response(req jsonrpc.Request) jsonrpc.Response {
 		// TODO: Send a more appropriate response.
 		return ErrorResponse(req.ID)
 	case jsonrpc.MethodQueryNumPeers:
-		result := p2p.QueryNumPeersResponse{Err: nil, NumPeers: len(dn.peers)}
+		result := jsonrpc.ResponseQueryNumPeers{NumPeers: len(dn.peers)}
 		return jsonrpcResponse(req.ID, result, nil)
 	case jsonrpc.MethodQueryPeers:
-		result := p2p.QueryPeersResponse{Err: nil, MultiAddresses: dn.peers}
+		peers := make([]string, len(dn.peers))
+		for i := range dn.peers {
+			peers[i] = dn.peers[i].String()
+		}
+		result := jsonrpc.ResponseQueryPeers{Peers: peers}
 		return jsonrpcResponse(req.ID, result, nil)
 	case jsonrpc.MethodQueryEpoch:
 		// TODO: Implement once this method is supported by the darknodes.
