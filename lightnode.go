@@ -31,7 +31,7 @@ type Lightnode struct {
 }
 
 // New constructs a new `Lightnode`.
-func New(logger logrus.FieldLogger, cap, cacheCap, maxBatchSize int, timeout, ttl, pollRate time.Duration, port string, bootstrapAddrs addr.MultiAddresses) Lightnode {
+func New(ctx context.Context, logger logrus.FieldLogger, cap, cacheCap, maxBatchSize int, timeout, ttl, pollRate time.Duration, port string, bootstrapAddrs addr.MultiAddresses) Lightnode {
 	// All tasks have the same capacity, and no scaling
 	opts := phi.Options{Cap: cap}
 
@@ -40,7 +40,7 @@ func New(logger logrus.FieldLogger, cap, cacheCap, maxBatchSize int, timeout, tt
 
 	// Create the store and insert the bootstrap addresses.
 	firstBootstrapAddr := bootstrapAddrs[0]
-	multiStore := store.New(kv.NewMemDB(), firstBootstrapAddr)
+	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), firstBootstrapAddr)
 	for _, bootstrapAddr := range bootstrapAddrs {
 		if err := multiStore.Insert(bootstrapAddr); err != nil {
 			logger.Fatalf("cannot insert bootstrap address: %v", err)
@@ -49,7 +49,7 @@ func New(logger logrus.FieldLogger, cap, cacheCap, maxBatchSize int, timeout, tt
 
 	updater := updater.New(logger, bootstrapAddrs, multiStore, pollRate, timeout)
 	dispatcher := dispatcher.New(logger, timeout, multiStore, opts)
-	cacher := cacher.New(dispatcher, logger, cacheCap, ttl, opts)
+	cacher := cacher.New(ctx, dispatcher, logger, cacheCap, ttl, opts)
 	validator := validator.New(logger, cacher, multiStore, opts)
 	server := server.New(logger, port, options, validator)
 

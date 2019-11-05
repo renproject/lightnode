@@ -9,12 +9,12 @@ import (
 
 // MultiAddrStore is a store of `addr.MultiAddress`es.
 type MultiAddrStore struct {
-	store     db.Iterable
+	store     db.Table
 	firstAddr addr.MultiAddress
 }
 
 // New constructs a new `MultiAddrStore`.
-func New(store db.Iterable, firstAddr addr.MultiAddress) MultiAddrStore {
+func New(store db.Table, firstAddr addr.MultiAddress) MultiAddrStore {
 	return MultiAddrStore{
 		store:     store,
 		firstAddr: firstAddr,
@@ -23,16 +23,16 @@ func New(store db.Iterable, firstAddr addr.MultiAddress) MultiAddrStore {
 
 // Get retrieves a multi address from the store.
 func (multiStore *MultiAddrStore) Get(id string) (addr.MultiAddress, error) {
-	bytes, err := multiStore.store.Get(id)
-	if err != nil {
+	var multiAddrString string
+	if err := multiStore.store.Get(id, &multiAddrString); err != nil {
 		return addr.MultiAddress{}, err
 	}
-	return addr.NewMultiAddressFromString(string(bytes))
+	return addr.NewMultiAddressFromString(multiAddrString)
 }
 
 // Insert puts the given multi address into the store.
 func (multiStore *MultiAddrStore) Insert(addr addr.MultiAddress) error {
-	return multiStore.store.Insert(addr.ID().ToBase58(), []byte(addr.String()))
+	return multiStore.store.Insert(addr.ID().ToBase58(), addr.String())
 }
 
 // Delete removes the given multi address from the store.
