@@ -18,7 +18,7 @@ func initCacher(ctx context.Context, cacheCap int, ttl time.Duration) (phi.Sende
 	opts := phi.Options{Cap: 10}
 	logger := logrus.New()
 	inspector, messages := testutils.NewInspector(10)
-	cacher := cacher.New(inspector, logger, cacheCap, ttl, opts)
+	cacher := cacher.New(ctx, inspector, logger, cacheCap, ttl, opts)
 
 	go cacher.Run(ctx)
 	go inspector.Run(ctx)
