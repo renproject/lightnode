@@ -8,7 +8,6 @@ import (
 
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/darknode/p2p"
 	"github.com/renproject/lightnode/client"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/phi"
@@ -103,14 +102,19 @@ func (updater *Updater) updateMultiAddress() {
 		if err != nil {
 			updater.logger.Panicf("[updater] error marshaling and already unmarshaled result: %v", err)
 		}
-		var resp p2p.QueryPeersResponse
+		var resp jsonrpc.ResponseQueryPeers
 		err = json.Unmarshal(raw, &resp)
 		if err != nil {
 			updater.logger.Panicf("[updater] could not unmarshal into expected result type: %v", err)
 		}
-		for _, multiAddr := range resp.MultiAddresses {
+		for _, peer := range resp.Peers {
+			multiAddr, err := addr.NewMultiAddressFromString(peer)
+			if err != nil {
+				updater.logger.Errorf("[updater] failed to decode multi-address: %v", err)
+				continue
+			}
 			if err := updater.multiStore.Insert(multiAddr); err != nil {
-				updater.logger.Errorf("cannot add multi-address to store: %v", err)
+				updater.logger.Errorf("[updater] failed to add multi-address to store: %v", err)
 				return
 			}
 		}
