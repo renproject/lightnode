@@ -1,6 +1,7 @@
 package cacher
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -32,15 +33,12 @@ type Cacher struct {
 	logger     logrus.FieldLogger
 	dispatcher phi.Sender
 
-	ttlCache kv.Iterable
+	ttlCache kv.Table
 }
 
 // New constructs a new `Cacher` as a `phi.Task` which can be `Run()`.
-func New(dispatcher phi.Sender, logger logrus.FieldLogger, cap int, ttl time.Duration, opts phi.Options) phi.Task {
-	ttlCache, err := kv.NewTTLCache(kv.NewJSON(kv.NewMemDB()), ttl)
-	if err != nil {
-		logger.Panicf("[cacher] cannot create TTL cache: %v", err)
-	}
+func New(ctx context.Context, dispatcher phi.Sender, logger logrus.FieldLogger, cap int, ttl time.Duration, opts phi.Options) phi.Task {
+	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "responses", ttl)
 	return phi.New(&Cacher{logger, dispatcher, ttlCache}, opts)
 }
 

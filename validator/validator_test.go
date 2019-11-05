@@ -23,8 +23,8 @@ import (
 func initValidator(ctx context.Context) (phi.Sender, <-chan phi.Message) {
 	opts := phi.Options{Cap: 10}
 	logger := logrus.New()
-	inspector, messages := testutils.NewInspector(10) 
-	multiStore := store.New(kv.NewMemDB(), addr.MultiAddress{})
+	inspector, messages := testutils.NewInspector(10)
+	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), addr.MultiAddress{})
 	validator := validator.New(logger, inspector, multiStore, opts)
 
 	go validator.Run(ctx)
