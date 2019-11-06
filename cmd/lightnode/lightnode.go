@@ -97,6 +97,10 @@ func main() {
 		logger.Fatalf("failed to connect to psql db: %v", err)
 	}
 	db := db.NewSQLDB(psqlDB)
+
+	// create the table if it does not exist, disregard the already exists error.
+	_ = db.CreateGatewayTable()
+
 	net := parseNetwork(name)
 
 	// Start running Lightnode.
