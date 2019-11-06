@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"math/rand"
 	"os"
 	"strconv"
@@ -9,8 +10,12 @@ import (
 	"time"
 
 	"github.com/evalphobia/logrus_sentry"
+	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/lightnode"
+	"github.com/renproject/lightnode/db"
 	"github.com/sirupsen/logrus"
 )
 
@@ -88,8 +93,35 @@ func main() {
 		bootstrapMultiAddrs[i] = multiAddr
 	}
 
+	sqlDB, err := sql.Open(os.Getenv("DATABASE_DRIVER"), os.Getenv("DATABASE_URL"))
+	if err != nil {
+		logger.Fatalf("failed to connect to psql db: %v", err)
+	}
+	db := db.NewSQLDB(sqlDB)
+
+	// create the table if it does not exist, disregard the already exists error.
+	_ = db.CreateGatewayTable()
+
+	net := parseNetwork(name)
+
 	// Start running Lightnode.
 	ctx := context.Background()
-	node := lightnode.New(ctx, logger, cap, cacheCap, maxBatchSize, timeout, ttl, pollRate, port, bootstrapMultiAddrs)
+	node := lightnode.New(ctx, net, db, logger, cap, cacheCap, maxBatchSize, timeout, ttl, pollRate, port, bootstrapMultiAddrs)
 	node.Run(ctx)
+}
+
+func parseNetwork(name string) darknode.Network {
+	if strings.Contains(name, "devent") {
+		return darknode.Devnet
+	}
+	if strings.Contains(name, "testnet") {
+		return darknode.Testnet
+	}
+	if strings.Contains(name, "chaosnet") {
+		return darknode.Chaosnet
+	}
+	if strings.Contains(name, "localnet") {
+		return darknode.Localnet
+	}
+	panic("unsupported network")
 }

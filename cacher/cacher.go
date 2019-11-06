@@ -2,12 +2,22 @@ package cacher
 
 import (
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/renproject/darknode"
+	"github.com/renproject/darknode/abi"
+	"github.com/renproject/darknode/abi/ethabi"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
+	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/server"
+	"github.com/renproject/mercury/sdk/client/btcclient"
+	"github.com/renproject/mercury/types"
+	"github.com/renproject/mercury/types/btctypes"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/sha3"
@@ -32,14 +42,16 @@ func (id ID) String() string {
 type Cacher struct {
 	logger     logrus.FieldLogger
 	dispatcher phi.Sender
+	network    darknode.Network
+	db         db.DB
 
 	ttlCache kv.Table
 }
 
 // New constructs a new `Cacher` as a `phi.Task` which can be `Run()`.
-func New(ctx context.Context, dispatcher phi.Sender, logger logrus.FieldLogger, cap int, ttl time.Duration, opts phi.Options) phi.Task {
+func New(ctx context.Context, network darknode.Network, db db.DB, dispatcher phi.Sender, logger logrus.FieldLogger, cap int, ttl time.Duration, opts phi.Options) phi.Task {
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "responses", ttl)
-	return phi.New(&Cacher{logger, dispatcher, ttlCache}, opts)
+	return phi.New(&Cacher{logger, dispatcher, network, db, ttlCache}, opts)
 }
 
 // Handle implements the `phi.Handler` interface.
@@ -62,6 +74,9 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	if cachable && cached {
 		msg.Responder <- response
 	} else {
+		if err := cacher.storeGHash(msg.Request); err != nil {
+			cacher.logger.Errorf("[cacher] cannot store GHash to db: %v", err)
+		}
 		responder := make(chan jsonrpc.Response, 1)
 		cacher.dispatcher.Send(server.RequestWithResponder{
 			Request:    msg.Request,
@@ -97,6 +112,93 @@ func (cacher *Cacher) get(reqID ID, darknodeID string) (jsonrpc.Response, bool) 
 	}
 
 	return jsonrpc.Response{}, false
+}
+
+// calculate and store the GHash and the Gateway UTXO
+func (cacher *Cacher) storeGHash(request jsonrpc.Request) error {
+	if request.Method != jsonrpc.MethodSubmitTx {
+		return nil
+	}
+	params := jsonrpc.ParamsSubmitTx{}
+	if err := json.Unmarshal(request.Params, &params); err != nil {
+		return err
+	}
+
+	// check whether the to address is shiftIn address
+	network, shiftIn := isShiftIn(cacher.network, params.Tx.To)
+	if !shiftIn {
+		return nil
+	}
+
+	// validate the tx arguments
+	if err := cacher.validate(network, params.Tx.Args); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (cacher *Cacher) validate(network btctypes.Network, args abi.Args) error {
+	client := btcclient.NewClient(cacher.logger.WithField("blockchain", "btc"), network)
+	utxo := args.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
+
+	// calculate the GHash from the input arguments
+	copy(utxo.GHash[:], crypto.Keccak256(ethabi.Encode(abi.Args{
+		args.Get("phash"),
+		args.Get("amount"),
+		args.Get("token"),
+		args.Get("to"),
+		args.Get("n"),
+	})))
+
+	// derive the outpoint from the input arguments
+	op := btctypes.NewOutPoint(
+		types.TxHash(hex.EncodeToString(utxo.TxHash[:])),
+		uint32(utxo.VOut),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	// get additional details about an utxo and check whether it is valid.
+	mUTXO, err := client.UTXO(ctx, op)
+	if err != nil {
+		return err
+	}
+
+	// fill missing utxo details
+	utxo.ScriptPubKey = abi.B(mUTXO.ScriptPubKey())
+	utxo.Amount = abi.U64(mUTXO.Amount())
+
+	// insert the utxo into the gateways table
+	return cacher.db.InsertGateway(utxo)
+}
+
+// check whether the given contract address is a shiftIn contract address.
+func isShiftIn(darknodeNet darknode.Network, addr abi.Addr) (btctypes.Network, bool) {
+	switch addr {
+	case abi.IntrinsicBTC0Btc2Eth.Addr:
+		return getBlockchainNetwork(darknodeNet, types.Bitcoin), true
+	case abi.IntrinsicBCH0Bch2Eth.Addr:
+		return getBlockchainNetwork(darknodeNet, types.BitcoinCash), true
+	case abi.IntrinsicZEC0Zec2Eth.Addr:
+		return getBlockchainNetwork(darknodeNet, types.ZCash), true
+	default:
+		return nil, false
+	}
+}
+
+// get the blockchain network the RenVM uses on the given darknode network.
+func getBlockchainNetwork(darknodeNet darknode.Network, chain types.Chain) btctypes.Network {
+	switch darknodeNet {
+	case darknode.Chaosnet:
+		return btctypes.NewNetwork(chain, "mainnet")
+	case darknode.Testnet, darknode.Devnet:
+		return btctypes.NewNetwork(chain, "testnet")
+	case darknode.Localnet:
+		return btctypes.NewNetwork(chain, "localnet")
+	default:
+		panic(fmt.Sprintf("unsupported network: %v", darknodeNet))
+	}
 }
 
 func isCachable(method string) bool {

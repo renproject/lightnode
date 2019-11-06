@@ -4,9 +4,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/cacher"
+	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/dispatcher"
 	"github.com/renproject/lightnode/server"
 	"github.com/renproject/lightnode/store"
@@ -31,7 +33,7 @@ type Lightnode struct {
 }
 
 // New constructs a new `Lightnode`.
-func New(ctx context.Context, logger logrus.FieldLogger, cap, cacheCap, maxBatchSize int, timeout, ttl, pollRate time.Duration, port string, bootstrapAddrs addr.MultiAddresses) Lightnode {
+func New(ctx context.Context, network darknode.Network, db db.DB, logger logrus.FieldLogger, cap, cacheCap, maxBatchSize int, timeout, ttl, pollRate time.Duration, port string, bootstrapAddrs addr.MultiAddresses) Lightnode {
 	// All tasks have the same capacity, and no scaling
 	opts := phi.Options{Cap: cap}
 
@@ -49,7 +51,7 @@ func New(ctx context.Context, logger logrus.FieldLogger, cap, cacheCap, maxBatch
 
 	updater := updater.New(logger, bootstrapAddrs, multiStore, pollRate, timeout)
 	dispatcher := dispatcher.New(logger, timeout, multiStore, opts)
-	cacher := cacher.New(ctx, dispatcher, logger, cacheCap, ttl, opts)
+	cacher := cacher.New(ctx, network, db, dispatcher, logger, cacheCap, ttl, opts)
 	validator := validator.New(logger, cacher, multiStore, opts)
 	server := server.New(logger, port, options, validator)
 

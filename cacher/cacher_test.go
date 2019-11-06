@@ -2,23 +2,35 @@ package cacher_test
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/cacher"
+	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/server"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
 
+func initDB() db.DB {
+	sqlDB, err := sql.Open("sqlite3", "./test.db")
+	if err != nil {
+		panic(err)
+	}
+	return db.NewSQLDB(sqlDB)
+}
+
 func initCacher(ctx context.Context, cacheCap int, ttl time.Duration) (phi.Sender, <-chan phi.Message) {
 	opts := phi.Options{Cap: 10}
 	logger := logrus.New()
 	inspector, messages := testutils.NewInspector(10)
-	cacher := cacher.New(ctx, inspector, logger, cacheCap, ttl, opts)
+	cacher := cacher.New(ctx, darknode.Localnet, initDB(), inspector, logger, cacheCap, ttl, opts)
 
 	go cacher.Run(ctx)
 	go inspector.Run(ctx)
