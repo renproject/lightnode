@@ -111,7 +111,7 @@ func main() {
 }
 
 func parseNetwork(name string) darknode.Network {
-	if strings.Contains(name, "devent") {
+	if strings.Contains(name, "devnet") {
 		return darknode.Devnet
 	}
 	if strings.Contains(name, "testnet") {
