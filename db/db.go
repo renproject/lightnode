@@ -11,6 +11,7 @@ type sqlDB struct {
 	db *sql.DB
 }
 
+// DB interface for persistent storage in lightnode.
 type DB interface {
 	CreateGatewayTable() error
 	DropGatewayTable() error
@@ -20,22 +21,28 @@ type DB interface {
 	SelectGateways() (abi.ExtBtcCompatUTXOs, error)
 }
 
+// NewSQLDB using the given sql driver.
 func NewSQLDB(db *sql.DB) DB {
 	return &sqlDB{
 		db: db,
 	}
 }
 
+// CreateGatewayTable creates a table for storing the gateway utxos, it uses gateway hash as the primary key
+// and this table should be pruned frequently to remove spent gateway utxos.
 func (db *sqlDB) CreateGatewayTable() error {
 	_, err := db.db.Exec("create table gateways (ghash text not null primary key, utxo text);")
 	return err
 }
 
+// DropGatewayTable can be used to delete the gateways table.
 func (db *sqlDB) DropGatewayTable() error {
 	_, err := db.db.Exec("drop table gateways;")
 	return err
 }
 
+// InsertGateway into the gateways table, can be used to store a new gateway utxo when we see it for the
+// first time.
 func (db *sqlDB) InsertGateway(utxo abi.ExtBtcCompatUTXO) error {
 	utxoBytes, err := utxo.MarshalBinary()
 	if err != nil {
@@ -45,11 +52,14 @@ func (db *sqlDB) InsertGateway(utxo abi.ExtBtcCompatUTXO) error {
 	return err
 }
 
+// DeleteGateway from the gateways table, can be used to delete a gateway utxo after it is spent.
 func (db *sqlDB) DeleteGateway(gHash abi.B32) error {
 	_, err := db.db.Exec("delete from gateways where ghash=$1;", gHash.String())
 	return err
 }
 
+// SelectGateways gets all the gateway utxos from the table, these utxos can be seeded into darknodes to recover
+// lost funds.
 func (db *sqlDB) SelectGateways() (abi.ExtBtcCompatUTXOs, error) {
 	rows, err := db.db.Query("select utxo from gateways;")
 	if err != nil {
