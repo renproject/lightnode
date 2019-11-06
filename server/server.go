@@ -70,7 +70,7 @@ func (server *Server) Run() {
 
 	// Start running the server.
 	server.logger.Infof("lightnode listening on 0.0.0.0:%v...", server.port)
-	http.ListenAndServe(fmt.Sprintf(":%s", server.port), httpHandler)
+	server.logger.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", server.port), httpHandler))
 }
 
 func (server *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
