@@ -42,18 +42,24 @@ func SendToDarknode(url string, req jsonrpc.Request, timeout time.Duration) (jso
 			return jsonrpc.Response{}, fmt.Errorf("timeout: %v", err)
 		}
 
-		// Send request.
-		response, err := httpClient.Do(r)
+		resp, err := func() (jsonrpc.Response, error) {
+			// Send request.
+			response, err := httpClient.Do(r)
+			if err != nil {
+				return jsonrpc.Response{}, err
+			}
+			defer response.Body.Close()
+
+			// Read response.
+			var resp jsonrpc.Response
+			if err := json.NewDecoder(response.Body).Decode(&resp); err != nil {
+				return jsonrpc.Response{}, err
+			}
+			return resp, nil
+		}()
 		if err != nil {
 			continue
 		}
-
-		// Read response.
-		var resp jsonrpc.Response
-		if err := json.NewDecoder(response.Body).Decode(&resp); err != nil {
-			continue
-		}
-
 		return resp, nil
 	}
 }
