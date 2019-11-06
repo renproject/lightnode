@@ -41,14 +41,14 @@ func (db *sqlDB) DropGatewayTable() error {
 	return err
 }
 
-// InsertGateway into the gateways table, can be used to store a new gateway utxo when we see it for the
-// first time.
+// InsertGateway into the gateways table, can be used to store a new gateway utxo or update a old one.
 func (db *sqlDB) InsertGateway(utxo abi.ExtBtcCompatUTXO) error {
 	utxoBytes, err := utxo.MarshalBinary()
 	if err != nil {
 		return err
 	}
-	_, err = db.db.Exec("insert into gateways(ghash, utxo) values($1, $2);", utxo.GHash.String(), base64.StdEncoding.EncodeToString(utxoBytes))
+	_, err = db.db.Exec(`insert into gateways(ghash, utxo) values($1, $2) ON CONFLICT (ghash) DO UPDATE SET utxo = $2;`,
+		utxo.GHash.String(), base64.StdEncoding.EncodeToString(utxoBytes))
 	return err
 }
 

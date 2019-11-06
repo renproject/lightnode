@@ -49,6 +49,23 @@ var _ = Describe("Lightnode db", func() {
 			Expect(reflect.DeepEqual(utxos[0], utxo)).Should(BeTrue())
 		})
 
+		It("Should be able to update an existing GHash", func() {
+			db := initDB()
+			utxo1 := abi.ExtBtcCompatUTXO{ScriptPubKey: abi.B{}}
+			rand.Read(utxo1.TxHash[:])
+			rand.Read(utxo1.GHash[:])
+
+			utxo2 := utxo1
+			rand.Read(utxo2.TxHash[:])
+
+			Expect(db.InsertGateway(utxo1)).Should(BeNil())
+			Expect(db.InsertGateway(utxo2)).Should(BeNil())
+			utxos, err := db.SelectGateways()
+			Expect(err).Should(BeNil())
+			Expect(len(utxos)).Should(Equal(1))
+			Expect(reflect.DeepEqual(utxos[0], utxo2)).Should(BeTrue())
+		})
+
 		It("Should be able to insert and retrieve multiple GHashes", func() {
 			db := initDB()
 			iutxos := make(abi.ExtBtcCompatUTXOs, 5)
