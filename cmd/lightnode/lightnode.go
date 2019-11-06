@@ -92,7 +92,7 @@ func main() {
 		bootstrapMultiAddrs[i] = multiAddr
 	}
 
-	psqlDB, err := sql.Open("postgres", os.Getenv("POSTGRES_CONN"))
+	psqlDB, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
 	if err != nil {
 		logger.Fatalf("failed to connect to psql db: %v", err)
 	}
