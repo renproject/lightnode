@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"math/rand"
 	"os"
 	"strconv"
@@ -9,8 +10,11 @@ import (
 	"time"
 
 	"github.com/evalphobia/logrus_sentry"
+	_ "github.com/lib/pq"
+	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/lightnode"
+	"github.com/renproject/lightnode/db"
 	"github.com/sirupsen/logrus"
 )
 
@@ -88,8 +92,28 @@ func main() {
 		bootstrapMultiAddrs[i] = multiAddr
 	}
 
+	psqlDB, err := sql.Open("postgres", os.Getenv("POSTGRES_CONN"))
+	if err != nil {
+		logger.Fatalf("failed to connect to psql db: %v", err)
+	}
+	db := db.NewSQLDB(psqlDB)
+	net := parseNetwork(name)
+
 	// Start running Lightnode.
 	ctx := context.Background()
-	node := lightnode.New(ctx, logger, cap, cacheCap, maxBatchSize, timeout, ttl, pollRate, port, bootstrapMultiAddrs)
+	node := lightnode.New(ctx, net, db, logger, cap, cacheCap, maxBatchSize, timeout, ttl, pollRate, port, bootstrapMultiAddrs)
 	node.Run(ctx)
+}
+
+func parseNetwork(name string) darknode.Network {
+	switch strings.ToLower(strings.Split(name, "-")[1]) {
+	case "devnet":
+		return darknode.Devnet
+	case "testnet":
+		return darknode.Testnet
+	case "mainnet":
+		return darknode.Mainnet
+	default:
+		panic("unsupported network")
+	}
 }
