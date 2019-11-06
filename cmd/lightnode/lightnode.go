@@ -11,6 +11,7 @@ import (
 
 	"github.com/evalphobia/logrus_sentry"
 	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/lightnode"
@@ -92,11 +93,11 @@ func main() {
 		bootstrapMultiAddrs[i] = multiAddr
 	}
 
-	psqlDB, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
+	sqlDB, err := sql.Open(os.Getenv("DATABASE_DRIVER"), os.Getenv("DATABASE_URL"))
 	if err != nil {
 		logger.Fatalf("failed to connect to psql db: %v", err)
 	}
-	db := db.NewSQLDB(psqlDB)
+	db := db.NewSQLDB(sqlDB)
 
 	// create the table if it does not exist, disregard the already exists error.
 	_ = db.CreateGatewayTable()
@@ -110,14 +111,17 @@ func main() {
 }
 
 func parseNetwork(name string) darknode.Network {
-	switch strings.ToLower(strings.Split(name, "-")[1]) {
-	case "devnet":
+	if strings.Contains(name, "devent") {
 		return darknode.Devnet
-	case "testnet":
-		return darknode.Testnet
-	case "mainnet":
-		return darknode.Mainnet
-	default:
-		panic("unsupported network")
 	}
+	if strings.Contains(name, "testnet") {
+		return darknode.Testnet
+	}
+	if strings.Contains(name, "chaosnet") {
+		return darknode.Chaosnet
+	}
+	if strings.Contains(name, "localnet") {
+		return darknode.Localnet
+	}
+	panic("unsupported network")
 }
