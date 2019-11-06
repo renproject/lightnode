@@ -59,7 +59,7 @@ func (db *sqlDB) DeleteGateway(gHash abi.B32) error {
 }
 
 // SelectGateways gets all the gateway utxos from the table, these utxos can be seeded into darknodes to recover
-// lost funds.
+// lost transactions.
 func (db *sqlDB) SelectGateways() (abi.ExtBtcCompatUTXOs, error) {
 	rows, err := db.db.Query("select utxo from gateways;")
 	if err != nil {

@@ -114,6 +114,7 @@ func (cacher *Cacher) get(reqID ID, darknodeID string) (jsonrpc.Response, bool) 
 	return jsonrpc.Response{}, false
 }
 
+// calculate and store the GHash and the Gateway UTXO
 func (cacher *Cacher) storeGHash(request jsonrpc.Request) error {
 	if request.Method != jsonrpc.MethodSubmitTx {
 		return nil
@@ -122,10 +123,14 @@ func (cacher *Cacher) storeGHash(request jsonrpc.Request) error {
 	if err := json.Unmarshal(request.Params, &params); err != nil {
 		return err
 	}
+
+	// check whether the to address is shiftIn address
 	network, shiftIn := isShiftIn(cacher.network, params.Tx.To)
 	if !shiftIn {
 		return nil
 	}
+
+	// validate the tx arguments
 	if err := cacher.validate(network, params.Tx.Args); err != nil {
 		return err
 	}
@@ -135,6 +140,8 @@ func (cacher *Cacher) storeGHash(request jsonrpc.Request) error {
 func (cacher *Cacher) validate(network btctypes.Network, args abi.Args) error {
 	client := btcclient.NewClient(cacher.logger.WithField("blockchain", "btc"), network)
 	utxo := args.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
+
+	// calculate the GHash from the input arguments
 	copy(utxo.GHash[:], crypto.Keccak256(ethabi.Encode(abi.Args{
 		args.Get("phash"),
 		args.Get("amount"),
@@ -142,19 +149,31 @@ func (cacher *Cacher) validate(network btctypes.Network, args abi.Args) error {
 		args.Get("to"),
 		args.Get("n"),
 	})))
+
+	// derive the outpoint from the input arguments
 	op := btctypes.NewOutPoint(
 		types.TxHash(hex.EncodeToString(utxo.TxHash[:])),
 		uint32(utxo.VOut),
 	)
-	mUTXO, err := client.UTXO(context.TODO(), op)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	// get additional details about an utxo and check whether it is valid.
+	mUTXO, err := client.UTXO(ctx, op)
 	if err != nil {
 		return err
 	}
+
+	// fill missing utxo details
 	utxo.ScriptPubKey = abi.B(mUTXO.ScriptPubKey())
 	utxo.Amount = abi.U64(mUTXO.Amount())
+
+	// insert the utxo into the gateways table
 	return cacher.db.InsertGateway(utxo)
 }
 
+// check whether the given contract address is a shiftIn contract address.
 func isShiftIn(darknodeNet darknode.Network, addr abi.Addr) (btctypes.Network, bool) {
 	switch addr {
 	case abi.IntrinsicBTC0Btc2Eth.Addr:
@@ -168,6 +187,7 @@ func isShiftIn(darknodeNet darknode.Network, addr abi.Addr) (btctypes.Network, b
 	}
 }
 
+// get the blockchain network the RenVM uses on the given darknode network.
 func getBlockchainNetwork(darknodeNet darknode.Network, chain types.Chain) btctypes.Network {
 	switch darknodeNet {
 	case darknode.Chaosnet:
