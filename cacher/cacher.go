@@ -114,7 +114,7 @@ func (cacher *Cacher) get(reqID ID, darknodeID string) (jsonrpc.Response, bool) 
 	return jsonrpc.Response{}, false
 }
 
-// calculate and store the GHash and the Gateway UTXO
+// storeGHash is used to calculate and store the gateway hash and UTXO.
 func (cacher *Cacher) storeGHash(request jsonrpc.Request) error {
 	if request.Method != jsonrpc.MethodSubmitTx {
 		return nil
@@ -124,13 +124,13 @@ func (cacher *Cacher) storeGHash(request jsonrpc.Request) error {
 		return err
 	}
 
-	// check whether the to address is shiftIn address
+	// Check if the request is to a shift-in contract.
 	network, shiftIn := isShiftIn(cacher.network, params.Tx.To)
 	if !shiftIn {
 		return nil
 	}
 
-	// validate the tx arguments
+	// Validate the transaction arguments.
 	if err := cacher.validate(network, params.Tx.Args); err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func (cacher *Cacher) validate(network btctypes.Network, args abi.Args) error {
 	client := btcclient.NewClient(cacher.logger.WithField("blockchain", "btc"), network)
 	utxo := args.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
 
-	// calculate the GHash from the input arguments
+	// Calculate the gateway hash from the input arguments.
 	copy(utxo.GHash[:], crypto.Keccak256(ethabi.Encode(abi.Args{
 		args.Get("phash"),
 		args.Get("amount"),
@@ -150,7 +150,7 @@ func (cacher *Cacher) validate(network btctypes.Network, args abi.Args) error {
 		args.Get("n"),
 	})))
 
-	// derive the outpoint from the input arguments
+	// Derive the outpoint from the input arguments.
 	op := btctypes.NewOutPoint(
 		types.TxHash(hex.EncodeToString(utxo.TxHash[:])),
 		uint32(utxo.VOut),
@@ -159,21 +159,21 @@ func (cacher *Cacher) validate(network btctypes.Network, args abi.Args) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	// get additional details about an utxo and check whether it is valid.
+	// Get additional details for a UTXO and ensure they are valid.
 	mUTXO, err := client.UTXO(ctx, op)
 	if err != nil {
 		return err
 	}
 
-	// fill missing utxo details
+	// Populate remaining UTXO details.
 	utxo.ScriptPubKey = abi.B(mUTXO.ScriptPubKey())
 	utxo.Amount = abi.U64(mUTXO.Amount())
 
-	// insert the utxo into the gateways table
+	// Insert the UTXO into the database.
 	return cacher.db.InsertGateway(utxo)
 }
 
-// check whether the given contract address is a shiftIn contract address.
+// isShiftIn checks whether the given contract address is for a shift-in.
 func isShiftIn(darknodeNet darknode.Network, addr abi.Addr) (btctypes.Network, bool) {
 	switch addr {
 	case abi.IntrinsicBTC0Btc2Eth.Addr:
@@ -187,7 +187,8 @@ func isShiftIn(darknodeNet darknode.Network, addr abi.Addr) (btctypes.Network, b
 	}
 }
 
-// get the blockchain network the RenVM uses on the given darknode network.
+// getBlockchainNetwork returns the blockchain network RenVM uses for the given
+// Darknode network.
 func getBlockchainNetwork(darknodeNet darknode.Network, chain types.Chain) btctypes.Network {
 	switch darknodeNet {
 	case darknode.Chaosnet:
