@@ -33,7 +33,7 @@ type Lightnode struct {
 }
 
 // New constructs a new `Lightnode`.
-func New(ctx context.Context, network darknode.Network, db db.DB, logger logrus.FieldLogger, cap, cacheCap, maxBatchSize int, timeout, ttl, pollRate time.Duration, port string, bootstrapAddrs addr.MultiAddresses) Lightnode {
+func New(ctx context.Context, network darknode.Network, db db.DB, logger logrus.FieldLogger, cap, cacheCap, maxBatchSize int, timeout, minTTL, maxTTL, pollRate time.Duration, port string, bootstrapAddrs addr.MultiAddresses) Lightnode {
 	// All tasks have the same capacity, and no scaling
 	opts := phi.Options{Cap: cap}
 
@@ -51,7 +51,7 @@ func New(ctx context.Context, network darknode.Network, db db.DB, logger logrus.
 
 	updater := updater.New(logger, bootstrapAddrs, multiStore, pollRate, timeout)
 	dispatcher := dispatcher.New(logger, timeout, multiStore, opts)
-	cacher := cacher.New(ctx, network, db, dispatcher, logger, cacheCap, ttl, opts)
+	cacher := cacher.New(ctx, network, db, dispatcher, logger, cacheCap, minTTL, maxTTL, opts)
 	validator := validator.New(logger, cacher, multiStore, opts)
 	server := server.New(logger, port, options, validator)
 
