@@ -115,10 +115,12 @@ func (cacher *Cacher) insert(reqID ID, darknodeID string, response jsonrpc.Respo
 
 	var err error
 	switch cacheLevel {
-	case CacheLevelMin:
-		err = cacher.minTTLCache.Insert(id, response)
 	case CacheLevelMax:
 		err = cacher.maxTTLCache.Insert(id, response)
+	case CacheLevelMin:
+		err = cacher.minTTLCache.Insert(id, response)
+	case CacheLevelNil:
+		return
 	}
 	if err != nil {
 		cacher.logger.Panicf("[cacher] could not insert response into TTL cache: %v", err)
@@ -131,10 +133,12 @@ func (cacher *Cacher) get(reqID ID, darknodeID string, cacheLevel CacheLevel) (j
 	var response jsonrpc.Response
 	var err error
 	switch cacheLevel {
-	case CacheLevelMin:
-		err = cacher.minTTLCache.Get(id, &response)
 	case CacheLevelMax:
 		err = cacher.maxTTLCache.Get(id, &response)
+	case CacheLevelMin:
+		err = cacher.minTTLCache.Get(id, &response)
+	case CacheLevelNil:
+		return jsonrpc.Response{}, false
 	}
 	if err != nil {
 		return jsonrpc.Response{}, false
