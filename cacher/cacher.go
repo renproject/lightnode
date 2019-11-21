@@ -99,12 +99,8 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		// dispatcher, which is probably not ideal.
 		go func() {
 			response := <-responder
-			// If we're caching for the maximum amount of time, we should ensure
-			// there is no error.
-			if cacheLevel == CacheLevelMin || (cacheLevel == CacheLevelMax && response.Error == nil) {
-				// TODO: Consider thread safety of insertion.
-				cacher.insert(reqID, msg.DarknodeID, response, cacheLevel)
-			}
+			// TODO: Consider thread safety of insertion.
+			cacher.insert(reqID, msg.DarknodeID, response, cacheLevel)
 			msg.Responder <- response
 		}()
 	}
@@ -116,6 +112,11 @@ func (cacher *Cacher) insert(reqID ID, darknodeID string, response jsonrpc.Respo
 	var err error
 	switch cacheLevel {
 	case CacheLevelMax:
+		if response.Error != nil {
+			// We do not want to cache for the maximum amount of time if there
+			// was an error in the response.
+			return
+		}
 		err = cacher.maxTTLCache.Insert(id, response)
 	case CacheLevelMin:
 		err = cacher.minTTLCache.Insert(id, response)
