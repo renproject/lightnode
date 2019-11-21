@@ -23,6 +23,14 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+type CacheLevel uint8
+
+const (
+	CacheLevelNil = CacheLevel(0)
+	CacheLevelMin = CacheLevel(1)
+	CacheLevelMax = CacheLevel(2)
+)
+
 // ID is a key for a cached response.
 type ID [32]byte
 
@@ -45,13 +53,15 @@ type Cacher struct {
 	network    darknode.Network
 	db         db.DB
 
-	ttlCache kv.Table
+	minTTLCache kv.Table
+	maxTTLCache kv.Table
 }
 
 // New constructs a new `Cacher` as a `phi.Task` which can be `Run()`.
-func New(ctx context.Context, network darknode.Network, db db.DB, dispatcher phi.Sender, logger logrus.FieldLogger, cap int, ttl time.Duration, opts phi.Options) phi.Task {
-	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "responses", ttl)
-	return phi.New(&Cacher{logger, dispatcher, network, db, ttlCache}, opts)
+func New(ctx context.Context, network darknode.Network, db db.DB, dispatcher phi.Sender, logger logrus.FieldLogger, cap int, minTTL, maxTTL time.Duration, opts phi.Options) phi.Task {
+	minTTLCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "responses", minTTL)
+	maxTTLCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "responses", maxTTL)
+	return phi.New(&Cacher{logger, dispatcher, network, db, minTTLCache, maxTTLCache}, opts)
 }
 
 // Handle implements the `phi.Handler` interface.
@@ -69,13 +79,13 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	data := append(params, []byte(msg.Request.Method)...)
 	reqID := hash(data)
 
-	cachable := isCachable(msg.Request.Method)
-	response, cached := cacher.get(reqID, msg.DarknodeID)
-	if cachable && cached {
+	cacheLevel := cacheLevel(msg.Request.Method)
+	response, cached := cacher.get(reqID, msg.DarknodeID, cacheLevel)
+	if cacheLevel != CacheLevelNil && cached {
 		msg.Responder <- response
 	} else {
 		if err := cacher.storeGHash(msg.Request); err != nil {
-			cacher.logger.Errorf("[cacher] cannot store GHash to db: %v", err)
+			cacher.logger.Errorf("[cacher] cannot store ghash in db: %v", err)
 		}
 		responder := make(chan jsonrpc.Response, 1)
 		cacher.dispatcher.Send(server.RequestWithResponder{
@@ -89,29 +99,47 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		// dispatcher, which is probably not ideal.
 		go func() {
 			response := <-responder
-			// TODO: Consider thread safety of insertion.
-			cacher.insert(reqID, msg.DarknodeID, response, msg.Request.Method)
+			// If we're caching for the maximum amount of time, we should ensure
+			// there is no error.
+			if cacheLevel == CacheLevelMin || (cacheLevel == CacheLevelMax && response.Error == nil) {
+				// TODO: Consider thread safety of insertion.
+				cacher.insert(reqID, msg.DarknodeID, response, cacheLevel)
+			}
 			msg.Responder <- response
 		}()
 	}
 }
 
-func (cacher *Cacher) insert(reqID ID, darknodeID string, response jsonrpc.Response, method string) {
+func (cacher *Cacher) insert(reqID ID, darknodeID string, response jsonrpc.Response, cacheLevel CacheLevel) {
 	id := reqID.String() + darknodeID
-	if err := cacher.ttlCache.Insert(id, response); err != nil {
+
+	var err error
+	switch cacheLevel {
+	case CacheLevelMin:
+		err = cacher.minTTLCache.Insert(id, response)
+	case CacheLevelMax:
+		err = cacher.maxTTLCache.Insert(id, response)
+	}
+	if err != nil {
 		cacher.logger.Panicf("[cacher] could not insert response into TTL cache: %v", err)
 	}
 }
 
-func (cacher *Cacher) get(reqID ID, darknodeID string) (jsonrpc.Response, bool) {
+func (cacher *Cacher) get(reqID ID, darknodeID string, cacheLevel CacheLevel) (jsonrpc.Response, bool) {
 	id := reqID.String() + darknodeID
 
 	var response jsonrpc.Response
-	if err := cacher.ttlCache.Get(id, &response); err == nil {
-		return response, true
+	var err error
+	switch cacheLevel {
+	case CacheLevelMin:
+		err = cacher.minTTLCache.Get(id, &response)
+	case CacheLevelMax:
+		err = cacher.maxTTLCache.Get(id, &response)
 	}
-
-	return jsonrpc.Response{}, false
+	if err != nil {
+		return jsonrpc.Response{}, false
+	}
+	return response, true
 }
 
 // storeGHash is used to calculate and store the gateway hash and UTXO.
@@ -202,20 +230,19 @@ func getBlockchainNetwork(darknodeNet darknode.Network, chain types.Chain) btcty
 	}
 }
 
-func isCachable(method string) bool {
+func cacheLevel(method string) CacheLevel {
 	switch method {
+	case jsonrpc.MethodSubmitTx:
+		return CacheLevelMax
 	case jsonrpc.MethodQueryBlock,
 		jsonrpc.MethodQueryBlocks,
 		jsonrpc.MethodQueryNumPeers,
 		jsonrpc.MethodQueryPeers,
 		jsonrpc.MethodQueryEpoch,
 		jsonrpc.MethodQueryStat:
-		return true
-	case jsonrpc.MethodSubmitTx,
-		jsonrpc.MethodQueryTx:
-		// TODO: We need to make sure these are the only methods that we want to
-		// avoid caching.
-		return false
+		return CacheLevelMin
+	case jsonrpc.MethodQueryTx:
+		return CacheLevelNil
 	default:
 		panic(fmt.Sprintf("[cacher] unsupported method %s encountered which should have been rejected by the previous checks", method))
 	}

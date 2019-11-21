@@ -106,7 +106,7 @@ func main() {
 
 	// Start running Lightnode.
 	ctx := context.Background()
-	node := lightnode.New(ctx, net, db, logger, cap, cacheCap, maxBatchSize, timeout, ttl, pollRate, port, bootstrapMultiAddrs)
+	node := lightnode.New(ctx, net, db, logger, cap, cacheCap, maxBatchSize, timeout, ttl, 24*time.Hour, pollRate, port, bootstrapMultiAddrs)
 	node.Run(ctx)
 }
 
