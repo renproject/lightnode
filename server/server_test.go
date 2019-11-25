@@ -16,7 +16,7 @@ import (
 )
 
 var IP4 = "0.0.0.0"
-var PORT = "5000"
+var PORT = "3000"
 
 func initServer(ctx context.Context) <-chan phi.Message {
 	logger := logrus.New()
