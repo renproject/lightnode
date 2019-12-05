@@ -172,7 +172,11 @@ func (cacher *Cacher) storeGHash(request jsonrpc.Request) error {
 
 func (cacher *Cacher) validate(network btctypes.Network, args abi.Args) error {
 	client := btcclient.NewClient(cacher.logger.WithField("blockchain", "btc"), network)
-	utxo := args.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
+	utxoArg := args.Get("utxo")
+	if utxoArg.IsNil() {
+		return fmt.Errorf("utxo cannot be nil")
+	}
+	utxo := utxoArg.Value.(abi.ExtBtcCompatUTXO)
 
 	// Calculate the gateway hash from the input arguments.
 	var gatewayArgs abi.Args
