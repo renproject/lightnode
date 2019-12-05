@@ -175,13 +175,28 @@ func (cacher *Cacher) validate(network btctypes.Network, args abi.Args) error {
 	utxo := args.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
 
 	// Calculate the gateway hash from the input arguments.
-	copy(utxo.GHash[:], crypto.Keccak256(ethabi.Encode(abi.Args{
-		args.Get("phash"),
-		args.Get("amount"),
-		args.Get("token"),
-		args.Get("to"),
-		args.Get("n"),
-	})))
+	var gatewayArgs abi.Args
+	phash := args.Get("phash")
+	if !phash.IsNil() {
+		gatewayArgs = append(gatewayArgs, phash)
+	}
+	amount := args.Get("amount")
+	if !amount.IsNil() {
+		gatewayArgs = append(gatewayArgs, amount)
+	}
+	token := args.Get("token")
+	if !token.IsNil() {
+		gatewayArgs = append(gatewayArgs, token)
+	}
+	to := args.Get("to")
+	if !to.IsNil() {
+		gatewayArgs = append(gatewayArgs, to)
+	}
+	n := args.Get("n")
+	if !n.IsNil() {
+		gatewayArgs = append(gatewayArgs, n)
+	}
+	copy(utxo.GHash[:], crypto.Keccak256(ethabi.Encode(gatewayArgs)))
 
 	// Derive the outpoint from the input arguments.
 	op := btctypes.NewOutPoint(
