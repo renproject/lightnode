@@ -35,13 +35,13 @@ jobs:
           cd $GITHUB_WORKSPACE
           CI=true ginkgo --v --race --cover --coverprofile coverprofile.out ./...
           covermerge                                  \
-            validator/coverprofile.out                \
-            coverprofile.out                          \
-            dispatcher/coverprofile.out               \
-            server/ratelimiter/coverprofile.out       \
-            server/coverprofile.out                   \
-            updater/coverprofile.out                  \
-            client/coverprofile.out                   \
             cacher/coverprofile.out                   \
-            store/coverprofile.out > covermerge.out
+            client/coverprofile.out                   \
+            db/coverprofile.out                       \
+            dispatcher/coverprofile.out               \
+            server/coverprofile.out                   \
+            server/ratelimiter/coverprofile.out       \
+            store/coverprofile.out                    \
+            updater/coverprofile.out                  \
+            validator/coverprofile.out > covermerge.out
           goveralls -coverprofile=coverprofile.out -service=github
