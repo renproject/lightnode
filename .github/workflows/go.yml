@@ -3,7 +3,7 @@ on: [push]
 jobs:
   test:
     runs-on: ubuntu-latest
-      steps:
+    steps:
         - name: Set up Go 1.13
           uses: actions/setup-go@v1
           with:
