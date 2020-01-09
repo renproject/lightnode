@@ -1,23 +1,21 @@
 ## Overview
 
-Transaction confirmation is important to the safety of the system. It makes sure transactions are unlikely be re-ordered on blockchain. It also reduce the risk of double spending. 
+Waiting for confirmations is important to the safety of the system. It makes sure transactions are unlikely be re-ordered on blockchain and also reduces the risk of double spending.
 
 ## Motivation
 
-Currently darknodes accept transaction with 0-confirmation and wait for it to reach required number of confirmations before processing. This takes a lot of resources of darknode and can be a vulnerability for attack. We want to minimise the amount of work darknode is doing to avoid application-level DOS attack(See [issue](https://github.com/renproject/darknode/issues/118)).  Lightnode should do the validation and pre-processing to reduce the number of bad transactions sent to darknode. 
+Currently, Darknodes accept transactions with 0-confirmations and wait for them to reach the required number of confirmations before processing. This takes a lot of resources of Darknode and can be a vulnerability for attack. We want to minimise the amount of work Darknodes are doing (https://github.com/renproject/darknode/issues/118) to avoid an application-level DOS attack.  Lightnodes should do the validation and pre-processing to reduce the number of bad transactions sent to Darknodes.
 
 ## Design
 
-Persistent storage is needed for the transaction. So lightnode won't lose transaction details and can recover from an unexpected crash. We decide to use SQL databases, as it's easy to setup and fast for querying. The interface of storage needs to be persistent so that users can use different kinds of SQL databases. (i.e. sql lite, postgres sql...)
+Persistent storage is needed for the transaction so Lightnode won't lose transaction details and can recover from an unexpected crash. They will use SQL databases, as they are easy to set up and fast for querying. The interface of storage needs to be consistent so that users can use different kinds of SQL databases (i.e. SQLite, PostgreSQL, etc.).
 
-We'll have a confirmer which takes transaction from validator and checks zero-confirmation for the `SubmitTx` request. It should reject the transaction if it's not confirmed. After required number of confirmations are reached, confirmer sends the transaction to the next stage. 
-
+After transactions have been validated, Lightnode should check the `SubmitTx` transaction has received zero-confirmations. It should reject the transaction if it's not confirmed. After the required number of confirmations are reached, the transaction should then be broadcast to the Darknodes.
 
 ## Implementation 
 
 - Implement the transaction confirmer.
-  - Have recover logic in the confirmer when unexpected crash happens
-  - Periodically check confirmations stored and sends confirmed tx to validator
-
-- Define a good storage interface and implement it with both sql lite and postgres sql. 
-- Remove the code of storing gHash as it can be retrieved from the tx details. 
+  - Have recover logic in the confirmer for unexpected crashes.
+  - Periodically check confirmations stored and send confirmed transactions to validator.
+- Define a good storage interface and implement it with both SQLite and PostgreSQL.
+- Remove the code for storing ghashes as they can be retrieved from the transaction details.
