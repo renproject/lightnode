@@ -19,7 +19,7 @@ jobs:
         uses: actions/cache@v1
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-aw-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-lightnode-${{ hashFiles('**/go.sum') }}
       - name: Get dependencies
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
