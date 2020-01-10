@@ -8,7 +8,7 @@ import (
 
 // CheckTableExistence checks the underlying `db` object if there exists a table
 // with given name.
-func CheckTableExistence(dbName, tableName string, db *sql.DB) error{
+func CheckTableExistence(dbName, tableName string, db *sql.DB) error {
 	switch dbName {
 	case "sqlite3":
 		script := fmt.Sprintf("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='%v';", tableName)
@@ -37,6 +37,12 @@ func CheckTableExistence(dbName, tableName string, db *sql.DB) error{
 		panic("unknown sql db")
 	}
 	return nil
+}
+
+func DropTable(db *sql.DB, name string) error {
+	script := fmt.Sprintf("DROP TABLE %v", name)
+	_, err := db.Exec(script)
+	return err
 }
 
 // NumOfDataEntries returns the number of data entries in the queried table.

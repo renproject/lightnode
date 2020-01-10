@@ -18,16 +18,16 @@ import (
 )
 
 const (
-	Sqlite = "sqlite3"
-	Postgres = "postgres"
+	Sqlite        = "sqlite3"
+	Postgres      = "postgres"
 	TestTableName = "tx"
 )
 
 var _ = Describe("Lightnode db", func() {
 
-	testDBs := []string{ Sqlite, Postgres}
+	testDBs := []string{Sqlite, Postgres}
 
-	initDB := func(name string) *sql.DB{
+	initDB := func(name string) *sql.DB {
 		var source string
 		switch name {
 		case Sqlite:
@@ -47,28 +47,29 @@ var _ = Describe("Lightnode db", func() {
 		Expect(os.Remove("./test.db")).Should(BeNil())
 	})
 
-	for _, dbname := range testDBs{
+	for _, dbname := range testDBs {
 		dbname := dbname
 		Context(dbname, func() {
 			Context("when creating the tx table", func() {
 				It("should only create the tx if not exists", func() {
 					sqlDB := initDB(dbname)
 					defer sqlDB.Close()
+					defer DropTable(sqlDB, "tx")
 					db := New(sqlDB)
 
 					// table should not exist before creation
-					Expect(CheckTableExistence(dbname, "tx",sqlDB)).Should(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "tx", sqlDB)).Should(HaveOccurred())
 
 					// table should exist after creation
 					Expect(db.CreateTxTable()).To(Succeed())
-					Expect(CheckTableExistence(dbname, "tx",sqlDB)).NotTo(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "tx", sqlDB)).NotTo(HaveOccurred())
 
 					// Multiple call of the creation function should not have any effect on existing table.
 					Expect(db.CreateTxTable()).To(Succeed())
-					Expect(CheckTableExistence(dbname, "tx",sqlDB)).NotTo(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "tx", sqlDB)).NotTo(HaveOccurred())
 
 					Expect(db.CreateTxTable()).To(Succeed())
-					Expect(CheckTableExistence(dbname, "tx",sqlDB)).NotTo(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "tx", sqlDB)).NotTo(HaveOccurred())
 				})
 			})
 
@@ -76,6 +77,7 @@ var _ = Describe("Lightnode db", func() {
 				It("should be able to read and write tx", func() {
 					sqlDB := initDB(dbname)
 					defer sqlDB.Close()
+					defer DropTable(sqlDB, "tx")
 					db := New(sqlDB)
 					Expect(db.CreateTxTable()).To(Succeed())
 
@@ -94,9 +96,10 @@ var _ = Describe("Lightnode db", func() {
 				})
 
 				It("should be able to delete tx", func() {
-					sqlite := initDB(dbname)
-					defer sqlite.Close()
-					db := New(sqlite)
+					sqlDB := initDB(dbname)
+					defer sqlDB.Close()
+					defer DropTable(sqlDB, "tx")
+					db := New(sqlDB)
 					Expect(db.CreateTxTable()).To(Succeed())
 
 					test := func() bool {
@@ -106,13 +109,13 @@ var _ = Describe("Lightnode db", func() {
 						Expect(db.InsertTx(tx)).To(Succeed())
 
 						// Expect db has on data entry
-						before, err := NumOfDataEntries(sqlite, TestTableName)
+						before, err := NumOfDataEntries(sqlDB, TestTableName)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(before).Should(Equal(1))
 
 						// Delete the data and expect no data in the db
 						Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
-						after, err := NumOfDataEntries(sqlite, TestTableName)
+						after, err := NumOfDataEntries(sqlDB, TestTableName)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(after).Should(BeZero())
 

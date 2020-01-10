@@ -101,10 +101,10 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, db db.
 	server := server.New(logger, options.Port, serverOptions, validator)
 
 	return Lightnode{
-		options:    options,
-		logger:     logger,
-		server:     server,
-		updater:    updater,
+		options: options,
+		logger:  logger,
+		server:  server,
+		updater: updater,
 
 		validator:  validator,
 		cacher:     cacher,
