@@ -17,182 +17,111 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
-const TestTableName = "tx"
+const (
+	Sqlite = "sqlite3"
+	Postgres = "postgres"
+	TestTableName = "tx"
+)
 
 var _ = Describe("Lightnode db", func() {
 
-	Context("Sqlite", func() {
+	testDBs := []string{ Sqlite, Postgres}
 
-		initDB := func() *sql.DB {
-			sqlDB, err := sql.Open("sqlite3", "./test.db")
-			Expect(err).NotTo(HaveOccurred())
-			return sqlDB
+	initDB := func(name string) *sql.DB{
+		var source string
+		switch name {
+		case Sqlite:
+			source = "./test.db"
+		case Postgres:
+			source = "postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable"
+		default:
+			panic("unknown")
 		}
 
-		AfterEach(func() {
-			Expect(os.Remove("./test.db")).Should(BeNil())
-		})
+		sqlDB, err := sql.Open(name, source)
+		Expect(err).NotTo(HaveOccurred())
+		return sqlDB
+	}
 
-		Context("when creating the tx table", func() {
-			It("should only create the tx if not exists", func() {
-				sqlite := initDB()
-				defer sqlite.Close()
-				db := New(sqlite)
-
-				// table should not exist before creation
-				Expect(CheckTableExistenceSqlite(sqlite, "tx")).Should(HaveOccurred())
-
-				// table should exist after creation
-				Expect(db.CreateTxTable()).To(Succeed())
-				Expect(CheckTableExistenceSqlite(sqlite, "tx")).NotTo(HaveOccurred())
-
-				// Multiple call of the creation function should not have any effect on existing table.
-				Expect(db.CreateTxTable()).To(Succeed())
-				Expect(CheckTableExistenceSqlite(sqlite, "tx")).NotTo(HaveOccurred())
-
-				Expect(db.CreateTxTable()).To(Succeed())
-				Expect(CheckTableExistenceSqlite(sqlite, "tx")).NotTo(HaveOccurred())
-			})
-		})
-
-		Context("when processing txs", func() {
-			It("should be able to read and write tx", func() {
-				sqlite := initDB()
-				defer sqlite.Close()
-				db := New(sqlite)
-				Expect(db.CreateTxTable()).To(Succeed())
-
-				test := func() bool {
-					tx, err := RandomShiftInTx()
-					Expect(err).NotTo(HaveOccurred())
-					Expect(db.InsertTx(tx)).To(Succeed())
-
-					stored, err := db.GetTx(tx.Hash)
-					Expect(err).NotTo(HaveOccurred())
-					return cmp.Equal(tx, stored, cmpopts.EquateEmpty())
-				}
-
-				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
-			})
-
-			It("should be able to delete tx", func() {
-				sqlite := initDB()
-				defer sqlite.Close()
-				db := New(sqlite)
-				Expect(db.CreateTxTable()).To(Succeed())
-
-				test := func() bool {
-					// Insert a random tx
-					tx, err := RandomShiftInTx()
-					Expect(err).NotTo(HaveOccurred())
-					Expect(db.InsertTx(tx)).To(Succeed())
-
-					// Expect db has on data entry
-					before, err := NumOfDataEntries(sqlite, TestTableName)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(before).Should(Equal(1))
-
-					// Delete the data and expect no data in the db
-					Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
-					after, err := NumOfDataEntries(sqlite, TestTableName)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(after).Should(BeZero())
-
-					return true
-				}
-
-				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
-			})
-		})
+	AfterSuite(func() {
+		Expect(os.Remove("./test.db")).Should(BeNil())
 	})
 
-	Context("Postgres", func() {
+	for _, dbname := range testDBs{
+		dbname := dbname
+		Context(dbname, func() {
+			Context("when creating the tx table", func() {
+				It("should only create the tx if not exists", func() {
+					sqlDB := initDB(dbname)
+					defer sqlDB.Close()
+					db := New(sqlDB)
 
-		// Please make sure you have turned on postgres and have set up a clean
-		// db called postgres  (It might be already created by default)
-		// $ pg_ctl -D /usr/local/var/postgres start
-		// $ createdb postgres
-		initDB := func() *sql.DB {
-			sqlDB, err := sql.Open("postgres", "postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable")
-			Expect(err).NotTo(HaveOccurred())
-			return sqlDB
-		}
+					// table should not exist before creation
+					Expect(CheckTableExistence(dbname, "tx",sqlDB)).Should(HaveOccurred())
 
-		Context("when creating the tx table", func() {
-			It("should only create the tx if not exists", func() {
-				pq := initDB()
-				defer pq.Close()
-				db := New(pq)
+					// table should exist after creation
+					Expect(db.CreateTxTable()).To(Succeed())
+					Expect(CheckTableExistence(dbname, "tx",sqlDB)).NotTo(HaveOccurred())
 
-				// table should not exist before creation
-				Expect(CheckTableExistencePostgres(pq, "tx")).Should(HaveOccurred())
+					// Multiple call of the creation function should not have any effect on existing table.
+					Expect(db.CreateTxTable()).To(Succeed())
+					Expect(CheckTableExistence(dbname, "tx",sqlDB)).NotTo(HaveOccurred())
 
-				// table should exist after creation
-				Expect(db.CreateTxTable()).To(Succeed())
-				Expect(CheckTableExistencePostgres(pq, "tx")).NotTo(HaveOccurred())
+					Expect(db.CreateTxTable()).To(Succeed())
+					Expect(CheckTableExistence(dbname, "tx",sqlDB)).NotTo(HaveOccurred())
+				})
+			})
 
-				// Multiple call of the creation function should not have any effect on existing table.
-				Expect(db.CreateTxTable()).To(Succeed())
-				Expect(CheckTableExistencePostgres(pq, "tx")).NotTo(HaveOccurred())
+			Context("when processing txs", func() {
+				It("should be able to read and write tx", func() {
+					sqlDB := initDB(dbname)
+					defer sqlDB.Close()
+					db := New(sqlDB)
+					Expect(db.CreateTxTable()).To(Succeed())
 
-				Expect(db.CreateTxTable()).To(Succeed())
-				Expect(CheckTableExistencePostgres(pq, "tx")).NotTo(HaveOccurred())
+					test := func() bool {
+						tx, err := RandomShiftInTx()
+						Expect(err).NotTo(HaveOccurred())
+						Expect(db.InsertTx(tx)).To(Succeed())
+
+						stored, err := db.GetTx(tx.Hash)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
+						return cmp.Equal(tx, stored, cmpopts.EquateEmpty())
+					}
+
+					Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+				})
+
+				It("should be able to delete tx", func() {
+					sqlite := initDB(dbname)
+					defer sqlite.Close()
+					db := New(sqlite)
+					Expect(db.CreateTxTable()).To(Succeed())
+
+					test := func() bool {
+						// Insert a random tx
+						tx, err := RandomShiftInTx()
+						Expect(err).NotTo(HaveOccurred())
+						Expect(db.InsertTx(tx)).To(Succeed())
+
+						// Expect db has on data entry
+						before, err := NumOfDataEntries(sqlite, TestTableName)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(before).Should(Equal(1))
+
+						// Delete the data and expect no data in the db
+						Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
+						after, err := NumOfDataEntries(sqlite, TestTableName)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(after).Should(BeZero())
+
+						return true
+					}
+
+					Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+				})
 			})
 		})
-
-		Context("when processing txs", func() {
-			It("should be able to read and write tx", func() {
-				pq := initDB()
-				defer pq.Close()
-				db := New(pq)
-				Expect(db.CreateTxTable()).To(Succeed())
-
-				test := func() bool {
-					tx, err := RandomShiftInTx()
-					Expect(err).NotTo(HaveOccurred())
-					Expect(db.InsertTx(tx)).To(Succeed())
-
-					stored, err := db.GetTx(tx.Hash)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(cmp.Equal(tx, stored, cmpopts.EquateEmpty())).Should(BeTrue())
-
-					Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
-
-					return true
-				}
-
-				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
-
-			})
-
-			It("should be able to delete tx", func() {
-				pq := initDB()
-				defer pq.Close()
-				db := New(pq)
-				Expect(db.CreateTxTable()).To(Succeed())
-
-				test := func() bool {
-					// Insert a random tx
-					tx, err := RandomShiftInTx()
-					Expect(err).NotTo(HaveOccurred())
-					Expect(db.InsertTx(tx)).To(Succeed())
-
-					// Expect db has on data entry
-					before, err := NumOfDataEntries(pq, TestTableName)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(before).Should(Equal(1))
-
-					// Delete the data and expect no data in the db
-					Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
-					after, err := NumOfDataEntries(pq, TestTableName)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(after).Should(BeZero())
-
-					return true
-				}
-
-				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
-			})
-		})
-	})
+	}
 })
