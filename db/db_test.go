@@ -33,7 +33,7 @@ var _ = Describe("Lightnode db", func() {
 		case Sqlite:
 			source = "./test.db"
 		case Postgres:
-			source = "postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable"
+			source = "postgresql://localhost:5432/postgres?sslmode=disable"
 		default:
 			panic("unknown")
 		}

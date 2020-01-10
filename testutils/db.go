@@ -39,6 +39,7 @@ func CheckTableExistence(dbName, tableName string, db *sql.DB) error {
 	return nil
 }
 
+// DropTable with given name from the db instance.
 func DropTable(db *sql.DB, name string) error {
 	script := fmt.Sprintf("DROP TABLE %v", name)
 	_, err := db.Exec(script)
