@@ -112,7 +112,7 @@ var _ = Describe("Lightnode db", func() {
 		// $ pg_ctl -D /usr/local/var/postgres start
 		// $ createdb testDatabase
 		initDB := func() *sql.DB {
-			sqlDB, err := sql.Open("postgres", "postgresql://localhost:5432/testDatabase?sslmode=disable")
+			sqlDB, err := sql.Open("postgres", "postgresql://localhost:5432/postgres?sslmode=disable")
 			if err != nil {
 				Expect(err).NotTo(HaveOccurred())
 			}
