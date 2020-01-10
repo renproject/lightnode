@@ -17,6 +17,8 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
+const TestTableName = "tx"
+
 var _ = Describe("Lightnode db", func() {
 
 	Context("Sqlite", func() {
@@ -88,13 +90,13 @@ var _ = Describe("Lightnode db", func() {
 					Expect(db.InsertTx(tx)).To(Succeed())
 
 					// Expect db has on data entry
-					before, err := NumOfDataEntries(sqlite)
+					before, err := NumOfDataEntries(sqlite, TestTableName)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(before).Should(Equal(1))
 
 					// Delete the data and expect no data in the db
 					Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
-					after, err := NumOfDataEntries(sqlite)
+					after, err := NumOfDataEntries(sqlit, TestTableName)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(after).Should(BeZero())
 
@@ -179,13 +181,13 @@ var _ = Describe("Lightnode db", func() {
 					Expect(db.InsertTx(tx)).To(Succeed())
 
 					// Expect db has on data entry
-					before, err := NumOfDataEntries(pq)
+					before, err := NumOfDataEntries(pq, TestTableName)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(before).Should(Equal(1))
 
 					// Delete the data and expect no data in the db
 					Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
-					after, err := NumOfDataEntries(pq)
+					after, err := NumOfDataEntries(pq, TestTableName)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(after).Should(BeZero())
 

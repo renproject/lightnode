@@ -37,8 +37,9 @@ func CheckTableExistencePostgres(db *sql.DB, name string) error {
 	return nil
 }
 
-func NumOfDataEntries(db *sql.DB) (int, error) {
-	script := "SELECT count(*) FROM tx"
+// NumOfDataEntries returns the number of data entries in the queried table.
+func NumOfDataEntries(db *sql.DB, name string) (int, error) {
+	script := fmt.Sprintf("SELECT count(*) FROM %v", name)
 	var num int
 	err := db.QueryRow(script).Scan(&num)
 	return num, err
