@@ -25,9 +25,7 @@ var _ = Describe("Lightnode db", func() {
 
 		initDB := func() *sql.DB {
 			sqlDB, err := sql.Open("sqlite3", "./test.db")
-			if err != nil {
-				Expect(err).NotTo(HaveOccurred())
-			}
+			Expect(err).NotTo(HaveOccurred())
 			return sqlDB
 		}
 
@@ -96,7 +94,7 @@ var _ = Describe("Lightnode db", func() {
 
 					// Delete the data and expect no data in the db
 					Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
-					after, err := NumOfDataEntries(sqlit, TestTableName)
+					after, err := NumOfDataEntries(sqlite, TestTableName)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(after).Should(BeZero())
 
@@ -110,14 +108,13 @@ var _ = Describe("Lightnode db", func() {
 
 	Context("Postgres", func() {
 
-		// Please make sure you have turned postgres on and have set up a db called testDatabase
+		// Please make sure you have turned on postgres and have set up a clean
+		// db called postgres  (It might be already created by default)
 		// $ pg_ctl -D /usr/local/var/postgres start
-		// $ createdb testDatabase
+		// $ createdb postgres
 		initDB := func() *sql.DB {
 			sqlDB, err := sql.Open("postgres", "postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable")
-			if err != nil {
-				Expect(err).NotTo(HaveOccurred())
-			}
+			Expect(err).NotTo(HaveOccurred())
 			return sqlDB
 		}
 
