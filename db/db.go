@@ -20,8 +20,8 @@ type sqlDB struct {
 	db *sql.DB
 }
 
-// NewSqlDB creates a new DB instance.
-func NewSqlDB(db *sql.DB) DB {
+// New creates a new DB instance.
+func New(db *sql.DB) DB {
 	return &sqlDB{
 		db: db,
 	}

@@ -65,7 +65,7 @@ func main() {
 		logger.Fatalf("failed to connect to psql db: %v", err)
 	}
 	defer sqlDB.Close()
-	db := db.NewSqlDB(sqlDB)
+	db := db.New(sqlDB)
 
 	// create the table if it does not exist, disregard the already exists error.
 	_ = db.CreateTxTable()

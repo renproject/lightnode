@@ -37,7 +37,7 @@ var _ = Describe("Lightnode db", func() {
 			It("should only create the tx if not exists", func() {
 				sqlite := initDB()
 				defer sqlite.Close()
-				db := NewSqlDB(sqlite)
+				db := New(sqlite)
 
 				// table should not exist before creation
 				Expect(CheckTableExistenceSqlite(sqlite, "tx")).Should(HaveOccurred())
@@ -59,7 +59,7 @@ var _ = Describe("Lightnode db", func() {
 			It("should be able to read and write tx", func() {
 				sqlite := initDB()
 				defer sqlite.Close()
-				db := NewSqlDB(sqlite)
+				db := New(sqlite)
 				Expect(db.CreateTxTable()).To(Succeed())
 
 				test := func() bool {
@@ -78,7 +78,7 @@ var _ = Describe("Lightnode db", func() {
 			It("should be able to delete tx", func() {
 				sqlite := initDB()
 				defer sqlite.Close()
-				db := NewSqlDB(sqlite)
+				db := New(sqlite)
 				Expect(db.CreateTxTable()).To(Succeed())
 
 				test := func() bool {
@@ -88,13 +88,13 @@ var _ = Describe("Lightnode db", func() {
 					Expect(db.InsertTx(tx)).To(Succeed())
 
 					// Expect db has on data entry
-					before, err := NumOfDataEntriesSqlite(sqlite)
+					before, err := NumOfDataEntries(sqlite)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(before).Should(Equal(1))
 
 					// Delete the data and expect no data in the db
 					Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
-					after, err := NumOfDataEntriesSqlite(sqlite)
+					after, err := NumOfDataEntries(sqlite)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(after).Should(BeZero())
 
@@ -112,7 +112,7 @@ var _ = Describe("Lightnode db", func() {
 		// $ pg_ctl -D /usr/local/var/postgres start
 		// $ createdb testDatabase
 		initDB := func() *sql.DB {
-			sqlDB, err := sql.Open("postgres", "postgresql://posgres:posgres@localhost:5432/postgres?sslmode=disable")
+			sqlDB, err := sql.Open("postgres", "postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable")
 			if err != nil {
 				Expect(err).NotTo(HaveOccurred())
 			}
@@ -123,7 +123,7 @@ var _ = Describe("Lightnode db", func() {
 			It("should only create the tx if not exists", func() {
 				pq := initDB()
 				defer pq.Close()
-				db := NewSqlDB(pq)
+				db := New(pq)
 
 				// table should not exist before creation
 				Expect(CheckTableExistencePostgres(pq, "tx")).Should(HaveOccurred())
@@ -145,7 +145,7 @@ var _ = Describe("Lightnode db", func() {
 			It("should be able to read and write tx", func() {
 				pq := initDB()
 				defer pq.Close()
-				db := NewSqlDB(pq)
+				db := New(pq)
 				Expect(db.CreateTxTable()).To(Succeed())
 
 				test := func() bool {
@@ -169,7 +169,7 @@ var _ = Describe("Lightnode db", func() {
 			It("should be able to delete tx", func() {
 				pq := initDB()
 				defer pq.Close()
-				db := NewSqlDB(pq)
+				db := New(pq)
 				Expect(db.CreateTxTable()).To(Succeed())
 
 				test := func() bool {
@@ -179,13 +179,13 @@ var _ = Describe("Lightnode db", func() {
 					Expect(db.InsertTx(tx)).To(Succeed())
 
 					// Expect db has on data entry
-					before, err := NumOfDataEntriesSqlite(pq)
+					before, err := NumOfDataEntries(pq)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(before).Should(Equal(1))
 
 					// Delete the data and expect no data in the db
 					Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
-					after, err := NumOfDataEntriesSqlite(pq)
+					after, err := NumOfDataEntries(pq)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(after).Should(BeZero())
 

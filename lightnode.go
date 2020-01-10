@@ -70,13 +70,12 @@ type Lightnode struct {
 	options Options
 	logger  logrus.FieldLogger
 	server  *server.Server
+	updater updater.Updater
 
 	// Tasks
 	validator  phi.Task
 	cacher     phi.Task
 	dispatcher phi.Task
-
-	updater updater.Updater
 }
 
 // New constructs a new `Lightnode`.
@@ -105,10 +104,11 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, db db.
 		options:    options,
 		logger:     logger,
 		server:     server,
+		updater:    updater,
+
 		validator:  validator,
 		cacher:     cacher,
 		dispatcher: dispatcher,
-		updater:    updater,
 	}
 }
 

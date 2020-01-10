@@ -23,7 +23,7 @@ func initDB() db.DB {
 	if err != nil {
 		panic(err)
 	}
-	return db.NewSqlDB(sqlDB)
+	return db.New(sqlDB)
 }
 
 func initCacher(ctx context.Context, cacheCap int, ttl time.Duration) (phi.Sender, <-chan phi.Message) {

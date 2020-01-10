@@ -6,6 +6,7 @@ import (
 	"fmt"
 )
 
+// CheckTableExistenceSqlite checks if table with given exists in a sqlite db.
 func CheckTableExistenceSqlite(db *sql.DB, name string) error {
 	script := fmt.Sprintf("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='%v';", name)
 	var num int
@@ -18,6 +19,7 @@ func CheckTableExistenceSqlite(db *sql.DB, name string) error {
 	return nil
 }
 
+// CheckTableExistencePostgres checks if table with given exists in a postgres db.
 func CheckTableExistencePostgres(db *sql.DB, name string) error {
 	script := fmt.Sprintf(`SELECT EXISTS (
 	SELECT 1
@@ -35,7 +37,7 @@ func CheckTableExistencePostgres(db *sql.DB, name string) error {
 	return nil
 }
 
-func NumOfDataEntriesSqlite(db *sql.DB) (int, error) {
+func NumOfDataEntries(db *sql.DB) (int, error) {
 	script := "SELECT count(*) FROM tx"
 	var num int
 	err := db.QueryRow(script).Scan(&num)

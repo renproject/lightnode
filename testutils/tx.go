@@ -9,6 +9,7 @@ import (
 	"github.com/renproject/darknode/abi"
 )
 
+// RandomShiftInTx creates a random ShiftIn Tx.
 func RandomShiftInTx() (abi.Tx, error) {
 	contract := RandomMintMethod()
 	tokenAddr := darknode.TokenAddresses[darknode.Localnet][contract]
