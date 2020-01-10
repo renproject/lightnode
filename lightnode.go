@@ -18,11 +18,58 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Options for setting up a Lightnode, usually parsed from environment variables.
+type Options struct {
+	Network        darknode.Network
+	Port           string
+	Cap            int
+	CacheCap       int
+	MaxBatchSize   int
+	Timeout        time.Duration
+	TTL            time.Duration
+	PollRate       time.Duration
+	BootstrapAddrs addr.MultiAddresses
+}
+
+// SetZeroToDefault does basic verification of options and set fields with zero value to default.
+func (options Options) SetZeroToDefault() {
+	switch options.Network {
+	case darknode.Mainnet, darknode.Chaosnet, darknode.Testnet, darknode.Devnet, darknode.Localnet:
+	default:
+		panic("unknown networks")
+	}
+	if options.Port == "" {
+		panic("port is not set in the options")
+	}
+	if len(options.BootstrapAddrs) == 0 {
+		panic("bootstrap addresses are not set in the options")
+	}
+	if options.Cap == 0 {
+		options.Cap = 128
+	}
+	if options.CacheCap == 0 {
+		options.CacheCap = 128
+	}
+	if options.MaxBatchSize == 0 {
+		options.MaxBatchSize = 10
+	}
+	if options.Timeout == 0 {
+		options.Timeout = time.Minute
+	}
+	if options.TTL == 0 {
+		options.TTL = 3 * time.Second
+	}
+	if options.PollRate == 0 {
+		options.PollRate = 5 * time.Minute
+	}
+}
+
 // Lightnode is the top level container that encapsulates the functionality of
 // the lightnode.
 type Lightnode struct {
-	logger logrus.FieldLogger
-	server *server.Server
+	options Options
+	logger  logrus.FieldLogger
+	server  *server.Server
 
 	// Tasks
 	validator  phi.Task
@@ -33,35 +80,35 @@ type Lightnode struct {
 }
 
 // New constructs a new `Lightnode`.
-func New(ctx context.Context, network darknode.Network, db db.DB, logger logrus.FieldLogger, cap, cacheCap, maxBatchSize int, timeout, ttl, pollRate time.Duration, port string, bootstrapAddrs addr.MultiAddresses) Lightnode {
+func New(ctx context.Context, options Options, logger logrus.FieldLogger, db db.DB) Lightnode {
 	// All tasks have the same capacity, and no scaling
-	opts := phi.Options{Cap: cap}
+	opts := phi.Options{Cap: options.Cap}
 
 	// Server options
-	options := server.Options{MaxBatchSize: maxBatchSize}
+	serverOptions := server.Options{MaxBatchSize: options.MaxBatchSize}
 
 	// Create the store and insert the bootstrap addresses.
-	firstBootstrapAddr := bootstrapAddrs[0]
-	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), firstBootstrapAddr)
-	for _, bootstrapAddr := range bootstrapAddrs {
+	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), options.BootstrapAddrs[0])
+	for _, bootstrapAddr := range options.BootstrapAddrs {
 		if err := multiStore.Insert(bootstrapAddr); err != nil {
 			logger.Fatalf("cannot insert bootstrap address: %v", err)
 		}
 	}
 
-	updater := updater.New(logger, bootstrapAddrs, multiStore, pollRate, timeout)
-	dispatcher := dispatcher.New(logger, timeout, multiStore, opts)
-	cacher := cacher.New(ctx, network, db, dispatcher, logger, cacheCap, ttl, opts)
+	updater := updater.New(logger, options.BootstrapAddrs, multiStore, options.PollRate, options.Timeout)
+	dispatcher := dispatcher.New(logger, options.Timeout, multiStore, opts)
+	cacher := cacher.New(ctx, options.Network, db, dispatcher, logger, options.CacheCap, options.TTL, opts)
 	validator := validator.New(logger, cacher, multiStore, opts)
-	server := server.New(logger, port, options, validator)
+	server := server.New(logger, options.Port, serverOptions, validator)
 
 	return Lightnode{
-		logger,
-		server,
-		validator,
-		cacher,
-		dispatcher,
-		updater,
+		options:    options,
+		logger:     logger,
+		server:     server,
+		validator:  validator,
+		cacher:     cacher,
+		dispatcher: dispatcher,
+		updater:    updater,
 	}
 }
 

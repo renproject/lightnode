@@ -26,17 +26,18 @@ import (
 // ID is a key for a cached response.
 type ID [32]byte
 
+// String returns the hex encoding of the ID.
 func (id ID) String() string {
-	return string(id[:32])
+	return hex.EncodeToString(id[:])
 }
 
 // Cacher is a task responsible for caching responses for corresponding
 // requests. Upon receiving a request (in the current architecture this request
 // comes from the `Validator`) it will check its cache to see if it has a
-// cached response. If it does, it will write this immediately as a repsonse,
+// cached response. If it does, it will write this immediately as a response,
 // otherwise it will forward the request on to the `Dispatcher`. Once the
 // `Dispatcher` has a response ready, the `Cacher` will store this response in
-// its cache with a key derived from the request, and then pass the repsonse
+// its cache with a key derived from the request, and then pass the response
 // along to be given to the client. Currently, idempotent requests are stored
 // in a LRU cache, and non-idempotent requests are stored in a TTL cache.
 type Cacher struct {
@@ -170,7 +171,7 @@ func (cacher *Cacher) validate(network btctypes.Network, args abi.Args) error {
 	utxo.Amount = abi.U64(mUTXO.Amount())
 
 	// Insert the UTXO into the database.
-	return cacher.db.InsertGateway(utxo)
+	return nil
 }
 
 // isShiftIn checks whether the given contract address is for a shift-in.

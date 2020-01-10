@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/cacher"
@@ -23,7 +23,7 @@ func initDB() db.DB {
 	if err != nil {
 		panic(err)
 	}
-	return db.NewSQLDB(sqlDB)
+	return db.NewSqlDB(sqlDB)
 }
 
 func initCacher(ctx context.Context, cacheCap int, ttl time.Duration) (phi.Sender, <-chan phi.Message) {

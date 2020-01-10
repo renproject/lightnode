@@ -1,100 +1,199 @@
 package db_test
 
 import (
-	"crypto/rand"
 	"database/sql"
 	"os"
-	"reflect"
+	"testing/quick"
 
+	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/darknode/abi"
 	. "github.com/renproject/lightnode/db"
+	. "github.com/renproject/lightnode/testutils"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 var _ = Describe("Lightnode db", func() {
-	initDB := func() DB {
-		sqlDB, err := sql.Open("sqlite3", "./test.db")
-		if err != nil {
-			panic(err)
+
+	Context("Sqlite", func() {
+
+		initDB := func() *sql.DB {
+			sqlDB, err := sql.Open("sqlite3", "./test.db")
+			if err != nil {
+				Expect(err).NotTo(HaveOccurred())
+			}
+			return sqlDB
 		}
-		return NewSQLDB(sqlDB)
-	}
 
-	AfterSuite(func() {
-		Expect(os.Remove("./test.db")).Should(BeNil())
+		AfterEach(func() {
+			Expect(os.Remove("./test.db")).Should(BeNil())
+		})
+
+		Context("when creating the tx table", func() {
+			It("should only create the tx if not exists", func() {
+				sqlite := initDB()
+				defer sqlite.Close()
+				db := NewSqlDB(sqlite)
+
+				// table should not exist before creation
+				Expect(CheckTableExistenceSqlite(sqlite, "tx")).Should(HaveOccurred())
+
+				// table should exist after creation
+				Expect(db.CreateTxTable()).To(Succeed())
+				Expect(CheckTableExistenceSqlite(sqlite, "tx")).NotTo(HaveOccurred())
+
+				// Multiple call of the creation function should not have any effect on existing table.
+				Expect(db.CreateTxTable()).To(Succeed())
+				Expect(CheckTableExistenceSqlite(sqlite, "tx")).NotTo(HaveOccurred())
+
+				Expect(db.CreateTxTable()).To(Succeed())
+				Expect(CheckTableExistenceSqlite(sqlite, "tx")).NotTo(HaveOccurred())
+			})
+		})
+
+		Context("when processing txs", func() {
+			It("should be able to read and write tx", func() {
+				sqlite := initDB()
+				defer sqlite.Close()
+				db := NewSqlDB(sqlite)
+				Expect(db.CreateTxTable()).To(Succeed())
+
+				test := func() bool {
+					tx, err := RandomShiftInTx()
+					Expect(err).NotTo(HaveOccurred())
+					Expect(db.InsertTx(tx)).To(Succeed())
+
+					stored, err := db.GetTx(tx.Hash)
+					Expect(err).NotTo(HaveOccurred())
+					return cmp.Equal(tx, stored, cmpopts.EquateEmpty())
+				}
+
+				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+			})
+
+			It("should be able to delete tx", func() {
+				sqlite := initDB()
+				defer sqlite.Close()
+				db := NewSqlDB(sqlite)
+				Expect(db.CreateTxTable()).To(Succeed())
+
+				test := func() bool {
+					// Insert a random tx
+					tx, err := RandomShiftInTx()
+					Expect(err).NotTo(HaveOccurred())
+					Expect(db.InsertTx(tx)).To(Succeed())
+
+					// Expect db has on data entry
+					before, err := NumOfDataEntriesSqlite(sqlite)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(before).Should(Equal(1))
+
+					// Delete the data and expect no data in the db
+					Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
+					after, err := NumOfDataEntriesSqlite(sqlite)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(after).Should(BeZero())
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+			})
+		})
 	})
-	AfterEach(func() {
-		db := initDB()
-		Expect(db.DropGatewayTable()).Should(BeNil())
-		Expect(db.CreateGatewayTable()).Should(BeNil())
-	})
-	Context("When processing GHashes", func() {
-		It("Should create the Gateway table", func() {
-			db := initDB()
-			Expect(db.CreateGatewayTable()).Should(BeNil())
-		})
 
-		It("Should be able to insert and retrieve a GHash", func() {
-			db := initDB()
-			utxo := abi.ExtBtcCompatUTXO{ScriptPubKey: abi.B{}}
-			rand.Read(utxo.TxHash[:])
-			rand.Read(utxo.GHash[:])
+	Context("Postgres", func() {
 
-			Expect(db.InsertGateway(utxo)).Should(BeNil())
-			utxos, err := db.SelectGateways()
-			Expect(err).Should(BeNil())
-			Expect(len(utxos)).Should(Equal(1))
-			Expect(reflect.DeepEqual(utxos[0], utxo)).Should(BeTrue())
-		})
-
-		It("Should be able to update an existing GHash", func() {
-			db := initDB()
-			utxo1 := abi.ExtBtcCompatUTXO{ScriptPubKey: abi.B{}}
-			rand.Read(utxo1.TxHash[:])
-			rand.Read(utxo1.GHash[:])
-
-			utxo2 := utxo1
-			rand.Read(utxo2.TxHash[:])
-
-			Expect(db.InsertGateway(utxo1)).Should(BeNil())
-			Expect(db.InsertGateway(utxo2)).Should(BeNil())
-			utxos, err := db.SelectGateways()
-			Expect(err).Should(BeNil())
-			Expect(len(utxos)).Should(Equal(1))
-			Expect(reflect.DeepEqual(utxos[0], utxo2)).Should(BeTrue())
-		})
-
-		It("Should be able to insert and retrieve multiple GHashes", func() {
-			db := initDB()
-			iutxos := make(abi.ExtBtcCompatUTXOs, 5)
-			for i := 0; i < 5; i++ {
-				utxo := abi.ExtBtcCompatUTXO{ScriptPubKey: abi.B{}}
-				rand.Read(utxo.TxHash[:])
-				rand.Read(utxo.GHash[:])
-				Expect(db.InsertGateway(utxo)).Should(BeNil())
-				iutxos[i] = utxo
+		// Please make sure you have turned postgres on and have set up a db called testDatabase
+		// $ pg_ctl -D /usr/local/var/postgres start
+		// $ createdb testDatabase
+		initDB := func() *sql.DB {
+			sqlDB, err := sql.Open("postgres", "postgresql://localhost:5432/testDatabase?sslmode=disable")
+			if err != nil {
+				Expect(err).NotTo(HaveOccurred())
 			}
-			utxos, err := db.SelectGateways()
-			Expect(err).Should(BeNil())
-			Expect(len(utxos)).Should(Equal(5))
-			for i := 0; i < 5; i++ {
-				Expect(reflect.DeepEqual(utxos[i], iutxos[i])).Should(BeTrue())
-			}
+			return sqlDB
+		}
+
+		Context("when creating the tx table", func() {
+			It("should only create the tx if not exists", func() {
+				pq := initDB()
+				defer pq.Close()
+				db := NewSqlDB(pq)
+
+				// table should not exist before creation
+				Expect(CheckTableExistencePostgres(pq, "tx")).Should(HaveOccurred())
+
+				// table should exist after creation
+				Expect(db.CreateTxTable()).To(Succeed())
+				Expect(CheckTableExistencePostgres(pq, "tx")).NotTo(HaveOccurred())
+
+				// Multiple call of the creation function should not have any effect on existing table.
+				Expect(db.CreateTxTable()).To(Succeed())
+				Expect(CheckTableExistencePostgres(pq, "tx")).NotTo(HaveOccurred())
+
+				Expect(db.CreateTxTable()).To(Succeed())
+				Expect(CheckTableExistencePostgres(pq, "tx")).NotTo(HaveOccurred())
+			})
 		})
 
-		It("Should be able to insert and delete a GHash", func() {
-			db := initDB()
-			utxo := abi.ExtBtcCompatUTXO{ScriptPubKey: abi.B{}}
-			rand.Read(utxo.TxHash[:])
-			rand.Read(utxo.GHash[:])
+		Context("when processing txs", func() {
+			It("should be able to read and write tx", func() {
+				pq := initDB()
+				defer pq.Close()
+				db := NewSqlDB(pq)
+				Expect(db.CreateTxTable()).To(Succeed())
 
-			Expect(db.InsertGateway(utxo)).Should(BeNil())
-			Expect(db.DeleteGateway(utxo.GHash)).Should(BeNil())
-			utxos, err := db.SelectGateways()
-			Expect(err).Should(BeNil())
-			Expect(len(utxos)).Should(Equal(0))
+				test := func() bool {
+					tx, err := RandomShiftInTx()
+					Expect(err).NotTo(HaveOccurred())
+					Expect(db.InsertTx(tx)).To(Succeed())
+
+					stored, err := db.GetTx(tx.Hash)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(cmp.Equal(tx, stored, cmpopts.EquateEmpty())).Should(BeTrue())
+
+					Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+
+			})
+
+			It("should be able to delete tx", func() {
+				pq := initDB()
+				defer pq.Close()
+				db := NewSqlDB(pq)
+				Expect(db.CreateTxTable()).To(Succeed())
+
+				test := func() bool {
+					// Insert a random tx
+					tx, err := RandomShiftInTx()
+					Expect(err).NotTo(HaveOccurred())
+					Expect(db.InsertTx(tx)).To(Succeed())
+
+					// Expect db has on data entry
+					before, err := NumOfDataEntriesSqlite(pq)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(before).Should(Equal(1))
+
+					// Delete the data and expect no data in the db
+					Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
+					after, err := NumOfDataEntriesSqlite(pq)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(after).Should(BeZero())
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+			})
 		})
 	})
 })
