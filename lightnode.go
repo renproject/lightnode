@@ -31,10 +31,12 @@ type Options struct {
 	BootstrapAddrs addr.MultiAddresses
 }
 
-// SetZeroToDefault does basic verification of options and set fields with zero value to default.
+// SetZeroToDefault does basic verification of options and set fields with zero
+// value to default.
 func (options Options) SetZeroToDefault() {
 	switch options.Network {
-	case darknode.Mainnet, darknode.Chaosnet, darknode.Testnet, darknode.Devnet, darknode.Localnet:
+	case darknode.Mainnet, darknode.Chaosnet:
+	case darknode.Testnet, darknode.Devnet, darknode.Localnet:
 	default:
 		panic("unknown networks")
 	}
@@ -119,5 +121,5 @@ func (lightnode Lightnode) Run(ctx context.Context) {
 	go lightnode.cacher.Run(ctx)
 	go lightnode.dispatcher.Run(ctx)
 
-	lightnode.server.Run()
+	lightnode.server.Listen()
 }

@@ -1,4 +1,4 @@
-package ratelimiter
+package server
 
 import (
 	"github.com/renproject/darknode/jsonrpc"
@@ -11,7 +11,7 @@ type RateLimiter struct {
 }
 
 // New constructs a new `RateLimiter`.
-func New() RateLimiter {
+func NewRateLimiter() RateLimiter {
 	limiters := map[string]*jsonrpc.RateLimiter{}
 
 	// TODO: Currently this uses the same rate limits as the darknode, but
@@ -29,8 +29,9 @@ func New() RateLimiter {
 // been exceeded. It will also return false if the method is not supported
 // (i.e. unsupported methods have rate limits of 0/s).
 func (rl *RateLimiter) Allow(method, addr string) bool {
-	// NOTE: We assume it has been made sure that the method exists prior to
-	// this stage.
-	limiter := rl.limiters[method]
+	limiter, ok := rl.limiters[method]
+	if !ok {
+		return false
+	}
 	return limiter.IPAddressLimiter(addr).Allow()
 }

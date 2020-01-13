@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -58,6 +59,7 @@ func SendToDarknode(url string, req jsonrpc.Request, timeout time.Duration) (jso
 			return resp, nil
 		}()
 		if err != nil {
+			log.Printf("err = %v", err)
 			continue
 		}
 		return resp, nil

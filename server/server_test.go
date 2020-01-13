@@ -7,70 +7,70 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	. "github.com/renproject/lightnode/server"
+	. "github.com/renproject/lightnode/testutils"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/lightnode/client"
-	"github.com/renproject/lightnode/server"
-	"github.com/renproject/lightnode/testutils"
-	"github.com/renproject/phi"
-	"github.com/sirupsen/logrus"
 )
 
-var IP4 = "0.0.0.0"
-var PORT = "5000"
-
-func initServer(ctx context.Context) <-chan phi.Message {
-	logger := logrus.New()
-	options := server.Options{MaxBatchSize: 2}
-	inspector, messages := testutils.NewInspector(100)
-	server := server.New(logger, PORT, options, inspector)
-
-	go inspector.Run(ctx)
-	go server.Run()
-
-	waitForInit(messages)
-	return messages
-}
-
-func sendRequest(request jsonrpc.Request) {
-	timeout := time.Second
-	url := fmt.Sprintf("http://%s:%s", IP4, PORT)
-	client.SendToDarknode(url, request, timeout)
-}
-
-func waitForInit(messages <-chan phi.Message) {
-	for {
-		request := testutils.ValidRequest(jsonrpc.MethodSubmitTx)
-		sendRequest(request)
-
-		select {
-		case <-time.After(10 * time.Millisecond):
-			continue
-		case <-messages:
-			return
-		}
-	}
-}
+var (
+	IP4  = "0.0.0.0"
+	PORT = "5000"
+)
 
 var _ = Describe("Lightnode server", func() {
-	Context("When Running a server", func() {
-		It("Should pass a valid message through", func() {
+
+	Context("when initializing server options", func() {
+
+		It("should panic if the port field is not set.", func() {
+			options := Options{
+				Port: "",
+			}
+			Expect(func() {
+				options.SetZeroToDefault()
+			}).Should(Panic())
+		})
+
+		It("should set zero values to default", func() {
+			options := Options{
+				Port: "12345",
+			}
+			options.SetZeroToDefault()
+			Expect(options.MaxBatchSize).Should(Equal(10))
+			Expect(options.Timeout).Should(Equal(15 * time.Second))
+		})
+	})
+
+	Context("when running a server", func() {
+		// It("should expose an endpoint for health check", func() {
+		// 	ctx, cancel := context.WithCancel(context.Background())
+		// 	defer cancel()
+		// })
+
+		It("should pass a valid message through", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			messages := initServer(ctx)
-			request := testutils.ValidRequest(jsonrpc.MethodSubmitTx)
+			outMessages := InitServer(ctx, PORT)
 
-			sendRequest(request)
-			select {
-			case <-time.After(time.Second):
-				Fail("timeout")
-			case message := <-messages:
-				req, ok := message.(server.RequestWithResponder)
-				Expect(ok).To(BeTrue())
-				Expect(req.Request).To(Equal(request))
-				Expect(req.Responder).To(Not(BeNil()))
+			url := fmt.Sprintf("http://%s:%s", IP4, PORT)
+			request := ValidRequest(jsonrpc.MethodSubmitTx)
+			respChan, err := SendRequestAsync(request, url)
+			Expect(err).NotTo(HaveOccurred())
 
-				req.Responder <- testutils.ErrorResponse(req.Request.ID)
-			}
+			// Expect the request pass all the check and sent to validator.
+			var req RequestWithResponder
+			Eventually(outMessages).Should(Receive(&req))
+			Expect(req.Request).To(Equal(request))
+			Expect(req.Responder).To(Not(BeNil()))
+
+			// Simulate a response been sent through the responder channel.
+			response := ErrorResponse(req.Request.ID)
+			req.Responder <- response
+			var resp *jsonrpc.Response
+			Eventually(respChan).Should(Receive(&resp))
+			Expect(cmp.Equal(*response.Error, *resp.Error, cmpopts.EquateEmpty())).Should(BeTrue())
 		})
 	})
 })
