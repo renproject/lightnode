@@ -208,3 +208,9 @@ func (iter majorityResponseIterator) get(id interface{}, responses <-chan jsonrp
 	response := jsonrpc.NewResponse(id, nil, &jsonErr)
 	return response
 }
+
+type SubmitTx struct {
+	Request jsonrpc.Request
+}
+
+func (SubmitTx) IsMessage() {}

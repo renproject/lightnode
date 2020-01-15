@@ -1,13 +1,16 @@
 package validator
 
 import (
+	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
 	"fmt"
 
+	"github.com/renproject/darknode/ethrpc/bindings"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/server"
 	"github.com/renproject/lightnode/store"
+	"github.com/renproject/mercury/sdk/client/btcclient"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -26,11 +29,32 @@ type Validator struct {
 	logger     logrus.FieldLogger
 	cacher     phi.Sender
 	multiStore store.MultiAddrStore
+	requests   chan server.RequestWithResponder
 }
 
 // New constructs a new `Validator`.
-func New(logger logrus.FieldLogger, cacher phi.Sender, multiStore store.MultiAddrStore, opts phi.Options) phi.Task {
-	return phi.New(&Validator{logger, cacher, multiStore}, opts)
+func New(logger logrus.FieldLogger, cacher, confirmer phi.Sender, multiStore store.MultiAddrStore, opts phi.Options, key ecdsa.PublicKey, btcClient, zecClient, bchClient btcclient.Client, btcShifter,zecShifter,bchShifter *bindings.Shifter) phi.Task {
+	requests := make(chan server.RequestWithResponder, 128)
+	txValidator := TxValidator{
+		logger:     logger,
+		confirmer:  confirmer,
+		requests:   requests,
+		disPubkey:  key,
+		btcClient:  btcClient,
+		zecClient:  zecClient,
+		bchClient:  bchClient,
+		btcShifter: btcShifter,
+		zecShifter: zecShifter,
+		bchShifter: bchShifter,
+	}
+	go txValidator.Run()
+
+	return phi.New(&Validator{
+		logger: logger,
+		cacher: cacher,
+		multiStore: multiStore,
+		requests: requests,
+	}, opts)
 }
 
 // Handle implements the `phi.Handler` interface.
@@ -44,116 +68,67 @@ func (validator *Validator) Handle(_ phi.Task, message phi.Message) {
 		msg.Responder <- jsonrpc.NewResponse(msg.Request.ID, nil, err)
 		return
 	}
-	validator.cacher.Send(msg)
+	if msg.Request.Method != jsonrpc.MethodSubmitTx{
+		validator.cacher.Send(msg)
+	}
 }
 
 func (validator *Validator) isValid(msg server.RequestWithResponder) *jsonrpc.Error {
 	// Reject requests that don't conform to the JSON-RPC standard.
 	if msg.Request.Version != "2.0" {
-		err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidRequest, fmt.Sprintf("invalid jsonrpc field: expected \"2.0\", got \"%s\"", msg.Request.Version), nil)
-		return &err
+		errMsg := fmt.Sprintf(`invalid jsonrpc field: expected "2.0", got "%s"`, msg.Request.Version)
+		return &jsonrpc.Error{jsonrpc.ErrorCodeInvalidRequest, errMsg, nil}
 	}
 
 	// Reject unsupported methods.
 	method := msg.Request.Method
-	if !isSupported(method) {
-		err := jsonrpc.NewError(jsonrpc.ErrorCodeMethodNotFound, fmt.Sprintf("unsupported method %s", method), nil)
-		return &err
-	}
-
-	// Reject requests with invalid parameters.
-	if ok, msg := hasValidParams(msg.Request); !ok {
-		err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("invalid parameters in request: %s", msg), nil)
-		return &err
+	if _, ok := jsonrpc.RPCs[method]; !ok {
+		errMsg := fmt.Sprintf("unsupported method %s", method)
+		return &jsonrpc.Error{jsonrpc.ErrorCodeMethodNotFound, errMsg, nil}
 	}
 
 	// Reject requests with invalid Darknode IDs.
 	darknodeID := msg.DarknodeID
 	if darknodeID != "" {
-		_, err := validator.multiStore.Get(darknodeID)
-		if err != nil {
-			err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("unknown darknode id %s", darknodeID), nil)
-			return &err
+		if _, err := validator.multiStore.Get(darknodeID); err != nil {
+			errMsg := fmt.Sprintf("unknown darknode id %s", darknodeID)
+			return &jsonrpc.Error{jsonrpc.ErrorCodeInvalidParams, errMsg, nil}
 		}
+	}
+
+	// Reject requests with invalid parameters.
+	if ok, msg := validator.hasValidParams(msg); !ok {
+		errMsg := fmt.Sprintf("invalid parameters in request: %s", msg)
+		return &jsonrpc.Error{jsonrpc.ErrorCodeInvalidParams, errMsg, nil}
 	}
 
 	return nil
 }
 
-func isSupported(method string) bool {
-	_, supported := jsonrpc.RPCs[method]
-	return supported
-}
-
-func hasValidParams(message jsonrpc.Request) (bool, error) {
-	switch message.Method {
-	case jsonrpc.MethodQueryBlock:
-		return validQueryBlockParams(message.Params)
-	case jsonrpc.MethodQueryBlocks:
-		return validQueryBlocksParams(message.Params)
+func (validator *Validator) hasValidParams(message server.RequestWithResponder) (bool, error) {
+	switch message.Request.Method {
+	// These methods don't require any parameters
+	case jsonrpc.MethodQueryBlock, jsonrpc.MethodQueryBlocks, jsonrpc.MethodQueryNumPeers, jsonrpc.MethodQueryPeers, jsonrpc.MethodQueryStat:
 	case jsonrpc.MethodSubmitTx:
-		return validSubmitTxParams(message.Params)
+		validator.requests <- message
 	case jsonrpc.MethodQueryTx:
-		return validQueryTxParams(message.Params)
-	case jsonrpc.MethodQueryNumPeers:
-		return validQueryNumPeersParams(message.Params)
-	case jsonrpc.MethodQueryPeers:
-		return validQueryPeersParams(message.Params)
+		return validQueryTxParams(message.Request.Params)
 	case jsonrpc.MethodQueryEpoch:
 		// TODO: At the time of writing this method is not supported by the
 		// darknode. This should be implemented once it is implemented in the
 		// darknode.
 		return false, errors.New("method QueryEpoch is not supported")
-	case jsonrpc.MethodQueryStat:
-		return validQueryStatParams(message.Params)
 	default:
-		// TODO: Is it ok to panic at this level, or should all panics happen
-		// through a logger?
-		panic(fmt.Sprintf("[validator] unsupported method %s encountered which should have been rejected by the previous checks", message.Method))
+		panic(fmt.Sprintf("[validator] unsupported method %s encountered which should have been rejected by the previous checks", message.Request.Method))
 	}
-}
-
-func validQueryBlockParams(params json.RawMessage) (bool, error) {
-	// This parameter type has no fields, so there is nothing to check.
 	return true, nil
 }
 
-func validQueryBlocksParams(params json.RawMessage) (bool, error) {
-	// This parameter type has no fields, so there is nothing to check.
-	return true, nil
-}
-
-func validSubmitTxParams(params json.RawMessage) (bool, error) {
-	var data jsonrpc.ParamsSubmitTx
-	if err := json.Unmarshal(params, &data); err != nil {
-		return false, ErrInvalidParams
-	}
-	// TODO: Check fields. Do we want to use the entire darknode transform
-	// pipeline to check validity?
-	return true, nil
-}
-
+// validate the params of the `QueryTx` request.
 func validQueryTxParams(params json.RawMessage) (bool, error) {
 	var data jsonrpc.ParamsQueryTx
 	if err := json.Unmarshal(params, &data); err != nil {
 		return false, ErrInvalidParams
 	}
-	// Currently the only field in the parameters is a hash field, which can't
-	// really be checked for validity here
-	return true, nil
-}
-
-func validQueryNumPeersParams(params json.RawMessage) (bool, error) {
-	// This parameter type has no fields, so there is nothing to check.
-	return true, nil
-}
-
-func validQueryPeersParams(params json.RawMessage) (bool, error) {
-	// This parameter type has no fields, so there is nothing to check.
-	return true, nil
-}
-
-func validQueryStatParams(params json.RawMessage) (bool, error) {
-	// This parameter type has no fields, so there is nothing to check.
 	return true, nil
 }

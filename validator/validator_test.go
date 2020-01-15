@@ -120,16 +120,10 @@ var _ = Describe("Validator", func() {
 
 			for method := range jsonrpc.RPCs {
 				// TODO: Is it worth fuzz testing on the other request fields?
-				var params json.RawMessage
-				switch method {
-				case jsonrpc.MethodSubmitTx,
-					jsonrpc.MethodQueryTx:
-					params = json.RawMessage{}
-				default:
-					// TODO: This method is either not supported, or does not
-					// require any parameters.
+				if method != jsonrpc.MethodSubmitTx && method != jsonrpc.MethodQueryTx {
 					continue
 				}
+				params := json.RawMessage{}
 				request := testutils.ValidRequest(method)
 				request.Params = params
 				req := server.NewRequestWithResponder(request, "")

@@ -12,7 +12,9 @@ import (
 type DB interface {
 	CreateTxTable() error
 	InsertTx(tx abi.Tx) error
-	GetTx(hash abi.B32) (abi.Tx, error)
+	Tx(hash abi.B32) (abi.Tx, error)
+	ConfirmTx(hash abi.B32) error
+	PendingTxs() (abi.Txs, error)
 	DeleteTx(hash abi.B32) error
 }
 
@@ -82,14 +84,14 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT DO NOTHIN
 	return err
 }
 
-// GetTx queries the db and returns the tx with given hash.
-func (db *sqlDB) GetTx(txHash abi.B32) (abi.Tx, error) {
+// Tx queries the db and returns the tx with given hash.
+func (db *sqlDB) Tx(txHash abi.B32) (abi.Tx, error) {
 	var hash, contract, phash, token, to, n, utxoHash, utxoScriptPubKey, utxoGhash string
 	var amount, utxoVout, utxoAmount int
 	err := db.db.QueryRow("SELECT hash, contract, p_hash, amount, token, toAddr, n, utxo_tx_hash, utxo_vout, utxo_script_pub_key, utxo_amount, utxo_g_hash FROM Tx WHERE hash=$1", hex.EncodeToString(txHash[:])).Scan(
 		&hash, &contract, &phash, &amount, &token, &to, &n, &utxoHash, &utxoVout, &utxoScriptPubKey, &utxoAmount, &utxoGhash)
 	if err != nil {
-		return abi.Tx{}, nil
+		return abi.Tx{}, err
 	}
 	tx := abi.Tx{
 		Hash: txHash,
@@ -142,7 +144,11 @@ func (db *sqlDB) GetTx(txHash abi.B32) (abi.Tx, error) {
 	tx.Args.Append(phashArg, amountArg, tokenArg, toArg, nArg, utxoArg)
 
 	return tx, nil
+}
 
+func (db *sqlDB) PendingTxs() (abi.Txs, error) {
+	// TODO : UNIMPLEMENTED
+	panic("implement me")
 }
 
 // DeleteTx with given hash from the db.

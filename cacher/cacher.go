@@ -68,7 +68,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	}
 
 	data := append(params, []byte(msg.Request.Method)...)
-	reqID := hash(data)
+	reqID := sha3.Sum256(data)
 
 	cachable := isCachable(msg.Request.Method)
 	response, cached := cacher.get(reqID, msg.DarknodeID)
@@ -171,7 +171,7 @@ func (cacher *Cacher) validate(network btctypes.Network, args abi.Args) error {
 	utxo.Amount = abi.U64(mUTXO.Amount())
 
 	// Insert the UTXO into the database.
-	return nil
+	return
 }
 
 // isShiftIn checks whether the given contract address is for a shift-in.
@@ -220,8 +220,4 @@ func isCachable(method string) bool {
 	default:
 		panic(fmt.Sprintf("[cacher] unsupported method %s encountered which should have been rejected by the previous checks", method))
 	}
-}
-
-func hash(data []byte) ID {
-	return sha3.Sum256(data)
 }

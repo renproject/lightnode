@@ -3,10 +3,12 @@ package testutils
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/client"
@@ -163,17 +165,7 @@ func ValidRequest(method string) jsonrpc.Request {
 			Params:  json.RawMessage{},
 		}
 	case jsonrpc.MethodSubmitTx:
-		// TODO: Add fields to params struct.
-		rawMsg, err := json.Marshal(jsonrpc.ParamsSubmitTx{})
-		if err != nil {
-			panic("marshalling error")
-		}
-		return jsonrpc.Request{
-			Version: "2.0",
-			ID:      float64(1),
-			Method:  method,
-			Params:  rawMsg,
-		}
+		return RandomSubmitTx()
 	case jsonrpc.MethodQueryTx:
 		// TODO: Add fields to params struct.
 		rawMsg, err := json.Marshal(jsonrpc.ParamsQueryTx{})
@@ -211,6 +203,49 @@ func ValidRequest(method string) jsonrpc.Request {
 		}
 	default:
 		panic("invalid method")
+	}
+}
+
+func RandomSubmitTx() jsonrpc.Request {
+	contract := RandomMintMethod()
+	args := abi.Args{}
+	for _, formal := range abi.Intrinsics[contract].In {
+		arg := abi.Arg{
+			Name:  formal.Name,
+			Type:  formal.Type,
+			Value: RandomAbiValue(formal.Type),
+		}
+		args.Append(arg)
+	}
+	submitTx := jsonrpc.ParamsSubmitTx{Tx: abi.Tx{
+		Hash: RandomB32(),
+		To:   contract,
+		Args: args,
+	}}
+	rawMsg, err := json.Marshal(submitTx)
+	if err != nil {
+		panic("marshalling error")
+	}
+	return jsonrpc.Request{
+		Version: "2.0",
+		ID:      float64(1),
+		Method:  jsonrpc.MethodSubmitTx,
+		Params:  rawMsg,
+	}
+}
+
+func RandomAbiValue(t abi.Type) abi.Value {
+	switch t {
+	case abi.TypeB20:
+		return RandomB20()
+	case abi.TypeB32:
+		return RandomB32()
+	case abi.TypeU64:
+		return abi.U64(rand.Int63())
+	case abi.ExtTypeBtcCompatUTXO:
+		return RandomUtxo()
+	default:
+		panic(fmt.Sprintf("unknown type %v", t))
 	}
 }
 

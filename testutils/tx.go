@@ -90,11 +90,25 @@ func RandomB32() abi.B32 {
 	return b32
 }
 
+// RandomU32 returns a randomly generated unsigned 32-bit integer that is ABI
+// compatible.
+func RandomU32() abi.U32 {
+	u32 := abi.U32(rand.Uint32())
+	return u32
+}
+
+func RandomUtxo() abi.ExtBtcCompatUTXO {
+	return abi.ExtBtcCompatUTXO{
+		TxHash: RandomB32(),
+		VOut:   RandomU32(),
+	}
+}
+
 // RandomMintMethod returns a random method for minting tokens.
-func RandomMintMethod() abi.Addr {
-	methods := make([]abi.Addr, 0)
-	methods = append(methods, abi.IntrinsicBTC0Btc2Eth.Addr)
-	methods = append(methods, abi.IntrinsicZEC0Zec2Eth.Addr)
-	methods = append(methods, abi.IntrinsicBCH0Bch2Eth.Addr)
+func RandomMintMethod() abi.Address {
+	methods := make([]abi.Address, 0)
+	methods = append(methods, abi.IntrinsicBTC0Btc2Eth.Address)
+	methods = append(methods, abi.IntrinsicZEC0Zec2Eth.Address)
+	methods = append(methods, abi.IntrinsicBCH0Bch2Eth.Address)
 	return methods[rand.Intn(len(methods))]
 }

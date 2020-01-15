@@ -86,7 +86,10 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, db db.
 	opts := phi.Options{Cap: options.Cap}
 
 	// Server options
-	serverOptions := server.Options{MaxBatchSize: options.MaxBatchSize}
+	serverOptions := server.Options{
+		Port:         options.Port,
+		MaxBatchSize: options.MaxBatchSize,
+	}
 
 	// Create the store and insert the bootstrap addresses.
 	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), options.BootstrapAddrs[0])
@@ -100,7 +103,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, db db.
 	dispatcher := dispatcher.New(logger, options.Timeout, multiStore, opts)
 	cacher := cacher.New(ctx, options.Network, db, dispatcher, logger, options.CacheCap, options.TTL, opts)
 	validator := validator.New(logger, cacher, multiStore, opts)
-	server := server.New(logger, options.Port, serverOptions, validator)
+	server := server.New(logger, serverOptions, validator)
 
 	return Lightnode{
 		options: options,
@@ -121,5 +124,5 @@ func (lightnode Lightnode) Run(ctx context.Context) {
 	go lightnode.cacher.Run(ctx)
 	go lightnode.dispatcher.Run(ctx)
 
-	lightnode.server.Listen()
+	lightnode.server.Listen(ctx)
 }

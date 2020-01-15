@@ -44,6 +44,8 @@ var _ = Describe("Lightnode server", func() {
 	})
 
 	Context("when running a server", func() {
+
+		// TODO : ADD MORE TEST CASES.
 		// It("should expose an endpoint for health check", func() {
 		// 	ctx, cancel := context.WithCancel(context.Background())
 		// 	defer cancel()

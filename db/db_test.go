@@ -86,7 +86,7 @@ var _ = Describe("Lightnode db", func() {
 						Expect(err).NotTo(HaveOccurred())
 						Expect(db.InsertTx(tx)).To(Succeed())
 
-						stored, err := db.GetTx(tx.Hash)
+						stored, err := db.Tx(tx.Hash)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
 						return cmp.Equal(tx, stored, cmpopts.EquateEmpty())
