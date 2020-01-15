@@ -6,11 +6,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/renproject/darknode/ethrpc/bindings"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/lightnode/blockchain"
 	"github.com/renproject/lightnode/server"
 	"github.com/renproject/lightnode/store"
-	"github.com/renproject/mercury/sdk/client/btcclient"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -30,30 +29,26 @@ type Validator struct {
 	cacher     phi.Sender
 	multiStore store.MultiAddrStore
 	requests   chan server.RequestWithResponder
+	connPool   blockchain.ConnPool
 }
 
 // New constructs a new `Validator`.
-func New(logger logrus.FieldLogger, cacher, confirmer phi.Sender, multiStore store.MultiAddrStore, opts phi.Options, key ecdsa.PublicKey, btcClient, zecClient, bchClient btcclient.Client, btcShifter,zecShifter,bchShifter *bindings.Shifter) phi.Task {
+func New(logger logrus.FieldLogger, cacher, confirmer phi.Sender, multiStore store.MultiAddrStore, opts phi.Options, key ecdsa.PublicKey, connPool blockchain.ConnPool) phi.Task {
 	requests := make(chan server.RequestWithResponder, 128)
 	txValidator := TxValidator{
-		logger:     logger,
-		confirmer:  confirmer,
-		requests:   requests,
-		disPubkey:  key,
-		btcClient:  btcClient,
-		zecClient:  zecClient,
-		bchClient:  bchClient,
-		btcShifter: btcShifter,
-		zecShifter: zecShifter,
-		bchShifter: bchShifter,
+		logger:    logger,
+		confirmer: confirmer,
+		requests:  requests,
+		disPubkey: key,
+		connPool:  connPool,
 	}
 	go txValidator.Run()
 
 	return phi.New(&Validator{
-		logger: logger,
-		cacher: cacher,
+		logger:     logger,
+		cacher:     cacher,
 		multiStore: multiStore,
-		requests: requests,
+		requests:   requests,
 	}, opts)
 }
 
@@ -68,7 +63,7 @@ func (validator *Validator) Handle(_ phi.Task, message phi.Message) {
 		msg.Responder <- jsonrpc.NewResponse(msg.Request.ID, nil, err)
 		return
 	}
-	if msg.Request.Method != jsonrpc.MethodSubmitTx{
+	if msg.Request.Method != jsonrpc.MethodSubmitTx {
 		validator.cacher.Send(msg)
 	}
 }

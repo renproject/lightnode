@@ -1,10 +1,8 @@
 package validator
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,14 +13,10 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/abi/ethabi"
-	"github.com/renproject/darknode/ethrpc/bindings"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/lightnode/blockchain"
 	"github.com/renproject/lightnode/confirmer"
 	"github.com/renproject/lightnode/server"
-	"github.com/renproject/mercury/sdk/client/btcclient"
-	"github.com/renproject/mercury/sdk/gateway/btcgateway"
-	"github.com/renproject/mercury/types"
-	"github.com/renproject/mercury/types/btctypes"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -30,16 +24,11 @@ import (
 const MinShiftAmount = 10000
 
 type TxValidator struct {
-	logger     logrus.FieldLogger
-	confirmer  phi.Sender
-	requests   <-chan server.RequestWithResponder
-	disPubkey  ecdsa.PublicKey
-	btcClient  btcclient.Client
-	zecClient  btcclient.Client
-	bchClient  btcclient.Client
-	btcShifter *bindings.Shifter
-	zecShifter *bindings.Shifter
-	bchShifter *bindings.Shifter
+	logger    logrus.FieldLogger
+	confirmer phi.Sender
+	requests  <-chan server.RequestWithResponder
+	disPubkey ecdsa.PublicKey
+	connPool  blockchain.ConnPool
 }
 
 func (v *TxValidator) Run() {
@@ -55,7 +44,7 @@ func (v *TxValidator) Run() {
 				}
 
 				// Send the success response to user
-				data, err:= json.Marshal(tx)
+				data, err := json.Marshal(tx)
 				if err != nil {
 					v.logger.Errorf("cannot marshal tx, err = %v", err)
 					continue
@@ -63,7 +52,12 @@ func (v *TxValidator) Run() {
 				req.Responder <- jsonrpc.NewResponse(req.Request.ID, data, nil)
 
 				// Send the verified tx to confirmer for confirmations
-				v.confirmer.Send(confirmer.SubmitTx{Tx:tx})
+				if ok := v.confirmer.Send(confirmer.SubmitTx{
+					Request: req.Request,
+					Tx:      tx,
+				}); !ok {
+					v.logger.Error("[txValidator] cannot send message to confirmer")
+				}
 			}
 		}
 	})
@@ -114,7 +108,7 @@ func (v *TxValidator) verifyArguments(tx abi.Tx) error {
 }
 
 func (v *TxValidator) verifyHash(tx abi.Tx) (abi.Tx, error) {
-	if v.isShiftIn(tx) {
+	if v.connPool.IsShiftIn(tx) {
 		ghash, nhash := abi.B32{}, abi.B32{}
 		utxo := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
 
@@ -165,14 +159,11 @@ func (v *TxValidator) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	if v.isShiftIn(tx) {
-		client := v.client(tx.To)
+	if v.connPool.IsShiftIn(tx) {
 		utxoValue := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
-		txHash := types.TxHash(hex.EncodeToString(utxoValue.TxHash[:]))
 
 		// verify existence of the provided utxo
-		outpoint := btctypes.NewOutPoint(txHash, uint32(utxoValue.VOut.Int.Uint64()))
-		utxo, err := client.UTXO(ctx, outpoint)
+		utxo, err := v.connPool.Utxo(ctx, tx.To, utxoValue.TxHash, utxoValue.VOut)
 		if err != nil {
 			return abi.Tx{}, err
 		}
@@ -190,11 +181,7 @@ func (v *TxValidator) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 
 		// verify ScriptPubkey
 		ghash := tx.Autogen.Get("ghash").Value.(abi.B32)
-		expectedSPB, err := gatewayScriptPubkey(client, ghash[:], v.disPubkey)
-		if err != nil {
-			return abi.Tx{}, err
-		}
-		if !bytes.Equal(utxo.ScriptPubKey(), expectedSPB) {
+		if err := v.connPool.VerifyScriptPubKey(tx.To, ghash[:], v.disPubkey, utxo); err != nil {
 			return abi.Tx{}, errors.New("invalid script pubkey")
 		}
 		utxoValue.ScriptPubKey = utxo.ScriptPubKey()
@@ -218,7 +205,7 @@ func (v *TxValidator) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 		})
 	} else {
 		ref := tx.In.Get("ref").Value.(abi.U64)
-		to, amount, err := v.shiftOutRef(tx.To, ref.Int.Uint64())
+		to, amount, err := v.connPool.ShiftOut(tx.To, ref.Int.Uint64())
 		if err != nil {
 			return abi.Tx{}, err
 		}
@@ -239,68 +226,4 @@ func (v *TxValidator) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 		)
 	}
 	return tx, nil
-}
-
-func (v *TxValidator) isShiftIn(tx abi.Tx) bool {
-	switch tx.To {
-	case abi.IntrinsicBTC0Btc2Eth.Address, abi.IntrinsicZEC0Zec2Eth.Address, abi.IntrinsicBCH0Bch2Eth.Address:
-		return true
-	case abi.IntrinsicBTC0Eth2Btc.Address, abi.IntrinsicZEC0Eth2Zec.Address, abi.IntrinsicBCH0Eth2Bch.Address:
-		return false
-	default:
-		v.logger.Panicf("[validator] expected contract address = %v", tx.To)
-		return false
-	}
-}
-
-func (v *TxValidator) shiftOutRef(addr abi.Address, ref uint64) ([]byte, uint64, error) {
-	shifter := v.shifter(addr)
-
-	shiftID := big.NewInt(int64(ref))
-	// Filter for all epoch events in this range of blocks
-	iter, err := shifter.FilterLogShiftOut(nil, []*big.Int{shiftID}, nil)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	for iter.Next() {
-		to := iter.Event.To
-		amount := iter.Event.Amount
-		return to, amount.Uint64(), nil
-	}
-
-	return nil, 0, fmt.Errorf("invalid ref, no event with ref =%v can be found")
-}
-
-func (v *TxValidator) client(addr abi.Address) btcclient.Client {
-	switch addr {
-	case abi.IntrinsicBTC0Btc2Eth.Address:
-		return v.btcClient
-	case abi.IntrinsicZEC0Zec2Eth.Address:
-		return v.zecClient
-	case abi.IntrinsicBCH0Bch2Eth.Address:
-		return v.bchClient
-	default:
-		v.logger.Panicf("[validator] invalid shiftIn address = %v", addr)
-		return nil
-	}
-}
-
-func (v *TxValidator) shifter(addr abi.Address) *bindings.Shifter {
-	switch addr {
-	case abi.IntrinsicBTC0Eth2Btc.Address:
-		return v.btcShifter
-	case abi.IntrinsicZEC0Eth2Zec.Address:
-		return v.zecShifter
-	case abi.IntrinsicBCH0Eth2Bch.Address:
-		return v.bchShifter
-	default:
-		v.logger.Panicf("[validator] invalid shiftOut address = %v", addr)
-		return nil
-	}
-}
-
-func gatewayScriptPubkey(client btcclient.Client, ghash []byte, distPubKey ecdsa.PublicKey) ([]byte, error) {
-	gateway := btcgateway.New(client, distPubKey, ghash)
-	return btctypes.PayToAddrScript(gateway.Address(), client.Network())
 }
