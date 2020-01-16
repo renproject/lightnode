@@ -3,11 +3,13 @@ package validator
 import (
 	"context"
 	"crypto/ecdsa"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -16,6 +18,7 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/blockchain"
 	"github.com/renproject/lightnode/confirmer"
+	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/server"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
@@ -23,66 +26,77 @@ import (
 
 const MinShiftAmount = 10000
 
-type TxValidator struct {
+type txChecker struct {
+	mu        *sync.Mutex
 	logger    logrus.FieldLogger
 	confirmer phi.Sender
 	requests  <-chan server.RequestWithResponder
 	disPubkey ecdsa.PublicKey
 	connPool  blockchain.ConnPool
+	db        db.DB
 }
 
-func (v *TxValidator) Run() {
+func (tc *txChecker) Run() {
 	workers := runtime.NumCPU()
 	phi.ForAll(workers, func(_ int) {
-		for {
-			for req := range v.requests {
-				tx, err := v.verify(req.Request)
-				if err != nil {
-					jsonErr := &jsonrpc.Error{jsonrpc.ErrorCodeInvalidParams, err.Error(), nil}
-					req.Responder <- jsonrpc.NewResponse(req.Request.ID, nil, jsonErr)
-					continue
-				}
+		for req := range tc.requests {
+			tx, err := tc.verify(req.Request)
+			if err != nil {
+				jsonErr := &jsonrpc.Error{jsonrpc.ErrorCodeInvalidParams, err.Error(), nil}
+				req.Responder <- jsonrpc.NewResponse(req.Request.ID, nil, jsonErr)
+				continue
+			}
 
-				// Send the success response to user
-				data, err := json.Marshal(tx)
-				if err != nil {
-					v.logger.Errorf("cannot marshal tx, err = %v", err)
-					continue
-				}
-				req.Responder <- jsonrpc.NewResponse(req.Request.ID, data, nil)
+			// Check duplication
+			duplicated, err := tc.checkDuplication(tx)
+			if err != nil {
+				tc.logger.Errorf("[txChecker] cannot check tx duplication, err = %v", err)
+				continue
+			}
+			if duplicated {
+				jsonErr := &jsonrpc.Error{jsonrpc.ErrorCodeInvalidParams, "tx already submitted", nil}
+				req.Responder <- jsonrpc.NewResponse(req.Request.ID, nil, jsonErr)
+				continue
+			}
 
-				// Send the verified tx to confirmer for confirmations
-				if ok := v.confirmer.Send(confirmer.SubmitTx{
-					Request: req.Request,
-					Tx:      tx,
-				}); !ok {
-					v.logger.Error("[txValidator] cannot send message to confirmer")
-				}
+			// Send the success response to user
+			data, err := json.Marshal(tx)
+			if err != nil {
+				tc.logger.Errorf("cannot marshal tx, err = %v", err)
+				continue
+			}
+			req.Responder <- jsonrpc.NewResponse(req.Request.ID, data, nil)
+
+			// Send the verified tx to confirmer for confirmations
+			if ok := tc.confirmer.Send(confirmer.SubmitTx{
+				Request: req.Request,
+				Tx:      tx,
+			}); !ok {
+				tc.logger.Error("[txChecker] cannot send message to confirmer")
 			}
 		}
 	})
 }
 
-func (v *TxValidator) verify(request jsonrpc.Request) (abi.Tx, error) {
+func (tc *txChecker) verify(request jsonrpc.Request) (abi.Tx, error) {
 	var submiTx jsonrpc.ParamsSubmitTx
 	if err := json.Unmarshal(request.Params, &submiTx); err != nil {
 		return abi.Tx{}, ErrInvalidParams
 	}
 
-	if err := v.verifyArguments(submiTx.Tx); err != nil {
+	if err := tc.verifyArguments(submiTx.Tx); err != nil {
 		return abi.Tx{}, err
 	}
-	// todo : check duplication
 
-	tx, err := v.verifyHash(submiTx.Tx)
+	tx, err := tc.verifyHash(submiTx.Tx)
 	if err != nil {
 		return abi.Tx{}, err
 	}
 
-	return v.verifyUTXO(tx)
+	return tc.verifyUTXO(tx)
 }
 
-func (v *TxValidator) verifyArguments(tx abi.Tx) error {
+func (tc *txChecker) verifyArguments(tx abi.Tx) error {
 	// Check that the contract exists.
 	contract, ok := abi.Intrinsics[tx.To]
 	if !ok {
@@ -107,8 +121,8 @@ func (v *TxValidator) verifyArguments(tx abi.Tx) error {
 	return nil
 }
 
-func (v *TxValidator) verifyHash(tx abi.Tx) (abi.Tx, error) {
-	if v.connPool.IsShiftIn(tx) {
+func (tc *txChecker) verifyHash(tx abi.Tx) (abi.Tx, error) {
+	if tc.connPool.IsShiftIn(tx) {
 		ghash, nhash := abi.B32{}, abi.B32{}
 		utxo := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
 
@@ -155,15 +169,15 @@ func (v *TxValidator) verifyHash(tx abi.Tx) (abi.Tx, error) {
 	return tx, nil
 }
 
-func (v *TxValidator) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
+func (tc *txChecker) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	if v.connPool.IsShiftIn(tx) {
+	if tc.connPool.IsShiftIn(tx) {
 		utxoValue := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
 
 		// verify existence of the provided utxo
-		utxo, err := v.connPool.Utxo(ctx, tx.To, utxoValue.TxHash, utxoValue.VOut)
+		utxo, err := tc.connPool.Utxo(ctx, tx.To, utxoValue.TxHash, utxoValue.VOut)
 		if err != nil {
 			return abi.Tx{}, err
 		}
@@ -181,7 +195,7 @@ func (v *TxValidator) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 
 		// verify ScriptPubkey
 		ghash := tx.Autogen.Get("ghash").Value.(abi.B32)
-		if err := v.connPool.VerifyScriptPubKey(tx.To, ghash[:], v.disPubkey, utxo); err != nil {
+		if err := tc.connPool.VerifyScriptPubKey(tx.To, ghash[:], tc.disPubkey, utxo); err != nil {
 			return abi.Tx{}, errors.New("invalid script pubkey")
 		}
 		utxoValue.ScriptPubKey = utxo.ScriptPubKey()
@@ -205,7 +219,7 @@ func (v *TxValidator) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 		})
 	} else {
 		ref := tx.In.Get("ref").Value.(abi.U64)
-		to, amount, err := v.connPool.ShiftOut(tx.To, ref.Int.Uint64())
+		to, amount, err := tc.connPool.ShiftOut(tx.To, ref.Int.Uint64())
 		if err != nil {
 			return abi.Tx{}, err
 		}
@@ -226,4 +240,20 @@ func (v *TxValidator) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 		)
 	}
 	return tx, nil
+}
+
+func (tc *txChecker) checkDuplication(tx abi.Tx) (bool, error) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	_, err := tc.db.Tx(tx.Hash)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			return false, err
+		}
+	}
+	if err == nil {
+		return true, nil
+	}
+	return false, tc.db.InsertTx(tx)
 }

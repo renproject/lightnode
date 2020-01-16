@@ -4,113 +4,198 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 
 	"github.com/renproject/darknode/abi"
 )
 
-// DB is a consistent interface across all sql databases.
-type DB interface {
-	CreateTxTable() error
-	InsertTx(tx abi.Tx) error
-	Tx(hash abi.B32) (abi.Tx, error)
-	ConfirmTx(hash abi.B32) error
-	PendingTxs() (abi.Txs, error)
-	DeleteTx(hash abi.B32) error
-}
-
-type sqlDB struct {
+type DB struct {
 	db *sql.DB
 }
 
 // New creates a new DB instance.
 func New(db *sql.DB) DB {
-	return &sqlDB{
+	return DB{
 		db: db,
 	}
 }
 
 // CreateTxTable creates the tx table if not exists. Multiple calls of this
 // function will only create the table once.
-func (db *sqlDB) CreateTxTable() error {
+func (db DB) CreateTxTable() error {
 	script := `CREATE TABLE IF NOT EXISTS tx (
     hash                 CHAR(64) NOT NULL PRIMARY KEY,
+    status               INT,
+    created_time         TIME, 
     contract             VARCHAR(255),
-    p_hash               CHAR(64),
-    amount               INT,
+    phash                CHAR(64),
     token                CHAR(40),
     toAddr               CHAR(40),
     n                    CHAR(64),
+    amount               INT,
+	ghash                CHAR(64),
+	nhash                CHAR(64),
+	sighash              CHAR(64),
 	utxo_tx_hash         CHAR(64),
-    utxo_vout            INT,
-	utxo_script_pub_key  VARCHAR(255),
-    utxo_amount          INT,
-    utxo_g_hash          CHAR(64));`
+    utxo_vout            INT;`
 	_, err := db.db.Exec(script)
 	return err
 }
 
 // InsertTx inserts the RenVM transaction into the db.
-func (db *sqlDB) InsertTx(tx abi.Tx) error {
-	phash, ok := tx.Args.Get("phash").Value.(abi.B32)
+func (db DB) InsertTx(tx abi.Tx) error {
+	phash, ok := tx.In.Get("phash").Value.(abi.B32)
 	if !ok {
-		return fmt.Errorf("unexpected type for phash, expected abi.B32, got %v", tx.Args.Get("phash").Value.Type())
+		return fmt.Errorf("unexpected type for phash, expected abi.B32, got %v", tx.In.Get("phash").Value.Type())
 	}
-	amount, ok := tx.Args.Get("amount").Value.(abi.U64)
+	amount, ok := tx.In.Get("amount").Value.(abi.U256)
 	if !ok {
-		return fmt.Errorf("unexpected type for amount, expected abi.U64, got %v", tx.Args.Get("amount").Value.Type())
+		return fmt.Errorf("unexpected type for amount, expected abi.U64, got %v", tx.In.Get("amount").Value.Type())
 	}
-	token, ok := tx.Args.Get("token").Value.(abi.B20)
+	token, ok := tx.In.Get("token").Value.(abi.ExtEthCompatAddress)
 	if !ok {
-		return fmt.Errorf("unexpected type for token, expected abi.B20, got %v", tx.Args.Get("token").Value.Type())
+		return fmt.Errorf("unexpected type for token, expected abi.B20, got %v", tx.In.Get("token").Value.Type())
 	}
-	to, ok := tx.Args.Get("to").Value.(abi.B20)
+	to, ok := tx.In.Get("to").Value.(abi.ExtEthCompatAddress)
 	if !ok {
-		return fmt.Errorf("unexpected type for to, expected abi.B20, got %v", tx.Args.Get("to").Value.Type())
+		return fmt.Errorf("unexpected type for to, expected abi.B20, got %v", tx.In.Get("to").Value.Type())
 	}
-	n, ok := tx.Args.Get("n").Value.(abi.B32)
+	n, ok := tx.In.Get("n").Value.(abi.B32)
 	if !ok {
-		return fmt.Errorf("unexpected type for n, expected abi.B32, got %v", tx.Args.Get("n").Value.Type())
+		return fmt.Errorf("unexpected type for n, expected abi.B32, got %v", tx.In.Get("n").Value.Type())
 	}
-	utxo, ok := tx.Args.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
+	utxo, ok := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
 	if !ok {
-		return fmt.Errorf("unexpected type for utxo, expected abi.ExtTypeBtcCompatUTXO, got %v", tx.Args.Get("utxo").Value.Type())
+		return fmt.Errorf("unexpected type for utxo, expected abi.ExtTypeBtcCompatUTXO, got %v", tx.In.Get("utxo").Value.Type())
+	}
+	ghash, ok := tx.In.Get("ghash").Value.(abi.B32)
+	if !ok {
+		return fmt.Errorf("unexpected type for ghash, expected abi.B32, got %v", tx.In.Get("ghash").Value.Type())
+	}
+	nhash, ok := tx.In.Get("nhash").Value.(abi.B32)
+	if !ok {
+		return fmt.Errorf("unexpected type for nhash, expected abi.B32, got %v", tx.In.Get("nhash").Value.Type())
+	}
+	sighash, ok := tx.In.Get("sighash").Value.(abi.B32)
+	if !ok {
+		return fmt.Errorf("unexpected type for sighash, expected abi.B32, got %v", tx.In.Get("sighash").Value.Type())
 	}
 
-	script := `INSERT INTO Tx (hash, contract, p_hash, amount, token, toAddr, n, utxo_tx_hash, utxo_vout, utxo_script_pub_key, utxo_amount, utxo_g_hash)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT DO NOTHING;`
-	_, err := db.db.Exec(script, hex.EncodeToString(tx.Hash[:]), tx.To, hex.EncodeToString(phash[:]), int(amount),
-		hex.EncodeToString(token[:]), hex.EncodeToString(to[:]), hex.EncodeToString(n[:]), hex.EncodeToString(utxo.TxHash[:]),
-		int(utxo.VOut), utxo.ScriptPubKey.String(), int(utxo.Amount), hex.EncodeToString(utxo.GHash[:]))
+	script := `INSERT INTO Tx (hash, status, created_time, contract, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout)
+VALUES ($1, 1, current_timestamp, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT DO NOTHING;`
+	_, err := db.db.Exec(script,
+		hex.EncodeToString(tx.Hash[:]),
+		tx.To,
+		hex.EncodeToString(phash[:]),
+		hex.EncodeToString(token[:]),
+		hex.EncodeToString(to[:]),
+		hex.EncodeToString(n[:]),
+		amount.Int.Int64(),
+		hex.EncodeToString(ghash[:]),
+		hex.EncodeToString(nhash[:]),
+		hex.EncodeToString(sighash[:]),
+		hex.EncodeToString(utxo.TxHash[:]),
+		utxo.VOut.Int.Int64(),
+	)
 	return err
 }
 
 // Tx queries the db and returns the tx with given hash.
-func (db *sqlDB) Tx(txHash abi.B32) (abi.Tx, error) {
-	var hash, contract, phash, token, to, n, utxoHash, utxoScriptPubKey, utxoGhash string
-	var amount, utxoVout, utxoAmount int
-	err := db.db.QueryRow("SELECT hash, contract, p_hash, amount, token, toAddr, n, utxo_tx_hash, utxo_vout, utxo_script_pub_key, utxo_amount, utxo_g_hash FROM Tx WHERE hash=$1", hex.EncodeToString(txHash[:])).Scan(
-		&hash, &contract, &phash, &amount, &token, &to, &n, &utxoHash, &utxoVout, &utxoScriptPubKey, &utxoAmount, &utxoGhash)
+func (db DB) Tx(txHash abi.B32) (abi.Tx, error) {
+	var contract, phash, token, to, n, ghash, nhash, sighash, utxoHash string
+	var amount, utxoVout int
+	err := db.db.QueryRow("SELECT contract, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM Tx WHERE hash=$1", hex.EncodeToString(txHash[:])).Scan(
+		&contract, &phash, &token, &to, &n, &amount, &ghash, &nhash, &sighash, &utxoHash, &utxoVout)
 	if err != nil {
 		return abi.Tx{}, err
 	}
+	return constructTx(txHash, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash, amount, utxoVout)
+}
+
+func (db DB) PendingTxs() (abi.Txs, error) {
+	rows, err := db.db.Query(`SELECT hash, contract, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM Tx 
+		WHERE status = 1 AND (created_time + '1 day'::interval) >= current_time ;`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	txs := make(abi.Txs, 0, 128)
+	for rows.Next() {
+		var hash, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash string
+		var amount, utxoVout int
+		err = rows.Scan(&hash, &contract, &phash, &token, &to, &n, &amount, &ghash, &nhash, &sighash, &utxoHash, &utxoVout)
+		if err != nil {
+			return nil, err
+		}
+
+		txHash, err := stringToB32(hash)
+		if err != nil {
+			return nil, err
+		}
+		tx, err := constructTx(txHash, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash, amount, utxoVout)
+		if err != nil {
+			return nil, err
+		}
+		txs = append(txs, tx)
+	}
+	return txs, rows.Err()
+}
+
+func (db DB) Expired(hash abi.B32) (bool, error) {
+	var count int
+	err := db.db.QueryRow(`SELECT count(*) FROM Tx 
+			WHERE hash=$1 AND (created_time + '1 day'::interval) >= current_time ;`,
+		hex.EncodeToString(hash[:])).Scan(&count)
+	return count != 1, err
+}
+
+func (db DB) ConfirmTx(hash abi.B32) error {
+	_, err := db.db.Exec("UPDATE Tx SET state = 2 WHERE hash=$1;", hex.EncodeToString(hash[:]))
+	return err
+}
+
+// DeleteTx with given hash from the db.
+func (db DB) DeleteTx(hash abi.B32) error {
+	_, err := db.db.Exec("DELETE FROM Tx where hash=$1;", hex.EncodeToString(hash[:]))
+	return err
+}
+
+func constructTx(hash abi.B32, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash string, amount, utxoVout int) (abi.Tx, error) {
 	tx := abi.Tx{
-		Hash: txHash,
-		To:   abi.Addr(contract),
+		Hash: hash,
+		To:   abi.Address(contract),
 	}
 	phashArg, err := decodeB32("phash", phash)
 	if err != nil {
 		return abi.Tx{}, err
 	}
-	amountArg := decodeU64("amount", amount)
-	tokenArg, err := decodeB20("token", token)
+	tokenArg, err := decodeEthAddress("token", token)
 	if err != nil {
 		return abi.Tx{}, err
 	}
-	toArg, err := decodeB20("to", to)
+	toArg, err := decodeEthAddress("to", to)
 	if err != nil {
 		return abi.Tx{}, err
 	}
 	nArg, err := decodeB32("n", n)
+	if err != nil {
+		return abi.Tx{}, err
+	}
+	amountArg := abi.Arg{
+		Name:  "amount",
+		Type:  abi.TypeU256,
+		Value: abi.U256{Int: big.NewInt(int64(amount))},
+	}
+	ghashArg, err := decodeB32("ghash", ghash)
+	if err != nil {
+		return abi.Tx{}, err
+	}
+	nhashArg, err := decodeB32("nhash", nhash)
+	if err != nil {
+		return abi.Tx{}, err
+	}
+	sighashArg, err := decodeB32("sighash", ghash)
 	if err != nil {
 		return abi.Tx{}, err
 	}
@@ -120,60 +205,26 @@ func (db *sqlDB) Tx(txHash abi.B32) (abi.Tx, error) {
 	if err != nil {
 		return abi.Tx{}, err
 	}
-	scriptPubKey, err := hex.DecodeString(utxoScriptPubKey)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	ghashArg, err := decodeB32("ghash", utxoGhash)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-
 	utxoArg := abi.Arg{
 		Name: "utxo",
 		Type: abi.ExtTypeBtcCompatUTXO,
 		Value: abi.ExtBtcCompatUTXO{
-			TxHash:       utxoHashArg.Value.(abi.B32),
-			VOut:         abi.U32(utxoVout),
-			ScriptPubKey: scriptPubKey,
-			Amount:       abi.U64(utxoAmount),
-			GHash:        ghashArg.Value.(abi.B32),
+			TxHash: utxoHashArg.Value.(abi.B32),
+			VOut:   abi.U32{Int: big.NewInt(int64(utxoVout))},
 		},
 	}
-
-	tx.Args.Append(phashArg, amountArg, tokenArg, toArg, nArg, utxoArg)
+	tx.In.Append(phashArg, tokenArg, toArg, nArg, utxoArg, amountArg)
+	tx.Autogen.Append(ghashArg, nhashArg, sighashArg)
 
 	return tx, nil
 }
 
-func (db *sqlDB) PendingTxs() (abi.Txs, error) {
-	// TODO : UNIMPLEMENTED
-	panic("implement me")
-}
-
-// DeleteTx with given hash from the db.
-func (db *sqlDB) DeleteTx(hash abi.B32) error {
-	_, err := db.db.Exec("DELETE FROM Tx where hash=$1;", hex.EncodeToString(hash[:]))
-	return err
-}
-
-// decodeU64 decodes the value into a RenVM U64 Argument
-func decodeU64(name string, value int) abi.Arg {
-	return abi.Arg{
-		Name:  name,
-		Type:  abi.TypeU64,
-		Value: abi.U64(value),
-	}
-}
-
 // decodeB32 decodes the value into a RenVM B32 Argument
 func decodeB32(name, value string) (abi.Arg, error) {
-	decoded, err := hex.DecodeString(value)
+	val, err := stringToB32(value)
 	if err != nil {
 		return abi.Arg{}, err
 	}
-	var val abi.B32
-	copy(val[:], decoded)
 	return abi.Arg{
 		Name:  name,
 		Type:  abi.TypeB32,
@@ -181,17 +232,27 @@ func decodeB32(name, value string) (abi.Arg, error) {
 	}, nil
 }
 
-// decodeB20 decodes the value into a RenVM B20 Argument
-func decodeB20(name, value string) (abi.Arg, error) {
+func stringToB32(str string) (abi.B32, error) {
+	decoded, err := hex.DecodeString(str)
+	if err != nil {
+		return abi.B32{}, err
+	}
+	var val abi.B32
+	copy(val[:], decoded)
+	return val, nil
+}
+
+// decodeEthAddress decodes the value into a RenVM ExtTypeEthCompatAddress Argument
+func decodeEthAddress(name, value string) (abi.Arg, error) {
 	decoded, err := hex.DecodeString(value)
 	if err != nil {
 		return abi.Arg{}, err
 	}
-	var val abi.B20
+	var val abi.ExtEthCompatAddress
 	copy(val[:], decoded)
 	return abi.Arg{
 		Name:  name,
-		Type:  abi.TypeB20,
+		Type:  abi.ExtTypeEthCompatAddress,
 		Value: val,
 	}, nil
 }

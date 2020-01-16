@@ -35,14 +35,14 @@ type Validator struct {
 // New constructs a new `Validator`.
 func New(logger logrus.FieldLogger, cacher, confirmer phi.Sender, multiStore store.MultiAddrStore, opts phi.Options, key ecdsa.PublicKey, connPool blockchain.ConnPool) phi.Task {
 	requests := make(chan server.RequestWithResponder, 128)
-	txValidator := TxValidator{
+	txChecker := txChecker{
 		logger:    logger,
 		confirmer: confirmer,
 		requests:  requests,
 		disPubkey: key,
 		connPool:  connPool,
 	}
-	go txValidator.Run()
+	go txChecker.Run()
 
 	return phi.New(&Validator{
 		logger:     logger,
