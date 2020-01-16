@@ -3,6 +3,7 @@ package testutils
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"math/rand"
 	"net/http"
 	"time"
@@ -220,7 +221,7 @@ func RandomSubmitTx() jsonrpc.Request {
 	submitTx := jsonrpc.ParamsSubmitTx{Tx: abi.Tx{
 		Hash: RandomB32(),
 		To:   contract,
-		Args: args,
+		In: args,
 	}}
 	rawMsg, err := json.Marshal(submitTx)
 	if err != nil {
@@ -236,12 +237,10 @@ func RandomSubmitTx() jsonrpc.Request {
 
 func RandomAbiValue(t abi.Type) abi.Value {
 	switch t {
-	case abi.TypeB20:
-		return RandomB20()
 	case abi.TypeB32:
 		return RandomB32()
 	case abi.TypeU64:
-		return abi.U64(rand.Int63())
+		return abi.U64{Int:big.NewInt(rand.Int63())}
 	case abi.ExtTypeBtcCompatUTXO:
 		return RandomUtxo()
 	default:

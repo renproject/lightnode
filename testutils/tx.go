@@ -2,47 +2,33 @@ package testutils
 
 import (
 	"fmt"
+	"math/big"
 	"math/rand"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/abi"
+	"github.com/renproject/darknode/testutil"
 )
 
 // RandomShiftInTx creates a random ShiftIn Tx.
 func RandomShiftInTx() (abi.Tx, error) {
 	contract := RandomMintMethod()
-	tokenAddr := darknode.TokenAddresses[darknode.Localnet][contract]
-	token, err := abi.B20FromHex(tokenAddr.Hex())
-	if err != nil {
-		return abi.Tx{}, err
-	}
+	testutil.RandomExtEthCompatAddress()
+	token:= testutil.RandomExtEthCompatAddress()
+	toAddr := testutil.RandomExtEthCompatAddress()
 
-	to := common.Address(RandomB20())
-	toAddr, err := abi.B20FromHex(to.Hex())
-	if err != nil {
-		return abi.Tx{}, err
-	}
-
-	amount := abi.U64(rand.Intn(100000000))
 	phashArg := abi.Arg{
 		Name:  "phash",
 		Type:  abi.TypeB32,
 		Value: RandomB32(),
 	}
-	amountArg := abi.Arg{
-		Name:  "amount",
-		Type:  abi.TypeU64,
-		Value: amount,
-	}
 	tokenArg := abi.Arg{
 		Name:  "token",
-		Type:  abi.TypeB20,
+		Type:  abi.ExtTypeEthCompatAddress,
 		Value: token,
 	}
 	toArg := abi.Arg{
 		Name:  "to",
-		Type:  abi.TypeB20,
+		Type:  abi.ExtTypeEthCompatAddress,
 		Value: toAddr,
 	}
 	nArg := abi.Arg{
@@ -52,10 +38,8 @@ func RandomShiftInTx() (abi.Tx, error) {
 	}
 	utxo := abi.ExtBtcCompatUTXO{
 		TxHash:       RandomB32(),
-		VOut:         0,
+		VOut:         abi.U32{Int:big.NewInt(0)},
 		ScriptPubKey: nil,
-		Amount:       amount,
-		GHash:        RandomB32(),
 	}
 	utxoArg := abi.Arg{
 		Name:  "utxo",
@@ -66,19 +50,11 @@ func RandomShiftInTx() (abi.Tx, error) {
 	return abi.Tx{
 		Hash: RandomB32(),
 		To:   contract,
-		Args: []abi.Arg{phashArg, amountArg, tokenArg, toArg, nArg, utxoArg},
+		In: []abi.Arg{phashArg, tokenArg, toArg, nArg, utxoArg},
 	}, nil
 }
 
-// RandomB20 returns a randomly generated 20-byte array that is ABI compatible.
-func RandomB20() abi.B20 {
-	b20 := abi.B20{}
-	_, err := rand.Read(b20[:])
-	if err != nil {
-		panic(fmt.Sprintf("cannot create random Tx object, err = %v", err))
-	}
-	return b20
-}
+
 
 // RandomB32 returns a randomly generated 32-byte array that is ABI compatible.
 func RandomB32() abi.B32 {
@@ -93,8 +69,7 @@ func RandomB32() abi.B32 {
 // RandomU32 returns a randomly generated unsigned 32-bit integer that is ABI
 // compatible.
 func RandomU32() abi.U32 {
-	u32 := abi.U32(rand.Uint32())
-	return u32
+	return  abi.U32{Int:big.NewInt(int64(rand.Int31()))}
 }
 
 func RandomUtxo() abi.ExtBtcCompatUTXO {
