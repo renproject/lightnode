@@ -13,8 +13,7 @@ import (
 	. "github.com/renproject/lightnode/db"
 	. "github.com/renproject/lightnode/testutils"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/renproject/darknode/abi"
 )
 
 const (
@@ -82,14 +81,13 @@ var _ = Describe("Lightnode db", func() {
 					Expect(db.CreateTxTable()).To(Succeed())
 
 					test := func() bool {
-						tx, err := RandomShiftInTx()
-						Expect(err).NotTo(HaveOccurred())
+						tx := RandomTx()
 						Expect(db.InsertTx(tx)).To(Succeed())
 
 						stored, err := db.Tx(tx.Hash)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(db.DeleteTx(tx.Hash)).Should(Succeed())
-						return cmp.Equal(tx, stored, cmpopts.EquateEmpty())
+						return CompareTx(tx, stored)
 					}
 
 					Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
@@ -104,8 +102,7 @@ var _ = Describe("Lightnode db", func() {
 
 					test := func() bool {
 						// Insert a random tx
-						tx, err := RandomShiftInTx()
-						Expect(err).NotTo(HaveOccurred())
+						tx := RandomTx()
 						Expect(db.InsertTx(tx)).To(Succeed())
 
 						// Expect db has on data entry
@@ -123,6 +120,84 @@ var _ = Describe("Lightnode db", func() {
 					}
 
 					Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+				})
+			})
+
+			Context("tx status", func() {
+				It("should be able to get all pending txs", func() {
+					sqlDB := initDB(dbname)
+					defer sqlDB.Close()
+					db := New(sqlDB)
+
+					test := func() bool {
+						Expect(db.CreateTxTable()).To(Succeed())
+						defer DropTable(sqlDB, "tx")
+
+						txs := map[abi.B32]abi.Tx{}
+						for i := 0; i < 100; i++ {
+							tx := RandomTx()
+							txs[tx.Hash] = tx
+							Expect(db.InsertTx(tx)).To(Succeed())
+						}
+						pendingTxs, err := db.PendingTxs()
+						Expect(err).NotTo(HaveOccurred())
+
+						Expect(len(pendingTxs)).Should(Equal(len(txs)))
+						for _, tx := range pendingTxs {
+							_, ok := txs[tx.Hash]
+							Expect(ok).Should(BeTrue())
+							delete(txs, tx.Hash)
+						}
+						return true
+					}
+
+					Expect(quick.Check(test, &quick.Config{MaxCount: 20})).NotTo(HaveOccurred())
+				})
+
+				It("should not return confirmed tx when asking for pending txs", func() {
+					sqlDB := initDB(dbname)
+					defer sqlDB.Close()
+					db := New(sqlDB)
+
+					test := func() bool {
+						Expect(db.CreateTxTable()).To(Succeed())
+						defer DropTable(sqlDB, "tx")
+
+						tx := RandomTx()
+						Expect(db.InsertTx(tx)).To(Succeed())
+						Expect(db.ConfirmTx(tx.Hash)).Should(Succeed())
+
+						pendingTxs, err := db.PendingTxs()
+						Expect(err).NotTo(HaveOccurred())
+						return len(pendingTxs) == 0
+					}
+
+					Expect(quick.Check(test, &quick.Config{MaxCount: 20})).NotTo(HaveOccurred())
+				})
+
+				It("should not return txs which added more than 24 hours ago.", func() {
+					sqlDB := initDB(dbname)
+					defer sqlDB.Close()
+					db := New(sqlDB)
+
+					test := func() bool {
+						Expect(db.CreateTxTable()).To(Succeed())
+						defer DropTable(sqlDB, "tx")
+
+						// Insert a tx and update the created_time
+						tx := RandomTx()
+						Expect(db.InsertTx(tx)).To(Succeed())
+						Expect(UpdateTxCreatedTime(sqlDB, tx.Hash)).Should(Succeed())
+						expired, err := db.Expired(tx.Hash)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(expired).Should(BeTrue())
+
+						pendingTxs, err := db.PendingTxs()
+						Expect(err).NotTo(HaveOccurred())
+						return len(pendingTxs) == 0
+					}
+
+					Expect(quick.Check(test, &quick.Config{MaxCount: 20})).NotTo(HaveOccurred())
 				})
 			})
 		})

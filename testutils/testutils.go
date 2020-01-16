@@ -12,6 +12,7 @@ import (
 	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/testutil"
 	"github.com/renproject/lightnode/client"
 	"github.com/renproject/phi"
 	"github.com/rs/cors"
@@ -208,7 +209,7 @@ func ValidRequest(method string) jsonrpc.Request {
 }
 
 func RandomSubmitTx() jsonrpc.Request {
-	contract := RandomMintMethod()
+	contract := testutil.RandomMintMethod()
 	args := abi.Args{}
 	for _, formal := range abi.Intrinsics[contract].In {
 		arg := abi.Arg{
@@ -219,7 +220,7 @@ func RandomSubmitTx() jsonrpc.Request {
 		args.Append(arg)
 	}
 	submitTx := jsonrpc.ParamsSubmitTx{Tx: abi.Tx{
-		Hash: RandomB32(),
+		Hash: testutil.RandomB32(),
 		To:   contract,
 		In:   args,
 	}}
@@ -238,7 +239,7 @@ func RandomSubmitTx() jsonrpc.Request {
 func RandomAbiValue(t abi.Type) abi.Value {
 	switch t {
 	case abi.TypeB32:
-		return RandomB32()
+		return testutil.RandomB32()
 	case abi.TypeU64:
 		return abi.U64{Int: big.NewInt(rand.Int63())}
 	case abi.ExtTypeBtcCompatUTXO:

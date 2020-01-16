@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/renproject/darknode/abi"
 )
@@ -27,7 +28,7 @@ func (db DB) CreateTxTable() error {
 	script := `CREATE TABLE IF NOT EXISTS tx (
     hash                 CHAR(64) NOT NULL PRIMARY KEY,
     status               INT,
-    created_time         TIME, 
+    created_time         INT, 
     contract             VARCHAR(255),
     phash                CHAR(64),
     token                CHAR(40),
@@ -38,7 +39,8 @@ func (db DB) CreateTxTable() error {
 	nhash                CHAR(64),
 	sighash              CHAR(64),
 	utxo_tx_hash         CHAR(64),
-    utxo_vout            INT;`
+    utxo_vout            INT 
+);`
 	_, err := db.db.Exec(script)
 	return err
 }
@@ -69,23 +71,24 @@ func (db DB) InsertTx(tx abi.Tx) error {
 	if !ok {
 		return fmt.Errorf("unexpected type for utxo, expected abi.ExtTypeBtcCompatUTXO, got %v", tx.In.Get("utxo").Value.Type())
 	}
-	ghash, ok := tx.In.Get("ghash").Value.(abi.B32)
+	ghash, ok := tx.Autogen.Get("ghash").Value.(abi.B32)
 	if !ok {
 		return fmt.Errorf("unexpected type for ghash, expected abi.B32, got %v", tx.In.Get("ghash").Value.Type())
 	}
-	nhash, ok := tx.In.Get("nhash").Value.(abi.B32)
+	nhash, ok := tx.Autogen.Get("nhash").Value.(abi.B32)
 	if !ok {
 		return fmt.Errorf("unexpected type for nhash, expected abi.B32, got %v", tx.In.Get("nhash").Value.Type())
 	}
-	sighash, ok := tx.In.Get("sighash").Value.(abi.B32)
+	sighash, ok := tx.Autogen.Get("sighash").Value.(abi.B32)
 	if !ok {
 		return fmt.Errorf("unexpected type for sighash, expected abi.B32, got %v", tx.In.Get("sighash").Value.Type())
 	}
 
 	script := `INSERT INTO Tx (hash, status, created_time, contract, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout)
-VALUES ($1, 1, current_timestamp, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT DO NOTHING;`
+VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT DO NOTHING;`
 	_, err := db.db.Exec(script,
 		hex.EncodeToString(tx.Hash[:]),
+		time.Now().Unix(),
 		tx.To,
 		hex.EncodeToString(phash[:]),
 		hex.EncodeToString(token[:]),
@@ -116,7 +119,7 @@ func (db DB) Tx(txHash abi.B32) (abi.Tx, error) {
 // PendingTxs returns all txs from the db which are still pending and not expired.
 func (db DB) PendingTxs() (abi.Txs, error) {
 	rows, err := db.db.Query(`SELECT hash, contract, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM Tx 
-		WHERE status = 1 AND (created_time + '1 day'::interval) >= current_time ;`)
+		WHERE status = 1 AND $1 - created_time < 86400`, time.Now().Unix())
 	if err != nil {
 		return nil, err
 	}
@@ -147,21 +150,21 @@ func (db DB) PendingTxs() (abi.Txs, error) {
 // Expired returns if the tx with given hash has expired.
 func (db DB) Expired(hash abi.B32) (bool, error) {
 	var count int
-	err := db.db.QueryRow(`SELECT count(*) FROM Tx 
-			WHERE hash=$1 AND (created_time + '1 day'::interval) >= current_time ;`,
-		hex.EncodeToString(hash[:])).Scan(&count)
+	err := db.db.QueryRow(`SELECT count(*) FROM tx 
+			WHERE hash=$1 AND $2 - created_time < 86400;`,
+		hex.EncodeToString(hash[:]), time.Now().Unix()).Scan(&count)
 	return count != 1, err
 }
 
 // ConfirmTx updates the tx status to 2 (means confirmed).
 func (db DB) ConfirmTx(hash abi.B32) error {
-	_, err := db.db.Exec("UPDATE Tx SET state = 2 WHERE hash=$1;", hex.EncodeToString(hash[:]))
+	_, err := db.db.Exec("UPDATE tx SET status = 2 WHERE hash=$1;", hex.EncodeToString(hash[:]))
 	return err
 }
 
 // DeleteTx with given hash from the db.
 func (db DB) DeleteTx(hash abi.B32) error {
-	_, err := db.db.Exec("DELETE FROM Tx where hash=$1;", hex.EncodeToString(hash[:]))
+	_, err := db.db.Exec("DELETE FROM tx where hash=$1;", hex.EncodeToString(hash[:]))
 	return err
 }
 
