@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/abi"
+	"github.com/renproject/darknode/ethrpc"
 	"github.com/renproject/darknode/ethrpc/bindings"
 	"github.com/renproject/mercury/sdk/client/btcclient"
 	"github.com/renproject/mercury/sdk/client/ethclient"
@@ -23,6 +24,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// ConnPool consolidates all blockchain clients and abstract all blockchain
+// related interaction.
 type ConnPool struct {
 	logger     logrus.FieldLogger
 	ethClient  ethclient.Client
@@ -34,16 +37,22 @@ type ConnPool struct {
 	bchShifter *bindings.Shifter
 }
 
-func New(logger logrus.FieldLogger, network darknode.Network, btcShifterAddr, zecShifterAddr, bchShifterAddr common.Address) ConnPool {
-	ethClient, err := ethclient.New(logger, ethNetwork(network))
-	if err != nil {
-		logger.Panicf("cannot connect to ethereum, err = %v", err)
-	}
-
+// New creates a new ConnPool object of given network. It replies on `darknode`
+// for the ShifterRegistry address.
+func New(logger logrus.FieldLogger, network darknode.Network) ConnPool {
 	btcClient := btcclient.NewClient(logger, btcNetwork(types.Bitcoin, network))
 	zecClient := btcclient.NewClient(logger, btcNetwork(types.ZCash, network))
 	bchClient := btcclient.NewClient(logger, btcNetwork(types.BitcoinCash, network))
 
+	// Initialize Ethereum client and contracts.
+	ethClient, err := ethclient.New(logger, ethNetwork(network))
+	if err != nil {
+		logger.Panicf("cannot connect to ethereum, err = %v", err)
+	}
+	btcShifterAddr, zecShifterAddr, bchShifterAddr, err := shifterAddresses(ethClient, network)
+	if err != nil {
+		logger.Panicf("cannot get shifter addresses from shfiter registry, err = %v", err)
+	}
 	btcShifter, err := bindings.NewShifter(btcShifterAddr, ethClient.EthClient())
 	if err != nil {
 		logger.Panicf("cannot initialize btc shifter, err = %v", err)
@@ -69,44 +78,19 @@ func New(logger logrus.FieldLogger, network darknode.Network, btcShifterAddr, ze
 	}
 }
 
-func (cp ConnPool) ClientByAddress(addr abi.Address) btcclient.Client {
-	switch addr {
-	case abi.IntrinsicBTC0Btc2Eth.Address:
-		return cp.btcClient
-	case abi.IntrinsicZEC0Zec2Eth.Address:
-		return cp.zecClient
-	case abi.IntrinsicBCH0Bch2Eth.Address:
-		return cp.bchClient
-	default:
-		return nil
-	}
-}
-
-func (cp ConnPool) ShifterByAddress(addr abi.Address) *bindings.Shifter {
-	switch addr {
-	case abi.IntrinsicBTC0Eth2Btc.Address:
-		return cp.btcShifter
-	case abi.IntrinsicZEC0Eth2Zec.Address:
-		return cp.zecShifter
-	case abi.IntrinsicBCH0Eth2Bch.Address:
-		return cp.bchShifter
-	default:
-		cp.logger.Panicf("[validator] invalid shiftOut address = %v", addr)
-		return nil
-	}
-}
-
+// ShiftOut filters the logs from the Shifter contract (depending on the addr)
+// and try to find ShiftOut log with given `ref`.
 func (cp ConnPool) ShiftOut(addr abi.Address, ref uint64) ([]byte, uint64, error) {
-	shifter := cp.ShifterByAddress(addr)
+	shifter := cp.shifterByAddress(addr)
 	shiftID := big.NewInt(int64(ref))
 
-	// Filter for all epoch events in this range of blocks
+	// Filter all ShiftOut logs with given ref.
 	iter, err := shifter.FilterLogShiftOut(nil, []*big.Int{shiftID}, nil)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// Loop through the filtered logs and find the event with given ref.
+	// Loop through the logs and return the first one.(should only have one)
 	for iter.Next() {
 		to := iter.Event.To
 		amount := iter.Event.Amount
@@ -116,21 +100,26 @@ func (cp ConnPool) ShiftOut(addr abi.Address, ref uint64) ([]byte, uint64, error
 	return nil, 0, fmt.Errorf("invalid ref, no event with ref =%v can be found", ref)
 }
 
+// Utxo validates if the given txHash and vout are valid and returns the full
+// details of the utxo. Note it will return an error if the utxo has been spent.
 func (cp ConnPool) Utxo(ctx context.Context, addr abi.Address, hash abi.B32, vout abi.U32) (btctypes.UTXO, error) {
-	client := cp.ClientByAddress(addr)
+	client := cp.clientByAddress(addr)
 	txHash := types.TxHash(hex.EncodeToString(hash[:]))
 	outpoint := btctypes.NewOutPoint(txHash, uint32(vout.Int.Uint64()))
 	return client.UTXO(ctx, outpoint)
 }
 
+// UtxoConfirmations returns the number of confirmations of the given txHash.
 func (cp ConnPool) UtxoConfirmations(ctx context.Context, addr abi.Address, hash abi.B32) (uint64, error) {
-	client := cp.ClientByAddress(addr)
+	client := cp.clientByAddress(addr)
 	txHash := types.TxHash(hex.EncodeToString(hash[:]))
 	return client.Confirmations(ctx, txHash)
 }
 
+// EventConfirmations return the number of confirmations of the event log on
+// Ethereum.
 func (cp ConnPool) EventConfirmations(ctx context.Context, addr abi.Address, ref uint64) (uint64, error) {
-	shifter := cp.ShifterByAddress(addr)
+	shifter := cp.shifterByAddress(addr)
 	shiftID := big.NewInt(int64(ref))
 
 	// Get latest block number
@@ -148,7 +137,7 @@ func (cp ConnPool) EventConfirmations(ctx context.Context, addr abi.Address, ref
 		return 0, err
 	}
 
-	// Loop through the filtered logs and find block number of that log.
+	// Loop through the logs and return block difference(should only have one)
 	for iter.Next() {
 		eventBlock := iter.Event.Raw.BlockNumber
 		return latestBlock.Uint64() - eventBlock, nil
@@ -157,8 +146,10 @@ func (cp ConnPool) EventConfirmations(ctx context.Context, addr abi.Address, ref
 	return 0, fmt.Errorf("invalid ref, no event with ref =%v can be found", ref)
 }
 
+// VerifyScriptPubKey verifies if the utxo can be spent by the given distPubKey
+// along with the ghash.
 func (cp ConnPool) VerifyScriptPubKey(addr abi.Address, ghash []byte, distPubKey ecdsa.PublicKey, utxo btctypes.UTXO) error {
-	client := cp.ClientByAddress(addr)
+	client := cp.clientByAddress(addr)
 	gateway := btcgateway.New(client, distPubKey, ghash)
 	expectedSPK, err := btctypes.PayToAddrScript(gateway.Address(), client.Network())
 	if err != nil {
@@ -170,6 +161,7 @@ func (cp ConnPool) VerifyScriptPubKey(addr abi.Address, ghash []byte, distPubKey
 	return nil
 }
 
+// IsShiftIn returns if the given RenVM tx is a ShiftIn tx.
 func (cp ConnPool) IsShiftIn(tx abi.Tx) bool {
 	switch tx.To {
 	case abi.IntrinsicBTC0Btc2Eth.Address, abi.IntrinsicZEC0Zec2Eth.Address, abi.IntrinsicBCH0Bch2Eth.Address:
@@ -182,6 +174,62 @@ func (cp ConnPool) IsShiftIn(tx abi.Tx) bool {
 	}
 }
 
+// clientByAddress returns the proper blockchain client for the given Ren-VM
+// contract address.
+func (cp ConnPool) clientByAddress(addr abi.Address) btcclient.Client {
+	switch addr {
+	case abi.IntrinsicBTC0Btc2Eth.Address:
+		return cp.btcClient
+	case abi.IntrinsicZEC0Zec2Eth.Address:
+		return cp.zecClient
+	case abi.IntrinsicBCH0Bch2Eth.Address:
+		return cp.bchClient
+	default:
+		return nil
+	}
+}
+
+// shifterByAddress returns the proper shifter contract bindings for the given
+// Ren-VM contract address.
+func (cp ConnPool) shifterByAddress(addr abi.Address) *bindings.Shifter {
+	switch addr {
+	case abi.IntrinsicBTC0Eth2Btc.Address:
+		return cp.btcShifter
+	case abi.IntrinsicZEC0Eth2Zec.Address:
+		return cp.zecShifter
+	case abi.IntrinsicBCH0Eth2Bch.Address:
+		return cp.bchShifter
+	default:
+		cp.logger.Panicf("[validator] invalid shiftOut address = %v", addr)
+		return nil
+	}
+}
+
+// shifterAddresses returns the addresses for BTC, ZEC and BCH shifter contracts
+func shifterAddresses(client ethclient.Client, network darknode.Network) (common.Address, common.Address, common.Address, error) {
+	registryAddr := darknode.ShifterRegistryAddresses[network]
+	shifterRegistry, err := ethrpc.NewShifterRegistry(client.EthClient(), registryAddr)
+	if err != nil {
+		return common.Address{}, common.Address{}, common.Address{}, err
+	}
+	btcShifterAddr, err := shifterRegistry.ShifterAddressBySymbol("zBTC")
+	if err != nil {
+		return common.Address{}, common.Address{}, common.Address{}, err
+	}
+	zecShifterAddr, err := shifterRegistry.ShifterAddressBySymbol("zZEC")
+	if err != nil {
+		return common.Address{}, common.Address{}, common.Address{}, err
+	}
+	bchShifterAddr, err := shifterRegistry.ShifterAddressBySymbol("zBCH")
+	if err != nil {
+		return common.Address{}, common.Address{}, common.Address{}, err
+	}
+
+	return btcShifterAddr, zecShifterAddr, bchShifterAddr, nil
+}
+
+// btcNetwork returns the specific btc-like blockchain network depending on the
+// blockchain and given darknode network.
 func btcNetwork(chain types.Chain, network darknode.Network) btctypes.Network {
 	switch network {
 	case darknode.Localnet:
@@ -195,6 +243,7 @@ func btcNetwork(chain types.Chain, network darknode.Network) btctypes.Network {
 	}
 }
 
+// ethNetwork returns the ethereum network of the given darknode network.
 func ethNetwork(network darknode.Network) ethtypes.Network {
 	switch network {
 	case darknode.Localnet:

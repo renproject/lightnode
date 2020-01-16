@@ -9,6 +9,7 @@ import (
 	"github.com/renproject/darknode/abi"
 )
 
+// DB abstract all database interactions.
 type DB struct {
 	db *sql.DB
 }
@@ -42,7 +43,7 @@ func (db DB) CreateTxTable() error {
 	return err
 }
 
-// InsertTx inserts the RenVM transaction into the db.
+// InsertTx inserts the RenVM tx into the db.
 func (db DB) InsertTx(tx abi.Tx) error {
 	phash, ok := tx.In.Get("phash").Value.(abi.B32)
 	if !ok {
@@ -112,6 +113,7 @@ func (db DB) Tx(txHash abi.B32) (abi.Tx, error) {
 	return constructTx(txHash, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash, amount, utxoVout)
 }
 
+// PendingTxs returns all txs from the db which are still pending and not expired.
 func (db DB) PendingTxs() (abi.Txs, error) {
 	rows, err := db.db.Query(`SELECT hash, contract, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM Tx 
 		WHERE status = 1 AND (created_time + '1 day'::interval) >= current_time ;`)
@@ -142,6 +144,7 @@ func (db DB) PendingTxs() (abi.Txs, error) {
 	return txs, rows.Err()
 }
 
+// Expired returns if the tx with given hash has expired.
 func (db DB) Expired(hash abi.B32) (bool, error) {
 	var count int
 	err := db.db.QueryRow(`SELECT count(*) FROM Tx 
@@ -150,6 +153,7 @@ func (db DB) Expired(hash abi.B32) (bool, error) {
 	return count != 1, err
 }
 
+// ConfirmTx updates the tx status to 2 (means confirmed).
 func (db DB) ConfirmTx(hash abi.B32) error {
 	_, err := db.db.Exec("UPDATE Tx SET state = 2 WHERE hash=$1;", hex.EncodeToString(hash[:]))
 	return err
@@ -161,6 +165,7 @@ func (db DB) DeleteTx(hash abi.B32) error {
 	return err
 }
 
+// constructTx takes data queried from db and reconstruct the tx from them.
 func constructTx(hash abi.B32, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash string, amount, utxoVout int) (abi.Tx, error) {
 	tx := abi.Tx{
 		Hash: hash,
@@ -195,7 +200,7 @@ func constructTx(hash abi.B32, contract, phash, token, to, n, ghash, nhash, sigh
 	if err != nil {
 		return abi.Tx{}, err
 	}
-	sighashArg, err := decodeB32("sighash", ghash)
+	sighashArg, err := decodeB32("sighash", sighash)
 	if err != nil {
 		return abi.Tx{}, err
 	}
@@ -232,6 +237,7 @@ func decodeB32(name, value string) (abi.Arg, error) {
 	}, nil
 }
 
+// stringToB32 decoding the hex string to a `abi.B32` object
 func stringToB32(str string) (abi.B32, error) {
 	decoded, err := hex.DecodeString(str)
 	if err != nil {

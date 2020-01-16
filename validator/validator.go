@@ -20,10 +20,10 @@ var (
 	ErrInvalidParams = errors.New("parameters object does not match method")
 )
 
-// A Validator takes as input requests and checks whether they meet some
+// A Validator takes as input txs and checks whether they meet some
 // baseline criteria that the darknodes expect. This means that obviously
-// invalid requests will not make it to the darknodes, but not all invalid
-// requests will get rejected.
+// invalid txs will not make it to the darknodes, but not all invalid
+// txs will get rejected.
 type Validator struct {
 	logger     logrus.FieldLogger
 	cacher     phi.Sender
@@ -33,11 +33,10 @@ type Validator struct {
 }
 
 // New constructs a new `Validator`.
-func New(logger logrus.FieldLogger, cacher, confirmer phi.Sender, multiStore store.MultiAddrStore, opts phi.Options, key ecdsa.PublicKey, connPool blockchain.ConnPool) phi.Task {
+func New(logger logrus.FieldLogger, cacher phi.Sender, multiStore store.MultiAddrStore, opts phi.Options, key ecdsa.PublicKey, connPool blockchain.ConnPool) phi.Task {
 	requests := make(chan server.RequestWithResponder, 128)
 	txChecker := txChecker{
 		logger:    logger,
-		confirmer: confirmer,
 		requests:  requests,
 		disPubkey: key,
 		connPool:  connPool,
@@ -68,6 +67,7 @@ func (validator *Validator) Handle(_ phi.Task, message phi.Message) {
 	}
 }
 
+// isValid does basic verification of the message.
 func (validator *Validator) isValid(msg server.RequestWithResponder) *jsonrpc.Error {
 	// Reject requests that don't conform to the JSON-RPC standard.
 	if msg.Request.Version != "2.0" {
@@ -100,6 +100,7 @@ func (validator *Validator) isValid(msg server.RequestWithResponder) *jsonrpc.Er
 	return nil
 }
 
+// hasValidParams checks if the request has valid params depending on its method
 func (validator *Validator) hasValidParams(message server.RequestWithResponder) (bool, error) {
 	switch message.Request.Method {
 	// These methods don't require any parameters

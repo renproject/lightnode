@@ -2,8 +2,10 @@ package confirmer
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
-	"sync"
+	"math/rand"
 	"time"
 
 	"github.com/renproject/darknode/abi"
@@ -15,64 +17,37 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Options to initialize a confirmer.
 type Options struct {
 	MinConfirmations map[abi.Address]uint64
 	PollInterval     time.Duration
-	Phi              phi.Options
+	ExpireTime       time.Duration
 }
 
+// Confirmer handles requests which pass all validations. It checks if requests
+// have reached enough confirmations. It stores requests which haven't reached
+// enough confirmations and check them later.
 type Confirmer struct {
 	logger     logrus.FieldLogger
 	options    Options
 	dispatcher phi.Sender
 	database   db.DB
 	connPool   blockchain.ConnPool
-
-	txMu   *sync.RWMutex
-	txs    map[abi.B32]abi.Tx
-	txReqs map[abi.B32]jsonrpc.Request
 }
 
-func New(logger logrus.FieldLogger, options Options, dispatcher phi.Sender, db db.DB, connPool blockchain.ConnPool) phi.Task {
-	// Load all pending pendingTxs from db into memory
-	pendingTxs, err := db.PendingTxs()
-	if err != nil {
-		panic(fmt.Sprintf("unable read pending pendingTxs from database, err = %v", err))
-	}
-	txs := map[abi.B32]abi.Tx{}
-	for _, tx := range pendingTxs {
-		txs[tx.Hash] = tx
-	}
-
-	return phi.New(&Confirmer{
+// New returns a new Confirmer.
+func New(logger logrus.FieldLogger, options Options, dispatcher phi.Sender, db db.DB, connPool blockchain.ConnPool) Confirmer {
+	return Confirmer{
 		logger:     logger,
-		options:    Options{},
+		options:    options,
 		dispatcher: dispatcher,
 		database:   db,
 		connPool:   connPool,
-		txMu:       new(sync.RWMutex),
-		txs:        txs,
-		txReqs:     map[abi.B32]jsonrpc.Request{},
-	}, options.Phi)
+	}
 }
 
-// Handle implements the `phi.Handler` interface.
-func (confirmer *Confirmer) Handle(_ phi.Task, message phi.Message) {
-	submiTx, ok := message.(SubmitTx)
-	if !ok {
-		confirmer.logger.Panicf("[confirmer] unexpected message type %T", message)
-	}
-
-	// Add tx to DB and in-mem tx pool
-	if err := confirmer.database.InsertTx(submiTx.Tx); err != nil {
-		confirmer.logger.Panicf("[confirmer] cannot insert tx into db, err = %v", err)
-	}
-	confirmer.txMu.Lock()
-	defer confirmer.txMu.Unlock()
-	confirmer.txs[submiTx.Tx.Hash] = submiTx.Tx
-	confirmer.txReqs[submiTx.Tx.Hash] = submiTx.Request
-}
-
+// Run starts running the confirmer in background which periodically checks
+// confirmations of pending txs.
 func (confirmer *Confirmer) Run(ctx context.Context) {
 	ticker := time.NewTicker(confirmer.options.PollInterval)
 	defer ticker.Stop()
@@ -82,12 +57,12 @@ func (confirmer *Confirmer) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			confirmer.checkConfirmations(ctx)
+			confirmer.checkPendingTxs(ctx)
 		}
 	}
 }
 
-func (confirmer *Confirmer) checkConfirmations(parent context.Context) {
+func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, confirmer.options.PollInterval)
 	defer cancel()
 
@@ -109,45 +84,34 @@ func (confirmer *Confirmer) checkConfirmations(parent context.Context) {
 	})
 }
 
+// pendingTxs loads all pending txs which are not expired from the database.
 func (confirmer *Confirmer) pendingTxs() []abi.Tx {
-	confirmer.txMu.RLock()
-	defer confirmer.txMu.Unlock()
-
-	txs := make([]abi.Tx, 0, len(confirmer.txs))
-	for _, tx := range confirmer.txs {
-		txs = append(txs, tx)
+	pendingTxs, err := confirmer.database.PendingTxs()
+	if err != nil {
+		panic(fmt.Sprintf("unable read pending pendingTxs from database, err = %v", err))
 	}
-	return txs
+	return pendingTxs
 }
 
+// confirm sends the tx to dispatcher and marks the tx as confirmed in db.
 func (confirmer *Confirmer) confirm(tx abi.Tx) {
-	confirmer.txMu.Lock()
-	defer confirmer.txMu.Unlock()
-
-	// Send the tx to dispatcher
-	request := confirmer.txReqs[tx.Hash]
-	confirmer.dispatch(request)
-
-	// Remove from the memory tx pool
-	delete(confirmer.txs, tx.Hash)
-	delete(confirmer.txReqs, tx.Hash)
-
-	// Mark the txs as confirmed in DB
-	if err := confirmer.database.ConfirmTx(tx.Hash); err != nil {
-		confirmer.logger.Errorf("[confirmer] cannot confirm tx in the db, err = %v", err)
+	request, err := txToJsonRequest(tx)
+	if err != nil {
+		confirmer.logger.Errorf("[confirmer] cannot convert tx to json request, err = %v", err)
 	}
-}
-
-// dispatch the confirmed request through dispatcher.
-func (confirmer *Confirmer) dispatch(request jsonrpc.Request) {
 	req := server.NewRequestWithResponder(request, "")
 	if ok := confirmer.dispatcher.Send(req); !ok {
 		confirmer.logger.Errorf("[confirmer] cannot send message to dispatcher, too much back pressure")
 		return
 	}
 	// todo : handle if the dispatcher failed to send the tx to darknode.
+
+	if err := confirmer.database.ConfirmTx(tx.Hash); err != nil {
+		confirmer.logger.Errorf("[confirmer] cannot confirm tx in the db, err = %v", err)
+	}
 }
 
+// shiftInTxConfirmed takes a shiftIn tx and check if it has enough confirmations.
 func (confirmer *Confirmer) shiftInTxConfirmed(ctx context.Context, tx abi.Tx) bool {
 	utxo := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
 
@@ -160,6 +124,7 @@ func (confirmer *Confirmer) shiftInTxConfirmed(ctx context.Context, tx abi.Tx) b
 	return confirmations >= minCon
 }
 
+// shiftOutTxConfirmed takes a shiftOut tx and check if it has enough confirmations.
 func (confirmer *Confirmer) shiftOutTxConfirmed(ctx context.Context, tx abi.Tx) bool {
 	ref := tx.In.Get("ref").Value.(abi.U64)
 	confirmations, err := confirmer.connPool.EventConfirmations(ctx, tx.To, ref.Int.Uint64())
@@ -171,9 +136,26 @@ func (confirmer *Confirmer) shiftOutTxConfirmed(ctx context.Context, tx abi.Tx) 
 	return confirmations >= minCon
 }
 
-type SubmitTx struct {
-	Request jsonrpc.Request
-	Tx      abi.Tx
-}
+// txToJsonRequest converts a tx to its original jsonrpc.Requst.
+func txToJsonRequest(tx abi.Tx) (jsonrpc.Request, error) {
+	tx.Autogen = abi.Args{}
+	utxo := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
+	tx.In.Set("utxo", abi.ExtBtcCompatUTXO{
+		TxHash: utxo.TxHash,
+		VOut:   utxo.VOut,
+	})
 
-func (SubmitTx) IsMessage() {}
+	if i := tx.In.Remove("amount"); i == -1 {
+		return jsonrpc.Request{}, errors.New("missing amount argument")
+	}
+	data, err := json.Marshal(tx)
+	if err != nil {
+		return jsonrpc.Request{}, nil
+	}
+	return jsonrpc.Request{
+		Version: "2.0",
+		ID:      rand.Int63(),
+		Method:  jsonrpc.MethodSubmitTx,
+		Params:  data,
+	}, nil
+}

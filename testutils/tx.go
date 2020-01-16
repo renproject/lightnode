@@ -13,7 +13,7 @@ import (
 func RandomShiftInTx() (abi.Tx, error) {
 	contract := RandomMintMethod()
 	testutil.RandomExtEthCompatAddress()
-	token:= testutil.RandomExtEthCompatAddress()
+	token := testutil.RandomExtEthCompatAddress()
 	toAddr := testutil.RandomExtEthCompatAddress()
 
 	phashArg := abi.Arg{
@@ -38,7 +38,7 @@ func RandomShiftInTx() (abi.Tx, error) {
 	}
 	utxo := abi.ExtBtcCompatUTXO{
 		TxHash:       RandomB32(),
-		VOut:         abi.U32{Int:big.NewInt(0)},
+		VOut:         abi.U32{Int: big.NewInt(0)},
 		ScriptPubKey: nil,
 	}
 	utxoArg := abi.Arg{
@@ -50,11 +50,9 @@ func RandomShiftInTx() (abi.Tx, error) {
 	return abi.Tx{
 		Hash: RandomB32(),
 		To:   contract,
-		In: []abi.Arg{phashArg, tokenArg, toArg, nArg, utxoArg},
+		In:   []abi.Arg{phashArg, tokenArg, toArg, nArg, utxoArg},
 	}, nil
 }
-
-
 
 // RandomB32 returns a randomly generated 32-byte array that is ABI compatible.
 func RandomB32() abi.B32 {
@@ -69,7 +67,7 @@ func RandomB32() abi.B32 {
 // RandomU32 returns a randomly generated unsigned 32-bit integer that is ABI
 // compatible.
 func RandomU32() abi.U32 {
-	return  abi.U32{Int:big.NewInt(int64(rand.Int31()))}
+	return abi.U32{Int: big.NewInt(int64(rand.Int31()))}
 }
 
 func RandomUtxo() abi.ExtBtcCompatUTXO {

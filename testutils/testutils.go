@@ -221,7 +221,7 @@ func RandomSubmitTx() jsonrpc.Request {
 	submitTx := jsonrpc.ParamsSubmitTx{Tx: abi.Tx{
 		Hash: RandomB32(),
 		To:   contract,
-		In: args,
+		In:   args,
 	}}
 	rawMsg, err := json.Marshal(submitTx)
 	if err != nil {
@@ -240,7 +240,7 @@ func RandomAbiValue(t abi.Type) abi.Value {
 	case abi.TypeB32:
 		return RandomB32()
 	case abi.TypeU64:
-		return abi.U64{Int:big.NewInt(rand.Int63())}
+		return abi.U64{Int: big.NewInt(rand.Int63())}
 	case abi.ExtTypeBtcCompatUTXO:
 		return RandomUtxo()
 	default:

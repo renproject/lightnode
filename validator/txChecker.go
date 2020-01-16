@@ -17,7 +17,6 @@ import (
 	"github.com/renproject/darknode/abi/ethabi"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/blockchain"
-	"github.com/renproject/lightnode/confirmer"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/server"
 	"github.com/renproject/phi"
@@ -29,7 +28,6 @@ const MinShiftAmount = 10000
 type txChecker struct {
 	mu        *sync.Mutex
 	logger    logrus.FieldLogger
-	confirmer phi.Sender
 	requests  <-chan server.RequestWithResponder
 	disPubkey ecdsa.PublicKey
 	connPool  blockchain.ConnPool
@@ -66,14 +64,6 @@ func (tc *txChecker) Run() {
 				continue
 			}
 			req.Responder <- jsonrpc.NewResponse(req.Request.ID, data, nil)
-
-			// Send the verified tx to confirmer for confirmations
-			if ok := tc.confirmer.Send(confirmer.SubmitTx{
-				Request: req.Request,
-				Tx:      tx,
-			}); !ok {
-				tc.logger.Error("[txChecker] cannot send message to confirmer")
-			}
 		}
 	})
 }
