@@ -6,8 +6,10 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/cacher"

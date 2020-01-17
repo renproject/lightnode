@@ -21,7 +21,6 @@ import (
 type Options struct {
 	MinConfirmations map[abi.Address]uint64
 	PollInterval     time.Duration
-	ExpireTime       time.Duration
 }
 
 // Confirmer handles requests which pass all validations. It checks if requests

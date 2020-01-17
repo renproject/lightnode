@@ -9,7 +9,6 @@ import (
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
-	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/server"
 	"github.com/renproject/mercury/types"
 	"github.com/renproject/mercury/types/btctypes"
@@ -39,15 +38,13 @@ type Cacher struct {
 	logger     logrus.FieldLogger
 	dispatcher phi.Sender
 	network    darknode.Network
-	db         db.DB
-
-	ttlCache kv.Table
+	ttlCache   kv.Table
 }
 
 // New constructs a new `Cacher` as a `phi.Task` which can be `Run()`.
-func New(ctx context.Context, network darknode.Network, db db.DB, dispatcher phi.Sender, logger logrus.FieldLogger, cap int, ttl time.Duration, opts phi.Options) phi.Task {
+func New(ctx context.Context, network darknode.Network, dispatcher phi.Sender, logger logrus.FieldLogger, ttl time.Duration, opts phi.Options) phi.Task {
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "responses", ttl)
-	return phi.New(&Cacher{logger, dispatcher, network, db, ttlCache}, opts)
+	return phi.New(&Cacher{logger, dispatcher, network, ttlCache}, opts)
 }
 
 // Handle implements the `phi.Handler` interface.

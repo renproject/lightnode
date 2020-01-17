@@ -2,12 +2,17 @@ package lightnode
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"database/sql"
 	"time"
 
 	"github.com/renproject/darknode"
+	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/kv"
+	"github.com/renproject/lightnode/blockchain"
 	"github.com/renproject/lightnode/cacher"
+	"github.com/renproject/lightnode/confirmer"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/dispatcher"
 	"github.com/renproject/lightnode/server"
@@ -20,25 +25,30 @@ import (
 
 // Options for setting up a Lightnode, usually parsed from environment variables.
 type Options struct {
-	Network        darknode.Network
-	Port           string
-	Cap            int
-	CacheCap       int
-	MaxBatchSize   int
-	Timeout        time.Duration
-	TTL            time.Duration
-	PollRate       time.Duration
-	BootstrapAddrs addr.MultiAddresses
+	Network           darknode.Network
+	DisPubkey         *ecdsa.PublicKey
+	Port              string
+	Cap               int
+	MaxBatchSize      int
+	ServerTimeout     time.Duration
+	Timeout           time.Duration
+	TTL               time.Duration
+	UpdaterPollRate   time.Duration
+	ConfirmerPollRate time.Duration
+	BootstrapAddrs    addr.MultiAddresses
 }
 
 // SetZeroToDefault does basic verification of options and set fields with zero
 // value to default.
-func (options Options) SetZeroToDefault() {
+func (options *Options) SetZeroToDefault() {
 	switch options.Network {
 	case darknode.Mainnet, darknode.Chaosnet:
 	case darknode.Testnet, darknode.Devnet, darknode.Localnet:
 	default:
 		panic("unknown networks")
+	}
+	if options.DisPubkey == nil {
+		panic("distributed public key is not initialized in the options")
 	}
 	if options.Port == "" {
 		panic("port is not set in the options")
@@ -49,11 +59,11 @@ func (options Options) SetZeroToDefault() {
 	if options.Cap == 0 {
 		options.Cap = 128
 	}
-	if options.CacheCap == 0 {
-		options.CacheCap = 128
-	}
 	if options.MaxBatchSize == 0 {
 		options.MaxBatchSize = 10
+	}
+	if options.ServerTimeout == 0 {
+		options.ServerTimeout = 15 * time.Second
 	}
 	if options.Timeout == 0 {
 		options.Timeout = time.Minute
@@ -61,18 +71,22 @@ func (options Options) SetZeroToDefault() {
 	if options.TTL == 0 {
 		options.TTL = 3 * time.Second
 	}
-	if options.PollRate == 0 {
-		options.PollRate = 5 * time.Minute
+	if options.UpdaterPollRate == 0 {
+		options.UpdaterPollRate = 5 * time.Minute
+	}
+	if options.ConfirmerPollRate == 0 {
+		options.ConfirmerPollRate = 10 * time.Second
 	}
 }
 
 // Lightnode is the top level container that encapsulates the functionality of
 // the lightnode.
 type Lightnode struct {
-	options Options
-	logger  logrus.FieldLogger
-	server  *server.Server
-	updater updater.Updater
+	options   Options
+	logger    logrus.FieldLogger
+	server    *server.Server
+	updater   updater.Updater
+	confirmer confirmer.Confirmer
 
 	// Tasks
 	validator  phi.Task
@@ -81,14 +95,27 @@ type Lightnode struct {
 }
 
 // New constructs a new `Lightnode`.
-func New(ctx context.Context, options Options, logger logrus.FieldLogger, db db.DB) Lightnode {
+func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB *sql.DB) Lightnode {
 	// All tasks have the same capacity, and no scaling
 	opts := phi.Options{Cap: options.Cap}
+
+	// Initialize the databae
+	db := db.New(sqlDB)
+	if err := db.CreateTxTable(); err != nil {
+		logger.Panicf("fail to initialize db, err = %v", err)
+	}
 
 	// Server options
 	serverOptions := server.Options{
 		Port:         options.Port,
 		MaxBatchSize: options.MaxBatchSize,
+		Timeout:      options.ServerTimeout,
+	}
+
+	// TODO: This is currently not configurable from the ENV variables
+	confirmerOptions := confirmer.Options{
+		MinConfirmations: defaultMinConfirmations(options.Network),
+		PollInterval:     options.ConfirmerPollRate,
 	}
 
 	// Create the store and insert the bootstrap addresses.
@@ -99,17 +126,20 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, db db.
 		}
 	}
 
-	updater := updater.New(logger, options.BootstrapAddrs, multiStore, options.PollRate, options.Timeout)
+	connPool := blockchain.New(logger, options.Network)
+	updater := updater.New(logger, options.BootstrapAddrs, multiStore, options.UpdaterPollRate, options.Timeout)
 	dispatcher := dispatcher.New(logger, options.Timeout, multiStore, opts)
-	cacher := cacher.New(ctx, options.Network, db, dispatcher, logger, options.CacheCap, options.TTL, opts)
-	validator := validator.New(logger, cacher, multiStore, opts)
+	cacher := cacher.New(ctx, options.Network, dispatcher, logger, options.TTL, opts)
+	validator := validator.New(logger, cacher, multiStore, opts, *options.DisPubkey, connPool, db)
 	server := server.New(logger, serverOptions, validator)
+	confirmer := confirmer.New(logger, confirmerOptions, dispatcher, db, connPool)
 
 	return Lightnode{
-		options: options,
-		logger:  logger,
-		server:  server,
-		updater: updater,
+		options:   options,
+		logger:    logger,
+		server:    server,
+		updater:   updater,
+		confirmer: confirmer,
 
 		validator:  validator,
 		cacher:     cacher,
@@ -125,4 +155,22 @@ func (lightnode Lightnode) Run(ctx context.Context) {
 	go lightnode.dispatcher.Run(ctx)
 
 	lightnode.server.Listen(ctx)
+}
+
+func defaultMinConfirmations(network darknode.Network) map[abi.Address]uint64 {
+	minConfirmations := make(map[abi.Address]uint64)
+	switch network {
+	case darknode.Devnet, darknode.Testnet, darknode.Chaosnet:
+		minConfirmations[abi.IntrinsicBTC0Btc2Eth.Address] = 2
+		minConfirmations[abi.IntrinsicZEC0Zec2Eth.Address] = 6
+		minConfirmations[abi.IntrinsicBCH0Bch2Eth.Address] = 2
+		minConfirmations[abi.IntrinsicBTC0Eth2Btc.Address] = 12
+		minConfirmations[abi.IntrinsicZEC0Eth2Zec.Address] = 12
+		minConfirmations[abi.IntrinsicBCH0Eth2Bch.Address] = 12
+	default:
+		for addr := range abi.Intrinsics {
+			minConfirmations[addr] = 0
+		}
+	}
+	return minConfirmations
 }

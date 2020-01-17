@@ -34,13 +34,24 @@ type txChecker struct {
 	db        db.DB
 }
 
+func newTxChecker(logger logrus.FieldLogger, requests <-chan server.RequestWithResponder, key ecdsa.PublicKey, pool blockchain.ConnPool, db db.DB) txChecker {
+	return txChecker{
+		mu:        new(sync.Mutex),
+		logger:    logger,
+		requests:  requests,
+		disPubkey: key,
+		connPool:  pool,
+		db:        db,
+	}
+}
+
 func (tc *txChecker) Run() {
 	workers := runtime.NumCPU()
 	phi.ForAll(workers, func(_ int) {
 		for req := range tc.requests {
 			tx, err := tc.verify(req.Request)
 			if err != nil {
-				jsonErr := &jsonrpc.Error{jsonrpc.ErrorCodeInvalidParams, err.Error(), nil}
+				jsonErr := &jsonrpc.Error{Code: jsonrpc.ErrorCodeInvalidParams, Message: err.Error(), Data: nil}
 				req.Responder <- jsonrpc.NewResponse(req.Request.ID, nil, jsonErr)
 				continue
 			}
@@ -52,7 +63,7 @@ func (tc *txChecker) Run() {
 				continue
 			}
 			if duplicated {
-				jsonErr := &jsonrpc.Error{jsonrpc.ErrorCodeInvalidParams, "tx already submitted", nil}
+				jsonErr := &jsonrpc.Error{Code: jsonrpc.ErrorCodeInvalidParams, Message: "tx already submitted", Data: nil}
 				req.Responder <- jsonrpc.NewResponse(req.Request.ID, nil, jsonErr)
 				continue
 			}

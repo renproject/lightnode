@@ -5,10 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"math/rand"
 	"net/http"
 	"time"
 
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/testutil"
 	"github.com/renproject/lightnode/server"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
@@ -86,4 +89,66 @@ func SendRequestAsync(req jsonrpc.Request, to string) (chan *jsonrpc.Response, e
 		respChan <- &resp
 	}()
 	return respChan, nil
+}
+
+func RandomRequest(method string) jsonrpc.Request {
+	request := jsonrpc.Request{
+		Version: "2.0",
+		ID:      rand.Uint64(),
+		Method:  method,
+		Params:  nil,
+	}
+
+	var params interface{}
+	switch method {
+	// Blocks
+	case jsonrpc.MethodQueryBlock:
+		height := testutil.RandomU64()
+		params = jsonrpc.ParamsQueryBlock{
+			BlockHeight: &height,
+		}
+	case jsonrpc.MethodQueryBlocks:
+		height := testutil.RandomU64()
+		n := testutil.RandomU64()
+		params = jsonrpc.ParamsQueryBlocks{
+			BlockHeight: &height,
+			N:           &n,
+		}
+
+	// Transactions
+	case jsonrpc.MethodSubmitTx:
+		params = jsonrpc.ParamsSubmitTx{
+			Tx: testutil.RandomTransformTx().Tx,
+		}
+	case jsonrpc.MethodQueryTx:
+		params = jsonrpc.ParamsQueryTx{
+			TxHash: testutil.RandomB32(),
+		}
+
+	// Peers
+	case jsonrpc.MethodQueryNumPeers:
+		params = jsonrpc.ParamsQueryNumPeers{}
+	case jsonrpc.MethodQueryPeers:
+		params = jsonrpc.ParamsQueryPeers{}
+
+	// Epoch
+	case jsonrpc.MethodQueryEpoch:
+		params = jsonrpc.ParamsQueryEpoch{
+			EpochHash: testutil.RandomB32(),
+		}
+
+	// System stats
+	case jsonrpc.MethodQueryStat:
+		params = jsonrpc.ParamsQueryStat{}
+
+	default:
+		panic(fmt.Errorf("unexpected method=%v", method))
+	}
+
+	var err error
+	request.Params, err = json.Marshal(params)
+	if err != nil {
+		panic(err)
+	}
+	return request
 }

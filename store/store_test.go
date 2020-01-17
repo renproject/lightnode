@@ -8,8 +8,8 @@ import (
 	. "github.com/renproject/lightnode/store"
 
 	"github.com/renproject/darknode/addr"
+	"github.com/renproject/darknode/testutil"
 	"github.com/renproject/kv"
-	"github.com/renproject/lightnode/testutils"
 )
 
 var _ = Describe("Store", func() {
@@ -18,30 +18,30 @@ var _ = Describe("Store", func() {
 			expectedSize := rand.Intn(100)
 			multiaddrs := make(addr.MultiAddresses, expectedSize)
 			for i := 0; i < expectedSize; i++ {
-				multiaddrs[i] = testutils.RandomMultiAddress()
+				multiaddrs[i] = testutil.RandomMultiAddress()
 			}
 			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), multiaddrs[0])
 			size, err := multiaddrStore.Size()
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(size).To((Equal(0)))
+			Expect(size).Should(BeZero())
 
 			for i := 0; i < expectedSize; i++ {
 				Expect(multiaddrStore.Insert(multiaddrs[i])).ShouldNot(HaveOccurred())
 				size, err = multiaddrStore.Size()
 				Expect(err).ShouldNot(HaveOccurred())
-				Expect(size).To((Equal(i + 1)))
+				Expect(size).To(Equal(i + 1))
 			}
 
 			size, err = multiaddrStore.Size()
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(size).To((Equal(expectedSize)))
+			Expect(size).To(Equal(expectedSize))
 		})
 
 		It("should insert multi-addrs and delete multi-addrs", func() {
 			expectedSize := rand.Intn(100) + 1
 			multiaddrs := make(addr.MultiAddresses, expectedSize)
 			for i := 0; i < expectedSize; i++ {
-				multiaddrs[i] = testutils.RandomMultiAddress()
+				multiaddrs[i] = testutil.RandomMultiAddress()
 			}
 			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), multiaddrs[0])
 
@@ -62,14 +62,14 @@ var _ = Describe("Store", func() {
 
 			size, err := multiaddrStore.Size()
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(size).To((Equal(expectedSize - 1)))
+			Expect(size).To(Equal(expectedSize - 1))
 		})
 
 		It("should return all multi-addrs on AddrsAll", func() {
 			expectedSize := rand.Intn(100) + 1
 			multiaddrs := make(addr.MultiAddresses, expectedSize)
 			for i := 0; i < expectedSize; i++ {
-				multiaddrs[i] = testutils.RandomMultiAddress()
+				multiaddrs[i] = testutil.RandomMultiAddress()
 			}
 			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), multiaddrs[0])
 
@@ -78,14 +78,14 @@ var _ = Describe("Store", func() {
 			}
 			addrs, err := multiaddrStore.AddrsAll()
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(len(addrs)).To((Equal(expectedSize)))
+			Expect(len(addrs)).To(Equal(expectedSize))
 		})
 
 		It("should return random multi-addrs on AddrsRandom", func() {
 			expectedSize := rand.Intn(100) + 1
 			multiaddrs := make(addr.MultiAddresses, expectedSize)
 			for i := 0; i < expectedSize; i++ {
-				multiaddrs[i] = testutils.RandomMultiAddress()
+				multiaddrs[i] = testutil.RandomMultiAddress()
 			}
 			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), multiaddrs[0])
 
@@ -94,12 +94,12 @@ var _ = Describe("Store", func() {
 			}
 			addrs, err := multiaddrStore.AddrsRandom(expectedSize + 1)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(len(addrs)).To((Equal(expectedSize)))
+			Expect(len(addrs)).To(Equal(expectedSize))
 
 			randomSize := rand.Intn(expectedSize)
 			addrs, err = multiaddrStore.AddrsRandom(randomSize)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(len(addrs)).To((Equal(randomSize)))
+			Expect(len(addrs)).To(Equal(randomSize))
 		})
 	})
 })
