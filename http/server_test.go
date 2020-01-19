@@ -1,4 +1,4 @@
-package server_test
+package http_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/renproject/lightnode/server"
+	. "github.com/renproject/lightnode/http"
 	. "github.com/renproject/lightnode/testutils"
 
 	"github.com/google/go-cmp/cmp"

@@ -238,6 +238,8 @@ func RandomAbiValue(t abi.Type) abi.Value {
 		return abi.U64{Int: big.NewInt(rand.Int63())}
 	case abi.ExtTypeBtcCompatUTXO:
 		return RandomUtxo()
+	case abi.ExtTypeEthCompatAddress:
+		return testutil.RandomExtEthCompatAddress()
 	default:
 		panic(fmt.Sprintf("unknown type %v", t))
 	}

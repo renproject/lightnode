@@ -12,7 +12,7 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/blockchain"
 	"github.com/renproject/lightnode/db"
-	"github.com/renproject/lightnode/server"
+	"github.com/renproject/lightnode/http"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -98,7 +98,7 @@ func (confirmer *Confirmer) confirm(tx abi.Tx) {
 	if err != nil {
 		confirmer.logger.Errorf("[confirmer] cannot convert tx to json request, err = %v", err)
 	}
-	req := server.NewRequestWithResponder(request, "")
+	req := http.NewRequestWithResponder(request, "")
 	if ok := confirmer.dispatcher.Send(req); !ok {
 		confirmer.logger.Errorf("[confirmer] cannot send message to dispatcher, too much back pressure")
 		return

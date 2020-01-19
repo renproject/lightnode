@@ -12,7 +12,7 @@ import (
 
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/testutil"
-	"github.com/renproject/lightnode/server"
+	network "github.com/renproject/lightnode/http"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -38,10 +38,76 @@ func (cl ChanWriter) Write(p []byte) (n int, err error) {
 	}
 }
 
+func ChanMiddleware(requests chan jsonrpc.Request, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request jsonrpc.Request
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			response := jsonrpc.Response{
+				Version: "2.0",
+				ID:      -1,
+				Result:  nil,
+				Error: &jsonrpc.Error{
+					Code:    jsonrpc.ErrorCodeInvalidJSON,
+					Message: "invalid json request",
+				},
+			}
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				panic(fmt.Sprintf("fail to write response back, err = %v", err))
+			}
+		}
+		requests <- request
+		next.ServeHTTP(w, r)
+	}
+}
+
 // PanicHandler returns a simple `http.HandlerFunc` which panics.
 func PanicHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		panic("intentionally panic here")
+	}
+}
+
+func NilHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+	}
+}
+
+func OKHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request jsonrpc.Request
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			response := jsonrpc.Response{
+				Version: "2.0",
+				ID:      -1,
+				Result:  nil,
+				Error: &jsonrpc.Error{
+					Code:    jsonrpc.ErrorCodeInvalidJSON,
+					Message: "invalid json request",
+				},
+			}
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				panic(fmt.Sprintf("fail to write response back, err = %v", err))
+			}
+		}
+
+		response := jsonrpc.Response{
+			Version: "2.0",
+			ID:      request.ID,
+		}
+		data, err := json.Marshal(response)
+		if err != nil {
+			panic(err)
+		}
+		w.Write(data)
+	}
+}
+
+// TimeoutHandler returns a simple `http.HandlerFunc` which sleeps a certain
+// amount of time before responding.
+func TimeoutHandler(timeout time.Duration) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(timeout)
+		w.Write([]byte{})
 	}
 }
 
@@ -50,12 +116,12 @@ func InitServer(ctx context.Context, port string) <-chan phi.Message {
 	inspector, messages := NewInspector(100)
 	go inspector.Run(ctx)
 
-	options := server.Options{
+	options := network.Options{
 		Port:         port,
 		MaxBatchSize: 10,
 		Timeout:      3 * time.Second,
 	}
-	server := server.New(logger, options, inspector)
+	server := network.New(logger, options, inspector)
 	go server.Listen(ctx)
 	time.Sleep(time.Second)
 
@@ -80,6 +146,7 @@ func SendRequestAsync(req jsonrpc.Request, to string) (chan *jsonrpc.Response, e
 			respChan <- nil
 			return
 		}
+
 		// Read response.
 		var resp jsonrpc.Response
 		if err := json.NewDecoder(response.Body).Decode(&resp); err != nil {
@@ -91,10 +158,24 @@ func SendRequestAsync(req jsonrpc.Request, to string) (chan *jsonrpc.Response, e
 	return respChan, nil
 }
 
+func RandomMethod() string {
+	methods := []string{
+		jsonrpc.MethodQueryBlock,
+		jsonrpc.MethodQueryBlocks,
+		jsonrpc.MethodSubmitTx,
+		jsonrpc.MethodQueryTx,
+		jsonrpc.MethodQueryNumPeers,
+		jsonrpc.MethodQueryPeers,
+		jsonrpc.MethodQueryEpoch,
+		jsonrpc.MethodQueryStat,
+	}
+	return methods[rand.Intn(len(methods))]
+}
+
 func RandomRequest(method string) jsonrpc.Request {
 	request := jsonrpc.Request{
 		Version: "2.0",
-		ID:      rand.Uint64(),
+		ID:      float64(rand.Int31()),
 		Method:  method,
 		Params:  nil,
 	}

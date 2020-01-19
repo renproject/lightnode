@@ -9,7 +9,7 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/blockchain"
 	"github.com/renproject/lightnode/db"
-	"github.com/renproject/lightnode/server"
+	"github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
@@ -29,13 +29,13 @@ type Validator struct {
 	logger     logrus.FieldLogger
 	cacher     phi.Sender
 	multiStore store.MultiAddrStore
-	requests   chan server.RequestWithResponder
+	requests   chan http.RequestWithResponder
 	connPool   blockchain.ConnPool
 }
 
 // New constructs a new `Validator`.
 func New(logger logrus.FieldLogger, cacher phi.Sender, multiStore store.MultiAddrStore, opts phi.Options, key ecdsa.PublicKey, connPool blockchain.ConnPool, db db.DB) phi.Task {
-	requests := make(chan server.RequestWithResponder, 128)
+	requests := make(chan http.RequestWithResponder, 128)
 	txChecker := newTxChecker(logger, requests, key, connPool, db)
 	go txChecker.Run()
 
@@ -49,7 +49,7 @@ func New(logger logrus.FieldLogger, cacher phi.Sender, multiStore store.MultiAdd
 
 // Handle implements the `phi.Handler` interface.
 func (validator *Validator) Handle(_ phi.Task, message phi.Message) {
-	msg, ok := message.(server.RequestWithResponder)
+	msg, ok := message.(http.RequestWithResponder)
 	if !ok {
 		validator.logger.Panicf("[validator] unexpected message type %T", message)
 	}
@@ -64,7 +64,7 @@ func (validator *Validator) Handle(_ phi.Task, message phi.Message) {
 }
 
 // isValid does basic verification of the message.
-func (validator *Validator) isValid(msg server.RequestWithResponder) *jsonrpc.Error {
+func (validator *Validator) isValid(msg http.RequestWithResponder) *jsonrpc.Error {
 	// Reject requests that don't conform to the JSON-RPC standard.
 	if msg.Request.Version != "2.0" {
 		errMsg := fmt.Sprintf(`invalid jsonrpc field: expected "2.0", got "%s"`, msg.Request.Version)
@@ -97,7 +97,7 @@ func (validator *Validator) isValid(msg server.RequestWithResponder) *jsonrpc.Er
 }
 
 // hasValidParams checks if the request has valid params depending on its method
-func (validator *Validator) hasValidParams(message server.RequestWithResponder) (bool, error) {
+func (validator *Validator) hasValidParams(message http.RequestWithResponder) (bool, error) {
 	switch message.Request.Method {
 	// These methods don't require any parameters
 	case jsonrpc.MethodQueryBlock, jsonrpc.MethodQueryBlocks, jsonrpc.MethodQueryNumPeers, jsonrpc.MethodQueryPeers, jsonrpc.MethodQueryStat:

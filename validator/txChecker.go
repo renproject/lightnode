@@ -18,7 +18,7 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/blockchain"
 	"github.com/renproject/lightnode/db"
-	"github.com/renproject/lightnode/server"
+	"github.com/renproject/lightnode/http"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -28,13 +28,13 @@ const MinShiftAmount = 10000
 type txChecker struct {
 	mu        *sync.Mutex
 	logger    logrus.FieldLogger
-	requests  <-chan server.RequestWithResponder
+	requests  <-chan http.RequestWithResponder
 	disPubkey ecdsa.PublicKey
 	connPool  blockchain.ConnPool
 	db        db.DB
 }
 
-func newTxChecker(logger logrus.FieldLogger, requests <-chan server.RequestWithResponder, key ecdsa.PublicKey, pool blockchain.ConnPool, db db.DB) txChecker {
+func newTxChecker(logger logrus.FieldLogger, requests <-chan http.RequestWithResponder, key ecdsa.PublicKey, pool blockchain.ConnPool, db db.DB) txChecker {
 	return txChecker{
 		mu:        new(sync.Mutex),
 		logger:    logger,

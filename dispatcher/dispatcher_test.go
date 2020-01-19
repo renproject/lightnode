@@ -11,7 +11,7 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/dispatcher"
-	"github.com/renproject/lightnode/server"
+	"github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/phi"
@@ -65,7 +65,7 @@ var _ = Describe("Dispatcher", func() {
 					continue
 				}
 
-				req := server.NewRequestWithResponder(testutils.ValidRequest(method), "")
+				req := http.NewRequestWithResponder(testutils.ValidRequest(method), "")
 				ok := dispatcher.Send(req)
 				Expect(ok).To(BeTrue())
 

@@ -27,6 +27,7 @@ var _ = Describe("Client", func() {
 			_, err := client.SendToDarknode("http://0.0.0.0:5000", req, time.Second)
 
 			Expect(err).To(BeNil())
+			Expect(err).Should(ContainElement())
 		})
 	})
 })

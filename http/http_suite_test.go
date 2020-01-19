@@ -1,4 +1,4 @@
-package server_test
+package http_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestServer(t *testing.T) {
+func TestHttp(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Server Suite")
+	RunSpecs(t, "Http Suite")
 }

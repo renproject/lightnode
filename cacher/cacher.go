@@ -9,7 +9,7 @@ import (
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
-	"github.com/renproject/lightnode/server"
+	"github.com/renproject/lightnode/http"
 	"github.com/renproject/mercury/types"
 	"github.com/renproject/mercury/types/btctypes"
 	"github.com/renproject/phi"
@@ -49,7 +49,7 @@ func New(ctx context.Context, network darknode.Network, dispatcher phi.Sender, l
 
 // Handle implements the `phi.Handler` interface.
 func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
-	msg, ok := message.(server.RequestWithResponder)
+	msg, ok := message.(http.RequestWithResponder)
 	if !ok {
 		cacher.logger.Panicf("[cacher] unexpected message type %T", message)
 	}
@@ -68,7 +68,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		msg.Responder <- response
 	} else {
 		responder := make(chan jsonrpc.Response, 1)
-		cacher.dispatcher.Send(server.RequestWithResponder{
+		cacher.dispatcher.Send(http.RequestWithResponder{
 			Request:    msg.Request,
 			Responder:  responder,
 			DarknodeID: msg.DarknodeID,

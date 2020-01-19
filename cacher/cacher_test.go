@@ -14,7 +14,7 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/cacher"
 	"github.com/renproject/lightnode/db"
-	"github.com/renproject/lightnode/server"
+	"github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
@@ -55,13 +55,13 @@ var _ = Describe("Cacher", func() {
 				}
 
 				request := testutils.ValidRequest(method)
-				cacher.Send(server.NewRequestWithResponder(request, ""))
+				cacher.Send(http.NewRequestWithResponder(request, ""))
 
 				select {
 				case <-time.After(time.Second):
 					Fail("timeout")
 				case message := <-messages:
-					req, ok := message.(server.RequestWithResponder)
+					req, ok := message.(http.RequestWithResponder)
 					Expect(ok).To(BeTrue())
 					Expect(req.Request).To(Equal(request))
 					Expect(req.Responder).To(Not(BeNil()))
@@ -91,11 +91,11 @@ var _ = Describe("Cacher", func() {
 
 				// Send the first request
 				request := testutils.ValidRequest(method)
-				reqWithRes := server.NewRequestWithResponder(request, "")
+				reqWithRes := http.NewRequestWithResponder(request, "")
 				cacher.Send(reqWithRes)
 				forwardedReq := <-messages
 				res := testutils.ErrorResponse(request.ID)
-				forwardedReq.(server.RequestWithResponder).Responder <- res
+				forwardedReq.(http.RequestWithResponder).Responder <- res
 
 				select {
 				case <-time.After(time.Second):
@@ -106,7 +106,7 @@ var _ = Describe("Cacher", func() {
 
 				// Send the second request and expect a cached response
 				request = testutils.ValidRequest(method)
-				reqWithRes = server.NewRequestWithResponder(request, "")
+				reqWithRes = http.NewRequestWithResponder(request, "")
 				cacher.Send(reqWithRes)
 
 				select {

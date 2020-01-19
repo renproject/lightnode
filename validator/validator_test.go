@@ -12,7 +12,7 @@ import (
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
-	"github.com/renproject/lightnode/server"
+	"github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/lightnode/validator"
@@ -48,13 +48,13 @@ var _ = Describe("Validator", func() {
 				}
 
 				request := testutils.ValidRequest(method)
-				validator.Send(server.NewRequestWithResponder(request, ""))
+				validator.Send(http.NewRequestWithResponder(request, ""))
 
 				select {
 				case <-time.After(time.Second):
 					Fail("timeout")
 				case message := <-messages:
-					req, ok := message.(server.RequestWithResponder)
+					req, ok := message.(http.RequestWithResponder)
 					Expect(ok).To(BeTrue())
 					Expect(req.Request).To(Equal(request))
 					Expect(req.Responder).To(Not(BeNil()))
@@ -71,7 +71,7 @@ var _ = Describe("Validator", func() {
 			// TODO: Is it worth fuzz testing on the other request fields?
 			request := testutils.ValidRequest(jsonrpc.MethodQueryBlock)
 			request.Version = "1.0"
-			req := server.NewRequestWithResponder(request, "")
+			req := http.NewRequestWithResponder(request, "")
 			validator.Send(req)
 
 			select {
@@ -96,7 +96,7 @@ var _ = Describe("Validator", func() {
 			// TODO: Is it worth fuzz testing on the other request fields?
 			request := testutils.ValidRequest(jsonrpc.MethodQueryBlock)
 			request.Method = "method"
-			req := server.NewRequestWithResponder(request, "")
+			req := http.NewRequestWithResponder(request, "")
 			validator.Send(req)
 
 			select {
@@ -126,7 +126,7 @@ var _ = Describe("Validator", func() {
 				params := json.RawMessage{}
 				request := testutils.ValidRequest(method)
 				request.Params = params
-				req := server.NewRequestWithResponder(request, "")
+				req := http.NewRequestWithResponder(request, "")
 				validator.Send(req)
 
 				select {

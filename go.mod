@@ -21,8 +21,8 @@ require (
 	github.com/kr/pty v1.1.8 // indirect
 	github.com/lib/pq v1.2.0
 	github.com/mattn/go-sqlite3 v1.11.0
-	github.com/onsi/ginkgo v1.10.1
-	github.com/onsi/gomega v1.7.0
+	github.com/onsi/ginkgo v1.11.0
+	github.com/onsi/gomega v1.8.1
 	github.com/renproject/darknode v0.5.3-0.20200114023845-63071c4b6cb5
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/mercury v0.3.11

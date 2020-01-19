@@ -1,4 +1,4 @@
-package server_test
+package http_test
 
 import (
 	"io/ioutil"
@@ -9,7 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/renproject/lightnode/server"
+	. "github.com/renproject/lightnode/http"
 	. "github.com/renproject/lightnode/testutils"
 
 	"github.com/gorilla/mux"
@@ -62,6 +62,13 @@ var _ = Describe("Middleware", func() {
 			}
 
 			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("when receiving requests", func() {
+		It("should always reject request with unknown method", func() {
+			limiter := NewRateLimiter()
+			Expect(limiter.Allow("random", "0.0.0.0")).Should(BeFalse())
 		})
 	})
 })

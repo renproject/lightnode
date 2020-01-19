@@ -207,6 +207,7 @@ func (cp ConnPool) shifterByAddress(addr abi.Address) *bindings.Shifter {
 
 // shifterAddresses returns the addresses for BTC, ZEC and BCH shifter contracts
 func shifterAddresses(client ethclient.Client, network darknode.Network) (common.Address, common.Address, common.Address, error) {
+	// FIXME : Read the shifter registry address from the env variable.
 	registryAddr := darknode.ShifterRegistryAddresses[network]
 	shifterRegistry, err := ethrpc.NewShifterRegistry(client.EthClient(), registryAddr)
 	if err != nil {

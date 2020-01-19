@@ -15,7 +15,7 @@ import (
 	"github.com/renproject/lightnode/confirmer"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/dispatcher"
-	"github.com/renproject/lightnode/server"
+	"github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/updater"
 	"github.com/renproject/lightnode/validator"
@@ -84,7 +84,7 @@ func (options *Options) SetZeroToDefault() {
 type Lightnode struct {
 	options   Options
 	logger    logrus.FieldLogger
-	server    *server.Server
+	server    *http.Server
 	updater   updater.Updater
 	confirmer confirmer.Confirmer
 
@@ -106,7 +106,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	}
 
 	// Server options
-	serverOptions := server.Options{
+	serverOptions := http.Options{
 		Port:         options.Port,
 		MaxBatchSize: options.MaxBatchSize,
 		Timeout:      options.ServerTimeout,
@@ -131,7 +131,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	dispatcher := dispatcher.New(logger, options.Timeout, multiStore, opts)
 	cacher := cacher.New(ctx, options.Network, dispatcher, logger, options.TTL, opts)
 	validator := validator.New(logger, cacher, multiStore, opts, *options.DisPubkey, connPool, db)
-	server := server.New(logger, serverOptions, validator)
+	server := http.New(logger, serverOptions, validator)
 	confirmer := confirmer.New(logger, confirmerOptions, dispatcher, db, connPool)
 
 	return Lightnode{

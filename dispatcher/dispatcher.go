@@ -10,7 +10,7 @@ import (
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/client"
-	"github.com/renproject/lightnode/server"
+	"github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
@@ -42,7 +42,7 @@ func New(logger logrus.FieldLogger, timeout time.Duration, multiStore store.Mult
 
 // Handle implements the `phi.Handler` interface.
 func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
-	msg, ok := message.(server.RequestWithResponder)
+	msg, ok := message.(http.RequestWithResponder)
 	if !ok {
 		dispatcher.logger.Panicf("[dispatcher] unexpected message type %T", message)
 	}
@@ -70,7 +70,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 			response, err := client.SendToDarknode(client.URLFromMulti(addrs[i]), msg.Request, dispatcher.timeout)
 			if err != nil {
 				errMsg := fmt.Errorf("lightnode could not forward request to darknode: %v", err)
-				jsonErr := jsonrpc.NewError(server.ErrorCodeForwardingError, errMsg.Error(), nil)
+				jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, errMsg.Error(), nil)
 				response = jsonrpc.NewResponse(msg.Request.ID, nil, &jsonErr)
 			}
 			responses <- response
@@ -204,7 +204,7 @@ func (iter majorityResponseIterator) get(id interface{}, responses <-chan jsonrp
 	// Return an error response if we do not receive a consistent response from
 	// the Darknodes.
 	errMsg := fmt.Errorf("lightnode did not receive a consistent response from the darknodes: %v", responseMap)
-	jsonErr := jsonrpc.NewError(server.ErrorCodeForwardingError, errMsg.Error(), nil)
+	jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, errMsg.Error(), nil)
 	response := jsonrpc.NewResponse(id, nil, &jsonErr)
 	return response
 }
