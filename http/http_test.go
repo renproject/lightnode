@@ -21,7 +21,7 @@ var _ = Describe("Middleware", func() {
 
 	init := func(middleware mux.MiddlewareFunc, handler http.Handler) *httptest.Server {
 		router := mux.NewRouter()
-		router.Handle("/", handler).Methods("GET")
+		router.Handle("/", handler).Methods("POST")
 		router.Use(middleware)
 		httpHandler := cors.New(cors.Options{
 			AllowedOrigins:   []string{"*"},
@@ -44,10 +44,9 @@ var _ = Describe("Middleware", func() {
 			server := init(rm, PanicHandler())
 			defer server.Close()
 
-			// Quick check
+			// Send requests
 			test := func() bool {
-				// Send a request
-				resp, err := http.Get(server.URL)
+				resp, err := http.Post(server.URL, "application/json", nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Expect the resp contains a error message about the panic
@@ -68,7 +67,11 @@ var _ = Describe("Middleware", func() {
 	Context("when receiving requests", func() {
 		It("should always reject request with unknown method", func() {
 			limiter := NewRateLimiter()
-			Expect(limiter.Allow("random", "0.0.0.0")).Should(BeFalse())
+			test := func(method string) bool {
+				return !limiter.Allow(method, "0.0.0.0")
+			}
+
+			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
 		})
 	})
 })

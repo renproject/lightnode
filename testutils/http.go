@@ -2,7 +2,6 @@ package testutils
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,9 +11,6 @@ import (
 
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/testutil"
-	network "github.com/renproject/lightnode/http"
-	"github.com/renproject/phi"
-	"github.com/sirupsen/logrus"
 )
 
 // ChanWriter is a io.Writer which writes all messages to an output channel.
@@ -67,11 +63,13 @@ func PanicHandler() http.HandlerFunc {
 	}
 }
 
+// NilHandler don't do anything with the request which causing EOF error.
 func NilHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// OKHandler returns a non-error response if the request if of valid format.
 func OKHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request jsonrpc.Request
@@ -111,23 +109,9 @@ func TimeoutHandler(timeout time.Duration) http.HandlerFunc {
 	}
 }
 
-func InitServer(ctx context.Context, port string) <-chan phi.Message {
-	logger := logrus.New()
-	inspector, messages := NewInspector(100)
-	go inspector.Run(ctx)
-
-	options := network.Options{
-		Port:         port,
-		MaxBatchSize: 10,
-		Timeout:      3 * time.Second,
-	}
-	server := network.New(logger, options, inspector)
-	go server.Listen(ctx)
-	time.Sleep(time.Second)
-
-	return messages
-}
-
+// SendRequestAsync send the request to the target address. It returns a chan of
+// jsonrpc.Response without any blocking, actual response(or error) will be sent
+// to the channel while received.
 func SendRequestAsync(req jsonrpc.Request, to string) (chan *jsonrpc.Response, error) {
 	client := new(http.Client)
 	body, err := json.Marshal(req)
@@ -232,4 +216,12 @@ func RandomRequest(method string) jsonrpc.Request {
 		panic(err)
 	}
 	return request
+}
+
+func BatchRequest(size int) []jsonrpc.Request {
+	reqs := make([]jsonrpc.Request, size)
+	for i := range reqs {
+		reqs[i] = RandomRequest(RandomMethod())
+	}
+	return reqs
 }

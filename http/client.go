@@ -14,9 +14,9 @@ import (
 // RetryOptions can be passed to Client when trying to send a request, so that
 // Client will retry sending the request if it fails.
 type RetryOptions struct {
-	Base   time.Duration
-	Max    time.Duration
-	Factor float64
+	Base   time.Duration // time interval before first retry
+	Max    time.Duration // max time interval between two reties.
+	Factor float64       // next_interval = previous_interval * (1 + factor)
 }
 
 // DefaultRetryOptions is the recommended retry setting for Lightnode.
@@ -43,9 +43,9 @@ func NewClient(timeout time.Duration) Client {
 	}
 }
 
-// SendRequest sends the jsonrpc.Request to the provided url. It only retries
+// SendRequest sends the jsonrpc.Request to the provided URL. It only retries
 // sending the request if the RetryOptions is not nil. Otherwise it returns the
-// error immediately if failing to get the response.
+// response and error immediately.
 func (c Client) SendRequest(ctx context.Context, url string, request jsonrpc.Request, options *RetryOptions) (jsonrpc.Response, error) {
 	// Construct HTTP request.
 	body, err := json.Marshal(request)
@@ -87,7 +87,7 @@ func (c Client) retry(ctx context.Context, r *http.Request, options *RetryOption
 		}
 		select {
 		case <-ctx.Done():
-			return jsonrpc.Response{}, ctx.Err()
+			return jsonrpc.Response{}, fmt.Errorf("%v, last error = %v", ctx.Err(), err)
 		case <-time.After(interval):
 			interval = time.Duration(float64(interval) * (1 + options.Factor))
 			if interval > options.Max {

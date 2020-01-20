@@ -11,13 +11,14 @@ import (
 	. "github.com/renproject/lightnode/http"
 	. "github.com/renproject/lightnode/testutils"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/renproject/darknode/jsonrpc"
 )
 
 var _ = Describe("Client", func() {
 	Context("when sending requests", func() {
 		It("should timeout after the set timeout", func() {
-			client := NewClient(100 * time.Millisecond)
+			client := NewClient(time.Second)
 			server := httptest.NewServer(TimeoutHandler(time.Minute))
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -29,8 +30,8 @@ var _ = Describe("Client", func() {
 
 		It("should send to the expected url", func() {
 			client := NewClient(DefaultClientTimeout)
-			dataChan := make(chan jsonrpc.Request, 128)
-			server := httptest.NewServer(ChanMiddleware(dataChan, OKHandler()))
+			reqChan := make(chan jsonrpc.Request, 128)
+			server := httptest.NewServer(ChanMiddleware(reqChan, OKHandler()))
 
 			test := func() bool {
 				ctx, cancel := context.WithCancel(context.Background())
@@ -40,11 +41,11 @@ var _ = Describe("Client", func() {
 				request := RandomRequest(RandomMethod())
 				_, err := client.SendRequest(ctx, server.URL, request, nil)
 				Expect(err).NotTo(HaveOccurred())
+
 				// Expect server receive the same request
 				var received jsonrpc.Request
-				Eventually(dataChan).Should(Receive(&received))
-				Expect(request).Should(Equal(received))
-				return true
+				Eventually(reqChan).Should(Receive(&received))
+				return cmp.Equal(request, received, nil)
 			}
 
 			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
@@ -54,15 +55,14 @@ var _ = Describe("Client", func() {
 			client := NewClient(DefaultClientTimeout)
 			dataChan := make(chan jsonrpc.Request, 128)
 			server := httptest.NewServer(ChanMiddleware(dataChan, NilHandler()))
-			defer server.Close()
 
 			// Send a random request to the test server
-			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			request := RandomRequest(RandomMethod())
 			retryOpts := RetryOptions{
 				Base:   time.Second,
-				Max:    4 * time.Second,
+				Max:    2 * time.Second,
 				Factor: 0.3,
 			}
 			_, err := client.SendRequest(ctx, server.URL, request, &retryOpts)

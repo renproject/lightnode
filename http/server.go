@@ -68,10 +68,10 @@ func New(logger logrus.FieldLogger, options Options, validator phi.Sender) *Serv
 	rateLimiter := NewRateLimiter()
 	options.SetZeroToDefault()
 	return &Server{
-		logger,
-		options,
-		rateLimiter,
-		validator,
+		logger:      logger,
+		options:     options,
+		rateLimiter: rateLimiter,
+		validator:   validator,
 	}
 }
 
@@ -125,7 +125,7 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 	reqs := []jsonrpc.Request{}
 	if err := json.Unmarshal(rawMessage, &reqs); err != nil {
 		// If we fail to unmarshal the raw message into a list of JSON-RPC 2.0
-		// requests, try to unmarshal the raw messgae into a single JSON-RPC 2.0
+		// requests, try to unmarshal the raw message into a single JSON-RPC 2.0
 		// request
 		var req jsonrpc.Request
 		if err := json.Unmarshal(rawMessage, &req); err != nil {
