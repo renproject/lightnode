@@ -23,7 +23,7 @@ func New(db *sql.DB) DB {
 }
 
 // CreateTxTable creates the tx table if not exists. Multiple calls of this
-// function will only create the table once.
+// function will only create the table once and will not cause any error
 func (db DB) CreateTxTable() error {
 	script := `CREATE TABLE IF NOT EXISTS tx (
     hash                 CHAR(64) NOT NULL PRIMARY KEY,

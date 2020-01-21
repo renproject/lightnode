@@ -20,7 +20,7 @@ var _ = Describe("Store", func() {
 			for i := 0; i < expectedSize; i++ {
 				multiaddrs[i] = testutil.RandomMultiAddress()
 			}
-			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), multiaddrs[0])
+			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
 			size, err := multiaddrStore.Size()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(size).Should(BeZero())
@@ -43,7 +43,7 @@ var _ = Describe("Store", func() {
 			for i := 0; i < expectedSize; i++ {
 				multiaddrs[i] = testutil.RandomMultiAddress()
 			}
-			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), multiaddrs[0])
+			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
 
 			// We need to increment the size by 1 since zero can be returned by rand.Intn
 			// and if we call rand.Intn(0) it will panic
@@ -71,7 +71,7 @@ var _ = Describe("Store", func() {
 			for i := 0; i < expectedSize; i++ {
 				multiaddrs[i] = testutil.RandomMultiAddress()
 			}
-			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), multiaddrs[0])
+			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
 
 			for i := 0; i < expectedSize; i++ {
 				Expect(multiaddrStore.Insert(multiaddrs[i])).ShouldNot(HaveOccurred())
@@ -87,7 +87,7 @@ var _ = Describe("Store", func() {
 			for i := 0; i < expectedSize; i++ {
 				multiaddrs[i] = testutil.RandomMultiAddress()
 			}
-			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), multiaddrs[0])
+			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
 
 			for i := 0; i < expectedSize; i++ {
 				Expect(multiaddrStore.Insert(multiaddrs[i])).ShouldNot(HaveOccurred())

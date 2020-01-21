@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/abi"
-	"github.com/renproject/darknode/ethrpc"
 	"github.com/renproject/darknode/ethrpc/bindings"
 	"github.com/renproject/mercury/sdk/client/btcclient"
 	"github.com/renproject/mercury/sdk/client/ethclient"
@@ -39,7 +38,7 @@ type ConnPool struct {
 
 // New creates a new ConnPool object of given network. It replies on `darknode`
 // for the ShifterRegistry address.
-func New(logger logrus.FieldLogger, network darknode.Network) ConnPool {
+func New(logger logrus.FieldLogger, network darknode.Network, btcShifterAddr, zecShifterAddr, bchShifterAddr common.Address) ConnPool {
 	btcClient := btcclient.NewClient(logger, btcNetwork(types.Bitcoin, network))
 	zecClient := btcclient.NewClient(logger, btcNetwork(types.ZCash, network))
 	bchClient := btcclient.NewClient(logger, btcNetwork(types.BitcoinCash, network))
@@ -47,23 +46,21 @@ func New(logger logrus.FieldLogger, network darknode.Network) ConnPool {
 	// Initialize Ethereum client and contracts.
 	ethClient, err := ethclient.New(logger, ethNetwork(network))
 	if err != nil {
-		logger.Panicf("cannot connect to ethereum, err = %v", err)
+		logger.Panicf("[connPool] cannot connect to ethereum, err = %v", err)
 	}
-	btcShifterAddr, zecShifterAddr, bchShifterAddr, err := shifterAddresses(ethClient, network)
-	if err != nil {
-		logger.Panicf("cannot get shifter addresses from shfiter registry, err = %v", err)
-	}
+
+	// Initialize Shifter contact bindings for different blockchain.
 	btcShifter, err := bindings.NewShifter(btcShifterAddr, ethClient.EthClient())
 	if err != nil {
-		logger.Panicf("cannot initialize btc shifter, err = %v", err)
+		logger.Panicf("[connPool] cannot initialize btc shifter, err = %v", err)
 	}
 	zecShifter, err := bindings.NewShifter(zecShifterAddr, ethClient.EthClient())
 	if err != nil {
-		logger.Panicf("cannot initialize zec shifter, err = %v", err)
+		logger.Panicf("[connPool] cannot initialize zec shifter, err = %v", err)
 	}
 	bchShifter, err := bindings.NewShifter(bchShifterAddr, ethClient.EthClient())
 	if err != nil {
-		logger.Panicf("cannot initialize bch shifter, err = %v", err)
+		logger.Panicf("[connPool] cannot initialize bch shifter, err = %v", err)
 	}
 
 	return ConnPool{
@@ -78,7 +75,7 @@ func New(logger logrus.FieldLogger, network darknode.Network) ConnPool {
 	}
 }
 
-// ShiftOut filters the logs from the Shifter contract (depending on the addr)
+// ShiftOut filters the logs from the Shifter contract (according to the `addr`)
 // and try to find ShiftOut log with given `ref`.
 func (cp ConnPool) ShiftOut(addr abi.Address, ref uint64) ([]byte, uint64, error) {
 	shifter := cp.shifterByAddress(addr)
@@ -203,30 +200,6 @@ func (cp ConnPool) shifterByAddress(addr abi.Address) *bindings.Shifter {
 		cp.logger.Panicf("[validator] invalid shiftOut address = %v", addr)
 		return nil
 	}
-}
-
-// shifterAddresses returns the addresses for BTC, ZEC and BCH shifter contracts
-func shifterAddresses(client ethclient.Client, network darknode.Network) (common.Address, common.Address, common.Address, error) {
-	// FIXME : Read the shifter registry address from the env variable.
-	registryAddr := darknode.ShifterRegistryAddresses[network]
-	shifterRegistry, err := ethrpc.NewShifterRegistry(client.EthClient(), registryAddr)
-	if err != nil {
-		return common.Address{}, common.Address{}, common.Address{}, err
-	}
-	btcShifterAddr, err := shifterRegistry.ShifterAddressBySymbol("zBTC")
-	if err != nil {
-		return common.Address{}, common.Address{}, common.Address{}, err
-	}
-	zecShifterAddr, err := shifterRegistry.ShifterAddressBySymbol("zZEC")
-	if err != nil {
-		return common.Address{}, common.Address{}, common.Address{}, err
-	}
-	bchShifterAddr, err := shifterRegistry.ShifterAddressBySymbol("zBCH")
-	if err != nil {
-		return common.Address{}, common.Address{}, common.Address{}, err
-	}
-
-	return btcShifterAddr, zecShifterAddr, bchShifterAddr, nil
 }
 
 // btcNetwork returns the specific btc-like blockchain network depending on the

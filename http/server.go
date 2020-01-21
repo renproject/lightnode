@@ -168,7 +168,9 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Send the request to validator and wait for response.
-		reqWithResponder := NewRequestWithResponder(reqs[i], darknodeID)
+		ctx, cancel:= context.WithTimeout(r.Context(), server.options.Timeout)
+		defer cancel()
+		reqWithResponder := NewRequestWithResponder(ctx, reqs[i], darknodeID)
 		if ok := server.validator.Send(reqWithResponder); !ok {
 			errMsg := "fail to send request to validator, too much back pressure in server"
 			server.logger.Error(errMsg)
@@ -226,6 +228,7 @@ func writeError(w http.ResponseWriter, id interface{}, err jsonrpc.Error) error 
 // RequestWithResponder wraps a `jsonrpc.Request` with a responder channel that
 // the response will be written to.
 type RequestWithResponder struct {
+	Context    context.Context
 	Request    jsonrpc.Request
 	Responder  chan jsonrpc.Response
 	DarknodeID string
@@ -235,7 +238,7 @@ type RequestWithResponder struct {
 func (RequestWithResponder) IsMessage() {}
 
 // NewRequestWithResponder constructs a new request wrapper object.
-func NewRequestWithResponder(req jsonrpc.Request, darknodeAddr string) RequestWithResponder {
+func NewRequestWithResponder(ctx context.Context, req jsonrpc.Request, darknodeAddr string) RequestWithResponder {
 	responder := make(chan jsonrpc.Response, 1)
-	return RequestWithResponder{req, responder, darknodeAddr}
+	return RequestWithResponder{ctx, req, responder, darknodeAddr}
 }

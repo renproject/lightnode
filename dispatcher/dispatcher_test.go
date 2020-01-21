@@ -2,10 +2,12 @@ package dispatcher_test
 
 import (
 	"context"
+	"net/http/httptest"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	. "github.com/renproject/lightnode/testutils"
 
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/jsonrpc"
@@ -13,7 +15,6 @@ import (
 	"github.com/renproject/lightnode/dispatcher"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
-	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -23,7 +24,7 @@ func initDispatcher(ctx context.Context, bootstrapAddrs addr.MultiAddresses, tim
 	logger := logrus.New()
 	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), bootstrapAddrs[0])
 	for _, addr := range bootstrapAddrs {
-		multiStore.Insert(addr)
+		Expect(multiStore.Insert(addr)).Should(Succeed())
 	}
 	dispatcher := dispatcher.New(logger, timeout, multiStore, opts)
 
@@ -32,13 +33,13 @@ func initDispatcher(ctx context.Context, bootstrapAddrs addr.MultiAddresses, tim
 	return dispatcher
 }
 
-func initDNs(n int) {
-	dns := make([]testutils.MockDarknode, n)
+func initDarknodes(n int) []*MockDarknode {
+	dns := make([]*MockDarknode, n)
 	for i := 0; i < n; i++ {
-		neighbour := testutils.NewMultiFromIPAndPort("0.0.0.0", 5000+((2*(i+1))%(2*n)))
-		dns[i] = testutils.NewMockDarknode(5000+2*i+1, addr.MultiAddresses{neighbour})
-		go dns[i].Run()
+		server := httptest.NewServer(SimpleHandler(true))
+		dns[i] = NewMockDarknode(server)
 	}
+	return dns
 }
 
 var _ = Describe("Dispatcher", func() {
@@ -47,16 +48,12 @@ var _ = Describe("Dispatcher", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			numDNs := 6
-			timeout := time.Second
-			bootstrapAddrs := make(addr.MultiAddresses, numDNs)
-
-			for i := 0; i < numDNs; i++ {
-				bootstrapAddrs[i] = testutils.NewMultiFromIPAndPort("0.0.0.0", 5000+4*i)
+			darknodes := initDarknodes(13)
+			multis := make([]addr.MultiAddress, 13)
+			for i := range multis{
+				multis[i] = darknodes[i].Me
 			}
-
-			initDNs(numDNs)
-			dispatcher := initDispatcher(ctx, bootstrapAddrs, timeout)
+			dispatcher := initDispatcher(ctx, multis, time.Second)
 
 			for method, _ := range jsonrpc.RPCs {
 				// TODO: This method is not supported right now, but when it is
@@ -65,11 +62,12 @@ var _ = Describe("Dispatcher", func() {
 					continue
 				}
 
-				req := http.NewRequestWithResponder(testutils.ValidRequest(method), "")
-				ok := dispatcher.Send(req)
-				Expect(ok).To(BeTrue())
+				req := http.NewRequestWithResponder(ctx, ValidRequest(method), "")
+				Expect(dispatcher.Send(req)).To(BeTrue())
 
-				Eventually(req.Responder, timeout*2).Should(Receive())
+				var response jsonrpc.Response
+				Eventually(req.Responder).Should(Receive(&response))
+				Expect(response.Error).Should(BeNil())
 			}
 		})
 	})

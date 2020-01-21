@@ -6,6 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/store"

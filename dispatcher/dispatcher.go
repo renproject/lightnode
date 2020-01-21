@@ -1,15 +1,12 @@
 package dispatcher
 
 import (
-	"encoding/hex"
-	"encoding/json"
+	"context"
 	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/lightnode/client"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/phi"
@@ -24,7 +21,7 @@ import (
 // store so that the addresses of the known darkndoes are kept up to date.
 type Dispatcher struct {
 	logger     logrus.FieldLogger
-	timeout    time.Duration
+	client     http.Client
 	multiStore store.MultiAddrStore
 }
 
@@ -33,7 +30,7 @@ func New(logger logrus.FieldLogger, timeout time.Duration, multiStore store.Mult
 	return phi.New(
 		&Dispatcher{
 			logger:     logger,
-			timeout:    timeout,
+			client:     http.NewClient(timeout),
 			multiStore: multiStore,
 		},
 		opts,
@@ -47,27 +44,22 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 		dispatcher.logger.Panicf("[dispatcher] unexpected message type %T", message)
 	}
 
-	var addrs addr.MultiAddresses
-	var err error
-	if msg.DarknodeID != "" {
-		addr, err := dispatcher.multiStore.Get(msg.DarknodeID)
-		if err != nil {
-			dispatcher.logger.Panicf("[dispatcher] error getting multi-address: %v", err)
-		}
-		addrs = append(addrs, addr)
-	} else {
-		addrs, err = dispatcher.multiAddrs(msg.Request.Method)
-		if err != nil {
-			dispatcher.logger.Panicf("[dispatcher] error getting multi-addresses: %v", err)
-		}
+	// Get the darknode multiAddresses where the request will be forwarded to.
+	addrs, err := dispatcher.multiAddrs(msg.Request.Method, msg.DarknodeID)
+	if err != nil {
+		dispatcher.logger.Panicf("[dispatcher] error getting multi-address: %v", err)
+		return
 	}
 
+	// Send the request to the darknodes and pipe the response to the iterator
+	ctx, cancel := context.WithCancel(msg.Context)
 	responses := make(chan jsonrpc.Response, len(addrs))
-	resIter := newResponseIter(msg.Request.Method)
+	resIter := dispatcher.newResponseIter(msg.Request.Method)
 
 	go func() {
 		phi.ParForAll(addrs, func(i int) {
-			response, err := client.SendToDarknode(client.URLFromMulti(addrs[i]), msg.Request, dispatcher.timeout)
+			addr := fmt.Sprintf("http://%s:%v", addrs[i].IP4(), addrs[i].Port()+1)
+			response, err := dispatcher.client.SendRequest(ctx, addr, msg.Request, &http.DefaultRetryOptions)
 			if err != nil {
 				errMsg := fmt.Errorf("lightnode could not forward request to darknode: %v", err)
 				jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, errMsg.Error(), nil)
@@ -75,136 +67,46 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 			}
 			responses <- response
 		})
-		close(responses)
 	}()
 
 	go func() {
-		msg.Responder <- resIter.get(msg.Request.ID, responses)
+		msg.Responder <- resIter.Collect(msg.Request.ID, cancel, responses)
 	}()
 }
 
-func (dispatcher *Dispatcher) multiAddrs(method string) (addr.MultiAddresses, error) {
-	// The method `Size` for a `memdb` always returns a nil error, so we ignore
-	// it
-	// NOTE: This is commented out for now but address selection policies used
-	// in the future should make use of this number.
-	// numDarknodes, _ := dispatcher.multiStore.Size()
+// multiAddrs returns multiAddresses of the darknodes we want to forward the
+// request to according to the `method` and `darknodeID`.
+func (dispatcher *Dispatcher) multiAddrs(method string, darknodeID string) (addr.MultiAddresses, error) {
+	if darknodeID != "" {
+		multi, err := dispatcher.multiStore.Get(darknodeID)
+		if err != nil {
+			return nil, err
+		}
+		return addr.MultiAddresses{multi}, nil
+	}
 
 	// TODO: The following is an initial choice of darknode selection policies,
 	// which are likely to not be what we use long term. These should be
 	// updated when these policies have been decided in more detail.
 	switch method {
-	case jsonrpc.MethodQueryBlock:
-		return dispatcher.multiStore.AddrsRandom(3)
-	case jsonrpc.MethodQueryBlocks:
-		return dispatcher.multiStore.AddrsRandom(3)
 	case jsonrpc.MethodSubmitTx:
 		// TODO: Eventually, we would want a more sophisticated way of sending
 		// these messages.
-		firstAddr := dispatcher.multiStore.AddrsFirst()
-		return addr.MultiAddresses{firstAddr}, nil
-	case jsonrpc.MethodQueryTx:
-		return dispatcher.multiStore.AddrsRandom(3)
-	case jsonrpc.MethodQueryNumPeers:
-		return dispatcher.multiStore.AddrsRandom(3)
-	case jsonrpc.MethodQueryPeers:
-		return dispatcher.multiStore.AddrsRandom(3)
-	case jsonrpc.MethodQueryEpoch:
-		return dispatcher.multiStore.AddrsRandom(3)
-	case jsonrpc.MethodQueryStat:
-		return dispatcher.multiStore.AddrsRandom(3)
+		return dispatcher.multiStore.AddrsRandom(2)
 	default:
-		dispatcher.logger.Panicf("[dispatcher] unsupported method %s encountered which should have been rejected by the validator", method)
-		panic("unreachable")
+		return dispatcher.multiStore.AddrsRandom(3)
 	}
 }
 
-func newResponseIter(method string) responseIterator {
+// newResponseIter returns the iterator to use depending on the given method.
+func (dispatcher *Dispatcher) newResponseIter(method string) Iterator {
 	// TODO: The following is an initial choice of response aggregation
 	// policies, which are likely to not be what we use long term. These should
 	// be updated when these policies have been decided in more detail.
 	switch method {
-	case jsonrpc.MethodQueryBlock:
-		// TODO: Use majority response iterator.
-		return newFirstResponseIterator()
-	case jsonrpc.MethodQueryBlocks:
-		// TODO: Use majority response iterator.
-		return newFirstResponseIterator()
-	case jsonrpc.MethodSubmitTx:
-		return newFirstResponseIterator()
-	case jsonrpc.MethodQueryTx:
-		// TODO: Use majority response iterator.
-		return newFirstResponseIterator()
-	case jsonrpc.MethodQueryNumPeers:
-		return newFirstResponseIterator()
-	case jsonrpc.MethodQueryPeers:
-		return newFirstResponseIterator()
-	case jsonrpc.MethodQueryEpoch:
-		return newFirstResponseIterator()
-	case jsonrpc.MethodQueryStat:
-		return newFirstResponseIterator()
+	case jsonrpc.MethodQueryBlock, jsonrpc.MethodQueryBlocks, jsonrpc.MethodQueryTx:
+		return NewMajorityResponseIterator(dispatcher.logger)
 	default:
-		panic(fmt.Sprintf("[dispatcher] unsupported method %s encountered which should have been rejected by the validator", method))
+		return NewFirstResponseIterator()
 	}
-}
-
-type responseIterator interface {
-	get(interface{}, <-chan jsonrpc.Response) jsonrpc.Response
-}
-
-type firstResponseIterator struct{}
-
-func newFirstResponseIterator() responseIterator {
-	return firstResponseIterator{}
-}
-
-func (firstResponseIterator) get(id interface{}, responses <-chan jsonrpc.Response) jsonrpc.Response {
-	// Return the first response from the channel.
-	select {
-	case response := <-responses:
-		return response
-	}
-}
-
-type majorityResponseIterator struct{}
-
-func newMajorityResponseIterator() responseIterator {
-	return majorityResponseIterator{}
-}
-
-func (iter majorityResponseIterator) get(id interface{}, responses <-chan jsonrpc.Response) jsonrpc.Response {
-	// The key in these maps is the hash of the result or error (depending on
-	// whether or not the error is nil).
-	responseCount := map[string]int{}
-	responseMap := map[string]jsonrpc.Response{}
-	for response := range responses {
-		// Hash the response/error.
-		var bytes []byte
-		var err error
-		if response.Error == nil {
-			bytes, err = json.Marshal(response.Result)
-		} else {
-			bytes, err = json.Marshal(response.Error)
-		}
-		if err != nil {
-			return response
-		}
-		hash := hex.EncodeToString(crypto.Keccak256(bytes))
-
-		// Increment the count of the hash and store the response in a map for
-		// easy access.
-		responseCount[hash]++
-		responseMap[hash] = response
-
-		if responseCount[hash] >= (cap(responses)+1)*2/3 {
-			return responseMap[hash]
-		}
-	}
-
-	// Return an error response if we do not receive a consistent response from
-	// the Darknodes.
-	errMsg := fmt.Errorf("lightnode did not receive a consistent response from the darknodes: %v", responseMap)
-	jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, errMsg.Error(), nil)
-	response := jsonrpc.NewResponse(id, nil, &jsonErr)
-	return response
 }

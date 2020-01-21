@@ -10,14 +10,12 @@ import (
 // MultiAddrStore is a store of `addr.MultiAddress`es.
 type MultiAddrStore struct {
 	store     db.Table
-	firstAddr addr.MultiAddress
 }
 
 // New constructs a new `MultiAddrStore`.
-func New(store db.Table, firstAddr addr.MultiAddress) MultiAddrStore {
+func New(store db.Table) MultiAddrStore {
 	return MultiAddrStore{
 		store:     store,
-		firstAddr: firstAddr,
 	}
 }
 
@@ -49,7 +47,9 @@ func (multiStore *MultiAddrStore) Size() (int, error) {
 // store.
 func (multiStore *MultiAddrStore) AddrsAll() (addr.MultiAddresses, error) {
 	addrs := addr.MultiAddresses{}
-	for iter := multiStore.store.Iterator(); iter.Next(); {
+	iter := multiStore.store.Iterator()
+	defer iter.Close()
+	for iter.Next(){
 		id, err := iter.Key()
 		if err != nil {
 			return nil, err
@@ -61,11 +61,6 @@ func (multiStore *MultiAddrStore) AddrsAll() (addr.MultiAddresses, error) {
 		addrs = append(addrs, address)
 	}
 	return addrs, nil
-}
-
-// AddrsFirst returns the first multi addressses in the store.
-func (multiStore *MultiAddrStore) AddrsFirst() addr.MultiAddress {
-	return multiStore.firstAddr
 }
 
 // AddrsRandom returns a random number of addresses from the store.

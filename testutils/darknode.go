@@ -1,17 +1,16 @@
 package testutils
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
+	"net"
+	"net/http/httptest"
+	"strings"
 
 	"github.com/renproject/darknode/addr"
-	"github.com/renproject/darknode/jsonrpc"
 )
 
 // InitDarknodes initialize given number of darknodes on specified port numbers.
@@ -26,64 +25,41 @@ import (
 
 // MockDarknode
 type MockDarknode struct {
-	Port int
-	Me   addr.MultiAddress
+	Server *httptest.Server
+	Me     addr.MultiAddress
 	// Peers   addr.MultiAddresses
-	Request chan jsonrpc.Request
 }
 
-func NewMockDarknode(port int, requests chan jsonrpc.Request) *MockDarknode {
+func NewMockDarknode(server *httptest.Server) *MockDarknode {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		panic(err)
 	}
-	multiStr := fmt.Sprintf("/ip4/0.0.0.0/tcp/%v/ren/%v", port, addr.FromPublicKey(key.PublicKey))
+	host, port ,err := net.SplitHostPort(strings.TrimPrefix(server.URL, "http://"))
+	if err != nil {
+		panic(err)
+	}
+	multiStr := fmt.Sprintf("/ip4/%v/tcp/%v/ren/%v", host, port, addr.FromPublicKey(key.PublicKey))
 	multi, err := addr.NewMultiAddressFromString(multiStr)
 	if err != nil {
 		panic(err)
 	}
 	return &MockDarknode{
-		Port:    port,
+		Server:  server,
 		Me:      multi,
-		Request: requests,
 	}
 }
 
-func (dn *MockDarknode) Run(ctx context.Context) {
-	addr := fmt.Sprintf(":%v", dn.Port+1)
-	log.Printf("darknode listening on 0.0.0.0:%v", dn.Port+1)
-	server := http.Server{Addr: addr, Handler: dn}
-	go func() {
-		<-ctx.Done()
-		server.Close()
-	}()
-	server.ListenAndServe()
+func (dn *MockDarknode) Start() {
+	defer log.Printf("darknode listening on %v...", dn.Server.URL)
+
+	// Server has already been started
+	if dn.Server.URL != "" {
+		return
+	}
+	dn.Server.Start()
 }
 
-func (dn *MockDarknode) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	rawMessage := json.RawMessage{}
-	if err := json.NewDecoder(r.Body).Decode(&rawMessage); err != nil {
-		panic("[mock darknode] could not decode JSON request")
-	}
-
-	var req jsonrpc.Request
-	if err := json.Unmarshal(rawMessage, &req); err != nil {
-		panic("[mock darknode] could not parse JSON request")
-	}
-
-	// Write a nil-result response to the lightnode
-	dn.Request <- req
-	response := jsonrpc.Response{
-		Version: "2.0",
-		ID:      req.ID,
-		Result:  nil,
-		Error:   nil,
-	}
-	data, err := json.Marshal(response)
-	if err != nil {
-		panic(err)
-	}
-
-	w.WriteHeader(http.StatusOK)
-	w.Write(data)
+func (dn *MockDarknode) Close() {
+	dn.Server.Close()
 }

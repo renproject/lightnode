@@ -32,7 +32,7 @@ func initCacher(ctx context.Context, cacheCap int, ttl time.Duration) (phi.Sende
 	opts := phi.Options{Cap: 10}
 	logger := logrus.New()
 	inspector, messages := testutils.NewInspector(10)
-	cacher := cacher.New(ctx, darknode.Localnet, initDB(), inspector, logger, cacheCap, ttl, opts)
+	cacher := cacher.New(ctx, darknode.Localnet, inspector, logger, ttl, opts)
 
 	go cacher.Run(ctx)
 	go inspector.Run(ctx)
@@ -55,7 +55,7 @@ var _ = Describe("Cacher", func() {
 				}
 
 				request := testutils.ValidRequest(method)
-				cacher.Send(http.NewRequestWithResponder(request, ""))
+				cacher.Send(http.NewRequestWithResponder(ctx, request, ""))
 
 				select {
 				case <-time.After(time.Second):
@@ -91,7 +91,7 @@ var _ = Describe("Cacher", func() {
 
 				// Send the first request
 				request := testutils.ValidRequest(method)
-				reqWithRes := http.NewRequestWithResponder(request, "")
+				reqWithRes := http.NewRequestWithResponder(ctx, request, "")
 				cacher.Send(reqWithRes)
 				forwardedReq := <-messages
 				res := testutils.ErrorResponse(request.ID)
@@ -106,7 +106,7 @@ var _ = Describe("Cacher", func() {
 
 				// Send the second request and expect a cached response
 				request = testutils.ValidRequest(method)
-				reqWithRes = http.NewRequestWithResponder(request, "")
+				reqWithRes = http.NewRequestWithResponder(ctx, request, "")
 				cacher.Send(reqWithRes)
 
 				select {
