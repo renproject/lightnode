@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/addr"
@@ -28,6 +29,9 @@ type Options struct {
 	Network           darknode.Network
 	DisPubkey         *ecdsa.PublicKey
 	Port              string
+	BtcShifterAddr    string
+	ZecShifterAddr    string
+	BchShifterAddr    string
 	Cap               int
 	MaxBatchSize      int
 	ServerTimeout     time.Duration
@@ -52,6 +56,15 @@ func (options *Options) SetZeroToDefault() {
 	}
 	if options.Port == "" {
 		panic("port is not set in the options")
+	}
+	if options.BtcShifterAddr == "" {
+		panic("btc shifter contract address is not defined")
+	}
+	if options.ZecShifterAddr == "" {
+		panic("zec shifter contract address is not defined")
+	}
+	if options.BchShifterAddr == "" {
+		panic("bch shifter contract address is not defined")
 	}
 	if len(options.BootstrapAddrs) == 0 {
 		panic("bootstrap addresses are not set in the options")
@@ -119,15 +132,18 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	}
 
 	// Create the store and insert the bootstrap addresses.
-	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), options.BootstrapAddrs[0])
+	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
 	for _, bootstrapAddr := range options.BootstrapAddrs {
 		if err := multiStore.Insert(bootstrapAddr); err != nil {
 			logger.Fatalf("cannot insert bootstrap address: %v", err)
 		}
 	}
 
-	connPool := blockchain.New(logger, options.Network)
-	updater := updater.New(logger, options.BootstrapAddrs, multiStore, options.UpdaterPollRate, options.Timeout)
+	btcAddr := common.HexToAddress(options.BtcShifterAddr)
+	zecAddr := common.HexToAddress(options.ZecShifterAddr)
+	bchAddr := common.HexToAddress(options.BchShifterAddr)
+	connPool := blockchain.New(logger, options.Network, btcAddr, zecAddr, bchAddr)
+	updater := updater.New(logger, multiStore, options.UpdaterPollRate, options.Timeout)
 	dispatcher := dispatcher.New(logger, options.Timeout, multiStore, opts)
 	cacher := cacher.New(ctx, options.Network, dispatcher, logger, options.TTL, opts)
 	validator := validator.New(logger, cacher, multiStore, opts, *options.DisPubkey, connPool, db)
@@ -153,6 +169,7 @@ func (lightnode Lightnode) Run(ctx context.Context) {
 	go lightnode.validator.Run(ctx)
 	go lightnode.cacher.Run(ctx)
 	go lightnode.dispatcher.Run(ctx)
+	go lightnode.confirmer.Run(ctx)
 
 	lightnode.server.Listen(ctx)
 }

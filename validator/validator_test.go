@@ -2,16 +2,23 @@ package validator_test
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/renproject/darknode"
 
-	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
+	"github.com/renproject/lightnode/blockchain"
+	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
@@ -24,8 +31,14 @@ func initValidator(ctx context.Context) (phi.Sender, <-chan phi.Message) {
 	opts := phi.Options{Cap: 10}
 	logger := logrus.New()
 	inspector, messages := testutils.NewInspector(10)
-	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), addr.MultiAddress{})
-	validator := validator.New(logger, inspector, multiStore, opts)
+	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
+	sqlDB, err := sql.Open("sqlite3", "./validator.db")
+	Expect(err).NotTo(HaveOccurred())
+	connPool := blockchain.New(logger, darknode.Localnet, common.Address{}, common.Address{}, common.Address{})
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	Expect(err).NotTo(HaveOccurred())
+
+	validator := validator.New(logger, inspector, multiStore, opts, key.PublicKey, connPool, db.New(sqlDB))
 
 	go validator.Run(ctx)
 	go inspector.Run(ctx)
@@ -48,7 +61,7 @@ var _ = Describe("Validator", func() {
 				}
 
 				request := testutils.ValidRequest(method)
-				validator.Send(http.NewRequestWithResponder(request, ""))
+				validator.Send(http.NewRequestWithResponder(ctx, request, ""))
 
 				select {
 				case <-time.After(time.Second):
@@ -71,7 +84,7 @@ var _ = Describe("Validator", func() {
 			// TODO: Is it worth fuzz testing on the other request fields?
 			request := testutils.ValidRequest(jsonrpc.MethodQueryBlock)
 			request.Version = "1.0"
-			req := http.NewRequestWithResponder(request, "")
+			req := http.NewRequestWithResponder(ctx, request, "")
 			validator.Send(req)
 
 			select {
@@ -96,7 +109,7 @@ var _ = Describe("Validator", func() {
 			// TODO: Is it worth fuzz testing on the other request fields?
 			request := testutils.ValidRequest(jsonrpc.MethodQueryBlock)
 			request.Method = "method"
-			req := http.NewRequestWithResponder(request, "")
+			req := http.NewRequestWithResponder(ctx, request, "")
 			validator.Send(req)
 
 			select {
@@ -126,7 +139,7 @@ var _ = Describe("Validator", func() {
 				params := json.RawMessage{}
 				request := testutils.ValidRequest(method)
 				request.Params = params
-				req := http.NewRequestWithResponder(request, "")
+				req := http.NewRequestWithResponder(ctx, request, "")
 				validator.Send(req)
 
 				select {

@@ -23,8 +23,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Minimum shift amount for both ShiftIn and ShiftOut txs.
 const MinShiftAmount = 10000
 
+// A txChecker reads submitTx requests from a channel and validate the details
+// of the tx. It will store the tx if it's valid.
 type txChecker struct {
 	mu        *sync.Mutex
 	logger    logrus.FieldLogger
@@ -34,6 +37,7 @@ type txChecker struct {
 	db        db.DB
 }
 
+// newTxChecker returns a new txChecker.
 func newTxChecker(logger logrus.FieldLogger, requests <-chan http.RequestWithResponder, key ecdsa.PublicKey, pool blockchain.ConnPool, db db.DB) txChecker {
 	return txChecker{
 		mu:        new(sync.Mutex),
@@ -45,8 +49,9 @@ func newTxChecker(logger logrus.FieldLogger, requests <-chan http.RequestWithRes
 	}
 }
 
+// Run starts the txChecker until the requests channel is closed.
 func (tc *txChecker) Run() {
-	workers := runtime.NumCPU()
+	workers := 2 * runtime.NumCPU()
 	phi.ForAll(workers, func(_ int) {
 		for req := range tc.requests {
 			tx, err := tc.verify(req.Request)
@@ -69,12 +74,10 @@ func (tc *txChecker) Run() {
 			}
 
 			// Send the success response to user
-			data, err := json.Marshal(tx)
-			if err != nil {
-				tc.logger.Errorf("cannot marshal tx, err = %v", err)
-				continue
+			response := jsonrpc.ResponseSubmitTx{
+				Tx: tx,
 			}
-			req.Responder <- jsonrpc.NewResponse(req.Request.ID, data, nil)
+			req.Responder <- jsonrpc.NewResponse(req.Request.ID, response, nil)
 		}
 	})
 }

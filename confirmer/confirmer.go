@@ -66,9 +66,7 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 	defer cancel()
 
 	txs := confirmer.pendingTxs()
-	// TODO : IF THE CPU ONLY HAS ONE CORE AND THE FIRST TX IS BLOCKING
-	// TODO : IT WILL CAUSING ISSUES
-	phi.ForAll(txs, func(i int) {
+	phi.ParForAll(txs, func(i int) {
 		tx := txs[i]
 		var confirmed bool
 		if confirmer.connPool.IsShiftIn(tx) {
@@ -98,12 +96,11 @@ func (confirmer *Confirmer) confirm(tx abi.Tx) {
 	if err != nil {
 		confirmer.logger.Errorf("[confirmer] cannot convert tx to json request, err = %v", err)
 	}
-	req := http.NewRequestWithResponder(request, "")
+	req := http.NewRequestWithResponder(context.Background(), request, "")
 	if ok := confirmer.dispatcher.Send(req); !ok {
 		confirmer.logger.Errorf("[confirmer] cannot send message to dispatcher, too much back pressure")
 		return
 	}
-	// todo : handle if the dispatcher failed to send the tx to darknode.
 
 	if err := confirmer.database.ConfirmTx(tx.Hash); err != nil {
 		confirmer.logger.Errorf("[confirmer] cannot confirm tx in the db, err = %v", err)
