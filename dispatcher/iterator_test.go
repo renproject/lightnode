@@ -94,7 +94,7 @@ var _ = Describe("iterator", func() {
 						data, err := json.Marshal(0)
 						Expect(err).NotTo(HaveOccurred())
 						responses <- RandomResponse(true, data)
-					}  else{
+					} else {
 						data, err := json.Marshal(i)
 						Expect(err).NotTo(HaveOccurred())
 						responses <- RandomResponse(true, data)
@@ -109,12 +109,11 @@ var _ = Describe("iterator", func() {
 				// Context should be canceled by the iterator
 				_, ok := <-ctx.Done()
 				Expect(ok).Should(BeFalse())
-				return len(responses)==0
+				return len(responses) == 0
 			}
 
 			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
 		})
-
 
 		It("should return an error if no response is returned by majority", func() {
 			iter := NewMajorityResponseIterator(logrus.New())

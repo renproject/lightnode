@@ -9,13 +9,13 @@ import (
 
 // MultiAddrStore is a store of `addr.MultiAddress`es.
 type MultiAddrStore struct {
-	store     db.Table
+	store db.Table
 }
 
 // New constructs a new `MultiAddrStore`.
 func New(store db.Table) MultiAddrStore {
 	return MultiAddrStore{
-		store:     store,
+		store: store,
 	}
 }
 
@@ -49,7 +49,7 @@ func (multiStore *MultiAddrStore) AddrsAll() (addr.MultiAddresses, error) {
 	addrs := addr.MultiAddresses{}
 	iter := multiStore.store.Iterator()
 	defer iter.Close()
-	for iter.Next(){
+	for iter.Next() {
 		id, err := iter.Key()
 		if err != nil {
 			return nil, err

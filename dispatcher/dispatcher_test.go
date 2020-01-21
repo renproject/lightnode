@@ -22,7 +22,7 @@ import (
 func initDispatcher(ctx context.Context, bootstrapAddrs addr.MultiAddresses, timeout time.Duration) phi.Sender {
 	opts := phi.Options{Cap: 10}
 	logger := logrus.New()
-	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), bootstrapAddrs[0])
+	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
 	for _, addr := range bootstrapAddrs {
 		Expect(multiStore.Insert(addr)).Should(Succeed())
 	}
@@ -50,8 +50,9 @@ var _ = Describe("Dispatcher", func() {
 
 			darknodes := initDarknodes(13)
 			multis := make([]addr.MultiAddress, 13)
-			for i := range multis{
+			for i := range multis {
 				multis[i] = darknodes[i].Me
+				defer darknodes[i].Close()
 			}
 			dispatcher := initDispatcher(ctx, multis, time.Second)
 

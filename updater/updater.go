@@ -96,16 +96,17 @@ func (updater *Updater) updateMultiAddress() {
 			}
 			return
 		}
-
 		// Parse the response and write any multi-addresses returned by the node to the store.
 		raw, err := json.Marshal(response.Result)
 		if err != nil {
-			updater.logger.Panicf("[updater] error marshaling and already unmarshaled result: %v", err)
+			updater.logger.Errorf("[updater] error marshaling and already unmarshaled result: %v", err)
+			return
 		}
 		var resp jsonrpc.ResponseQueryPeers
 		err = json.Unmarshal(raw, &resp)
 		if err != nil {
-			updater.logger.Panicf("[updater] could not unmarshal into expected result type: %v", err)
+			updater.logger.Errorf("[updater] could not unmarshal into expected result type: %v", err)
+			return
 		}
 		for _, peer := range resp.Peers {
 			multiAddr, err := addr.NewMultiAddressFromString(peer)

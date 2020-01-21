@@ -11,6 +11,7 @@ import (
 
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/testutil"
+	"github.com/renproject/lightnode/store"
 )
 
 // ChanWriter is a io.Writer which writes all messages to an output channel.
@@ -56,6 +57,31 @@ func ChanMiddleware(requests chan jsonrpc.Request, next http.HandlerFunc) http.H
 	}
 }
 
+func RandomAddressHandler(store store.MultiAddrStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		addrs, err := store.AddrsRandom(5)
+		if err != nil {
+			panic(err)
+		}
+		addrsString := make([]string, len(addrs))
+		for i := range addrsString {
+			addrsString[i] = addrs[i].String()
+		}
+		queryRes := jsonrpc.ResponseQueryPeers{
+			Peers: addrsString,
+		}
+		response := jsonrpc.Response{
+			Version: "2.0",
+			ID:      0,
+			Result:  queryRes,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			panic(err)
+		}
+	}
+}
+
 // PanicHandler returns a simple `http.HandlerFunc` which panics.
 func PanicHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +118,7 @@ func SimpleHandler(alwaysSuccess bool) http.HandlerFunc {
 			ID:      request.ID,
 		}
 
-		if !alwaysSuccess{
+		if !alwaysSuccess {
 			err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidJSON, "bad request", nil)
 			response.Error = &err
 		}
@@ -191,13 +217,13 @@ func RandomMethod() string {
 	return methods[rand.Intn(len(methods))]
 }
 
-func RandomResponse(good bool, result []byte) jsonrpc.Response{
+func RandomResponse(good bool, result []byte) jsonrpc.Response {
 	response := jsonrpc.Response{
 		Version: "2.0",
 		ID:      100,
 	}
 	if !good {
-		response.ID= -1
+		response.ID = -1
 		response.Error = &jsonrpc.Error{
 			Code:    jsonrpc.ErrorCodeInvalidJSON,
 			Message: "invalid json",

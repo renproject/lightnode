@@ -168,7 +168,7 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Send the request to validator and wait for response.
-		ctx, cancel:= context.WithTimeout(r.Context(), server.options.Timeout)
+		ctx, cancel := context.WithTimeout(r.Context(), server.options.Timeout)
 		defer cancel()
 		reqWithResponder := NewRequestWithResponder(ctx, reqs[i], darknodeID)
 		if ok := server.validator.Send(reqWithResponder); !ok {

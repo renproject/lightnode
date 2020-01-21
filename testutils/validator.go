@@ -10,8 +10,8 @@ type MockValidator struct {
 	alwaysSuccess bool
 }
 
-func NewMockValidator(alwaysSuccess bool) phi.Task{
-	validator := MockValidator{alwaysSuccess:alwaysSuccess}
+func NewMockValidator(alwaysSuccess bool) phi.Task {
+	validator := MockValidator{alwaysSuccess: alwaysSuccess}
 	opts := phi.Options{Cap: 128}
 	return phi.New(validator, opts)
 }
@@ -25,7 +25,7 @@ func (m MockValidator) Handle(_ phi.Task, message phi.Message) {
 		Version: "2.0",
 		ID:      msg.Request.ID,
 	}
-	if !m.alwaysSuccess{
+	if !m.alwaysSuccess {
 		err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidJSON, "bad request", nil)
 		response.Error = &err
 	}

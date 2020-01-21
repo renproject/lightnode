@@ -35,7 +35,10 @@ func NewMockDarknode(server *httptest.Server) *MockDarknode {
 	if err != nil {
 		panic(err)
 	}
-	host, port ,err := net.SplitHostPort(strings.TrimPrefix(server.URL, "http://"))
+	if server.URL == "" {
+		panic("cannot parse an unstarted server to darknode")
+	}
+	host, port, err := net.SplitHostPort(strings.TrimPrefix(server.URL, "http://"))
 	if err != nil {
 		panic(err)
 	}
@@ -45,8 +48,8 @@ func NewMockDarknode(server *httptest.Server) *MockDarknode {
 		panic(err)
 	}
 	return &MockDarknode{
-		Server:  server,
-		Me:      multi,
+		Server: server,
+		Me:     multi,
 	}
 }
 
