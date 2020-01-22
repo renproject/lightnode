@@ -159,19 +159,6 @@ func (cp ConnPool) VerifyScriptPubKey(addr abi.Address, ghash []byte, distPubKey
 	return nil
 }
 
-// IsShiftIn returns if the given RenVM tx is a ShiftIn tx.
-func (cp ConnPool) IsShiftIn(tx abi.Tx) bool {
-	switch tx.To {
-	case abi.IntrinsicBTC0Btc2Eth.Address, abi.IntrinsicZEC0Zec2Eth.Address, abi.IntrinsicBCH0Bch2Eth.Address:
-		return true
-	case abi.IntrinsicBTC0Eth2Btc.Address, abi.IntrinsicZEC0Eth2Zec.Address, abi.IntrinsicBCH0Eth2Bch.Address:
-		return false
-	default:
-		cp.logger.Panicf("[connPool] expected contract address = %v", tx.To)
-		return false
-	}
-}
-
 // ClientByAddress returns the proper blockchain client for the given Ren-VM
 // contract address.
 func (cp ConnPool) ClientByAddress(addr abi.Address) btcclient.Client {
@@ -219,6 +206,18 @@ func btcNetwork(chain types.Chain, network darknode.Network) btctypes.Network {
 		return btctypes.NewNetwork(chain, "mainnet")
 	default:
 		panic(fmt.Sprintf("unknown network =%v", network))
+	}
+}
+
+// IsShiftIn returns if the given RenVM tx is a ShiftIn tx.
+func IsShiftIn(tx abi.Tx) bool {
+	switch tx.To {
+	case abi.IntrinsicBTC0Btc2Eth.Address, abi.IntrinsicZEC0Zec2Eth.Address, abi.IntrinsicBCH0Bch2Eth.Address:
+		return true
+	case abi.IntrinsicBTC0Eth2Btc.Address, abi.IntrinsicZEC0Eth2Zec.Address, abi.IntrinsicBCH0Eth2Bch.Address:
+		return false
+	default:
+		panic(fmt.Sprintf("[connPool] expected contract address = %v", tx.To))
 	}
 }
 

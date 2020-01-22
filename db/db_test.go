@@ -23,9 +23,7 @@ const (
 )
 
 var _ = Describe("Lightnode db", func() {
-
 	testDBs := []string{Sqlite, Postgres}
-
 	initDB := func(name string) *sql.DB {
 		var source string
 		switch name {

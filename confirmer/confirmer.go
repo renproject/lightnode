@@ -69,7 +69,7 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 	phi.ParForAll(txs, func(i int) {
 		tx := txs[i]
 		var confirmed bool
-		if confirmer.connPool.IsShiftIn(tx) {
+		if blockchain.IsShiftIn(tx) {
 			confirmed = confirmer.shiftInTxConfirmed(ctx, tx)
 		} else {
 			confirmed = confirmer.shiftOutTxConfirmed(ctx, tx)

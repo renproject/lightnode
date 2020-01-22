@@ -2,6 +2,7 @@ package cacher
 
 import (
 	"context"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -71,7 +72,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	data := append(params, []byte(msg.Request.Method)...)
 	reqID := sha3.Sum256(data)
 
-	switch msg.Request.Method{
+	switch msg.Request.Method {
 	case jsonrpc.MethodSubmitTx:
 	case jsonrpc.MethodQueryTx:
 		req := jsonrpc.ParamsQueryTx{}
@@ -84,30 +85,38 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 			cacher.logger.Errorf("[cacher] cannot get tx status from db: %v", err)
 			return
 		}
-		tx, err := cacher.db.Tx(req.TxHash)
+		tx, err := cacher.db.ShiftIn(req.TxHash)
 		if err != nil {
-			cacher.logger.Errorf("[cacher] cannot get tx from db: %v", err)
-			return
+			if err == sql.ErrNoRows {
+				tx, err = cacher.db.ShiftOut(req.TxHash)
+				if err != nil {
+					cacher.logger.Errorf("[cacher] cannot get tx from db: %v", err)
+					return
+				}
+			} else {
+				cacher.logger.Errorf("[cacher] cannot get tx from db: %v", err)
+				return
+			}
 		}
-		if !confirmed{
+		if !confirmed {
 			msg.Responder <- jsonrpc.Response{
 				Version: "2.0",
 				ID:      msg.Request.ID,
-				Result:  jsonrpc.ResponseQueryTx{
-					Tx:     tx  ,
+				Result: jsonrpc.ResponseQueryTx{
+					Tx:       tx,
 					TxStatus: "confirming",
 				},
-				Error:   nil,
+				Error: nil,
 			}
 		}
 	default:
 		response, cached := cacher.get(reqID, msg.DarknodeID)
-		if cached{
+		if cached {
 			msg.Responder <- response
-			return 
+			return
 		}
 	}
-	
+
 	responder := make(chan jsonrpc.Response, 1)
 	cacher.dispatcher.Send(http.RequestWithResponder{
 		Context:    msg.Context,
@@ -125,7 +134,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		cacher.insert(reqID, msg.DarknodeID, response, msg.Request.Method)
 		msg.Responder <- response
 	}()
-	
+
 	// =====
 	cachable := isCachable(msg.Request.Method)
 	response, cached := cacher.get(reqID, msg.DarknodeID)

@@ -126,7 +126,7 @@ func (tc *txChecker) verifyArguments(tx abi.Tx) error {
 }
 
 func (tc *txChecker) verifyHash(tx abi.Tx) (abi.Tx, error) {
-	if tc.connPool.IsShiftIn(tx) {
+	if blockchain.IsShiftIn(tx) {
 		ghash, nhash := abi.B32{}, abi.B32{}
 		utxo := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
 
@@ -177,7 +177,7 @@ func (tc *txChecker) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	if tc.connPool.IsShiftIn(tx) {
+	if blockchain.IsShiftIn(tx) {
 		utxoValue := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
 
 		// verify existence of the provided utxo
@@ -250,7 +250,12 @@ func (tc *txChecker) checkDuplication(tx abi.Tx) (bool, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
-	_, err := tc.db.Tx(tx.Hash)
+	var err error
+	if blockchain.IsShiftIn(tx) {
+		_, err = tc.db.ShiftIn(tx.Hash)
+	} else {
+		_, err = tc.db.ShiftOut(tx.Hash)
+	}
 	if err != nil {
 		if err != sql.ErrNoRows {
 			return false, err
@@ -259,5 +264,9 @@ func (tc *txChecker) checkDuplication(tx abi.Tx) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	return false, tc.db.InsertTx(tx)
+	if blockchain.IsShiftIn(tx) {
+		return false, tc.db.InsertShiftIn(tx)
+	} else {
+		return false, tc.db.InsertShiftOut(tx)
+	}
 }
