@@ -69,6 +69,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	} else {
 		responder := make(chan jsonrpc.Response, 1)
 		cacher.dispatcher.Send(http.RequestWithResponder{
+			Context:    msg.Context,
 			Request:    msg.Request,
 			Responder:  responder,
 			DarknodeID: msg.DarknodeID,

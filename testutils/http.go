@@ -35,28 +35,6 @@ func (cl ChanWriter) Write(p []byte) (n int, err error) {
 	}
 }
 
-func ChanMiddleware(requests chan jsonrpc.Request, next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var request jsonrpc.Request
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-			response := jsonrpc.Response{
-				Version: "2.0",
-				ID:      -1,
-				Result:  nil,
-				Error: &jsonrpc.Error{
-					Code:    jsonrpc.ErrorCodeInvalidJSON,
-					Message: "invalid json request",
-				},
-			}
-			if err := json.NewEncoder(w).Encode(response); err != nil {
-				panic(fmt.Sprintf("fail to write response back, err = %v", err))
-			}
-		}
-		requests <- request
-		next.ServeHTTP(w, r)
-	}
-}
-
 func RandomAddressHandler(store store.MultiAddrStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		addrs, err := store.AddrsRandom(5)
@@ -95,7 +73,7 @@ func NilHandler() http.HandlerFunc {
 	}
 }
 
-func SimpleHandler(alwaysSuccess bool) http.HandlerFunc {
+func SimpleHandler(alwaysSuccess bool, requests chan jsonrpc.Request) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request jsonrpc.Request
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -112,46 +90,19 @@ func SimpleHandler(alwaysSuccess bool) http.HandlerFunc {
 				panic(fmt.Sprintf("fail to write response back, err = %v", err))
 			}
 		}
+		if requests != nil {
+			requests <- request
+		}
 
 		response := jsonrpc.Response{
 			Version: "2.0",
 			ID:      request.ID,
+			Result:  "ok",
 		}
 
 		if !alwaysSuccess {
 			err := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidJSON, "bad request", nil)
 			response.Error = &err
-		}
-		data, err := json.Marshal(response)
-		if err != nil {
-			panic(err)
-		}
-		w.Write(data)
-	}
-}
-
-// OKHandler returns a non-error response if the request if of valid format.
-func OKHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var request jsonrpc.Request
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-			response := jsonrpc.Response{
-				Version: "2.0",
-				ID:      -1,
-				Result:  nil,
-				Error: &jsonrpc.Error{
-					Code:    jsonrpc.ErrorCodeInvalidJSON,
-					Message: "invalid json request",
-				},
-			}
-			if err := json.NewEncoder(w).Encode(response); err != nil {
-				panic(fmt.Sprintf("fail to write response back, err = %v", err))
-			}
-		}
-
-		response := jsonrpc.Response{
-			Version: "2.0",
-			ID:      request.ID,
 		}
 		data, err := json.Marshal(response)
 		if err != nil {

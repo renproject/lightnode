@@ -35,7 +35,7 @@ type Options struct {
 	Cap               int
 	MaxBatchSize      int
 	ServerTimeout     time.Duration
-	Timeout           time.Duration
+	ClientTimeout     time.Duration
 	TTL               time.Duration
 	UpdaterPollRate   time.Duration
 	ConfirmerPollRate time.Duration
@@ -78,8 +78,8 @@ func (options *Options) SetZeroToDefault() {
 	if options.ServerTimeout == 0 {
 		options.ServerTimeout = 15 * time.Second
 	}
-	if options.Timeout == 0 {
-		options.Timeout = time.Minute
+	if options.ClientTimeout == 0 {
+		options.ClientTimeout = time.Minute
 	}
 	if options.TTL == 0 {
 		options.TTL = 3 * time.Second
@@ -109,6 +109,7 @@ type Lightnode struct {
 
 // New constructs a new `Lightnode`.
 func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB *sql.DB) Lightnode {
+	options.SetZeroToDefault()
 	// All tasks have the same capacity, and no scaling
 	opts := phi.Options{Cap: options.Cap}
 
@@ -143,8 +144,8 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	zecAddr := common.HexToAddress(options.ZecShifterAddr)
 	bchAddr := common.HexToAddress(options.BchShifterAddr)
 	connPool := blockchain.New(logger, options.Network, btcAddr, zecAddr, bchAddr)
-	updater := updater.New(logger, multiStore, options.UpdaterPollRate, options.Timeout)
-	dispatcher := dispatcher.New(logger, options.Timeout, multiStore, opts)
+	updater := updater.New(logger, multiStore, options.UpdaterPollRate, options.ClientTimeout)
+	dispatcher := dispatcher.New(logger, options.ClientTimeout, multiStore, opts)
 	cacher := cacher.New(ctx, options.Network, dispatcher, logger, options.TTL, opts)
 	validator := validator.New(logger, cacher, multiStore, opts, *options.DisPubkey, connPool, db)
 	server := http.New(logger, serverOptions, validator)

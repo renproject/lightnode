@@ -8,6 +8,6 @@ var QueryRequests = []string{
 	jsonrpc.MethodQueryNumPeers,
 	jsonrpc.MethodQueryPeers,
 	jsonrpc.MethodQueryStat,
-	jsonrpc.MethodQueryEpoch,
+	// jsonrpc.MethodQueryEpoch,
 	jsonrpc.MethodQueryTx,
 }

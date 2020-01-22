@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"os"
@@ -10,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 
@@ -29,10 +32,15 @@ func main() {
 	name := os.Getenv("HEROKU_APP_NAME")
 	options := lightnode.Options{
 		Network:           parseNetwork(name),
+		DisPubkey:         parseKey(),
 		Port:              os.Getenv("PORT"),
+		BtcShifterAddr:    os.Getenv("BTC_SHIFTER"),
+		ZecShifterAddr:    os.Getenv("ZEC_SHIFTER"),
+		BchShifterAddr:    os.Getenv("BCH_SHIFTER"),
 		Cap:               parseInt("CAP"),
 		MaxBatchSize:      parseInt("MAX_BATCH_SIZE"),
-		Timeout:           parseTime("TIMEOUT"),
+		ServerTimeout:     parseTime("SERVER_TIMEOUT"),
+		ClientTimeout:     parseTime("CLIENT_TIMEOUT"),
 		TTL:               parseTime("TTL"),
 		UpdaterPollRate:   parseTime("UPDATER_POLL_RATE"),
 		ConfirmerPollRate: parseTime("CONFIRMER_POLL_RATE"),
@@ -115,4 +123,16 @@ func parseAddresses() addr.MultiAddresses {
 		multis[i] = multi
 	}
 	return multis
+}
+
+func parseKey() *ecdsa.PublicKey {
+	keyBytes, err := hex.DecodeString(os.Getenv("KEY"))
+	if err != nil {
+		panic(fmt.Sprintf("invalid key string from the env variable, err = %v", err))
+	}
+	key, err := crypto.DecompressPubkey(keyBytes)
+	if err != nil {
+		panic(fmt.Sprintf("invalid distribute public key, err = %v", err))
+	}
+	return key
 }

@@ -34,8 +34,7 @@ func initDarknodes(n int) []*MockDarknode {
 	store := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
 	for i := 0; i < n; i++ {
 		server := httptest.NewServer(RandomAddressHandler(store))
-		dns[i] = NewMockDarknode(server)
-		Expect(store.Insert(dns[i].Me)).Should(Succeed())
+		dns[i] = NewMockDarknode(server, store)
 	}
 	return dns
 }

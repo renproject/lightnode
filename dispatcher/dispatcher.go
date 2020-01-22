@@ -93,6 +93,8 @@ func (dispatcher *Dispatcher) multiAddrs(method string, darknodeID string) (addr
 		// TODO: Eventually, we would want a more sophisticated way of sending
 		// these messages.
 		return dispatcher.multiStore.AddrsRandom(2)
+	case jsonrpc.MethodQueryBlock, jsonrpc.MethodQueryBlocks, jsonrpc.MethodQueryTx:
+		return dispatcher.multiStore.AddrsAll()
 	default:
 		return dispatcher.multiStore.AddrsRandom(3)
 	}
@@ -103,10 +105,12 @@ func (dispatcher *Dispatcher) newResponseIter(method string) Iterator {
 	// TODO: The following is an initial choice of response aggregation
 	// policies, which are likely to not be what we use long term. These should
 	// be updated when these policies have been decided in more detail.
-	switch method {
-	case jsonrpc.MethodQueryBlock, jsonrpc.MethodQueryBlocks, jsonrpc.MethodQueryTx:
-		return NewMajorityResponseIterator(dispatcher.logger)
-	default:
-		return NewFirstResponseIterator()
-	}
+
+	return NewFirstResponseIterator()
+	// switch method {
+	// case jsonrpc.MethodQueryBlock, jsonrpc.MethodQueryBlocks, jsonrpc.MethodQueryTx:
+	// 	return NewFirstResponseIterator()
+	// default:
+	// 	return NewMajorityResponseIterator(dispatcher.logger)
+	// }
 }

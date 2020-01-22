@@ -31,7 +31,7 @@ var _ = Describe("Client", func() {
 		It("should send to the expected url", func() {
 			client := NewClient(DefaultClientTimeout)
 			reqChan := make(chan jsonrpc.Request, 128)
-			server := httptest.NewServer(ChanMiddleware(reqChan, OKHandler()))
+			server := httptest.NewServer(SimpleHandler(true, reqChan))
 
 			test := func() bool {
 				ctx, cancel := context.WithCancel(context.Background())
@@ -54,7 +54,7 @@ var _ = Describe("Client", func() {
 		It("should retry sending to the server when retryOption is not nil", func() {
 			client := NewClient(DefaultClientTimeout)
 			dataChan := make(chan jsonrpc.Request, 128)
-			server := httptest.NewServer(ChanMiddleware(dataChan, NilHandler()))
+			server := httptest.NewServer(SimpleHandler(true, dataChan))
 
 			// Send a random request to the test server
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
