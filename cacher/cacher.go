@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -164,7 +165,7 @@ func (cacher *Cacher) storeGHash(request jsonrpc.Request) error {
 	}
 
 	// Validate the transaction arguments.
-	if err := cacher.validate(network, params.Tx.Args); err != nil {
+	if err := cacher.validate(network, params.Tx.In); err != nil {
 		return err
 	}
 	return nil
@@ -205,7 +206,7 @@ func (cacher *Cacher) validate(network btctypes.Network, args abi.Args) error {
 	// Derive the outpoint from the input arguments.
 	op := btctypes.NewOutPoint(
 		types.TxHash(hex.EncodeToString(utxo.TxHash[:])),
-		uint32(utxo.VOut),
+		uint32(utxo.VOut.Int.Uint64()),
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -219,20 +220,20 @@ func (cacher *Cacher) validate(network btctypes.Network, args abi.Args) error {
 
 	// Populate remaining UTXO details.
 	utxo.ScriptPubKey = abi.B(mUTXO.ScriptPubKey())
-	utxo.Amount = abi.U64(mUTXO.Amount())
+	utxo.Amount = abi.U256{Int: big.NewInt(int64(mUTXO.Amount()))}
 
 	// Insert the UTXO into the database.
 	return cacher.db.InsertGateway(utxo)
 }
 
 // isShiftIn checks whether the given contract address is for a shift-in.
-func isShiftIn(darknodeNet darknode.Network, addr abi.Addr) (btctypes.Network, bool) {
+func isShiftIn(darknodeNet darknode.Network, addr abi.Address) (btctypes.Network, bool) {
 	switch addr {
-	case abi.IntrinsicBTC0Btc2Eth.Addr:
+	case abi.IntrinsicBTC0Btc2Eth.Address:
 		return getBlockchainNetwork(darknodeNet, types.Bitcoin), true
-	case abi.IntrinsicBCH0Bch2Eth.Addr:
+	case abi.IntrinsicBCH0Bch2Eth.Address:
 		return getBlockchainNetwork(darknodeNet, types.BitcoinCash), true
-	case abi.IntrinsicZEC0Zec2Eth.Addr:
+	case abi.IntrinsicZEC0Zec2Eth.Address:
 		return getBlockchainNetwork(darknodeNet, types.ZCash), true
 	default:
 		return nil, false
