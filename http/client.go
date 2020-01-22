@@ -16,7 +16,7 @@ import (
 type RetryOptions struct {
 	Base   time.Duration // time interval before first retry
 	Max    time.Duration // max time interval between two reties.
-	Factor float64       // next_interval = previous_interval * (1 + factor)
+	Factor float64       // next_interval = previous_interval * (1 + Factor)
 }
 
 // DefaultRetryOptions is the recommended retry setting for Lightnode.

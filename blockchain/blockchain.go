@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	ec "github.com/ethereum/go-ethereum/ethclient"
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/ethrpc/bindings"
@@ -78,7 +79,7 @@ func New(logger logrus.FieldLogger, network darknode.Network, btcShifterAddr, ze
 // ShiftOut filters the logs from the Shifter contract (according to the `addr`)
 // and try to find ShiftOut log with given `ref`.
 func (cp ConnPool) ShiftOut(addr abi.Address, ref uint64) ([]byte, uint64, error) {
-	shifter := cp.shifterByAddress(addr)
+	shifter := cp.ShifterByAddress(addr)
 	shiftID := big.NewInt(int64(ref))
 
 	// Filter all ShiftOut logs with given ref.
@@ -100,7 +101,7 @@ func (cp ConnPool) ShiftOut(addr abi.Address, ref uint64) ([]byte, uint64, error
 // Utxo validates if the given txHash and vout are valid and returns the full
 // details of the utxo. Note it will return an error if the utxo has been spent.
 func (cp ConnPool) Utxo(ctx context.Context, addr abi.Address, hash abi.B32, vout abi.U32) (btctypes.UTXO, error) {
-	client := cp.clientByAddress(addr)
+	client := cp.ClientByAddress(addr)
 	txHash := types.TxHash(hex.EncodeToString(hash[:]))
 	outpoint := btctypes.NewOutPoint(txHash, uint32(vout.Int.Uint64()))
 	return client.UTXO(ctx, outpoint)
@@ -108,7 +109,7 @@ func (cp ConnPool) Utxo(ctx context.Context, addr abi.Address, hash abi.B32, vou
 
 // UtxoConfirmations returns the number of confirmations of the given txHash.
 func (cp ConnPool) UtxoConfirmations(ctx context.Context, addr abi.Address, hash abi.B32) (uint64, error) {
-	client := cp.clientByAddress(addr)
+	client := cp.ClientByAddress(addr)
 	txHash := types.TxHash(hex.EncodeToString(hash[:]))
 	return client.Confirmations(ctx, txHash)
 }
@@ -116,7 +117,7 @@ func (cp ConnPool) UtxoConfirmations(ctx context.Context, addr abi.Address, hash
 // EventConfirmations return the number of confirmations of the event log on
 // Ethereum.
 func (cp ConnPool) EventConfirmations(ctx context.Context, addr abi.Address, ref uint64) (uint64, error) {
-	shifter := cp.shifterByAddress(addr)
+	shifter := cp.ShifterByAddress(addr)
 	shiftID := big.NewInt(int64(ref))
 
 	// Get latest block number
@@ -146,7 +147,7 @@ func (cp ConnPool) EventConfirmations(ctx context.Context, addr abi.Address, ref
 // VerifyScriptPubKey verifies if the utxo can be spent by the given distPubKey
 // along with the ghash.
 func (cp ConnPool) VerifyScriptPubKey(addr abi.Address, ghash []byte, distPubKey ecdsa.PublicKey, utxo btctypes.UTXO) error {
-	client := cp.clientByAddress(addr)
+	client := cp.ClientByAddress(addr)
 	gateway := btcgateway.New(client, distPubKey, ghash)
 	expectedSPK, err := btctypes.PayToAddrScript(gateway.Address(), client.Network())
 	if err != nil {
@@ -171,9 +172,9 @@ func (cp ConnPool) IsShiftIn(tx abi.Tx) bool {
 	}
 }
 
-// clientByAddress returns the proper blockchain client for the given Ren-VM
+// ClientByAddress returns the proper blockchain client for the given Ren-VM
 // contract address.
-func (cp ConnPool) clientByAddress(addr abi.Address) btcclient.Client {
+func (cp ConnPool) ClientByAddress(addr abi.Address) btcclient.Client {
 	switch addr {
 	case abi.IntrinsicBTC0Btc2Eth.Address:
 		return cp.btcClient
@@ -186,9 +187,9 @@ func (cp ConnPool) clientByAddress(addr abi.Address) btcclient.Client {
 	}
 }
 
-// shifterByAddress returns the proper shifter contract bindings for the given
+// ShifterByAddress returns the proper shifter contract bindings for the given
 // Ren-VM contract address.
-func (cp ConnPool) shifterByAddress(addr abi.Address) *bindings.Shifter {
+func (cp ConnPool) ShifterByAddress(addr abi.Address) *bindings.Shifter {
 	switch addr {
 	case abi.IntrinsicBTC0Eth2Btc.Address:
 		return cp.btcShifter
@@ -200,6 +201,10 @@ func (cp ConnPool) shifterByAddress(addr abi.Address) *bindings.Shifter {
 		cp.logger.Panicf("[validator] invalid shiftOut address = %v", addr)
 		return nil
 	}
+}
+
+func (cp ConnPool) EthClient() *ec.Client {
+	return cp.ethClient.EthClient()
 }
 
 // btcNetwork returns the specific btc-like blockchain network depending on the

@@ -7,12 +7,14 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/rand"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/go-redis/redis/v7"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 
@@ -74,10 +76,27 @@ func main() {
 	}
 	defer sqlDB.Close()
 
+	// Initialize redis client
+	client := initRedis()
+	defer client.Close()
+
 	// Start running Lightnode.
 	ctx := context.Background()
-	node := lightnode.New(ctx, options, logger, sqlDB)
+	node := lightnode.New(ctx, options, logger, sqlDB, client)
 	node.Run(ctx)
+}
+
+func initRedis() *redis.Client {
+	redisUrl, err := url.Parse(os.Getenv("REDIS_URL"))
+	if err != nil {
+		panic(fmt.Sprintf("fail to read redis URL from env, err = %v", err))
+	}
+	redisPassword, _ := redisUrl.User.Password()
+	return redis.NewClient(&redis.Options{
+		Addr:     redisUrl.Host,
+		Password: redisPassword,
+		DB:       0, // use default DB
+	})
 }
 
 func parseNetwork(appName string) darknode.Network {

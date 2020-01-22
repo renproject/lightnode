@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/addr"
@@ -20,6 +21,7 @@ import (
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/updater"
 	"github.com/renproject/lightnode/validator"
+	"github.com/renproject/lightnode/watcher"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -39,6 +41,7 @@ type Options struct {
 	TTL               time.Duration
 	UpdaterPollRate   time.Duration
 	ConfirmerPollRate time.Duration
+	WatcherPollRate   time.Duration
 	BootstrapAddrs    addr.MultiAddresses
 }
 
@@ -90,16 +93,22 @@ func (options *Options) SetZeroToDefault() {
 	if options.ConfirmerPollRate == 0 {
 		options.ConfirmerPollRate = 10 * time.Second
 	}
+	if options.WatcherPollRate == 0 {
+		options.WatcherPollRate = 10 * time.Second
+	}
 }
 
 // Lightnode is the top level container that encapsulates the functionality of
 // the lightnode.
 type Lightnode struct {
-	options   Options
-	logger    logrus.FieldLogger
-	server    *http.Server
-	updater   updater.Updater
-	confirmer confirmer.Confirmer
+	options    Options
+	logger     logrus.FieldLogger
+	server     *http.Server
+	updater    updater.Updater
+	confirmer  confirmer.Confirmer
+	btcWatcher watcher.Watcher
+	zecWatcher watcher.Watcher
+	bchWatcher watcher.Watcher
 
 	// Tasks
 	validator  phi.Task
@@ -108,7 +117,7 @@ type Lightnode struct {
 }
 
 // New constructs a new `Lightnode`.
-func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB *sql.DB) Lightnode {
+func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB *sql.DB, client *redis.Client) Lightnode {
 	options.SetZeroToDefault()
 	// All tasks have the same capacity, and no scaling
 	opts := phi.Options{Cap: options.Cap}
@@ -150,13 +159,19 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	validator := validator.New(logger, cacher, multiStore, opts, *options.DisPubkey, connPool, db)
 	server := http.New(logger, serverOptions, validator)
 	confirmer := confirmer.New(logger, confirmerOptions, dispatcher, db, connPool)
+	btcWatcher := watcher.NewWatcher(logger, "BTC0Eth2Btc", connPool, validator, client, options.WatcherPollRate)
+	zecWatcher := watcher.NewWatcher(logger, "ZEC0Eth2Zec", connPool, validator, client, options.WatcherPollRate)
+	bchWatcher := watcher.NewWatcher(logger, "BCH0Eth2Bch", connPool, validator, client, options.WatcherPollRate)
 
 	return Lightnode{
-		options:   options,
-		logger:    logger,
-		server:    server,
-		updater:   updater,
-		confirmer: confirmer,
+		options:    options,
+		logger:     logger,
+		server:     server,
+		updater:    updater,
+		confirmer:  confirmer,
+		btcWatcher: btcWatcher,
+		zecWatcher: zecWatcher,
+		bchWatcher: bchWatcher,
 
 		validator:  validator,
 		cacher:     cacher,
@@ -171,6 +186,9 @@ func (lightnode Lightnode) Run(ctx context.Context) {
 	go lightnode.cacher.Run(ctx)
 	go lightnode.dispatcher.Run(ctx)
 	go lightnode.confirmer.Run(ctx)
+	go lightnode.btcWatcher.Run(ctx)
+	go lightnode.zecWatcher.Run(ctx)
+	go lightnode.bchWatcher.Run(ctx)
 
 	lightnode.server.Listen(ctx)
 }

@@ -11,6 +11,7 @@ require (
 	github.com/evalphobia/logrus_sentry v0.8.2
 	github.com/go-kit/kit v0.9.0 // indirect
 	github.com/go-logfmt/logfmt v0.4.0 // indirect
+	github.com/go-redis/redis/v7 v7.0.0-beta.5
 	github.com/google/go-cmp v0.4.0
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/gorilla/mux v1.7.3
