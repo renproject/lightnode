@@ -156,6 +156,14 @@ func (db DB) Expired(hash abi.B32) (bool, error) {
 	return count != 1, err
 }
 
+// Confirmed returns if the tx with given hash has reached enough confirmations.
+func (db DB) Confirmed(hash abi.B32) (bool, error) {
+	var status int
+	err := db.db.QueryRow(`SELECT status FROM tx WHERE hash=$1;`,
+		hex.EncodeToString(hash[:])).Scan(&status)
+	return status == 2, err
+}
+
 // ConfirmTx updates the tx status to 2 (means confirmed).
 func (db DB) ConfirmTx(hash abi.B32) error {
 	_, err := db.db.Exec("UPDATE tx SET status = 2 WHERE hash=$1;", hex.EncodeToString(hash[:]))

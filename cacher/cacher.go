@@ -3,12 +3,14 @@ package cacher
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
+	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/mercury/types"
 	"github.com/renproject/mercury/types/btctypes"
@@ -36,15 +38,22 @@ func (id ID) String() string {
 // in a LRU cache, and non-idempotent requests are stored in a TTL cache.
 type Cacher struct {
 	logger     logrus.FieldLogger
+	db         db.DB
 	dispatcher phi.Sender
 	network    darknode.Network
 	ttlCache   kv.Table
 }
 
 // New constructs a new `Cacher` as a `phi.Task` which can be `Run()`.
-func New(ctx context.Context, network darknode.Network, dispatcher phi.Sender, logger logrus.FieldLogger, ttl time.Duration, opts phi.Options) phi.Task {
+func New(ctx context.Context, network darknode.Network, dispatcher phi.Sender, logger logrus.FieldLogger, ttl time.Duration, opts phi.Options, db db.DB) phi.Task {
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "responses", ttl)
-	return phi.New(&Cacher{logger, dispatcher, network, ttlCache}, opts)
+	return phi.New(&Cacher{
+		logger:     logger,
+		db:         db,
+		dispatcher: dispatcher,
+		network:    network,
+		ttlCache:   ttlCache,
+	}, opts)
 }
 
 // Handle implements the `phi.Handler` interface.
@@ -62,6 +71,62 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	data := append(params, []byte(msg.Request.Method)...)
 	reqID := sha3.Sum256(data)
 
+	switch msg.Request.Method{
+	case jsonrpc.MethodSubmitTx:
+	case jsonrpc.MethodQueryTx:
+		req := jsonrpc.ParamsQueryTx{}
+		if err := json.Unmarshal(params, &req); err != nil {
+			cacher.logger.Errorf("[cacher] cannot unmarshal request request to json: %v", err)
+			return
+		}
+		confirmed, err := cacher.db.Confirmed(req.TxHash)
+		if err != nil {
+			cacher.logger.Errorf("[cacher] cannot get tx status from db: %v", err)
+			return
+		}
+		tx, err := cacher.db.Tx(req.TxHash)
+		if err != nil {
+			cacher.logger.Errorf("[cacher] cannot get tx from db: %v", err)
+			return
+		}
+		if !confirmed{
+			msg.Responder <- jsonrpc.Response{
+				Version: "2.0",
+				ID:      msg.Request.ID,
+				Result:  jsonrpc.ResponseQueryTx{
+					Tx:     tx  ,
+					TxStatus: "confirming",
+				},
+				Error:   nil,
+			}
+		}
+	default:
+		response, cached := cacher.get(reqID, msg.DarknodeID)
+		if cached{
+			msg.Responder <- response
+			return 
+		}
+	}
+	
+	responder := make(chan jsonrpc.Response, 1)
+	cacher.dispatcher.Send(http.RequestWithResponder{
+		Context:    msg.Context,
+		Request:    msg.Request,
+		Responder:  responder,
+		DarknodeID: msg.DarknodeID,
+	})
+
+	// TODO: What do we do when a second request comes in that is already
+	// being fetched at the moment? Currently it will also send it to the
+	// dispatcher, which is probably not ideal.
+	go func() {
+		response := <-responder
+		// TODO: Consider thread safety of insertion.
+		cacher.insert(reqID, msg.DarknodeID, response, msg.Request.Method)
+		msg.Responder <- response
+	}()
+	
+	// =====
 	cachable := isCachable(msg.Request.Method)
 	response, cached := cacher.get(reqID, msg.DarknodeID)
 	if cachable && cached {

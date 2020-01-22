@@ -155,7 +155,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	connPool := blockchain.New(logger, options.Network, btcAddr, zecAddr, bchAddr)
 	updater := updater.New(logger, multiStore, options.UpdaterPollRate, options.ClientTimeout)
 	dispatcher := dispatcher.New(logger, options.ClientTimeout, multiStore, opts)
-	cacher := cacher.New(ctx, options.Network, dispatcher, logger, options.TTL, opts)
+	cacher := cacher.New(ctx, options.Network, dispatcher, logger, options.TTL, opts, db)
 	validator := validator.New(logger, cacher, multiStore, opts, *options.DisPubkey, connPool, db)
 	server := http.New(logger, serverOptions, validator)
 	confirmer := confirmer.New(logger, confirmerOptions, dispatcher, db, connPool)
