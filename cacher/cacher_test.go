@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/cacher"
@@ -30,7 +30,7 @@ func initCacher(ctx context.Context, cacheCap int, ttl time.Duration) (phi.Sende
 	opts := phi.Options{Cap: 10}
 	logger := logrus.New()
 	inspector, messages := testutils.NewInspector(10)
-	cacher := cacher.New(ctx, darknode.Localnet, initDB(), inspector, logger, cacheCap, ttl, opts)
+	cacher := cacher.New(ctx, darknode.Localnet, initDB(), inspector, logger, cacheCap, ttl, 24*time.Hour, opts)
 
 	go cacher.Run(ctx)
 	go inspector.Run(ctx)

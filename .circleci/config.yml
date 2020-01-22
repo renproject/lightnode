@@ -48,17 +48,6 @@ workflows:
   build:
     jobs:
       - build
-  nightly:
-    triggers:
-      - schedule:
-          cron: "0 16 * * *" # Every day at 16:00 UTC
-          filters:
-            branches:
-              only:
-                - master
-    jobs:
-      - core/merge_nightly:
-          executor: go_exec
   weekly:
     triggers:
       - schedule:
