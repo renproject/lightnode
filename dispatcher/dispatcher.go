@@ -59,7 +59,11 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 	go func() {
 		phi.ParForAll(addrs, func(i int) {
 			addr := fmt.Sprintf("http://%s:%v", addrs[i].IP4(), addrs[i].Port()+1)
-			response, err := dispatcher.client.SendRequest(ctx, addr, msg.Request, &http.DefaultRetryOptions)
+			var retryOptions *http.RetryOptions
+			if msg.Request.Method == jsonrpc.MethodSubmitTx {
+				retryOptions = &http.DefaultRetryOptions
+			}
+			response, err := dispatcher.client.SendRequest(ctx, addr, msg.Request, retryOptions)
 			if err != nil {
 				errMsg := fmt.Errorf("lightnode could not forward request to darknode: %v", err)
 				jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, errMsg.Error(), nil)
@@ -67,10 +71,13 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 			}
 			responses <- response
 		})
+		close(responses)
 	}()
 
 	go func() {
-		msg.Responder <- resIter.Collect(msg.Request.ID, cancel, responses)
+		response := resIter.Collect(msg.Request.ID, cancel, responses)
+		msg.Responder <- response
+		// msg.Responder <- resIter.Collect(msg.Request.ID, cancel, responses)
 	}()
 }
 
@@ -93,7 +100,7 @@ func (dispatcher *Dispatcher) multiAddrs(method string, darknodeID string) (addr
 		// TODO: Eventually, we would want a more sophisticated way of sending
 		// these messages.
 		return dispatcher.multiStore.AddrsRandom(2)
-	case jsonrpc.MethodQueryBlock, jsonrpc.MethodQueryBlocks, jsonrpc.MethodQueryTx:
+	case jsonrpc.MethodQueryTx:
 		return dispatcher.multiStore.AddrsAll()
 	default:
 		return dispatcher.multiStore.AddrsRandom(3)
@@ -106,11 +113,10 @@ func (dispatcher *Dispatcher) newResponseIter(method string) Iterator {
 	// policies, which are likely to not be what we use long term. These should
 	// be updated when these policies have been decided in more detail.
 
-	return NewFirstResponseIterator()
-	// switch method {
-	// case jsonrpc.MethodQueryBlock, jsonrpc.MethodQueryBlocks, jsonrpc.MethodQueryTx:
-	// 	return NewFirstResponseIterator()
-	// default:
-	// 	return NewMajorityResponseIterator(dispatcher.logger)
-	// }
+	switch method {
+	case jsonrpc.MethodQueryTx:
+		return NewMajorityResponseIterator(dispatcher.logger)
+	default:
+		return NewFirstResponseIterator()
+	}
 }

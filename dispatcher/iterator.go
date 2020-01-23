@@ -64,16 +64,11 @@ func (iter majorityResponseIterator) Collect(id interface{}, cancel context.Canc
 	iter.responses = newInterfaceMap(cap(responses))
 	defer cancel()
 
-	failed := 0
 	errMsg := ""
 	for response := range responses {
 		if response.Error != nil {
-			failed++
-			errMsg += fmt.Sprintf("%v, ", response.Error.Message)
-			if failed > cap(responses)/3 {
-				errMsg = fmt.Sprintf("more than half of the nodes return errors.[ %v ]", errMsg)
-				jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, errMsg, nil)
-				return jsonrpc.NewResponse(id, nil, &jsonErr)
+			if ok := iter.responses.store(response.Error); ok {
+				return response
 			}
 		} else {
 			if ok := iter.responses.store(response.Result); ok {

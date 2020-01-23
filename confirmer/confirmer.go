@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"time"
 
@@ -76,6 +77,7 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 		}
 
 		if confirmed {
+			log.Printf("tx = %v has reached enough confirmations", tx.Hash.String())
 			confirmer.confirm(tx)
 		}
 	})

@@ -63,18 +63,19 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	if !ok {
 		cacher.logger.Panicf("[cacher] unexpected message type %T", message)
 	}
-
 	params, err := msg.Request.Params.MarshalJSON()
 	if err != nil {
 		cacher.logger.Errorf("[cacher] cannot marshal request to json: %v", err)
 	}
 
+	// Calculate the hash as the request ID
 	data := append(params, []byte(msg.Request.Method)...)
 	reqID := sha3.Sum256(data)
 
 	switch msg.Request.Method {
 	case jsonrpc.MethodSubmitTx:
 	case jsonrpc.MethodQueryTx:
+		// Get tx status from our db.
 		req := jsonrpc.ParamsQueryTx{}
 		if err := json.Unmarshal(params, &req); err != nil {
 			cacher.logger.Errorf("[cacher] cannot unmarshal request request to json: %v", err)
@@ -82,23 +83,29 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		}
 		confirmed, err := cacher.db.Confirmed(req.TxHash)
 		if err != nil {
+			if err == sql.ErrNoRows {
+				break
+			}
 			cacher.logger.Errorf("[cacher] cannot get tx status from db: %v", err)
 			return
 		}
-		tx, err := cacher.db.ShiftIn(req.TxHash)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				tx, err = cacher.db.ShiftOut(req.TxHash)
-				if err != nil {
+
+		// If it's not confirmed yet (which means we haven't send to darkndoe)
+		// respond with a confirming status immediately
+		if !confirmed {
+			tx, err := cacher.db.ShiftIn(req.TxHash)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					tx, err = cacher.db.ShiftOut(req.TxHash)
+					if err != nil {
+						cacher.logger.Errorf("[cacher] cannot get tx from db: %v", err)
+						return
+					}
+				} else {
 					cacher.logger.Errorf("[cacher] cannot get tx from db: %v", err)
 					return
 				}
-			} else {
-				cacher.logger.Errorf("[cacher] cannot get tx from db: %v", err)
-				return
 			}
-		}
-		if !confirmed {
 			msg.Responder <- jsonrpc.Response{
 				Version: "2.0",
 				ID:      msg.Request.ID,
@@ -108,6 +115,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 				},
 				Error: nil,
 			}
+			return
 		}
 	default:
 		response, cached := cacher.get(reqID, msg.DarknodeID)
@@ -117,6 +125,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		}
 	}
 
+	// Send the request to darknode and return the response
 	responder := make(chan jsonrpc.Response, 1)
 	cacher.dispatcher.Send(http.RequestWithResponder{
 		Context:    msg.Context,
@@ -134,31 +143,6 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		cacher.insert(reqID, msg.DarknodeID, response, msg.Request.Method)
 		msg.Responder <- response
 	}()
-
-	// =====
-	cachable := isCachable(msg.Request.Method)
-	response, cached := cacher.get(reqID, msg.DarknodeID)
-	if cachable && cached {
-		msg.Responder <- response
-	} else {
-		responder := make(chan jsonrpc.Response, 1)
-		cacher.dispatcher.Send(http.RequestWithResponder{
-			Context:    msg.Context,
-			Request:    msg.Request,
-			Responder:  responder,
-			DarknodeID: msg.DarknodeID,
-		})
-
-		// TODO: What do we do when a second request comes in that is already
-		// being fetched at the moment? Currently it will also send it to the
-		// dispatcher, which is probably not ideal.
-		go func() {
-			response := <-responder
-			// TODO: Consider thread safety of insertion.
-			cacher.insert(reqID, msg.DarknodeID, response, msg.Request.Method)
-			msg.Responder <- response
-		}()
-	}
 }
 
 func (cacher *Cacher) insert(reqID ID, darknodeID string, response jsonrpc.Response, method string) {
