@@ -65,6 +65,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 	go func() {
 		phi.ParForAll(addrs, func(i int) {
 			addr := fmt.Sprintf("http://%s:%v", addrs[i].IP4(), addrs[i].Port()+1)
+			log.Printf("sending request to darknode = %v", addr)
 			response, err := dispatcher.client.SendRequest(ctx, addr, msg.Request, retryOptions)
 			if err != nil {
 				errMsg := fmt.Errorf("lightnode could not forward request to darknode: %v", err)
