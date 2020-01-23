@@ -46,6 +46,7 @@ func (updater *Updater) Run(ctx context.Context) {
 	ticker := time.NewTicker(updater.pollRate)
 	defer ticker.Stop()
 
+	updater.updateMultiAddress(ctx)
 	for {
 		select {
 		case <-ctx.Done():

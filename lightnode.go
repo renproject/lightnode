@@ -41,6 +41,7 @@ type Options struct {
 	UpdaterPollRate   time.Duration
 	ConfirmerPollRate time.Duration
 	WatcherPollRate   time.Duration
+	Expiry            time.Duration
 	BootstrapAddrs    addr.MultiAddresses
 }
 
@@ -95,6 +96,9 @@ func (options *Options) SetZeroToDefault() {
 	if options.WatcherPollRate == 0 {
 		options.WatcherPollRate = 10 * time.Second
 	}
+	if options.Expiry == 0 {
+		options.Expiry = 7 * 24 * time.Hour
+	}
 }
 
 // Lightnode is the top level container that encapsulates the functionality of
@@ -138,6 +142,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	confirmerOptions := confirmer.Options{
 		MinConfirmations: darknode.DefaultMinConfirmations(options.Network),
 		PollInterval:     options.ConfirmerPollRate,
+		Expiry:           options.Expiry,
 	}
 
 	// Create the store and insert the bootstrap addresses.

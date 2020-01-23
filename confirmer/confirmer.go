@@ -22,6 +22,7 @@ import (
 type Options struct {
 	MinConfirmations map[abi.Address]uint64
 	PollInterval     time.Duration
+	Expiry           time.Duration
 }
 
 // Confirmer handles requests which pass all validations. It checks if requests
@@ -49,17 +50,32 @@ func New(logger logrus.FieldLogger, options Options, dispatcher phi.Sender, db d
 // Run starts running the confirmer in background which periodically checks
 // confirmations of pending txs.
 func (confirmer *Confirmer) Run(ctx context.Context) {
-	ticker := time.NewTicker(confirmer.options.PollInterval)
-	defer ticker.Stop()
+	phi.ParBegin(func() {
+		ticker := time.NewTicker(confirmer.options.PollInterval)
+		defer ticker.Stop()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			confirmer.checkPendingTxs(ctx)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				confirmer.checkPendingTxs(ctx)
+			}
 		}
-	}
+	}, func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+
+		confirmer.prune()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				confirmer.prune()
+			}
+		}
+	})
 }
 
 func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
@@ -115,7 +131,7 @@ func (confirmer *Confirmer) shiftInTxConfirmed(ctx context.Context, tx abi.Tx) b
 
 	confirmations, err := confirmer.connPool.UtxoConfirmations(ctx, tx.To, utxo.TxHash)
 	if err != nil {
-		confirmer.logger.Errorf("cannot get confirmation of [%v] request, txHash = %v, err = %v", tx.To, utxo.TxHash.String(), err)
+		confirmer.logger.Errorf("[confirmer] cannot get confirmation of [%v] request, txHash = %v, err = %v", tx.To, utxo.TxHash.String(), err)
 		return false
 	}
 	minCon := confirmer.options.MinConfirmations[tx.To]
@@ -127,11 +143,17 @@ func (confirmer *Confirmer) shiftOutTxConfirmed(ctx context.Context, tx abi.Tx) 
 	ref := tx.In.Get("ref").Value.(abi.U64)
 	confirmations, err := confirmer.connPool.EventConfirmations(ctx, tx.To, ref.Int.Uint64())
 	if err != nil {
-		confirmer.logger.Errorf("cannot get confirmation of ethereum event log, err = %v", err)
+		confirmer.logger.Errorf("[confirmer] cannot get confirmation of ethereum event log, err = %v", err)
 		return false
 	}
 	minCon := confirmer.options.MinConfirmations[tx.To]
 	return confirmations >= minCon
+}
+
+func (confirmer *Confirmer) prune() {
+	if err := confirmer.database.Prune(confirmer.options.Expiry); err != nil {
+		confirmer.logger.Errorf("[confirmer] cannot prune database, err = %v", err)
+	}
 }
 
 // txToJsonRequest converts a tx to its original jsonrpc.Requst.

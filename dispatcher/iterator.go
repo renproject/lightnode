@@ -102,7 +102,7 @@ type interfaceMap struct {
 // newInterfaceMap creates a new interfaceMap.
 func newInterfaceMap(total int) *interfaceMap {
 	return &interfaceMap{
-		threshold: (total-1)/3*2 + 1,
+		threshold: (total - 1) / 3 * 2,
 		counter:   make([]int, 0, total),
 		data:      make([]interface{}, 0, total),
 	}
@@ -114,10 +114,10 @@ func (m *interfaceMap) store(key interface{}) bool {
 	for i := range m.data {
 		if reflect.DeepEqual(key, m.data[i]) {
 			m.counter[i]++
-			return m.counter[i] >= m.threshold
+			return m.counter[i] > m.threshold
 		}
 	}
 	m.data = append(m.data, key)
 	m.counter = append(m.counter, 1)
-	return false
+	return 1 > m.threshold
 }

@@ -75,9 +75,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 	}()
 
 	go func() {
-		response := resIter.Collect(msg.Request.ID, cancel, responses)
-		msg.Responder <- response
-		// msg.Responder <- resIter.Collect(msg.Request.ID, cancel, responses)
+		msg.Responder <- resIter.Collect(msg.Request.ID, cancel, responses)
 	}()
 }
 
@@ -101,6 +99,8 @@ func (dispatcher *Dispatcher) multiAddrs(method string, darknodeID string) (addr
 		// these messages.
 		return dispatcher.multiStore.AddrsRandom(2)
 	case jsonrpc.MethodQueryTx:
+		// TODO : Since multiStore is updated by the updater, so this function
+		// will only the nodes which are alive, not all addresses in the shard.
 		return dispatcher.multiStore.AddrsAll()
 	default:
 		return dispatcher.multiStore.AddrsRandom(3)

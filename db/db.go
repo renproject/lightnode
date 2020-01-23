@@ -241,6 +241,16 @@ func (db DB) PendingTxs() (abi.Txs, error) {
 // 	return count != 1, err
 // }
 
+func (db DB) Prune(expiry time.Duration) error {
+	_, err := db.db.Exec("DELETE FROM shiftin WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
+	if err != nil {
+		return err
+	}
+
+	_, err = db.db.Exec("DELETE FROM shiftout WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
+	return err
+}
+
 // Confirmed returns if the tx with given hash has reached enough confirmations.
 func (db DB) Confirmed(hash abi.B32) (bool, error) {
 	var status int
