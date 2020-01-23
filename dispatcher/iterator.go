@@ -2,7 +2,6 @@ package dispatcher
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 
@@ -64,31 +63,13 @@ func (iter majorityResponseIterator) Collect(id interface{}, cancel context.Canc
 	iter.responses = newInterfaceMap(cap(responses))
 	defer cancel()
 
-	errMsg := ""
 	for response := range responses {
-		if response.Error != nil {
-			if ok := iter.responses.store(response.Error); ok {
-				return response
-			}
-		} else {
-			if ok := iter.responses.store(response.Result); ok {
-				return response
-			}
+		if ok := iter.responses.store(response); ok {
+			return response
 		}
 	}
 
-	for _, response := range iter.responses.data {
-		bytes, err := json.Marshal(response)
-		if err != nil {
-			iter.logger.Error("fail to marshal response, err = %v", err)
-			continue
-		}
-		errMsg += fmt.Sprintf("%v, ", string(bytes))
-	}
-
-	errMsg = fmt.Sprintf("lightnode did not receive a consistent response from the darknodes: [ %v ]", errMsg)
-	jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, errMsg, nil)
-	return jsonrpc.NewResponse(id, nil, &jsonErr)
+	return iter.responses.most().(jsonrpc.Response)
 }
 
 // interfaceMap use to is a customized map for storing interface{}. It uses
@@ -120,4 +101,15 @@ func (m *interfaceMap) store(key interface{}) bool {
 	m.data = append(m.data, key)
 	m.counter = append(m.counter, 1)
 	return 1 > m.threshold
+}
+
+func (m *interfaceMap) most() interface{} {
+	max, index := 0, 0
+	for i := range m.counter {
+		if m.counter[i] > max {
+			max = m.counter[i]
+			index = i
+		}
+	}
+	return m.data[index]
 }
