@@ -146,7 +146,7 @@ func txToJsonRequest(tx abi.Tx) (jsonrpc.Request, error) {
 	if i := tx.In.Remove("amount"); i == -1 {
 		return jsonrpc.Request{}, errors.New("missing amount argument")
 	}
-	data, err := json.Marshal(tx)
+	data, err := json.Marshal(jsonrpc.ParamsSubmitTx{Tx: tx})
 	if err != nil {
 		return jsonrpc.Request{}, nil
 	}

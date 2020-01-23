@@ -3,7 +3,6 @@ package dispatcher
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/renproject/darknode/addr"
@@ -71,9 +70,6 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 				response = jsonrpc.NewResponse(msg.Request.ID, nil, &jsonErr)
 			}
 			responses <- response
-			if msg.Request.Method == jsonrpc.MethodSubmitTx {
-				log.Printf("sending request to darknode= %v, err = %v, response = %v",addr, err, response.Error)
-			}
 		})
 		close(responses)
 	}()
