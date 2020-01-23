@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode"
-	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/blockchain"
@@ -137,7 +136,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 
 	// TODO: This is currently not configurable from the ENV variables
 	confirmerOptions := confirmer.Options{
-		MinConfirmations: defaultMinConfirmations(options.Network),
+		MinConfirmations: darknode.DefaultMinConfirmations(options.Network),
 		PollInterval:     options.ConfirmerPollRate,
 	}
 
@@ -191,23 +190,4 @@ func (lightnode Lightnode) Run(ctx context.Context) {
 	go lightnode.bchWatcher.Run(ctx)
 
 	lightnode.server.Listen(ctx)
-}
-
-func defaultMinConfirmations(network darknode.Network) map[abi.Address]uint64 {
-	minConfirmations := make(map[abi.Address]uint64)
-	switch network {
-	// TODO : RESET THIS PARAMETER BACK AFTER TESTING
-	case darknode.Devnet, darknode.Testnet, darknode.Chaosnet:
-		minConfirmations[abi.IntrinsicBTC0Btc2Eth.Address] = 1   // 2
-		minConfirmations[abi.IntrinsicZEC0Zec2Eth.Address] = 1   // 6
-		minConfirmations[abi.IntrinsicBCH0Bch2Eth.Address] = 1   // 2
-		minConfirmations[abi.IntrinsicBTC0Eth2Btc.Address] = 12
-		minConfirmations[abi.IntrinsicZEC0Eth2Zec.Address] = 12
-		minConfirmations[abi.IntrinsicBCH0Eth2Bch.Address] = 12
-	default:
-		for addr := range abi.Intrinsics {
-			minConfirmations[addr] = 0
-		}
-	}
-	return minConfirmations
 }

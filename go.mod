@@ -24,7 +24,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.11.0
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.8.1
-	github.com/renproject/darknode v0.5.3-0.20200114023845-63071c4b6cb5
+	github.com/renproject/darknode v0.5.3-0.20200123005628-0310806f2a0a
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/mercury v0.3.11
 	github.com/renproject/phi v0.1.0
@@ -34,7 +34,7 @@ require (
 	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/uber/jaeger-client-go v2.17.0+incompatible // indirect
 	github.com/uber/jaeger-lib v2.1.1+incompatible // indirect
-	golang.org/x/crypto v0.0.0-20190911031432-227b76d455e7
+	golang.org/x/crypto v0.0.0-20191112222119-e1110fd1c708
 	golang.org/x/tools v0.0.0-20190822191935-b1e2c8edcefd // indirect
 	gopkg.in/urfave/cli.v1 v1.20.0 // indirect
 )
