@@ -56,10 +56,9 @@ func RandomShiftOut() abi.Tx {
 		Type:  abi.TypeU256,
 		Value: abi.U256{Int: big.NewInt(int64(rand.Int31()))},
 	}
-	tx.In.Append(toArg,amountArg)
+	tx.In.Append(toArg, amountArg)
 	return tx
 }
-
 
 func CompareTx(lhs, rhs abi.Tx) bool {
 	lData, err := lhs.MarshalBinary()

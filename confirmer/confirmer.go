@@ -158,7 +158,7 @@ func (confirmer *Confirmer) prune() {
 
 // txToJsonRequest converts a tx to its original jsonrpc.Requst.
 func txToJsonRequest(tx abi.Tx) (jsonrpc.Request, error) {
-	if blockchain.IsShiftIn(tx){
+	if blockchain.IsShiftIn(tx) {
 		tx.Autogen = abi.Args{}
 		utxo := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
 		tx.In.Set("utxo", abi.ExtBtcCompatUTXO{

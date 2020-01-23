@@ -77,7 +77,6 @@ var _ = Describe("Lightnode db", func() {
 					Expect(CheckTableExistence(dbname, "shiftin", sqlDB)).NotTo(HaveOccurred())
 					Expect(CheckTableExistence(dbname, "shiftout", sqlDB)).NotTo(HaveOccurred())
 
-
 					// Multiple call of the creation function should not have any effect on existing table.
 					Expect(db.Init()).To(Succeed())
 					Expect(CheckTableExistence(dbname, "tx", sqlDB)).NotTo(HaveOccurred())
@@ -97,9 +96,9 @@ var _ = Describe("Lightnode db", func() {
 						Expect(db.InsertShiftIn(shiftIn)).Should(Succeed())
 						Expect(db.InsertShiftOut(shiftOut)).Should(Succeed())
 
-						_shiftIn, err:= db.ShiftIn(shiftIn.Hash)
+						_shiftIn, err := db.ShiftIn(shiftIn.Hash)
 						Expect(err).NotTo(HaveOccurred())
-						_shiftOut, err:= db.ShiftOut(shiftOut.Hash)
+						_shiftOut, err := db.ShiftOut(shiftOut.Hash)
 						Expect(err).NotTo(HaveOccurred())
 
 						Expect(shiftIn).Should(Equal(_shiftIn))
