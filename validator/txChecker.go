@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"runtime"
 	"sync"
@@ -267,6 +268,7 @@ func (tc *txChecker) checkDuplication(tx abi.Tx) (bool, error) {
 	if blockchain.IsShiftIn(tx) {
 		return false, tc.db.InsertShiftIn(tx)
 	} else {
+		log.Print("123")
 		return false, tc.db.InsertShiftOut(tx)
 	}
 }

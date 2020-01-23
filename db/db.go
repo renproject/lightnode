@@ -125,19 +125,19 @@ VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT D
 func (db DB) InsertShiftOut(tx abi.Tx) error {
 	ref, ok := tx.In.Get("ref").Value.(abi.U64)
 	if !ok {
-		return fmt.Errorf("unexpected type for ref, expected abi.U64, got %v", tx.In.Get("phash").Value.Type())
+		return fmt.Errorf("unexpected type for ref, expected abi.U64, got %v", tx.In.Get("ref").Value.Type())
 	}
 	to, ok := tx.In.Get("to").Value.(abi.B)
 	if !ok {
-		return fmt.Errorf("unexpected type for to, expected abi.B, got %v", tx.In.Get("phash").Value.Type())
+		return fmt.Errorf("unexpected type for to, expected abi.B, got %v", tx.In.Get("to").Value.Type())
 	}
 	amount, ok := tx.In.Get("amount").Value.(abi.U256)
 	if !ok {
-		return fmt.Errorf("unexpected type for amount, expected abi.U256, got %v", tx.In.Get("phash").Value.Type())
+		return fmt.Errorf("unexpected type for amount, expected abi.U256, got %v", tx.In.Get("amount").Value.Type())
 	}
 
 	script := `INSERT INTO shiftout (hash, status, created_time, contract, ref, toAddr, amount) 
-VALUES ($1, 1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING;`
+VALUES ($1, 1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING;`
 	_, err := db.db.Exec(script,
 		hex.EncodeToString(tx.Hash[:]),
 		time.Now().Unix(),

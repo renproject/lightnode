@@ -9,7 +9,7 @@ import (
 	"github.com/renproject/darknode/testutil"
 )
 
-func RandomTx() abi.Tx {
+func RandomShiftIn() abi.Tx {
 	tx := testutil.RandomMintingTx("")
 	amountArg := abi.Arg{
 		Name:  "amount",
@@ -42,6 +42,24 @@ func RandomTx() abi.Tx {
 	})
 	return tx
 }
+
+func RandomShiftOut() abi.Tx {
+	tx := testutil.RandomBurningTx("")
+	b := testutil.RandomB32()
+	toArg := abi.Arg{
+		Name:  "to",
+		Type:  abi.TypeB,
+		Value: abi.B(b[:]),
+	}
+	amountArg := abi.Arg{
+		Name:  "amount",
+		Type:  abi.TypeU256,
+		Value: abi.U256{Int: big.NewInt(int64(rand.Int31()))},
+	}
+	tx.In.Append(toArg,amountArg)
+	return tx
+}
+
 
 func CompareTx(lhs, rhs abi.Tx) bool {
 	lData, err := lhs.MarshalBinary()

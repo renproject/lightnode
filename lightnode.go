@@ -127,7 +127,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 
 	// Initialize the databae
 	db := db.New(sqlDB)
-	if err := db.CreateTxTable(); err != nil {
+	if err := db.Init(); err != nil {
 		logger.Panicf("fail to initialize db, err = %v", err)
 	}
 

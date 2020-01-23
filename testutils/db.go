@@ -43,13 +43,6 @@ func CheckTableExistence(dbName, tableName string, db *sql.DB) error {
 	return nil
 }
 
-// DropTable with given name from the db instance.
-func DropTable(db *sql.DB, name string) error {
-	script := fmt.Sprintf("DROP TABLE %v", name)
-	_, err := db.Exec(script)
-	return err
-}
-
 // NumOfDataEntries returns the number of data entries in the queried table.
 func NumOfDataEntries(db *sql.DB, name string) (int, error) {
 	script := fmt.Sprintf("SELECT count(*) FROM %v", name)
