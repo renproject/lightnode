@@ -196,10 +196,11 @@ func (lightnode Lightnode) Run(ctx context.Context) {
 func defaultMinConfirmations(network darknode.Network) map[abi.Address]uint64 {
 	minConfirmations := make(map[abi.Address]uint64)
 	switch network {
+	// TODO : RESET THIS PARAMETER BACK AFTER TESTING
 	case darknode.Devnet, darknode.Testnet, darknode.Chaosnet:
-		minConfirmations[abi.IntrinsicBTC0Btc2Eth.Address] = 2
-		minConfirmations[abi.IntrinsicZEC0Zec2Eth.Address] = 6
-		minConfirmations[abi.IntrinsicBCH0Bch2Eth.Address] = 2
+		minConfirmations[abi.IntrinsicBTC0Btc2Eth.Address] = 1   // 2
+		minConfirmations[abi.IntrinsicZEC0Zec2Eth.Address] = 1   // 6
+		minConfirmations[abi.IntrinsicBCH0Bch2Eth.Address] = 1   // 2
 		minConfirmations[abi.IntrinsicBTC0Eth2Btc.Address] = 12
 		minConfirmations[abi.IntrinsicZEC0Eth2Zec.Address] = 12
 		minConfirmations[abi.IntrinsicBCH0Eth2Bch.Address] = 12
