@@ -72,7 +72,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 			}
 			responses <- response
 			if msg.Request.Method == jsonrpc.MethodSubmitTx {
-				log.Printf("sending request to darknode= %v, err = %v, response = %v",addr, err, response)
+				log.Printf("sending request to darknode= %v, err = %v, response = %v",addr, err, response.Error)
 			}
 		})
 		close(responses)
