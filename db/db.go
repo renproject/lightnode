@@ -22,9 +22,11 @@ func New(db *sql.DB) DB {
 	}
 }
 
-// CreateTxTable creates the tx table if not exists. Multiple calls of this
-// function will only create the table once and will not cause any error
-func (db DB) CreateTxTable() error {
+// Init creates the tables for storing txs if not exist. Multiple calls of this
+// function will only create the tables once and not cause any error.
+func (db DB) Init() error {
+
+	// Create the shiftin table if not exists
 	shiftIn := `CREATE TABLE IF NOT EXISTS shiftin (
     hash                 CHAR(64) NOT NULL PRIMARY KEY,
     status               INT,
@@ -39,13 +41,14 @@ func (db DB) CreateTxTable() error {
 	nhash                CHAR(64),
 	sighash              CHAR(64),
 	utxo_tx_hash         CHAR(64),
-    utxo_vout            INT 
+    utxo_vout            INT
 );`
 	_, err := db.db.Exec(shiftIn)
 	if err != nil {
 		return err
 	}
 
+	// Create the shiftout table if not exists
 	shiftOut := `CREATE TABLE IF NOT EXISTS shiftout (
     hash                 CHAR(64) NOT NULL PRIMARY KEY,
     status               INT,
@@ -59,6 +62,7 @@ func (db DB) CreateTxTable() error {
 	return err
 }
 
+// InsertShiftIn stores a shiftIn tx into the database.
 func (db DB) InsertShiftIn(tx abi.Tx) error {
 	phash, ok := tx.In.Get("phash").Value.(abi.B32)
 	if !ok {
@@ -117,6 +121,7 @@ VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT D
 	return err
 }
 
+// InsertShiftIn stores a shiftOut tx into the database.
 func (db DB) InsertShiftOut(tx abi.Tx) error {
 	ref, ok := tx.In.Get("ref").Value.(abi.U64)
 	if !ok {
@@ -139,7 +144,7 @@ VALUES ($1, 1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING;`
 		tx.To,
 		ref.Int.Int64(),
 		hex.EncodeToString(to),
-		amount,
+		amount.Int.Int64(),
 	)
 	return err
 }
@@ -232,15 +237,7 @@ func (db DB) PendingTxs() (abi.Txs, error) {
 	return txs, shiftOuts.Err()
 }
 
-// Expired returns if the tx with given hash has expired.
-// func (db DB) Expired(hash abi.B32) (bool, error) {
-// 	var count int
-// 	err := db.db.QueryRow(`SELECT count(*) FROM tx
-// 			WHERE hash=$1 AND $2 - created_time < 86400;`,
-// 		hex.EncodeToString(hash[:]), time.Now().Unix()).Scan(&count)
-// 	return count != 1, err
-// }
-
+// Prune deletes txs which are expired according to the given expiry time.
 func (db DB) Prune(expiry time.Duration) error {
 	_, err := db.db.Exec("DELETE FROM shiftin WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
 	if err != nil {
@@ -256,18 +253,11 @@ func (db DB) Confirmed(hash abi.B32) (bool, error) {
 	var status int
 	err := db.db.QueryRow(`SELECT status FROM shiftin WHERE hash=$1;`,
 		hex.EncodeToString(hash[:])).Scan(&status)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			err = db.db.QueryRow(`SELECT status FROM shiftout WHERE hash=$1;`,
-				hex.EncodeToString(hash[:])).Scan(&status)
-			if err != nil {
-				return false, err
-			}
-			return status == 2, nil
-		}
-		return false, err
+	if err == sql.ErrNoRows {
+		err = db.db.QueryRow(`SELECT status FROM shiftout WHERE hash=$1;`,
+			hex.EncodeToString(hash[:])).Scan(&status)
 	}
-	return status == 2, nil
+	return status == 2, err
 }
 
 // ConfirmTx updates the tx status to 2 (means confirmed).
@@ -277,16 +267,6 @@ func (db DB) ConfirmTx(hash abi.B32) error {
 		return err
 	}
 	_, err = db.db.Exec("UPDATE shiftout SET status = 2 WHERE hash=$1;", hex.EncodeToString(hash[:]))
-	return err
-}
-
-// DeleteTx with given hash from the db.
-func (db DB) DeleteTx(hash abi.B32) error {
-	_, err := db.db.Exec("DELETE FROM shiftin where hash=$1;", hex.EncodeToString(hash[:]))
-	if err != nil {
-		return err
-	}
-	_, err = db.db.Exec("DELETE FROM shiftout where hash=$1;", hex.EncodeToString(hash[:]))
 	return err
 }
 
