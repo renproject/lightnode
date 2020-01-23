@@ -158,20 +158,31 @@ func (confirmer *Confirmer) prune() {
 
 // txToJsonRequest converts a tx to its original jsonrpc.Requst.
 func txToJsonRequest(tx abi.Tx) (jsonrpc.Request, error) {
-	tx.Autogen = abi.Args{}
-	utxo := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
-	tx.In.Set("utxo", abi.ExtBtcCompatUTXO{
-		TxHash: utxo.TxHash,
-		VOut:   utxo.VOut,
-	})
+	if blockchain.IsShiftIn(tx){
+		tx.Autogen = abi.Args{}
+		utxo := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
+		tx.In.Set("utxo", abi.ExtBtcCompatUTXO{
+			TxHash: utxo.TxHash,
+			VOut:   utxo.VOut,
+		})
 
-	if i := tx.In.Remove("amount"); i == -1 {
-		return jsonrpc.Request{}, errors.New("missing amount argument")
+		if i := tx.In.Remove("amount"); i == -1 {
+			return jsonrpc.Request{}, errors.New("missing amount argument")
+		}
+	} else {
+		if i := tx.In.Remove("amount"); i == -1 {
+			return jsonrpc.Request{}, errors.New("missing amount argument")
+		}
+		if i := tx.In.Remove("to"); i == -1 {
+			return jsonrpc.Request{}, errors.New("missing to argument")
+		}
 	}
+
 	data, err := json.Marshal(jsonrpc.ParamsSubmitTx{Tx: tx})
 	if err != nil {
 		return jsonrpc.Request{}, nil
 	}
+
 	return jsonrpc.Request{
 		Version: "2.0",
 		ID:      rand.Int63(),

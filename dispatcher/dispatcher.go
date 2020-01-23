@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/renproject/darknode/addr"
@@ -56,13 +57,14 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 	responses := make(chan jsonrpc.Response, len(addrs))
 	resIter := dispatcher.newResponseIter(msg.Request.Method)
 
+	var retryOptions *http.RetryOptions
+	if msg.Request.Method == jsonrpc.MethodSubmitTx {
+		retryOptions = &http.DefaultRetryOptions
+	}
+
 	go func() {
 		phi.ParForAll(addrs, func(i int) {
 			addr := fmt.Sprintf("http://%s:%v", addrs[i].IP4(), addrs[i].Port()+1)
-			var retryOptions *http.RetryOptions
-			if msg.Request.Method == jsonrpc.MethodSubmitTx {
-				retryOptions = &http.DefaultRetryOptions
-			}
 			response, err := dispatcher.client.SendRequest(ctx, addr, msg.Request, retryOptions)
 			if err != nil {
 				errMsg := fmt.Errorf("lightnode could not forward request to darknode: %v", err)
@@ -70,6 +72,13 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 				response = jsonrpc.NewResponse(msg.Request.ID, nil, &jsonErr)
 			}
 			responses <- response
+			if msg.Request.Method == jsonrpc.MethodSubmitTx {
+				if err != nil || response.Error!=nil {
+					log.Printf("😿 fail to send to darknode = %v, err = %v, jsonErr = %v", addr, err, response.Error)
+				} else {
+					log.Printf("✅ successfully send request to darknode = %v", addr)
+				}
+			}
 		})
 		close(responses)
 	}()
