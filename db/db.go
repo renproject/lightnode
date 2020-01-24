@@ -29,14 +29,14 @@ func (db DB) Init() error {
 	// Create the shiftin table if not exists
 	shiftIn := `CREATE TABLE IF NOT EXISTS shiftin (
     hash                 CHAR(64) NOT NULL PRIMARY KEY,
-    status               INT,
+    status               BIGINT,
     created_time         INT, 
     contract             VARCHAR(255),
     phash                CHAR(64),
     token                CHAR(40),
     toAddr               CHAR(40),
     n                    CHAR(64),
-    amount               INT,
+    amount               BIGINT,
 	ghash                CHAR(64),
 	nhash                CHAR(64),
 	sighash              CHAR(64),
@@ -54,9 +54,9 @@ func (db DB) Init() error {
     status               INT,
     created_time         INT,
     contract             VARCHAR(255), 
-    ref                  INT, 
+    ref                  BIGINT, 
     toAddr               VARCHAR(255),
-    amount               INT
+    amount               BIGINT
 );`
 	_, err = db.db.Exec(shiftOut)
 	return err

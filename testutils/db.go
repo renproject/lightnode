@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/renproject/darknode/abi"
 )
@@ -45,17 +44,16 @@ func CheckTableExistence(dbName, tableName string, db *sql.DB) error {
 
 // NumOfDataEntries returns the number of data entries in the queried table.
 func NumOfDataEntries(db *sql.DB, name string) (int, error) {
-	script := fmt.Sprintf("SELECT count(*) FROM %v", name)
+	script := fmt.Sprintf("SELECT count(*) FROM %v;", name)
 	var num int
 	err := db.QueryRow(script).Scan(&num)
 	return num, err
 }
 
 // UpdateTxCreatedTime of given tx hash.
-func UpdateTxCreatedTime(db *sql.DB, hash abi.B32) error {
+func UpdateTxCreatedTime(db *sql.DB, name string, hash abi.B32, createdTime int64) error {
 	txHash := hex.EncodeToString(hash[:])
-	createdTime := time.Now().Unix() - 24*3600 - 1
-	script := fmt.Sprintf("UPDATE tx set created_time = %v where hash = $1", createdTime)
+	script := fmt.Sprintf("UPDATE %v set created_time = %v where hash = $1;", name, createdTime)
 	_, err := db.Exec(script, txHash)
 	return err
 }

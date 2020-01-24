@@ -14,7 +14,7 @@ func RandomShiftIn() abi.Tx {
 	amountArg := abi.Arg{
 		Name:  "amount",
 		Type:  abi.TypeU256,
-		Value: abi.U256{Int: big.NewInt(int64(rand.Int31()))},
+		Value: abi.U256{Int: big.NewInt(int64(rand.Int63()))},
 	}
 	tx.In.Append(amountArg)
 	ghashArg := abi.Arg{
@@ -54,7 +54,7 @@ func RandomShiftOut() abi.Tx {
 	amountArg := abi.Arg{
 		Name:  "amount",
 		Type:  abi.TypeU256,
-		Value: abi.U256{Int: big.NewInt(int64(rand.Int31()))},
+		Value: abi.U256{Int: big.NewInt(int64(rand.Int63()))},
 	}
 	tx.In.Append(toArg, amountArg)
 	return tx
