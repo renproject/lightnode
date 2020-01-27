@@ -27,20 +27,20 @@ import (
 
 // Options for setting up a Lightnode, usually parsed from environment variables.
 type Options struct {
-	Network             darknode.Network
-	DisPubkey           *ecdsa.PublicKey
-	Port                string
-	ShifterRegistryAddr string
-	Cap                 int
-	MaxBatchSize        int
-	ServerTimeout       time.Duration
-	ClientTimeout       time.Duration
-	TTL                 time.Duration
-	UpdaterPollRate     time.Duration
-	ConfirmerPollRate   time.Duration
-	WatcherPollRate     time.Duration
-	Expiry              time.Duration
-	BootstrapAddrs      addr.MultiAddresses
+	Network           darknode.Network
+	DisPubkey         *ecdsa.PublicKey
+	Port              string
+	ProtocolAddr      string
+	Cap               int
+	MaxBatchSize      int
+	ServerTimeout     time.Duration
+	ClientTimeout     time.Duration
+	TTL               time.Duration
+	UpdaterPollRate   time.Duration
+	ConfirmerPollRate time.Duration
+	WatcherPollRate   time.Duration
+	Expiry            time.Duration
+	BootstrapAddrs    addr.MultiAddresses
 }
 
 // SetZeroToDefault does basic verification of options and set fields with zero
@@ -58,8 +58,8 @@ func (options *Options) SetZeroToDefault() {
 	if options.Port == "" {
 		panic("port is not set in the options")
 	}
-	if options.ShifterRegistryAddr == "" {
-		panic("shifter registry contract address is not defined")
+	if options.ProtocolAddr == "" {
+		panic("protocol contract address is not defined")
 	}
 	if len(options.BootstrapAddrs) == 0 {
 		panic("bootstrap addresses are not set in the options")
@@ -145,8 +145,8 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 		}
 	}
 
-	shiftRegistryAddr := common.HexToAddress(options.ShifterRegistryAddr)
-	connPool := blockchain.New(logger, options.Network, shiftRegistryAddr)
+	protocolAddr := common.HexToAddress(options.ProtocolAddr)
+	connPool := blockchain.New(logger, options.Network, protocolAddr)
 	updater := updater.New(logger, multiStore, options.UpdaterPollRate, options.ClientTimeout)
 	dispatcher := dispatcher.New(logger, options.ClientTimeout, multiStore, opts)
 	cacher := cacher.New(ctx, options.Network, dispatcher, logger, options.TTL, opts, db)

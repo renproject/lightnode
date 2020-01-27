@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/go-redis/redis/v7"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/evalphobia/logrus_sentry"
+	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/lightnode"
@@ -26,25 +26,24 @@ import (
 )
 
 func main() {
-	time.Sleep(time.Hour)
 	// Seed random number generator.
 	rand.Seed(time.Now().UnixNano())
 
 	// Parse Lightnode options from environment variables
 	name := os.Getenv("HEROKU_APP_NAME")
 	options := lightnode.Options{
-		Network:             parseNetwork(name),
-		DisPubkey:           parseKey(),
-		Port:                os.Getenv("PORT"),
-		ShifterRegistryAddr: os.Getenv("SHIFTER_REGISTRY"),
-		Cap:                 parseInt("CAP"),
-		MaxBatchSize:        parseInt("MAX_BATCH_SIZE"),
-		ServerTimeout:       parseTime("SERVER_TIMEOUT"),
-		ClientTimeout:       parseTime("CLIENT_TIMEOUT"),
-		TTL:                 parseTime("TTL"),
-		UpdaterPollRate:     parseTime("UPDATER_POLL_RATE"),
-		ConfirmerPollRate:   parseTime("CONFIRMER_POLL_RATE"),
-		BootstrapAddrs:      parseAddresses(),
+		Network:           parseNetwork(name),
+		DisPubkey:         parseKey(),
+		Port:              os.Getenv("PORT"),
+		ProtocolAddr:      os.Getenv("PROTOCOL_ADDRESS"),
+		Cap:               parseInt("CAP"),
+		MaxBatchSize:      parseInt("MAX_BATCH_SIZE"),
+		ServerTimeout:     parseTime("SERVER_TIMEOUT"),
+		ClientTimeout:     parseTime("CLIENT_TIMEOUT"),
+		TTL:               parseTime("TTL"),
+		UpdaterPollRate:   parseTime("UPDATER_POLL_RATE"),
+		ConfirmerPollRate: parseTime("CONFIRMER_POLL_RATE"),
+		BootstrapAddrs:    parseAddresses(),
 	}
 
 	// Setup logger and attach Sentry hook.

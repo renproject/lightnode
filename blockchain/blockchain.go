@@ -39,7 +39,7 @@ type ConnPool struct {
 }
 
 // New creates a new ConnPool object of given network. It
-func New(logger logrus.FieldLogger, network darknode.Network, registryContract common.Address) ConnPool {
+func New(logger logrus.FieldLogger, network darknode.Network, protocolContract common.Address) ConnPool {
 	btcClient := btcclient.NewClient(logger, btcNetwork(types.Bitcoin, network))
 	zecClient := btcclient.NewClient(logger, btcNetwork(types.ZCash, network))
 	bchClient := btcclient.NewClient(logger, btcNetwork(types.BitcoinCash, network))
@@ -47,11 +47,17 @@ func New(logger logrus.FieldLogger, network darknode.Network, registryContract c
 	// Initialize Ethereum client and contracts.
 	ethClient, err := ethclient.New(logger, ethNetwork(network))
 	if err != nil {
-		logger.Panicf("[connPool] cannot connect to ethereum, err = %v", err)
+		logger.Panicf("[connPool] cannot connect to Ethereum, err = %v", err)
 	}
-
-	// Initialize the ShifterRegistry contract.
-	shifterRegistry, err := ethrpc.NewShifterRegistry(ethClient.EthClient(), registryContract)
+	protocol, err := ethrpc.NewProtocol(ethClient.EthClient(), protocolContract)
+	if err != nil {
+		logger.Panicf("[connPool] cannot initialize protocol contract bindings, err = %v", err)
+	}
+	shiftRegistryAddr, err := protocol.ShifterRegistry()
+	if err != nil {
+		logger.Panicf("[connPool] cannot read shifter registry contract address from protocol contract, err = %v", err)
+	}
+	shifterRegistry, err := ethrpc.NewShifterRegistry(ethClient.EthClient(), shiftRegistryAddr)
 	if err != nil {
 		panic(fmt.Errorf("cannot initialize shifterRegistry bindings: %v", err))
 	}
