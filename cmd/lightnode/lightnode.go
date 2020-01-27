@@ -26,6 +26,7 @@ import (
 )
 
 func main() {
+	time.Sleep(time.Hour)
 	// Seed random number generator.
 	rand.Seed(time.Now().UnixNano())
 
