@@ -19,9 +19,8 @@ import (
 )
 
 const (
-	Sqlite        = "sqlite3"
-	Postgres      = "postgres"
-	TestTableName = "tx"
+	Sqlite   = "sqlite3"
+	Postgres = "postgres"
 )
 
 var _ = Describe("Lightnode db", func() {

@@ -65,7 +65,11 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 	defer cancel()
 
 	// Get current block number and last checked block number
-	cur := watcher.currentBlockNumber(ctx)
+	cur, err := watcher.currentBlockNumber(ctx)
+	if err != nil {
+		watcher.logger.Errorf("[watcher] error loading eth block header: %v", err)
+		return
+	}
 	last := watcher.lastCheckedBlockNumber(cur)
 
 	// Filter for all epoch events in this range of blocks
@@ -113,14 +117,13 @@ func (watcher Watcher) key() string {
 }
 
 // currentBlockNumber returns the current block number of Etherem.
-func (watcher Watcher) currentBlockNumber(ctx context.Context) uint64 {
+func (watcher Watcher) currentBlockNumber(ctx context.Context) (uint64, error) {
 	client := watcher.pool.EthClient()
 	currentBlock, err := client.HeaderByNumber(ctx, nil)
 	if err != nil {
-		watcher.logger.Errorf("error loading eth block header: %v", err)
-		return 0
+		return 0, err
 	}
-	return currentBlock.Number.Uint64()
+	return currentBlock.Number.Uint64(), nil
 }
 
 // currentBlockNumber returns the current block number of Etherem.
@@ -129,7 +132,7 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) uint64 {
 	if err != nil {
 		// Init the pointer with last checked block number if not set.
 		if err == redis.Nil {
-			if err := watcher.cache.Set(watcher.key(), currentBlockN, 0).Err(); err != nil {
+			if err := watcher.cache.Set(watcher.key(), currentBlockN-1, 0).Err(); err != nil {
 				watcher.logger.Panicf("cannot initialize last checked block in redis, err = %v", err)
 			}
 			last = currentBlockN - 1

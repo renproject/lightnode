@@ -7,6 +7,7 @@ import (
 
 var _ = Describe("ConnPool", func() {
 	Context("after creating a ConnPool object.", func() {
+		// TODO : Need to set up ganache for local test and CI
 		It("should get ShiftOut details from contract logs", func() {
 			Expect(true).Should(BeTrue())
 		})
@@ -24,11 +25,11 @@ var _ = Describe("ConnPool", func() {
 		})
 
 		It("should be able to verify if a utxo can be spent by a key", func() {
-
+			Expect(true).Should(BeTrue())
 		})
 
 		It("should tell if a tx is a ShiftIn or ShiftOut", func() {
-
+			Expect(true).Should(BeTrue())
 		})
 	})
 })

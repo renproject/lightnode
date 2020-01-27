@@ -14,6 +14,7 @@ import (
 	ec "github.com/ethereum/go-ethereum/ethclient"
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/abi"
+	"github.com/renproject/darknode/ethrpc"
 	"github.com/renproject/darknode/ethrpc/bindings"
 	"github.com/renproject/mercury/sdk/client/btcclient"
 	"github.com/renproject/mercury/sdk/client/ethclient"
@@ -37,9 +38,8 @@ type ConnPool struct {
 	bchShifter *bindings.Shifter
 }
 
-// New creates a new ConnPool object of given network. It replies on `darknode`
-// for the ShifterRegistry address.
-func New(logger logrus.FieldLogger, network darknode.Network, btcShifterAddr, zecShifterAddr, bchShifterAddr common.Address) ConnPool {
+// New creates a new ConnPool object of given network. It
+func New(logger logrus.FieldLogger, network darknode.Network, registryContract common.Address) ConnPool {
 	btcClient := btcclient.NewClient(logger, btcNetwork(types.Bitcoin, network))
 	zecClient := btcclient.NewClient(logger, btcNetwork(types.ZCash, network))
 	bchClient := btcclient.NewClient(logger, btcNetwork(types.BitcoinCash, network))
@@ -50,18 +50,10 @@ func New(logger logrus.FieldLogger, network darknode.Network, btcShifterAddr, ze
 		logger.Panicf("[connPool] cannot connect to ethereum, err = %v", err)
 	}
 
-	// Initialize Shifter contact bindings for different blockchain.
-	btcShifter, err := bindings.NewShifter(btcShifterAddr, ethClient.EthClient())
+	// Initialize the ShifterRegistry contract.
+	shifterRegistry, err := ethrpc.NewShifterRegistry(ethClient.EthClient(), registryContract)
 	if err != nil {
-		logger.Panicf("[connPool] cannot initialize btc shifter, err = %v", err)
-	}
-	zecShifter, err := bindings.NewShifter(zecShifterAddr, ethClient.EthClient())
-	if err != nil {
-		logger.Panicf("[connPool] cannot initialize zec shifter, err = %v", err)
-	}
-	bchShifter, err := bindings.NewShifter(bchShifterAddr, ethClient.EthClient())
-	if err != nil {
-		logger.Panicf("[connPool] cannot initialize bch shifter, err = %v", err)
+		panic(fmt.Errorf("cannot initialize shifterRegistry bindings: %v", err))
 	}
 
 	return ConnPool{
@@ -70,9 +62,9 @@ func New(logger logrus.FieldLogger, network darknode.Network, btcShifterAddr, ze
 		btcClient:  btcClient,
 		zecClient:  zecClient,
 		bchClient:  bchClient,
-		btcShifter: btcShifter,
-		zecShifter: zecShifter,
-		bchShifter: bchShifter,
+		btcShifter: initShifter(shifterRegistry, "zBTC", ethClient.EthClient()),
+		zecShifter: initShifter(shifterRegistry, "zZEC", ethClient.EthClient()),
+		bchShifter: initShifter(shifterRegistry, "zBCH", ethClient.EthClient()),
 	}
 }
 
@@ -219,6 +211,21 @@ func IsShiftIn(tx abi.Tx) bool {
 	default:
 		panic(fmt.Sprintf("[connPool] expected contract address = %v", tx.To))
 	}
+}
+
+// initShifter reads shifter address of the token with given symbol from the
+// shifterRegistry and initialize a bindings to interact with the specific
+// shifter contract.
+func initShifter(shifterRegistry *ethrpc.ShifterRegistry, symbol string, client *ec.Client) *bindings.Shifter {
+	addr, err := shifterRegistry.ShifterAddressBySymbol(symbol)
+	if err != nil {
+		panic(fmt.Sprintf("[connPool] cannot get address of %v shifter contract: %v", symbol, err))
+	}
+	shifter, err := bindings.NewShifter(addr, client)
+	if err != nil {
+		panic(fmt.Sprintf("[connPool] cannot initialize %v shifter, err = %v", symbol, err))
+	}
+	return shifter
 }
 
 // ethNetwork returns the ethereum network of the given darknode network.

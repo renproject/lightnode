@@ -32,20 +32,18 @@ func main() {
 	// Parse Lightnode options from environment variables
 	name := os.Getenv("HEROKU_APP_NAME")
 	options := lightnode.Options{
-		Network:           parseNetwork(name),
-		DisPubkey:         parseKey(),
-		Port:              os.Getenv("PORT"),
-		BtcShifterAddr:    os.Getenv("BTC_SHIFTER"),
-		ZecShifterAddr:    os.Getenv("ZEC_SHIFTER"),
-		BchShifterAddr:    os.Getenv("BCH_SHIFTER"),
-		Cap:               parseInt("CAP"),
-		MaxBatchSize:      parseInt("MAX_BATCH_SIZE"),
-		ServerTimeout:     parseTime("SERVER_TIMEOUT"),
-		ClientTimeout:     parseTime("CLIENT_TIMEOUT"),
-		TTL:               parseTime("TTL"),
-		UpdaterPollRate:   parseTime("UPDATER_POLL_RATE"),
-		ConfirmerPollRate: parseTime("CONFIRMER_POLL_RATE"),
-		BootstrapAddrs:    parseAddresses(),
+		Network:             parseNetwork(name),
+		DisPubkey:           parseKey(),
+		Port:                os.Getenv("PORT"),
+		ShifterRegistryAddr: os.Getenv("SHIFTER_REGISTRY"),
+		Cap:                 parseInt("CAP"),
+		MaxBatchSize:        parseInt("MAX_BATCH_SIZE"),
+		ServerTimeout:       parseTime("SERVER_TIMEOUT"),
+		ClientTimeout:       parseTime("CLIENT_TIMEOUT"),
+		TTL:                 parseTime("TTL"),
+		UpdaterPollRate:     parseTime("UPDATER_POLL_RATE"),
+		ConfirmerPollRate:   parseTime("CONFIRMER_POLL_RATE"),
+		BootstrapAddrs:      parseAddresses(),
 	}
 
 	// Setup logger and attach Sentry hook.
