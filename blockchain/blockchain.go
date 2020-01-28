@@ -38,7 +38,8 @@ type ConnPool struct {
 	bchShifter *bindings.Shifter
 }
 
-// New creates a new ConnPool object of given network. It
+// New creates a new ConnPool object of given network. It gets the shifterRegistry
+// contract address from the protocol contract.
 func New(logger logrus.FieldLogger, network darknode.Network, protocolContract common.Address) ConnPool {
 	btcClient := btcclient.NewClient(logger, btcNetwork(types.Bitcoin, network))
 	zecClient := btcclient.NewClient(logger, btcNetwork(types.ZCash, network))
@@ -51,11 +52,11 @@ func New(logger logrus.FieldLogger, network darknode.Network, protocolContract c
 	}
 	protocol, err := ethrpc.NewProtocol(ethClient.EthClient(), protocolContract)
 	if err != nil {
-		logger.Panicf("[connPool] cannot initialize protocol contract bindings, err = %v", err)
+		logger.Panicf("[connPool] cannot initialize protocol contract, err = %v", err)
 	}
 	shiftRegistryAddr, err := protocol.ShifterRegistry()
 	if err != nil {
-		logger.Panicf("[connPool] cannot read shifter registry contract address from protocol contract, err = %v", err)
+		logger.Panicf("[connPool] cannot read shifter registry address from protocol contract, err = %v", err)
 	}
 	shifterRegistry, err := ethrpc.NewShifterRegistry(ethClient.EthClient(), shiftRegistryAddr)
 	if err != nil {
@@ -188,6 +189,7 @@ func (cp ConnPool) ShifterByAddress(addr abi.Address) *bindings.Shifter {
 	}
 }
 
+// EthClient exposes the Ethereum client.
 func (cp ConnPool) EthClient() *ec.Client {
 	return cp.ethClient.EthClient()
 }
