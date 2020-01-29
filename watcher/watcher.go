@@ -92,7 +92,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 	for iter.Next() {
 		ref := iter.Event.ShiftID.Uint64()
 		amount := iter.Event.Amount.Uint64()
-		log.Printf("DETECT %v SHIFT OUT: %v => %v SATs/ZATs", watcher.addr, ref, amount)
+		log.Printf("💰 New ShiftOut detected from %v, ref = %v, amount = %v SATs/ZATs", watcher.addr, ref, amount)
 
 		// send the ShiftOut tx to validator
 		req := watcher.shiftOutToRequest(ref)
