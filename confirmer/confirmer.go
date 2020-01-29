@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"math/rand"
 	"time"
@@ -48,7 +47,7 @@ func New(logger logrus.FieldLogger, options Options, dispatcher phi.Sender, db d
 }
 
 // Run starts running the confirmer in background which periodically checks
-// confirmations of pending txs.
+// confirmations of pending txs and prune txs which are too old.
 func (confirmer *Confirmer) Run(ctx context.Context) {
 	phi.ParBegin(func() {
 		ticker := time.NewTicker(confirmer.options.PollInterval)
@@ -78,11 +77,18 @@ func (confirmer *Confirmer) Run(ctx context.Context) {
 	})
 }
 
+// checkPendingTxs reads all pending txs from the database and checks if they
+// have reached enough confirmations.
 func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, confirmer.options.PollInterval)
 	defer cancel()
 
-	txs := confirmer.pendingTxs()
+	// Read all pending txs.
+	txs, err := confirmer.database.PendingTxs()
+	if err != nil {
+		confirmer.logger.Errorf("[confirmer] unable read pending pendingTxs from database, err = %v", err)
+		return
+	}
 	phi.ParForAll(txs, func(i int) {
 		tx := txs[i]
 		var confirmed bool
@@ -99,20 +105,12 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 	})
 }
 
-// pendingTxs loads all pending txs which are not expired from the database.
-func (confirmer *Confirmer) pendingTxs() []abi.Tx {
-	pendingTxs, err := confirmer.database.PendingTxs()
-	if err != nil {
-		panic(fmt.Sprintf("unable read pending pendingTxs from database, err = %v", err))
-	}
-	return pendingTxs
-}
-
 // confirm sends the tx to dispatcher and marks the tx as confirmed in db.
 func (confirmer *Confirmer) confirm(tx abi.Tx) {
 	request, err := txToJsonRequest(tx)
 	if err != nil {
 		confirmer.logger.Errorf("[confirmer] cannot convert tx to json request, err = %v", err)
+		return
 	}
 	req := http.NewRequestWithResponder(context.Background(), request, "")
 	if ok := confirmer.dispatcher.Send(req); !ok {
@@ -150,13 +148,14 @@ func (confirmer *Confirmer) shiftOutTxConfirmed(ctx context.Context, tx abi.Tx) 
 	return confirmations >= minCon
 }
 
+// prune deletes txs from the database which expire.
 func (confirmer *Confirmer) prune() {
 	if err := confirmer.database.Prune(confirmer.options.Expiry); err != nil {
 		confirmer.logger.Errorf("[confirmer] cannot prune database, err = %v", err)
 	}
 }
 
-// txToJsonRequest converts a tx to its original jsonrpc.Requst.
+// txToJsonRequest converts a tx to its original jsonrpc.Request.
 func txToJsonRequest(tx abi.Tx) (jsonrpc.Request, error) {
 	if blockchain.IsShiftIn(tx) {
 		tx.Autogen = abi.Args{}

@@ -2,20 +2,17 @@ package validator_test
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"database/sql"
-	"encoding/json"
-	"fmt"
-	"time"
 
-	"github.com/ethereum/go-ethereum/common"
+	_ "github.com/mattn/go-sqlite3"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/darknode"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/testutil"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/blockchain"
 	"github.com/renproject/lightnode/db"
@@ -27,133 +24,50 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func initValidator(ctx context.Context) (phi.Sender, <-chan phi.Message) {
-	opts := phi.Options{Cap: 10}
-	logger := logrus.New()
-	inspector, messages := testutils.NewInspector(10)
-	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
-	sqlDB, err := sql.Open("sqlite3", "./validator.db")
-	Expect(err).NotTo(HaveOccurred())
-	connPool := blockchain.New(logger, darknode.Localnet, common.Address{}, common.Address{}, common.Address{})
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	Expect(err).NotTo(HaveOccurred())
-
-	validator := validator.New(logger, inspector, multiStore, opts, key.PublicKey, connPool, db.New(sqlDB))
-
-	go validator.Run(ctx)
-	go inspector.Run(ctx)
-
-	return validator, messages
-}
-
 var _ = Describe("Validator", func() {
+
+	init := func(ctx context.Context) (phi.Sender, <-chan phi.Message) {
+		logger := logrus.New()
+		inspector, messages := testutils.NewInspector(10)
+		go inspector.Run(ctx)
+
+		multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
+		key, err := testutil.RandomEcdsaKey()
+		Expect(err).NotTo(HaveOccurred())
+		protocolAddr := common.HexToAddress("0x1deB773B50B66b0e65e62E41380355a1A2BEd2e1")
+		connPool := blockchain.New(logger, darknode.Devnet, protocolAddr)
+		sqlDB, err := sql.Open("sqlite3", "./test.db")
+		Expect(err).NotTo(HaveOccurred())
+		database := db.New(sqlDB)
+		validator := validator.New(logger, inspector, multiStore, phi.Options{Cap: 10}, key.PublicKey, connPool, database)
+		go validator.Run(ctx)
+		return validator, messages
+	}
+
 	Context("When running a validator task", func() {
 		It("Should pass a valid message through", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			validator, messages := initValidator(ctx)
-
-			for method, _ := range jsonrpc.RPCs {
-				// TODO: This method is not supported right now, but when it is
-				// this case should be tested too.
-				if method == jsonrpc.MethodQueryEpoch {
-					continue
-				}
-
-				request := testutils.ValidRequest(method)
-				validator.Send(http.NewRequestWithResponder(ctx, request, ""))
-
-				select {
-				case <-time.After(time.Second):
-					Fail("timeout")
-				case message := <-messages:
-					req, ok := message.(http.RequestWithResponder)
-					Expect(ok).To(BeTrue())
-					Expect(req.Request).To(Equal(request))
-					Expect(req.Responder).To(Not(BeNil()))
-					Eventually(req.Responder).ShouldNot(Receive())
-				}
-			}
-		})
-
-		It("Should return an error response when the jsonrpc field of the request is not 2.0", func() {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			validator, messages := initValidator(ctx)
-
-			// TODO: Is it worth fuzz testing on the other request fields?
-			request := testutils.ValidRequest(jsonrpc.MethodQueryBlock)
-			request.Version = "1.0"
-			req := http.NewRequestWithResponder(ctx, request, "")
-			validator.Send(req)
-
-			select {
-			case <-time.After(time.Second):
-				Fail("timeout")
-			case res := <-req.Responder:
-				expectedErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidRequest, fmt.Sprintf("invalid jsonrpc field: expected \"2.0\", got \"%s\"", request.Version), nil)
-
-				Expect(res.Version).To(Equal("2.0"))
-				Expect(res.ID).To(Equal(request.ID))
-				Expect(res.Result).To(BeNil())
-				Expect(*res.Error).To(Equal(expectedErr))
-				Eventually(messages).ShouldNot(Receive())
-			}
-		})
-
-		It("Should return an error response when the method is not supported", func() {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			validator, messages := initValidator(ctx)
-
-			// TODO: Is it worth fuzz testing on the other request fields?
-			request := testutils.ValidRequest(jsonrpc.MethodQueryBlock)
-			request.Method = "method"
-			req := http.NewRequestWithResponder(ctx, request, "")
-			validator.Send(req)
-
-			select {
-			case <-time.After(time.Second):
-				Fail("timeout")
-			case res := <-req.Responder:
-				expectedErr := jsonrpc.NewError(jsonrpc.ErrorCodeMethodNotFound, fmt.Sprintf("unsupported method %s", request.Method), nil)
-
-				Expect(res.Version).To(Equal("2.0"))
-				Expect(res.ID).To(Equal(request.ID))
-				Expect(res.Result).To(BeNil())
-				Expect(*res.Error).To(Equal(expectedErr))
-				Eventually(messages).ShouldNot(Receive())
-			}
-		})
-
-		It("Should return an error response when the method does not match the parameters", func() {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			validator, messages := initValidator(ctx)
+			validator, messages := init(ctx)
 
 			for method := range jsonrpc.RPCs {
-				// TODO: Is it worth fuzz testing on the other request fields?
-				if method != jsonrpc.MethodSubmitTx && method != jsonrpc.MethodQueryTx {
+				// TODO: This method is not supported right now, but when it is
+				// this case should be tested too.
+				if method == jsonrpc.MethodQueryEpoch || method == jsonrpc.MethodSubmitTx {
 					continue
 				}
-				params := json.RawMessage{}
-				request := testutils.ValidRequest(method)
-				request.Params = params
-				req := http.NewRequestWithResponder(ctx, request, "")
-				validator.Send(req)
 
-				select {
-				case <-time.After(time.Second):
-					Fail("timeout")
-				case res := <-req.Responder:
-					expectedErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, "invalid parameters in request: parameters object does not match method", nil)
+				validReq := testutils.ValidRequest(method)
+				request := http.NewRequestWithResponder(ctx, validReq, "")
+				Expect(validator.Send(request)).Should(BeTrue())
 
-					Expect(res.Version).To(Equal("2.0"))
-					Expect(res.ID).To(Equal(request.ID))
-					Expect(res.Result).To(BeNil())
-					Expect(*res.Error).To(Equal(expectedErr))
-					Eventually(messages).ShouldNot(Receive())
-				}
+				var message phi.Message
+				Eventually(messages).Should(Receive(&message))
+				req, ok := message.(http.RequestWithResponder)
+				Expect(ok).To(BeTrue())
+				Expect(req.Request).To(Equal(validReq))
+				Expect(req.Responder).To(Not(BeNil()))
+				Eventually(req.Responder).ShouldNot(Receive())
 			}
 		})
 	})

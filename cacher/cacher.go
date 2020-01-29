@@ -1,20 +1,14 @@
 package cacher
 
 import (
-	"context"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	"time"
 
-	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
-	"github.com/renproject/mercury/types"
-	"github.com/renproject/mercury/types/btctypes"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/sha3"
@@ -35,25 +29,22 @@ func (id ID) String() string {
 // otherwise it will forward the request on to the `Dispatcher`. Once the
 // `Dispatcher` has a response ready, the `Cacher` will store this response in
 // its cache with a key derived from the request, and then pass the response
-// along to be given to the client. Currently, idempotent requests are stored
-// in a LRU cache, and non-idempotent requests are stored in a TTL cache.
+// along to be given to the client.
 type Cacher struct {
 	logger     logrus.FieldLogger
-	db         db.DB
 	dispatcher phi.Sender
-	network    darknode.Network
+	db         db.DB
 	ttlCache   kv.Table
 }
 
 // New constructs a new `Cacher` as a `phi.Task` which can be `Run()`.
-func New(ctx context.Context, network darknode.Network, dispatcher phi.Sender, logger logrus.FieldLogger, ttl time.Duration, opts phi.Options, db db.DB) phi.Task {
-	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "responses", ttl)
+func New(dispatcher phi.Sender, logger logrus.FieldLogger, ttl kv.Table, opts phi.Options, db db.DB) phi.Task {
+	// ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "responses", ttl)
 	return phi.New(&Cacher{
 		logger:     logger,
-		db:         db,
 		dispatcher: dispatcher,
-		network:    network,
-		ttlCache:   ttlCache,
+		db:         db,
+		ttlCache:   ttl,
 	}, opts)
 }
 
@@ -83,6 +74,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		}
 		confirmed, err := cacher.db.Confirmed(req.TxHash)
 		if err != nil {
+			// Forward the request to darknode if we don't have the tx in db.
 			if err == sql.ErrNoRows {
 				break
 			}
@@ -90,31 +82,9 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 			return
 		}
 
-		// If it's not confirmed yet (which means we haven't send to darkndoe)
-		// respond with a confirming status immediately
+		// when tx hasn't reached enough confirmation, respond with confirming status.
 		if !confirmed {
-			tx, err := cacher.db.ShiftIn(req.TxHash)
-			if err != nil {
-				if err == sql.ErrNoRows {
-					tx, err = cacher.db.ShiftOut(req.TxHash)
-					if err != nil {
-						cacher.logger.Errorf("[cacher] cannot get tx from db: %v", err)
-						return
-					}
-				} else {
-					cacher.logger.Errorf("[cacher] cannot get tx from db: %v", err)
-					return
-				}
-			}
-			msg.Responder <- jsonrpc.Response{
-				Version: "2.0",
-				ID:      msg.Request.ID,
-				Result: jsonrpc.ResponseQueryTx{
-					Tx:       tx,
-					TxStatus: "confirming",
-				},
-				Error: nil,
-			}
+			cacher.respondWithConfirmingStatus(req, msg)
 			return
 		}
 	default:
@@ -124,8 +94,32 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 			return
 		}
 	}
+	cacher.dispatch(reqID, msg)
+}
 
-	// Send the request to darknode and return the response
+// insert the response into the ttl table.
+func (cacher *Cacher) insert(reqID ID, darknodeID string, response jsonrpc.Response) {
+	id := reqID.String() + darknodeID
+	if err := cacher.ttlCache.Insert(id, response); err != nil {
+		cacher.logger.Errorf("[cacher] could not insert response into TTL cache: %v", err)
+	}
+}
+
+// get the cached response from the ttl table, the returned bool indicates
+// whether there's a cached response can be found from the ttl table.
+func (cacher *Cacher) get(reqID ID, darknodeID string) (jsonrpc.Response, bool) {
+	id := reqID.String() + darknodeID
+
+	var response jsonrpc.Response
+	if err := cacher.ttlCache.Get(id, &response); err == nil {
+		return response, true
+	}
+
+	return jsonrpc.Response{}, false
+}
+
+// dispatch sends the request to darknode and return the response.
+func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 	responder := make(chan jsonrpc.Response, 1)
 	cacher.dispatcher.Send(http.RequestWithResponder{
 		Context:    msg.Context,
@@ -140,59 +134,33 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	go func() {
 		response := <-responder
 		// TODO: Consider thread safety of insertion.
-		cacher.insert(reqID, msg.DarknodeID, response, msg.Request.Method)
+		cacher.insert(id, msg.DarknodeID, response)
 		msg.Responder <- response
 	}()
 }
 
-func (cacher *Cacher) insert(reqID ID, darknodeID string, response jsonrpc.Response, method string) {
-	id := reqID.String() + darknodeID
-	if err := cacher.ttlCache.Insert(id, response); err != nil {
-		cacher.logger.Panicf("[cacher] could not insert response into TTL cache: %v", err)
+// respondWithConfirmingStatus returns a confirming status without forwarding
+// the request to darknode.
+func (cacher *Cacher) respondWithConfirmingStatus(req jsonrpc.ParamsQueryTx, msg http.RequestWithResponder) {
+	tx, err := cacher.db.ShiftIn(req.TxHash)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			tx, err = cacher.db.ShiftOut(req.TxHash)
+			if err != nil {
+				cacher.logger.Errorf("[cacher] cannot get tx from db: %v", err)
+				return
+			}
+		} else {
+			cacher.logger.Errorf("[cacher] cannot get tx from db: %v", err)
+			return
+		}
 	}
-}
-
-func (cacher *Cacher) get(reqID ID, darknodeID string) (jsonrpc.Response, bool) {
-	id := reqID.String() + darknodeID
-
-	var response jsonrpc.Response
-	if err := cacher.ttlCache.Get(id, &response); err == nil {
-		return response, true
-	}
-
-	return jsonrpc.Response{}, false
-}
-
-// getBlockchainNetwork returns the blockchain network RenVM uses for the given
-// Darknode network.
-func getBlockchainNetwork(darknodeNet darknode.Network, chain types.Chain) btctypes.Network {
-	switch darknodeNet {
-	case darknode.Chaosnet:
-		return btctypes.NewNetwork(chain, "mainnet")
-	case darknode.Testnet, darknode.Devnet:
-		return btctypes.NewNetwork(chain, "testnet")
-	case darknode.Localnet:
-		return btctypes.NewNetwork(chain, "localnet")
-	default:
-		panic(fmt.Sprintf("unsupported network: %v", darknodeNet))
-	}
-}
-
-func isCachable(method string) bool {
-	switch method {
-	case jsonrpc.MethodQueryBlock,
-		jsonrpc.MethodQueryBlocks,
-		jsonrpc.MethodQueryNumPeers,
-		jsonrpc.MethodQueryPeers,
-		jsonrpc.MethodQueryEpoch,
-		jsonrpc.MethodQueryStat:
-		return true
-	case jsonrpc.MethodSubmitTx,
-		jsonrpc.MethodQueryTx:
-		// TODO: We need to make sure these are the only methods that we want to
-		// avoid caching.
-		return false
-	default:
-		panic(fmt.Sprintf("[cacher] unsupported method %s encountered which should have been rejected by the previous checks", method))
+	msg.Responder <- jsonrpc.Response{
+		Version: "2.0",
+		ID:      msg.Request.ID,
+		Result: jsonrpc.ResponseQueryTx{
+			Tx:       tx,
+			TxStatus: "confirming",
+		},
 	}
 }

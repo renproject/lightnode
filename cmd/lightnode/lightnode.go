@@ -46,10 +46,33 @@ func main() {
 		BootstrapAddrs:    parseAddresses(),
 	}
 
-	// Setup logger and attach Sentry hook.
+	// Initialize a logger and attach sentry hook
+	logger := initLogger(options.Network)
+
+	// Initialize the database
+	driver, dbURL := os.Getenv("DATABASE_DRIVER"), os.Getenv("DATABASE_URL")
+	sqlDB, err := sql.Open(driver, dbURL)
+	if err != nil {
+		logger.Fatalf("failed to connect to %v db: %v", driver, err)
+	}
+	defer sqlDB.Close()
+
+	// Initialize redis client
+	client := initRedis()
+	defer client.Close()
+
+	// Start running Lightnode.
+	ctx := context.Background()
+	node := lightnode.New(ctx, options, logger, sqlDB, client)
+	node.Run(ctx)
+}
+
+// Initialize a logger and attach Sentry hook.
+func initLogger(network darknode.Network) logrus.FieldLogger {
 	logger := logrus.New()
 	sentryURL := os.Getenv("SENTRY_URL")
-	if options.Network != darknode.Devnet {
+	name := os.Getenv("HEROKU_APP_NAME")
+	if network != darknode.Devnet {
 		tags := map[string]string{
 			"name": name,
 		}
@@ -65,22 +88,7 @@ func main() {
 		hook.Timeout = 500 * time.Millisecond
 		logger.AddHook(hook)
 	}
-
-	// Initialize the database
-	sqlDB, err := sql.Open(os.Getenv("DATABASE_DRIVER"), os.Getenv("DATABASE_URL"))
-	if err != nil {
-		logger.Fatalf("failed to connect to psql db: %v", err)
-	}
-	defer sqlDB.Close()
-
-	// Initialize redis client
-	client := initRedis()
-	defer client.Close()
-
-	// Start running Lightnode.
-	ctx := context.Background()
-	node := lightnode.New(ctx, options, logger, sqlDB, client)
-	node.Run(ctx)
+	return logger
 }
 
 func initRedis() *redis.Client {
