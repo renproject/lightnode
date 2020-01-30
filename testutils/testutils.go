@@ -220,7 +220,7 @@ func RandomSubmitTx() jsonrpc.Request {
 	}}
 	rawMsg, err := json.Marshal(submitTx)
 	if err != nil {
-		panic("marshalling error")
+		panic(err)
 	}
 	return jsonrpc.Request{
 		Version: "2.0",
