@@ -37,7 +37,6 @@ var _ = Describe("Lightnode db", func() {
 		default:
 			panic("unknown")
 		}
-
 		sqlDB, err := sql.Open(name, source)
 		Expect(err).NotTo(HaveOccurred())
 		return sqlDB
@@ -63,8 +62,12 @@ var _ = Describe("Lightnode db", func() {
 		}
 	}
 
+	BeforeSuite(func() {
+		os.Remove("./test.db")
+	})
+
 	AfterSuite(func() {
-		Expect(os.Remove("./test.db")).Should(BeNil())
+		os.Remove("./test.db")
 	})
 
 	for _, dbname := range testDBs {

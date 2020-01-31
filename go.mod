@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/btcsuite/btcd v0.0.0-20190807005414-4063feeff79a
+	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d
 	github.com/btcsuite/golangcrypto v0.0.0-20150304025918-53f62d9b43e8 // indirect
 	github.com/btcsuite/goleveldb v1.0.0 // indirect
 	github.com/cpacia/bchutil v0.0.0-20181003130114-b126f6a35b6c // indirect

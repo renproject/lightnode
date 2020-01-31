@@ -10,5 +10,5 @@
 .idea
 .vscode
 
-# Test coverage
-.coverprofile
+# db
+*.db
