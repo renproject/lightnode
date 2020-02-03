@@ -26,6 +26,7 @@ func New(db *sql.DB) DB {
 // function will only create the tables once and not cause any error.
 func (db DB) Init() error {
 
+	// TODO : WE NEED TO HAVE A VERSION OF THE DB IN CASE OF INCOMPATIBLE CHANGES
 	// Create the shiftin table if not exists
 	shiftIn := `CREATE TABLE IF NOT EXISTS shiftin (
     hash                 CHAR(64) NOT NULL PRIMARY KEY,

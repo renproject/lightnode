@@ -141,6 +141,8 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 
 // respondWithConfirmingStatus returns a confirming status without forwarding
 // the request to darknode.
+// FIXME : RETURNS AND ERROR IF AN INTERNAL ERROR HAPPENS, AND RESPOND TO THE USER
+// WITH A PREDEFINED ERROR.
 func (cacher *Cacher) respondWithConfirmingStatus(req jsonrpc.ParamsQueryTx, msg http.RequestWithResponder) {
 	tx, err := cacher.db.ShiftIn(req.TxHash)
 	if err != nil {

@@ -102,6 +102,7 @@ func (validator *Validator) hasValidParams(message http.RequestWithResponder) (b
 	// These methods don't require any parameters
 	case jsonrpc.MethodQueryBlock, jsonrpc.MethodQueryBlocks, jsonrpc.MethodQueryNumPeers, jsonrpc.MethodQueryPeers, jsonrpc.MethodQueryStat:
 	case jsonrpc.MethodSubmitTx:
+		// FIXME : doing local check here and send to txchekcer after validating the params
 		validator.requests <- message
 	case jsonrpc.MethodQueryTx:
 		return validQueryTxParams(message.Request.Params)

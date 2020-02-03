@@ -91,6 +91,7 @@ func newInterfaceMap(total int) *interfaceMap {
 
 // store increments the counter by 1 if we already have the same interface,
 // otherwise it store the new key with a counter starting from 1.
+// todo : bool doesn't mean whether the store operation succeed which can be confusing.
 func (m *interfaceMap) store(key interface{}) bool {
 	for i := range m.data {
 		if reflect.DeepEqual(key, m.data[i]) {
