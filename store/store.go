@@ -9,19 +9,17 @@ import (
 
 // MultiAddrStore is a store of `addr.MultiAddress`es.
 type MultiAddrStore struct {
-	store     db.Table
-	firstAddr addr.MultiAddress
+	store db.Table
 }
 
 // New constructs a new `MultiAddrStore`.
-func New(store db.Table, firstAddr addr.MultiAddress) MultiAddrStore {
+func New(store db.Table) MultiAddrStore {
 	return MultiAddrStore{
-		store:     store,
-		firstAddr: firstAddr,
+		store: store,
 	}
 }
 
-// Get retrieves a multi address from the store.
+// Get retrieves a multi-address from the store.
 func (multiStore *MultiAddrStore) Get(id string) (addr.MultiAddress, error) {
 	var multiAddrString string
 	if err := multiStore.store.Get(id, &multiAddrString); err != nil {
@@ -30,12 +28,12 @@ func (multiStore *MultiAddrStore) Get(id string) (addr.MultiAddress, error) {
 	return addr.NewMultiAddressFromString(multiAddrString)
 }
 
-// Insert puts the given multi address into the store.
+// Insert puts the given multi-address into the store.
 func (multiStore *MultiAddrStore) Insert(addr addr.MultiAddress) error {
 	return multiStore.store.Insert(addr.ID().ToBase58(), addr.String())
 }
 
-// Delete removes the given multi address from the store.
+// Delete removes the given multi-address from the store.
 func (multiStore *MultiAddrStore) Delete(addr addr.MultiAddress) error {
 	return multiStore.store.Delete(addr.ID().ToBase58())
 }
@@ -49,7 +47,9 @@ func (multiStore *MultiAddrStore) Size() (int, error) {
 // store.
 func (multiStore *MultiAddrStore) AddrsAll() (addr.MultiAddresses, error) {
 	addrs := addr.MultiAddresses{}
-	for iter := multiStore.store.Iterator(); iter.Next(); {
+	iter := multiStore.store.Iterator()
+	defer iter.Close()
+	for iter.Next() {
 		id, err := iter.Key()
 		if err != nil {
 			return nil, err
@@ -61,11 +61,6 @@ func (multiStore *MultiAddrStore) AddrsAll() (addr.MultiAddresses, error) {
 		addrs = append(addrs, address)
 	}
 	return addrs, nil
-}
-
-// AddrsFirst returns the first multi addressses in the store.
-func (multiStore *MultiAddrStore) AddrsFirst() addr.MultiAddress {
-	return multiStore.firstAddr
 }
 
 // AddrsRandom returns a random number of addresses from the store.

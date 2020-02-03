@@ -3,6 +3,16 @@ on: [push]
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:12.1
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - name: Set up Go 1.13
         uses: actions/setup-go@v1
@@ -39,12 +49,12 @@ jobs:
           cd $GITHUB_WORKSPACE
           CI=true ginkgo --v --race --cover --coverprofile coverprofile.out ./...
           covermerge                                  \
+            blockchain/coverprofile.out               \
             cacher/coverprofile.out                   \
-            client/coverprofile.out                   \
+            confirmer/coverprofile.out                \
+            http/coverprofile.out                     \
             db/coverprofile.out                       \
             dispatcher/coverprofile.out               \
-            server/coverprofile.out                   \
-            server/ratelimiter/coverprofile.out       \
             store/coverprofile.out                    \
             updater/coverprofile.out                  \
             validator/coverprofile.out > covermerge.out

@@ -3,15 +3,13 @@ package testutils
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"time"
+	"math/big"
+	"math/rand"
 
-	"github.com/gorilla/mux"
-	"github.com/renproject/darknode/addr"
+	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/lightnode/client"
+	"github.com/renproject/darknode/testutil"
 	"github.com/renproject/phi"
-	"github.com/rs/cors"
 )
 
 // An Inspector is a mock task that will simply write all of its received
@@ -33,107 +31,107 @@ func (inspector *Inspector) Handle(_ phi.Task, message phi.Message) {
 	inspector.messages <- message
 }
 
-// A MockDarknode simulates a darknode by providing basic responses to incoming
-// requests.
-type MockDarknode struct {
-	port  int
-	peers addr.MultiAddresses
-}
-
-// NewMockDarknode constructs a new `MockDarknode` that will (when `Run()`)
-// listen on the given port.
-func NewMockDarknode(port int, peers addr.MultiAddresses) MockDarknode {
-	return MockDarknode{port, peers}
-}
-
-// Run starts the `MockDarknode` listening on its port. This function call is
-// blocking.
-func (dn MockDarknode) Run() <-chan struct{} {
-	r := mux.NewRouter()
-	r.HandleFunc("/", dn.handleFunc)
-
-	httpHandler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowCredentials: true,
-		AllowedMethods:   []string{"POST"},
-	}).Handler(r)
-
-	init := make(chan struct{}, 1)
-
-	// Start running the server.
-	go phi.ParBegin(
-		func() { http.ListenAndServe(fmt.Sprintf(":%v", dn.port), httpHandler) },
-		func() {
-			req := ValidRequest(jsonrpc.MethodQueryPeers)
-			for {
-				_, err := client.SendToDarknode(fmt.Sprintf("http://0.0.0.0:%v", dn.port), req, time.Second)
-				if err == nil {
-					break
-				}
-
-				time.Sleep(10 * time.Millisecond)
-			}
-			init <- struct{}{}
-			close(init)
-		},
-	)
-
-	return init
-}
-
-func (dn *MockDarknode) handleFunc(w http.ResponseWriter, r *http.Request) {
-	rawMessage := json.RawMessage{}
-	if err := json.NewDecoder(r.Body).Decode(&rawMessage); err != nil {
-		panic("[mock darknode] could not decode JSON request")
-	}
-
-	var req jsonrpc.Request
-	if err := json.Unmarshal(rawMessage, &req); err != nil {
-		panic("[mock darknode] could not parse JSON request")
-	}
-
-	res := dn.response(req)
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(res); err != nil {
-		panic(fmt.Sprintf("[mock darknode] error writing http response: %v", err))
-	}
-}
-
-func (dn *MockDarknode) response(req jsonrpc.Request) jsonrpc.Response {
-	switch req.Method {
-	case jsonrpc.MethodQueryBlock:
-		// TODO: Send a more appropriate response.
-		return ErrorResponse(req.ID)
-	case jsonrpc.MethodQueryBlocks:
-		// TODO: Send a more appropriate response.
-		return ErrorResponse(req.ID)
-	case jsonrpc.MethodSubmitTx:
-		// TODO: Send a more appropriate response.
-		return ErrorResponse(req.ID)
-	case jsonrpc.MethodQueryTx:
-		// TODO: Send a more appropriate response.
-		return ErrorResponse(req.ID)
-	case jsonrpc.MethodQueryNumPeers:
-		result := jsonrpc.ResponseQueryNumPeers{NumPeers: len(dn.peers)}
-		return jsonrpcResponse(req.ID, result, nil)
-	case jsonrpc.MethodQueryPeers:
-		peers := make([]string, len(dn.peers))
-		for i := range dn.peers {
-			peers[i] = dn.peers[i].String()
-		}
-		result := jsonrpc.ResponseQueryPeers{Peers: peers}
-		return jsonrpcResponse(req.ID, result, nil)
-	case jsonrpc.MethodQueryEpoch:
-		// TODO: Implement once this method is supported by the darknodes.
-		panic("[mock darknode] querying epochs not yet supported")
-	case jsonrpc.MethodQueryStat:
-		// TODO: Send a more appropriate response.
-		return ErrorResponse(req.ID)
-	default:
-		panic(fmt.Sprintf("[mock darknode] unsupported method %s", req.Method))
-	}
-}
+// // A MockDarknode simulates a darknode by providing basic responses to incoming
+// // requests.
+// type MockDarknode struct {
+// 	port  int
+// 	peers addr.MultiAddresses
+// }
+//
+// // NewMockDarknode constructs a new `MockDarknode` that will (when `Run()`)
+// // listen on the given port.
+// func NewMockDarknode(port int, peers addr.MultiAddresses) MockDarknode {
+// 	return MockDarknode{port, peers}
+// }
+//
+// // Run starts the `MockDarknode` listening on its port. This function call is
+// // blocking.
+// func (dn MockDarknode) Run() <-chan struct{} {
+// 	r := mux.NewRouter()
+// 	r.HandleFunc("/", dn.handleFunc)
+//
+// 	httpHandler := cors.New(cors.Options{
+// 		AllowedOrigins:   []string{"*"},
+// 		AllowCredentials: true,
+// 		AllowedMethods:   []string{"POST"},
+// 	}).Handler(r)
+//
+// 	init := make(chan struct{}, 1)
+//
+// 	// Start running the server.
+// 	go phi.ParBegin(
+// 		func() { http.ListenAndServe(fmt.Sprintf(":%v", dn.port), httpHandler) },
+// 		func() {
+// 			req := ValidRequest(jsonrpc.MethodQueryPeers)
+// 			for {
+// 				_, err := client.SendToDarknode(fmt.Sprintf("http://0.0.0.0:%v", dn.port), req, time.Second)
+// 				if err == nil {
+// 					break
+// 				}
+//
+// 				time.Sleep(10 * time.Millisecond)
+// 			}
+// 			init <- struct{}{}
+// 			close(init)
+// 		},
+// 	)
+//
+// 	return init
+// }
+//
+// func (dn *MockDarknode) handleFunc(w http.ResponseWriter, r *http.Request) {
+// 	rawMessage := json.RawMessage{}
+// 	if err := json.NewDecoder(r.Body).Decode(&rawMessage); err != nil {
+// 		panic("[mock darknode] could not decode JSON request")
+// 	}
+//
+// 	var req jsonrpc.Request
+// 	if err := json.Unmarshal(rawMessage, &req); err != nil {
+// 		panic("[mock darknode] could not parse JSON request")
+// 	}
+//
+// 	res := dn.response(req)
+//
+// 	w.Header().Set("Content-Type", "application/json")
+// 	if err := json.NewEncoder(w).Encode(res); err != nil {
+// 		panic(fmt.Sprintf("[mock darknode] error writing http response: %v", err))
+// 	}
+// }
+//
+// func (dn *MockDarknode) response(req jsonrpc.Request) jsonrpc.Response {
+// 	switch req.Method {
+// 	case jsonrpc.MethodQueryBlock:
+// 		// TODO: Send a more appropriate response.
+// 		return ErrorResponse(req.ID)
+// 	case jsonrpc.MethodQueryBlocks:
+// 		// TODO: Send a more appropriate response.
+// 		return ErrorResponse(req.ID)
+// 	case jsonrpc.MethodSubmitTx:
+// 		// TODO: Send a more appropriate response.
+// 		return ErrorResponse(req.ID)
+// 	case jsonrpc.MethodQueryTx:
+// 		// TODO: Send a more appropriate response.
+// 		return ErrorResponse(req.ID)
+// 	case jsonrpc.MethodQueryNumPeers:
+// 		result := jsonrpc.ResponseQueryNumPeers{NumPeers: len(dn.peers)}
+// 		return jsonrpcResponse(req.ID, result, nil)
+// 	case jsonrpc.MethodQueryPeers:
+// 		peers := make([]string, len(dn.peers))
+// 		for i := range dn.peers {
+// 			peers[i] = dn.peers[i].String()
+// 		}
+// 		result := jsonrpc.ResponseQueryPeers{Peers: peers}
+// 		return jsonrpcResponse(req.ID, result, nil)
+// 	case jsonrpc.MethodQueryEpoch:
+// 		// TODO: Implement once this method is supported by the darknodes.
+// 		panic("[mock darknode] querying epochs not yet supported")
+// 	case jsonrpc.MethodQueryStat:
+// 		// TODO: Send a more appropriate response.
+// 		return ErrorResponse(req.ID)
+// 	default:
+// 		panic(fmt.Sprintf("[mock darknode] unsupported method %s", req.Method))
+// 	}
+// }
 
 func jsonrpcResponse(id interface{}, result interface{}, err *jsonrpc.Error) jsonrpc.Response {
 	return jsonrpc.Response{
@@ -163,17 +161,7 @@ func ValidRequest(method string) jsonrpc.Request {
 			Params:  json.RawMessage{},
 		}
 	case jsonrpc.MethodSubmitTx:
-		// TODO: Add fields to params struct.
-		rawMsg, err := json.Marshal(jsonrpc.ParamsSubmitTx{})
-		if err != nil {
-			panic("marshalling error")
-		}
-		return jsonrpc.Request{
-			Version: "2.0",
-			ID:      float64(1),
-			Method:  method,
-			Params:  rawMsg,
-		}
+		return RandomSubmitTx()
 	case jsonrpc.MethodQueryTx:
 		// TODO: Add fields to params struct.
 		rawMsg, err := json.Marshal(jsonrpc.ParamsQueryTx{})
@@ -211,6 +199,49 @@ func ValidRequest(method string) jsonrpc.Request {
 		}
 	default:
 		panic("invalid method")
+	}
+}
+
+func RandomSubmitTx() jsonrpc.Request {
+	contract := testutil.RandomMintMethod()
+	args := abi.Args{}
+	for _, formal := range abi.Intrinsics[contract].In {
+		arg := abi.Arg{
+			Name:  formal.Name,
+			Type:  formal.Type,
+			Value: RandomAbiValue(formal.Type),
+		}
+		args.Append(arg)
+	}
+	submitTx := jsonrpc.ParamsSubmitTx{Tx: abi.Tx{
+		Hash: testutil.RandomB32(),
+		To:   contract,
+		In:   args,
+	}}
+	rawMsg, err := json.Marshal(submitTx)
+	if err != nil {
+		panic(err)
+	}
+	return jsonrpc.Request{
+		Version: "2.0",
+		ID:      float64(1),
+		Method:  jsonrpc.MethodSubmitTx,
+		Params:  rawMsg,
+	}
+}
+
+func RandomAbiValue(t abi.Type) abi.Value {
+	switch t {
+	case abi.TypeB32:
+		return testutil.RandomB32()
+	case abi.TypeU64:
+		return abi.U64{Int: big.NewInt(rand.Int63())}
+	case abi.ExtTypeBtcCompatUTXO:
+		return RandomUtxo()
+	case abi.ExtTypeEthCompatAddress:
+		return testutil.RandomExtEthCompatAddress()
+	default:
+		panic(fmt.Sprintf("unknown type %v", t))
 	}
 }
 
