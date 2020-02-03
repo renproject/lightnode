@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -17,16 +17,16 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Options to initialize a confirmer.
+// Options for initialising a confirmer.
 type Options struct {
 	MinConfirmations map[abi.Address]uint64
 	PollInterval     time.Duration
 	Expiry           time.Duration
 }
 
-// Confirmer handles requests which pass all validations. It checks if requests
-// have reached enough confirmations. It stores requests which haven't reached
-// enough confirmations and check them later.
+// Confirmer handles requests that have been validated. It checks if requests
+// have reached sufficient confirmations and stores those that have not to be
+// checked later.
 type Confirmer struct {
 	logger     logrus.FieldLogger
 	options    Options
@@ -46,8 +46,8 @@ func New(logger logrus.FieldLogger, options Options, dispatcher phi.Sender, db d
 	}
 }
 
-// Run starts running the confirmer in background which periodically checks
-// confirmations of pending txs and prune txs which are too old.
+// Run starts running the confirmer in the background which periodically checks
+// confirmations for pending transactions and prunes old transactions.
 func (confirmer *Confirmer) Run(ctx context.Context) {
 	phi.ParBegin(func() {
 		ticker := time.NewTicker(confirmer.options.PollInterval)
@@ -77,18 +77,18 @@ func (confirmer *Confirmer) Run(ctx context.Context) {
 	})
 }
 
-// checkPendingTxs reads all pending txs from the database and checks if they
-// have reached enough confirmations.
+// checkPendingTxs checks if any pending transactions have received sufficient
+// confirmations.
 func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, confirmer.options.PollInterval)
 	defer cancel()
 
-	// Read all pending txs.
 	txs, err := confirmer.database.PendingTxs()
 	if err != nil {
-		confirmer.logger.Errorf("[confirmer] unable read pending pendingTxs from database, err = %v", err)
+		confirmer.logger.Errorf("[confirmer] failed to read pending txs from database: %v", err)
 		return
 	}
+
 	phi.ParForAll(txs, func(i int) {
 		tx := txs[i]
 		var confirmed bool
@@ -99,17 +99,17 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 		}
 
 		if confirmed {
-			log.Printf("tx = %v has reached enough confirmations", tx.Hash.String())
+			confirmer.logger.Infof("tx=%v has reached sufficient confirmations", tx.Hash.String())
 			confirmer.confirm(tx)
 		}
 	})
 }
 
-// confirm sends the tx to dispatcher and marks the tx as confirmed in db.
+// confirm sends the transaction to the dispatcher and marks it as confirmed.
 func (confirmer *Confirmer) confirm(tx abi.Tx) {
-	request, err := txToJsonRequest(tx)
+	request, err := submitTxRequest(tx)
 	if err != nil {
-		confirmer.logger.Errorf("[confirmer] cannot convert tx to json request, err = %v", err)
+		confirmer.logger.Errorf("[confirmer] cannot construct json request for transaction: %v", err)
 		return
 	}
 	req := http.NewRequestWithResponder(context.Background(), request, "")
@@ -119,44 +119,50 @@ func (confirmer *Confirmer) confirm(tx abi.Tx) {
 	}
 
 	if err := confirmer.database.ConfirmTx(tx.Hash); err != nil {
-		confirmer.logger.Errorf("[confirmer] cannot confirm tx in the db, err = %v", err)
+		confirmer.logger.Errorf("[confirmer] cannot confirm tx in the database: %v", err)
 	}
 }
 
-// shiftInTxConfirmed takes a shiftIn tx and check if it has enough confirmations.
+// shiftInTxConfirmed checks if a given shift in transaction has received
+// sufficient confirmations.
 func (confirmer *Confirmer) shiftInTxConfirmed(ctx context.Context, tx abi.Tx) bool {
 	utxo := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
 
 	confirmations, err := confirmer.connPool.UtxoConfirmations(ctx, tx.To, utxo.TxHash)
 	if err != nil {
-		confirmer.logger.Errorf("[confirmer] cannot get confirmation of [%v] request, txHash = %v, err = %v", tx.To, utxo.TxHash.String(), err)
+		confirmer.logger.Errorf("[confirmer] cannot get confirmation for tx=%v (%v): %v", utxo.TxHash.String(), tx.To, err)
 		return false
 	}
 	minCon := confirmer.options.MinConfirmations[tx.To]
 	return confirmations >= minCon
 }
 
-// shiftOutTxConfirmed takes a shiftOut tx and check if it has enough confirmations.
+// shiftOutTxConfirmed checks if a given shift out transaction has received
+// sufficient confirmations.
 func (confirmer *Confirmer) shiftOutTxConfirmed(ctx context.Context, tx abi.Tx) bool {
 	ref := tx.In.Get("ref").Value.(abi.U64)
 	confirmations, err := confirmer.connPool.EventConfirmations(ctx, tx.To, ref.Int.Uint64())
 	if err != nil {
-		confirmer.logger.Errorf("[confirmer] cannot get confirmation of ethereum event log, err = %v", err)
+		confirmer.logger.Errorf("[confirmer] cannot get confirmation for ethereum event (%v): %v", tx.To, err)
 		return false
 	}
 	minCon := confirmer.options.MinConfirmations[tx.To]
 	return confirmations >= minCon
 }
 
-// prune deletes txs from the database which expire.
+// prune removes any expired transactions from the database.
 func (confirmer *Confirmer) prune() {
 	if err := confirmer.database.Prune(confirmer.options.Expiry); err != nil {
-		confirmer.logger.Errorf("[confirmer] cannot prune database, err = %v", err)
+		confirmer.logger.Errorf("[confirmer] cannot prune database: %v", err)
 	}
 }
 
-// txToJsonRequest converts a tx to its original jsonrpc.Request.
-func txToJsonRequest(tx abi.Tx) (jsonrpc.Request, error) {
+// submitTxRequest converts a transaction to a `jsonrpc.Request`.
+func submitTxRequest(tx abi.Tx) (jsonrpc.Request, error) {
+	if i := tx.In.Remove("amount"); i == -1 {
+		return jsonrpc.Request{}, errors.New("missing amount argument")
+	}
+
 	if blockchain.IsShiftIn(tx) {
 		tx.Autogen = abi.Args{}
 		utxo := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
@@ -164,14 +170,7 @@ func txToJsonRequest(tx abi.Tx) (jsonrpc.Request, error) {
 			TxHash: utxo.TxHash,
 			VOut:   utxo.VOut,
 		})
-
-		if i := tx.In.Remove("amount"); i == -1 {
-			return jsonrpc.Request{}, errors.New("missing amount argument")
-		}
 	} else {
-		if i := tx.In.Remove("amount"); i == -1 {
-			return jsonrpc.Request{}, errors.New("missing amount argument")
-		}
 		if i := tx.In.Remove("to"); i == -1 {
 			return jsonrpc.Request{}, errors.New("missing to argument")
 		}
@@ -179,7 +178,7 @@ func txToJsonRequest(tx abi.Tx) (jsonrpc.Request, error) {
 
 	data, err := json.Marshal(jsonrpc.ParamsSubmitTx{Tx: tx})
 	if err != nil {
-		return jsonrpc.Request{}, nil
+		return jsonrpc.Request{}, fmt.Errorf("failed to marshal tx: %v", err)
 	}
 
 	return jsonrpc.Request{
