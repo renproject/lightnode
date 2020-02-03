@@ -23,7 +23,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Minimum shift amount for both ShiftIn and ShiftOut txs.
+// MinShiftAmount for both ShiftIn and ShiftOut txs.
 const MinShiftAmount = 10000
 
 // A txChecker reads submitTx requests from a channel and validate the details
@@ -61,19 +61,19 @@ func (tc *txChecker) Run() {
 				continue
 			}
 
-			// Check duplication
-			duplicated, err := tc.checkDuplication(tx)
+			// Check for duplicate.
+			duplicate, err := tc.checkDuplicate(tx)
 			if err != nil {
 				tc.logger.Errorf("[txChecker] cannot check tx duplication, err = %v", err)
 				continue
 			}
-			if duplicated {
+			if duplicate {
 				jsonErr := &jsonrpc.Error{Code: jsonrpc.ErrorCodeInvalidParams, Message: "tx already submitted", Data: nil}
 				req.Responder <- jsonrpc.NewResponse(req.Request.ID, nil, jsonErr)
 				continue
 			}
 
-			// Send the success response to user
+			// Write the response to the responder channel.
 			response := jsonrpc.ResponseSubmitTx{
 				Tx: tx,
 			}
@@ -130,7 +130,7 @@ func (tc *txChecker) verifyHash(tx abi.Tx) (abi.Tx, error) {
 		ghash, nhash := abi.B32{}, abi.B32{}
 		utxo := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
 
-		// Calculate ghash and append to the tx
+		// Calculate ghash and append it to the tx.
 		copy(ghash[:], crypto.Keccak256(ethabi.Encode(abi.Args{
 			tx.In.Get("phash"),
 			tx.In.Get("token"),
@@ -143,7 +143,7 @@ func (tc *txChecker) verifyHash(tx abi.Tx) (abi.Tx, error) {
 			Value: ghash,
 		})
 
-		// Calculate nhash and append to the tx
+		// Calculate nhash and append it to the tx.
 		copy(nhash[:], crypto.Keccak256(ethabi.Encode(abi.Args{
 			tx.In.Get("n"),
 			abi.Arg{
@@ -180,7 +180,7 @@ func (tc *txChecker) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 	if blockchain.IsShiftIn(tx) {
 		utxoValue := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
 
-		// verify existence of the provided utxo
+		// Verify existence of the provided UTXO.
 		utxo, err := tc.connPool.Utxo(ctx, tx.To, utxoValue.TxHash, utxoValue.VOut)
 		if err != nil {
 			return abi.Tx{}, err
@@ -197,7 +197,7 @@ func (tc *txChecker) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 			},
 		})
 
-		// verify ScriptPubkey
+		// Verify script public key.
 		ghash := tx.Autogen.Get("ghash").Value.(abi.B32)
 		if err := tc.connPool.VerifyScriptPubKey(tx.To, ghash[:], tc.disPubkey, utxo); err != nil {
 			return abi.Tx{}, errors.New("invalid script pubkey")
@@ -207,7 +207,7 @@ func (tc *txChecker) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 			return abi.Tx{}, errors.New("failed to set the utxo with scriptPubkey and amount")
 		}
 
-		// Calculate hash and append to Tx
+		// Calculate the hash and append to the transaction.
 		hash := abi.B32{}
 		copy(hash[:], crypto.Keccak256(ethabi.Encode(abi.Args{
 			tx.In.Get("phash"),
@@ -246,7 +246,7 @@ func (tc *txChecker) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 	return tx, nil
 }
 
-func (tc *txChecker) checkDuplication(tx abi.Tx) (bool, error) {
+func (tc *txChecker) checkDuplicate(tx abi.Tx) (bool, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 

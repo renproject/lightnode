@@ -9,8 +9,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// NewRecoveryMiddleware returns a new RecoveryMiddleware which recover panic
-// from processing the request and log the error through the provided logger.
+// NewRecoveryMiddleware returns a new RecoveryMiddleware which recovers from
+// panics when processing requests and logs the error through the given logger.
 func NewRecoveryMiddleware(logger logrus.FieldLogger) mux.MiddlewareFunc {
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -27,13 +27,13 @@ func NewRecoveryMiddleware(logger logrus.FieldLogger) mux.MiddlewareFunc {
 	}
 }
 
-// A RateLimiter handles the rate limiting logic for JSON-RPC requests. Each
+// RateLimiter handles the rate limiting logic for JSON-RPC requests. Each
 // different type of JSON-RPC method has an independent rate limit.
 type RateLimiter struct {
 	limiters map[string]*jsonrpc.RateLimiter
 }
 
-// New constructs a new `RateLimiter`.
+// NewRateLimiter constructs a new rate limiter.
 func NewRateLimiter() RateLimiter {
 	limiters := map[string]*jsonrpc.RateLimiter{}
 

@@ -58,6 +58,9 @@ func (validator *Validator) Handle(_ phi.Task, message phi.Message) {
 		msg.Responder <- jsonrpc.NewResponse(msg.Request.ID, nil, err)
 		return
 	}
+
+	// The SubmitTx method does not need to be sent to the cacher as the
+	// txchecker writes the response directly.
 	if msg.Request.Method != jsonrpc.MethodSubmitTx {
 		validator.cacher.Send(msg)
 	}
@@ -87,10 +90,14 @@ func (validator *Validator) isValid(msg http.RequestWithResponder) *jsonrpc.Erro
 		}
 	}
 
-	// Reject requests with invalid parameters.
-	if ok, msg := validator.hasValidParams(msg); !ok {
-		errMsg := fmt.Sprintf("invalid parameters in request: %s", msg)
-		return &jsonrpc.Error{Code: jsonrpc.ErrorCodeInvalidParams, Message: errMsg, Data: nil}
+	if msg.Request.Method == jsonrpc.MethodSubmitTx {
+		// Send to txchecker.
+		validator.requests <- msg
+	} else {
+		if ok, msg := validator.hasValidParams(msg); !ok {
+			errMsg := fmt.Sprintf("invalid parameters in request: %s", msg)
+			return &jsonrpc.Error{Code: jsonrpc.ErrorCodeInvalidParams, Message: errMsg, Data: nil}
+		}
 	}
 
 	return nil
@@ -99,13 +106,15 @@ func (validator *Validator) isValid(msg http.RequestWithResponder) *jsonrpc.Erro
 // hasValidParams checks if the request has valid params depending on its method
 func (validator *Validator) hasValidParams(message http.RequestWithResponder) (bool, error) {
 	switch message.Request.Method {
-	// These methods don't require any parameters
-	case jsonrpc.MethodQueryBlock, jsonrpc.MethodQueryBlocks, jsonrpc.MethodQueryNumPeers, jsonrpc.MethodQueryPeers, jsonrpc.MethodQueryStat:
-	case jsonrpc.MethodSubmitTx:
-		// FIXME : doing local check here and send to txchekcer after validating the params
-		validator.requests <- message
+	// These methods don't require any parameters or are handled prior to this
+	// function call.
+	case jsonrpc.MethodSubmitTx, jsonrpc.MethodQueryBlock, jsonrpc.MethodQueryBlocks, jsonrpc.MethodQueryNumPeers, jsonrpc.MethodQueryPeers, jsonrpc.MethodQueryStat:
 	case jsonrpc.MethodQueryTx:
-		return validQueryTxParams(message.Request.Params)
+		var queryTx jsonrpc.ParamsQueryTx
+		if err := json.Unmarshal(message.Request.Params, &queryTx); err != nil {
+			return false, ErrInvalidParams
+		}
+		return true, nil
 	case jsonrpc.MethodQueryEpoch:
 		// TODO: At the time of writing this method is not supported by the
 		// darknode. This should be implemented once it is implemented in the
@@ -113,15 +122,6 @@ func (validator *Validator) hasValidParams(message http.RequestWithResponder) (b
 		return false, errors.New("method QueryEpoch is not supported")
 	default:
 		panic(fmt.Sprintf("[validator] unsupported method %s encountered which should have been rejected by the previous checks", message.Request.Method))
-	}
-	return true, nil
-}
-
-// validate the params of the `QueryTx` request.
-func validQueryTxParams(params json.RawMessage) (bool, error) {
-	var data jsonrpc.ParamsQueryTx
-	if err := json.Unmarshal(params, &data); err != nil {
-		return false, ErrInvalidParams
 	}
 	return true, nil
 }

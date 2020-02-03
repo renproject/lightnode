@@ -75,7 +75,8 @@ func New(logger logrus.FieldLogger, options Options, validator phi.Sender) *Serv
 	}
 }
 
-// Listen starts the `Server` listening on its port. This function is blocking.
+// Listen starts the `Server` on the port specified in its options. This
+// function is blocking.
 func (server *Server) Listen(ctx context.Context) {
 	r := mux.NewRouter()
 	r.HandleFunc("/health", server.healthCheck).Methods("GET")
@@ -89,12 +90,13 @@ func (server *Server) Listen(ctx context.Context) {
 		AllowedMethods:   []string{"POST"},
 	}).Handler(r)
 
-	// Init a new http server
+	// Initialise a new HTTP server.
 	httpServer := http.Server{
 		Addr:    fmt.Sprintf(":%s", server.options.Port),
 		Handler: httpHandler,
 	}
-	// Close the server when ctx is canceled.
+
+	// Close the server when context is canceled.
 	go func() {
 		<-ctx.Done()
 		httpServer.Shutdown(ctx)
@@ -121,12 +123,12 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Unmarshal requests with support for batching
+	// Unmarshal requests with support for batching.
 	reqs := []jsonrpc.Request{}
 	if err := json.Unmarshal(rawMessage, &reqs); err != nil {
 		// If we fail to unmarshal the raw message into a list of JSON-RPC 2.0
 		// requests, try to unmarshal the raw message into a single JSON-RPC 2.0
-		// request
+		// request.
 		var req jsonrpc.Request
 		if err := json.Unmarshal(rawMessage, &req); err != nil {
 			writeResponses(w, []jsonrpc.Response{errResponse(jsonrpc.ErrorCodeInvalidJSON, 0, "lightnode could not parse JSON request", nil)})
@@ -135,7 +137,7 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 		reqs = []jsonrpc.Request{req}
 	}
 
-	// Check that batch size does not exceed the maximum allowed batch size
+	// Check that batch size does not exceed the maximum allowed batch size.
 	batchSize := len(reqs)
 	if batchSize > server.options.MaxBatchSize {
 		errMsg := fmt.Sprintf("maximum batch size exceeded: maximum is %v but got %v", server.options.MaxBatchSize, batchSize)
@@ -143,8 +145,8 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Handle all requests concurrently and, after all responses have been
-	// received, write all responses back to the http.ResponseWriter
+	// Handle all requests concurrently and after all responses have been
+	// received, write all responses back to the `http.ResponseWriter`.
 	timer := time.After(server.options.Timeout)
 	responses := make([]jsonrpc.Response, len(reqs))
 	phi.ParForAll(reqs, func(i int) {

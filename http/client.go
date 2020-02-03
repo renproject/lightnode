@@ -11,30 +11,29 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 )
 
-// RetryOptions can be passed to Client when trying to send a request, so that
-// Client will retry sending the request if it fails.
+// RetryOptions are used for retrying failed requests sent using the client.
 type RetryOptions struct {
-	Base   time.Duration // time interval before first retry
-	Max    time.Duration // max time interval between two reties.
-	Factor float64       // next_interval = previous_interval * (1 + Factor)
+	Base   time.Duration // Time interval before first retry.
+	Max    time.Duration // Maximum time interval between two retries.
+	Factor float64       // next_interval = previous_interval * (1 + factor)
 }
 
-// DefaultRetryOptions is the recommended retry setting for Lightnode.
+// DefaultRetryOptions are the recommended retry settings.
 var DefaultRetryOptions = RetryOptions{
 	Base:   time.Second,
 	Max:    5 * time.Second,
 	Factor: 0.2,
 }
 
-// DefaultClientTimeout is the recommended time for the Client.
+// DefaultClientTimeout is the recommended timeout for the client.
 var DefaultClientTimeout = 5 * time.Second
 
-// Client is an http.Client with fixed timeout.
+// Client is a http.Client with a fixed timeout.
 type Client struct {
 	*http.Client
 }
 
-// NewClient returns a new client with given timeout.
+// NewClient returns a new client with the given timeout.
 func NewClient(timeout time.Duration) Client {
 	return Client{
 		Client: &http.Client{
@@ -43,9 +42,9 @@ func NewClient(timeout time.Duration) Client {
 	}
 }
 
-// SendRequest sends the jsonrpc.Request to the provided URL. It only retries
-// sending the request if the RetryOptions is not nil. Otherwise it returns the
-// response and error immediately.
+// SendRequest sends the `jsonrpc.Request` to the given URL. It only retries
+// sending the request if the retry options are non-nil. Otherwise it returns
+// the response and error immediately.
 func (c Client) SendRequest(ctx context.Context, url string, request jsonrpc.Request, options *RetryOptions) (jsonrpc.Response, error) {
 	// Construct HTTP request.
 	body, err := json.Marshal(request)
@@ -59,7 +58,7 @@ func (c Client) SendRequest(ctx context.Context, url string, request jsonrpc.Req
 	r = r.WithContext(ctx)
 	r.Header.Set("Content-Type", "application/json")
 
-	// Check if the retry option has been passed.
+	// Check if the retry options have been passed.
 	if options == nil {
 		return c.send(r)
 	}
@@ -77,7 +76,7 @@ func (c Client) send(r *http.Request) (jsonrpc.Response, error) {
 	return resp, err
 }
 
-// send the request with the passed RetryOptions.
+// send the request with the given retry options.
 func (c Client) retry(ctx context.Context, r *http.Request, options *RetryOptions) (jsonrpc.Response, error) {
 	interval := options.Base
 	for {
