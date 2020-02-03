@@ -22,14 +22,16 @@ import (
 )
 
 var _ = Describe("Cacher", func() {
-
 	init := func(ctx context.Context, interval time.Duration) (phi.Sender, <-chan phi.Message) {
 		inspector, messages := testutils.NewInspector(10)
 		ttl := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", interval)
+
 		sqlDB, err := sql.Open("sqlite3", "./test.db")
 		Expect(err).NotTo(HaveOccurred())
+
 		database := db.New(sqlDB)
 		Expect(database.Init()).Should(Succeed())
+
 		cacher := New(inspector, logrus.New(), ttl, phi.Options{Cap: 10}, database)
 		go inspector.Run(ctx)
 		go cacher.Run(ctx)
@@ -41,8 +43,8 @@ var _ = Describe("Cacher", func() {
 		Expect(os.Remove("./test.db")).Should(BeNil())
 	}
 
-	Context("When receving a request that does not have a response in the cache", func() {
-		It("Should pass the request through", func() {
+	Context("when receving a request that does not have a response in the cache", func() {
+		It("should pass the request through", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			cacher, messages := init(ctx, time.Minute)
@@ -70,7 +72,7 @@ var _ = Describe("Cacher", func() {
 	})
 
 	Context("when receiving a request that has a response in the cache", func() {
-		It("Should return the cached response", func() {
+		It("should return the cached response", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			cacher, messages := init(ctx, time.Minute)
