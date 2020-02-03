@@ -163,12 +163,12 @@ func (tc *txChecker) verifyHash(tx abi.Tx) (abi.Tx, error) {
 			Value: nhash,
 		})
 
-		// Calculate the txHash for the tx.
-		copy(tx.Hash[:], crypto.Keccak256([]byte(fmt.Sprintf("txHash_%v_%v_%v_%v", tx.To, ghash, utxo.TxHash, utxo.VOut))))
+		// FIXME: This hash calculation should be imported directly from the
+		// Darknode.
+		copy(tx.Hash[:], crypto.Keccak256([]byte(fmt.Sprintf("txHash_%s_%s_%s_%d", tx.To, ghash, utxo.TxHash, utxo.VOut.Int.Int64()))))
 	} else {
-		// Calculate the txHash for the tx.
 		ref := tx.In.Get("ref").Value.(abi.U64)
-		copy(tx.Hash[:], crypto.Keccak256([]byte(fmt.Sprintf("txHash_%v_%v", tx.To, ref))))
+		copy(tx.Hash[:], crypto.Keccak256([]byte(fmt.Sprintf("txHash_%s_%d", tx.To, ref.Int.Int64()))))
 	}
 	return tx, nil
 }
