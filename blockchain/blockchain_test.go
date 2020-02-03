@@ -7,28 +7,28 @@ import (
 
 var _ = Describe("ConnPool", func() {
 	Context("after creating a ConnPool object.", func() {
-		// TODO : Need to set up ganache for local test and CI
-		It("should get ShiftOut details from contract logs", func() {
+		// TODO: Ganache must be set-up in order to test these.
+		It("should get shift out details from contract logs", func() {
 			Expect(true).Should(BeTrue())
 		})
 
-		It("should get utxo details from specific blockchain", func() {
+		It("should get UTXO details from specific blockchain", func() {
 			Expect(true).Should(BeTrue())
 		})
 
-		It("should be able to return number of confirmations of a tx", func() {
+		It("should be able to return number of confirmations for a given transaction", func() {
 			Expect(true).Should(BeTrue())
 		})
 
-		It("should be able to return number of confirmations of a event log", func() {
+		It("should be able to return number of confirmations for a given event", func() {
 			Expect(true).Should(BeTrue())
 		})
 
-		It("should be able to verify if a utxo can be spent by a key", func() {
+		It("should be able to verify if a UTXO can be spent by a given key", func() {
 			Expect(true).Should(BeTrue())
 		})
 
-		It("should tell if a tx is a ShiftIn or ShiftOut", func() {
+		It("should be able to check whether a given transaction is a shift in or shift out", func() {
 			Expect(true).Should(BeTrue())
 		})
 	})
