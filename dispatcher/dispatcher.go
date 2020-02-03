@@ -45,8 +45,13 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 		dispatcher.logger.Panicf("[dispatcher] unexpected message type %T", message)
 	}
 
-	// Get the darknode multiAddresses where the request will be forwarded to.
-	addrs, err := dispatcher.multiAddrs(msg.Request.Method, msg.DarknodeID)
+	var addrs addr.MultiAddresses
+	var err error
+	if msg.DarknodeID != "" {
+		addrs, err = dispatcher.multiAddr(msg.Request.Method, msg.DarknodeID)
+	} else {
+		addrs, err = dispatcher.multiAddrs(msg.Request.Method)
+	}
 	if err != nil {
 		dispatcher.logger.Panicf("[dispatcher] error getting multi-address: %v", err)
 		return
@@ -88,40 +93,33 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 	}()
 }
 
-// multiAddrs returns multiAddresses of the darknodes we want to forward the
-// request to according to the `method` and `darknodeID`.
-func (dispatcher *Dispatcher) multiAddrs(method string, darknodeID string) (addr.MultiAddresses, error) {
-	if darknodeID != "" {
-		multi, err := dispatcher.multiStore.Get(darknodeID)
-		if err != nil {
-			return nil, err
-		}
-		return addr.MultiAddresses{multi}, nil
+// multiAddrs returns the multi-address for the given Darknode ID.
+func (dispatcher *Dispatcher) multiAddr(method string, darknodeID string) (addr.MultiAddresses, error) {
+	multi, err := dispatcher.multiStore.Get(darknodeID)
+	if err != nil {
+		return nil, err
 	}
+	return addr.MultiAddresses{multi}, nil
+}
 
-	// TODO: The following is an initial choice of darknode selection policies,
-	// which are likely to not be what we use long term. These should be
-	// updated when these policies have been decided in more detail.
+// multiAddrs returns the multi-addresses for the Darknodes based on the given
+// method.
+func (dispatcher *Dispatcher) multiAddrs(method string) (addr.MultiAddresses, error) {
 	switch method {
 	case jsonrpc.MethodSubmitTx:
-		// TODO: Eventually, we would want a more sophisticated way of sending
-		// these messages.
 		return dispatcher.multiStore.AddrsRandom(2)
 	case jsonrpc.MethodQueryTx:
-		// TODO : Since multiStore is updated by the updater, so this function
-		// will only the nodes which are alive, not all addresses in the shard.
+		// Note: since the multiStore is updated by the updater, this function
+		// will only return the nodes which are alive, and not all addresses in
+		// the shard.
 		return dispatcher.multiStore.AddrsAll()
 	default:
 		return dispatcher.multiStore.AddrsRandom(3)
 	}
 }
 
-// newResponseIter returns the iterator to use depending on the given method.
+// newResponseIter returns the iterator type for the given method.
 func (dispatcher *Dispatcher) newResponseIter(method string) Iterator {
-	// TODO: The following is an initial choice of response aggregation
-	// policies, which are likely to not be what we use long term. These should
-	// be updated when these policies have been decided in more detail.
-
 	switch method {
 	case jsonrpc.MethodQueryTx:
 		return NewMajorityResponseIterator(dispatcher.logger)
