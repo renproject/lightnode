@@ -29,7 +29,7 @@ func main() {
 	// Seed random number generator.
 	rand.Seed(time.Now().UnixNano())
 
-	// Parse Lightnode options from environment variables
+	// Parse Lightnode options from environment variables.
 	name := os.Getenv("HEROKU_APP_NAME")
 	options := lightnode.Options{
 		Network:           parseNetwork(name),
@@ -46,10 +46,10 @@ func main() {
 		BootstrapAddrs:    parseAddresses(),
 	}
 
-	// Initialize a logger and attach sentry hook
+	// Initialise logger and attach Sentry hook.
 	logger := initLogger(options.Network)
 
-	// Initialize the database
+	// Initialise the database.
 	driver, dbURL := os.Getenv("DATABASE_DRIVER"), os.Getenv("DATABASE_URL")
 	sqlDB, err := sql.Open(driver, dbURL)
 	if err != nil {
@@ -57,17 +57,16 @@ func main() {
 	}
 	defer sqlDB.Close()
 
-	// Initialize redis client
+	// Initialise Redis client.
 	client := initRedis()
 	defer client.Close()
 
-	// Start running Lightnode.
+	// Run Lightnode.
 	ctx := context.Background()
 	node := lightnode.New(ctx, options, logger, sqlDB, client)
 	node.Run(ctx)
 }
 
-// Initialize a logger and attach Sentry hook.
 func initLogger(network darknode.Network) logrus.FieldLogger {
 	logger := logrus.New()
 	sentryURL := os.Getenv("SENTRY_URL")
@@ -92,15 +91,16 @@ func initLogger(network darknode.Network) logrus.FieldLogger {
 }
 
 func initRedis() *redis.Client {
-	redisUrl, err := url.Parse(os.Getenv("REDIS_URL"))
+	redisURLString := os.Getenv("REDIS_URL")
+	redisURL, err := url.Parse(redisURLString)
 	if err != nil {
-		panic(fmt.Sprintf("fail to read redis URL from env, err = %v", err))
+		panic(fmt.Sprintf("failed to parse redis URL %v: %v", redisURLString, err))
 	}
-	redisPassword, _ := redisUrl.User.Password()
+	redisPassword, _ := redisURL.User.Password()
 	return redis.NewClient(&redis.Options{
-		Addr:     redisUrl.Host,
+		Addr:     redisURL.Host,
 		Password: redisPassword,
-		DB:       0, // use default DB
+		DB:       0, // Use default DB.
 	})
 }
 
