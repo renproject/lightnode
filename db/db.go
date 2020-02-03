@@ -10,7 +10,15 @@ import (
 	"github.com/renproject/darknode/abi"
 )
 
-// DB abstract all database interactions.
+type TxStatus int8
+
+const (
+	TxStatusNil        = TxStatus(0)
+	TxStatusConfirming = TxStatus(1)
+	TxStatusConfirmed  = TxStatus(2)
+)
+
+// DB abstracts all database interactions.
 type DB struct {
 	db *sql.DB
 }
@@ -22,12 +30,10 @@ func New(db *sql.DB) DB {
 	}
 }
 
-// Init creates the tables for storing txs if not exist. Multiple calls of this
-// function will only create the tables once and not cause any error.
+// Init creates the tables for storing txs if it does not exist. Multiple calls
+// of this function will only create the tables once and not return an error.
 func (db DB) Init() error {
-
-	// TODO : WE NEED TO HAVE A VERSION OF THE DB IN CASE OF INCOMPATIBLE CHANGES
-	// Create the shiftin table if not exists
+	// TODO: Decide approach for versioning database tables.
 	shiftIn := `CREATE TABLE IF NOT EXISTS shiftin (
     hash                 CHAR(64) NOT NULL PRIMARY KEY,
     status               BIGINT,
@@ -49,7 +55,6 @@ func (db DB) Init() error {
 		return err
 	}
 
-	// Create the shiftout table if not exists
 	shiftOut := `CREATE TABLE IF NOT EXISTS shiftout (
     hash                 CHAR(64) NOT NULL PRIMARY KEY,
     status               INT,
@@ -63,7 +68,7 @@ func (db DB) Init() error {
 	return err
 }
 
-// InsertShiftIn stores a shiftIn tx into the database.
+// InsertShiftIn stores a shift in tx to the database.
 func (db DB) InsertShiftIn(tx abi.Tx) error {
 	phash, ok := tx.In.Get("phash").Value.(abi.B32)
 	if !ok {
@@ -122,7 +127,7 @@ VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT D
 	return err
 }
 
-// InsertShiftIn stores a shiftOut tx into the database.
+// InsertShiftOut stores a shift out tx to the database.
 func (db DB) InsertShiftOut(tx abi.Tx) error {
 	ref, ok := tx.In.Get("ref").Value.(abi.U64)
 	if !ok {
@@ -150,11 +155,11 @@ VALUES ($1, 1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING;`
 	return err
 }
 
-// ShiftIn queries the db and returns the shiftIn tx with given hash.
+// ShiftIn returns the shift in tx with the given hash.
 func (db DB) ShiftIn(txHash abi.B32) (abi.Tx, error) {
 	var contract, phash, token, to, n, ghash, nhash, sighash, utxoHash string
 	var amount, utxoVout int
-	err := db.db.QueryRow("SELECT contract, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM shiftin WHERE hash=$1", hex.EncodeToString(txHash[:])).Scan(
+	err := db.db.QueryRow("SELECT contract, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM shiftin WHERE hash = $1", hex.EncodeToString(txHash[:])).Scan(
 		&contract, &phash, &token, &to, &n, &amount, &ghash, &nhash, &sighash, &utxoHash, &utxoVout)
 	if err != nil {
 		return abi.Tx{}, err
@@ -162,11 +167,11 @@ func (db DB) ShiftIn(txHash abi.B32) (abi.Tx, error) {
 	return constructShiftIn(txHash, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash, amount, utxoVout)
 }
 
-// ShiftOut queries the db and returns the ShiftOut tx with given hash.
+// ShiftOut returns the shift out tx with the given hash.
 func (db DB) ShiftOut(txHash abi.B32) (abi.Tx, error) {
 	var contract, to string
 	var ref, amount int
-	err := db.db.QueryRow("SELECT contract, ref, toAddr, amount FROM shiftout WHERE hash=$1", hex.EncodeToString(txHash[:])).Scan(
+	err := db.db.QueryRow("SELECT contract, ref, toAddr, amount FROM shiftout WHERE hash = $1", hex.EncodeToString(txHash[:])).Scan(
 		&contract, &ref, &to, &amount)
 	if err != nil {
 		return abi.Tx{}, err
@@ -174,13 +179,14 @@ func (db DB) ShiftOut(txHash abi.B32) (abi.Tx, error) {
 	return constructShiftOut(txHash, contract, to, ref, amount)
 }
 
-// PendingTxs returns all txs from the db which are still pending and not expired.
+// PendingTxs returns all pending txs from the database which have not yet
+// expired.
 func (db DB) PendingTxs() (abi.Txs, error) {
 	txs := make(abi.Txs, 0, 128)
 
-	// Get pending shiftIns
+	// Get pending shift in txs.
 	shiftIns, err := db.db.Query(`SELECT hash, contract, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM shiftin 
-		WHERE status = 1 AND $1 - created_time < 86400`, time.Now().Unix())
+		WHERE status = $1 AND $2 - created_time < 86400`, TxStatusConfirming, time.Now().Unix())
 	if err != nil {
 		return nil, err
 	}
@@ -208,9 +214,9 @@ func (db DB) PendingTxs() (abi.Txs, error) {
 		return nil, err
 	}
 
-	// Get pending shiftOuts
+	// Get pending shift out txs.
 	shiftOuts, err := db.db.Query(`SELECT hash, contract, ref, toAddr, amount FROM shiftout 
-		WHERE status = 1 AND $1 - created_time < 86400`, time.Now().Unix())
+		WHERE status = $1 AND $2 - created_time < 86400`, TxStatusConfirming, time.Now().Unix())
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +244,7 @@ func (db DB) PendingTxs() (abi.Txs, error) {
 	return txs, shiftOuts.Err()
 }
 
-// Prune deletes txs which are expired according to the given expiry time.
+// Prune deletes txs which have expired based on the given expiry.
 func (db DB) Prune(expiry time.Duration) error {
 	_, err := db.db.Exec("DELETE FROM shiftin WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
 	if err != nil {
@@ -249,29 +255,31 @@ func (db DB) Prune(expiry time.Duration) error {
 	return err
 }
 
-// Confirmed returns if the tx with given hash has reached enough confirmations.
+// Confirmed returns whether or not the tx with the given hash has received
+// sufficient confirmations.
 func (db DB) Confirmed(hash abi.B32) (bool, error) {
 	var status int
-	err := db.db.QueryRow(`SELECT status FROM shiftin WHERE hash=$1;`,
+	err := db.db.QueryRow(`SELECT status FROM shiftin WHERE hash = $1;`,
 		hex.EncodeToString(hash[:])).Scan(&status)
 	if err == sql.ErrNoRows {
-		err = db.db.QueryRow(`SELECT status FROM shiftout WHERE hash=$1;`,
+		err = db.db.QueryRow(`SELECT status FROM shiftout WHERE hash = $1;`,
 			hex.EncodeToString(hash[:])).Scan(&status)
 	}
-	return status == 2, err
+	return TxStatus(status) == TxStatusConfirmed, err
 }
 
-// ConfirmTx updates the tx status to 2 (means confirmed).
+// ConfirmTx sets the transaction status to confirmed.
 func (db DB) ConfirmTx(hash abi.B32) error {
-	_, err := db.db.Exec("UPDATE shiftin SET status = 2 WHERE hash=$1;", hex.EncodeToString(hash[:]))
+	_, err := db.db.Exec("UPDATE shiftin SET status = $1 WHERE hash = $2;", TxStatusConfirmed, hex.EncodeToString(hash[:]))
 	if err != nil {
 		return err
 	}
-	_, err = db.db.Exec("UPDATE shiftout SET status = 2 WHERE hash=$1;", hex.EncodeToString(hash[:]))
+	_, err = db.db.Exec("UPDATE shiftout SET status = $1 WHERE hash = $2;", TxStatusConfirmed, hex.EncodeToString(hash[:]))
 	return err
 }
 
-// constructShiftIn takes data queried from db and reconstruct the tx from them.
+// constructShiftIn constructs a transaction using the data queried from the
+// database.
 func constructShiftIn(hash abi.B32, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash string, amount, utxoVout int) (abi.Tx, error) {
 	tx := abi.Tx{
 		Hash: hash,
@@ -310,8 +318,6 @@ func constructShiftIn(hash abi.B32, contract, phash, token, to, n, ghash, nhash,
 	if err != nil {
 		return abi.Tx{}, err
 	}
-
-	// Parse the utxo details
 	utxoHashArg, err := decodeB32("utxo", utxoHash)
 	if err != nil {
 		return abi.Tx{}, err
@@ -330,6 +336,8 @@ func constructShiftIn(hash abi.B32, contract, phash, token, to, n, ghash, nhash,
 	return tx, nil
 }
 
+// constructShiftOut constructs a transaction using the data queried from the
+// database.
 func constructShiftOut(hash abi.B32, contract, to string, ref, amount int) (abi.Tx, error) {
 	tx := abi.Tx{
 		Hash: hash,
@@ -358,7 +366,7 @@ func constructShiftOut(hash abi.B32, contract, to string, ref, amount int) (abi.
 	return tx, nil
 }
 
-// decodeB32 decodes the value into a RenVM B32 Argument
+// decodeB32 decodes the value into a RenVM B32 argument.
 func decodeB32(name, value string) (abi.Arg, error) {
 	val, err := stringToB32(value)
 	if err != nil {
@@ -371,7 +379,7 @@ func decodeB32(name, value string) (abi.Arg, error) {
 	}, nil
 }
 
-// stringToB32 decoding the hex string to a `abi.B32` object
+// stringToB32 decoding the hex string into a RenVM B32 object.
 func stringToB32(str string) (abi.B32, error) {
 	decoded, err := hex.DecodeString(str)
 	if err != nil {
@@ -382,7 +390,8 @@ func stringToB32(str string) (abi.B32, error) {
 	return val, nil
 }
 
-// decodeEthAddress decodes the value into a RenVM ExtTypeEthCompatAddress Argument
+// decodeEthAddress decodes the value into a RenVM ExtTypeEthCompatAddress
+// argument.
 func decodeEthAddress(name, value string) (abi.Arg, error) {
 	decoded, err := hex.DecodeString(value)
 	if err != nil {
