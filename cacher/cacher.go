@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 
+	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/db"
@@ -39,7 +41,6 @@ type Cacher struct {
 
 // New constructs a new `Cacher` as a `phi.Task` which can be `Run()`.
 func New(dispatcher phi.Sender, logger logrus.FieldLogger, ttl kv.Table, opts phi.Options, db db.DB) phi.Task {
-	// ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "responses", ttl)
 	return phi.New(&Cacher{
 		logger:     logger,
 		dispatcher: dispatcher,
@@ -59,22 +60,23 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		cacher.logger.Errorf("[cacher] cannot marshal request to json: %v", err)
 	}
 
-	// Calculate the hash as the request ID
+	// Calculate the request ID.
 	data := append(params, []byte(msg.Request.Method)...)
 	reqID := sha3.Sum256(data)
 
 	switch msg.Request.Method {
 	case jsonrpc.MethodSubmitTx:
 	case jsonrpc.MethodQueryTx:
-		// Get tx status from our db.
+		// Retrieve transaction status from the database.
 		req := jsonrpc.ParamsQueryTx{}
 		if err := json.Unmarshal(params, &req); err != nil {
-			cacher.logger.Errorf("[cacher] cannot unmarshal request request to json: %v", err)
+			cacher.logger.Errorf("[cacher] cannot unmarshal request request from json: %v", err)
 			return
 		}
 		confirmed, err := cacher.db.Confirmed(req.TxHash)
 		if err != nil {
-			// Forward the request to darknode if we don't have the tx in db.
+			// Send the request to the Darknodes if we do not have it in our
+			// database.
 			if err == sql.ErrNoRows {
 				break
 			}
@@ -82,10 +84,22 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 			return
 		}
 
-		// when tx hasn't reached enough confirmation, respond with confirming status.
+		// If the transaction has not reached sufficient confirmations (i.e. the
+		// Darknodes do not yet know about the transaction), respond with a
+		// custom confirming status.
 		if !confirmed {
-			cacher.respondWithConfirmingStatus(req, msg)
-			return
+			tx, err := cacher.tx(req)
+			if err == nil {
+				msg.Responder <- jsonrpc.Response{
+					Version: "2.0",
+					ID:      msg.Request.ID,
+					Result: jsonrpc.ResponseQueryTx{
+						Tx:       tx,
+						TxStatus: "confirming",
+					},
+				}
+				return
+			}
 		}
 	default:
 		response, cached := cacher.get(reqID, msg.DarknodeID)
@@ -97,16 +111,14 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	cacher.dispatch(reqID, msg)
 }
 
-// insert the response into the ttl table.
 func (cacher *Cacher) insert(reqID ID, darknodeID string, response jsonrpc.Response) {
 	id := reqID.String() + darknodeID
 	if err := cacher.ttlCache.Insert(id, response); err != nil {
-		cacher.logger.Errorf("[cacher] could not insert response into TTL cache: %v", err)
+		cacher.logger.Errorf("[cacher] cannot insert response into TTL cache: %v", err)
+		return
 	}
 }
 
-// get the cached response from the ttl table, the returned bool indicates
-// whether there's a cached response can be found from the ttl table.
 func (cacher *Cacher) get(reqID ID, darknodeID string) (jsonrpc.Response, bool) {
 	id := reqID.String() + darknodeID
 
@@ -118,7 +130,6 @@ func (cacher *Cacher) get(reqID ID, darknodeID string) (jsonrpc.Response, bool) 
 	return jsonrpc.Response{}, false
 }
 
-// dispatch sends the request to darknode and return the response.
 func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 	responder := make(chan jsonrpc.Response, 1)
 	cacher.dispatcher.Send(http.RequestWithResponder{
@@ -128,41 +139,26 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 		DarknodeID: msg.DarknodeID,
 	})
 
-	// TODO: What do we do when a second request comes in that is already
-	// being fetched at the moment? Currently it will also send it to the
-	// dispatcher, which is probably not ideal.
 	go func() {
 		response := <-responder
-		// TODO: Consider thread safety of insertion.
 		cacher.insert(id, msg.DarknodeID, response)
 		msg.Responder <- response
 	}()
 }
 
-// respondWithConfirmingStatus returns a confirming status without forwarding
-// the request to darknode.
-// FIXME : RETURNS AND ERROR IF AN INTERNAL ERROR HAPPENS, AND RESPOND TO THE USER
-// WITH A PREDEFINED ERROR.
-func (cacher *Cacher) respondWithConfirmingStatus(req jsonrpc.ParamsQueryTx, msg http.RequestWithResponder) {
+func (cacher *Cacher) tx(req jsonrpc.ParamsQueryTx) (abi.Tx, error) {
+	// Fetch the transaction if it is a shift in.
 	tx, err := cacher.db.ShiftIn(req.TxHash)
 	if err != nil {
 		if err == sql.ErrNoRows {
+			// Check if the transaction is a shift out.
 			tx, err = cacher.db.ShiftOut(req.TxHash)
 			if err != nil {
-				cacher.logger.Errorf("[cacher] cannot get tx from db: %v", err)
-				return
+				return abi.Tx{}, fmt.Errorf("[cacher] cannot get tx from db: %v", err)
 			}
 		} else {
-			cacher.logger.Errorf("[cacher] cannot get tx from db: %v", err)
-			return
+			return abi.Tx{}, fmt.Errorf("[cacher] cannot get tx from db: %v", err)
 		}
 	}
-	msg.Responder <- jsonrpc.Response{
-		Version: "2.0",
-		ID:      msg.Request.ID,
-		Result: jsonrpc.ResponseQueryTx{
-			Tx:       tx,
-			TxStatus: "confirming",
-		},
-	}
+	return tx, nil
 }
