@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"database/sql"
+	"os"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -176,7 +177,11 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 
 // Run starts the `Lightnode`. This function call is blocking.
 func (lightnode Lightnode) Run(ctx context.Context) {
-	go lightnode.updater.Run(ctx)
+	updater := os.Getenv("UPDATER")
+	if updater == "1" {
+		go lightnode.updater.Run(ctx)
+	}
+
 	go lightnode.validator.Run(ctx)
 	go lightnode.cacher.Run(ctx)
 	go lightnode.dispatcher.Run(ctx)
