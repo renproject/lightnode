@@ -22,10 +22,8 @@ import (
 func initDispatcher(ctx context.Context, bootstrapAddrs addr.MultiAddresses, timeout time.Duration) phi.Sender {
 	opts := phi.Options{Cap: 10}
 	logger := logrus.New()
-	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
-	for _, addr := range bootstrapAddrs {
-		Expect(multiStore.Insert(addr)).Should(Succeed())
-	}
+	table := kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses")
+	multiStore := store.New(table, bootstrapAddrs)
 	dispatcher := dispatcher.New(logger, timeout, multiStore, opts)
 
 	go dispatcher.Run(ctx)
