@@ -72,24 +72,18 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 			addr := fmt.Sprintf("http://%s:%v", addrs[i].IP4(), addrs[i].Port()+1)
 			response, err := dispatcher.client.SendRequest(ctx, addr, msg.Request, retryOptions)
 			if err != nil {
-				errMsg := fmt.Errorf("lightnode could not forward request to darknode: %v", err)
-				jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, errMsg.Error(), nil)
-				response = jsonrpc.NewResponse(msg.Request.ID, nil, &jsonErr)
+				return
 			}
 			responses <- response
-			if msg.Request.Method == jsonrpc.MethodSubmitTx {
-				if err != nil || response.Error != nil {
-					log.Printf("😿 fail to send to darknode = %v, err = %v, jsonErr = %v", addr, err, response.Error)
-				} else {
-					log.Printf("✅ successfully send request to darknode = %v", addr)
-				}
+			if msg.Request.Method == jsonrpc.MethodSubmitTx && response.Error != nil {
+				log.Printf("✅ successfully send request to darknode = %v", addr)
 			}
 		})
 		close(responses)
 	}()
 
 	go func() {
-		msg.Responder <- resIter.Collect(msg.Request.ID, cancel, responses)
+		msg.Responder <- resIter.Collect(cancel, responses)
 	}()
 }
 
@@ -107,14 +101,14 @@ func (dispatcher *Dispatcher) multiAddr(method string, darknodeID string) (addr.
 func (dispatcher *Dispatcher) multiAddrs(method string) (addr.MultiAddresses, error) {
 	switch method {
 	case jsonrpc.MethodSubmitTx:
-		return dispatcher.multiStore.AddrsRandom(2)
+		return dispatcher.multiStore.AddrsRandom(3)
 	case jsonrpc.MethodQueryTx:
 		// Note: since the multiStore is updated by the updater, this function
 		// will only return the nodes which are alive, and not all addresses in
 		// the shard.
 		return dispatcher.multiStore.AddrsAll()
 	default:
-		return dispatcher.multiStore.AddrsRandom(3)
+		return dispatcher.multiStore.AddrsRandom(5)
 	}
 }
 

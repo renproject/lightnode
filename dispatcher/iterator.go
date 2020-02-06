@@ -12,22 +12,22 @@ import (
 // combines them to a single response depending on different strategies. It
 // tries to cancel the ctx when it has the response.
 type Iterator interface {
-	Collect(id interface{}, cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response
+	Collect(cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response
 }
 
-// firstSuccessfulResponseIterator returns the first successful response it gets
-// and stop waiting for responses from the rest darknodes.
-type firstSuccessfulResponseIterator struct {
+// firstResponseIterator returns the first successful response it gets and stop
+// waiting for responses from the rest darknodes.
+type firstResponseIterator struct {
 	responses *interfaceMap
 }
 
-// NewFirstResponseIterator creates a new firstSuccessfulResponseIterator.
+// NewFirstResponseIterator creates a new firstResponseIterator.
 func NewFirstResponseIterator() Iterator {
-	return firstSuccessfulResponseIterator{}
+	return firstResponseIterator{}
 }
 
 // Collect implements the Iterator interface.
-func (iter firstSuccessfulResponseIterator) Collect(id interface{}, cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response {
+func (iter firstResponseIterator) Collect(cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response {
 	iter.responses = newInterfaceMap(cap(responses))
 	defer cancel()
 
@@ -35,9 +35,7 @@ func (iter firstSuccessfulResponseIterator) Collect(id interface{}, cancel conte
 		if response.Error == nil {
 			return response
 		} else{
-			if ok := iter.responses.store(response); ok{
-				return response
-			}
+			iter.responses.store(response)
 		}
 	}
 
@@ -59,7 +57,7 @@ func NewMajorityResponseIterator(logger logrus.FieldLogger) Iterator {
 }
 
 // Collect implements the `Iterator` interface.
-func (iter majorityResponseIterator) Collect(id interface{}, cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response {
+func (iter majorityResponseIterator) Collect( cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response {
 	iter.responses = newInterfaceMap(cap(responses))
 	defer cancel()
 

@@ -27,20 +27,16 @@ var _ = Describe("iterator", func() {
 				// Simulate piping Responses from darknodes to the channel
 				rs := make([]jsonrpc.Response, 13)
 				index := rand.Intn(13) // index of darknode which returns a success response
-				good := false
 				for i := 0; i < 13; i++ {
-					if i == index {
-						good = true
-					}
 					data, err := json.Marshal(i)
 					Expect(err).NotTo(HaveOccurred())
-					response := RandomResponse(good, data)
+					response := RandomResponse(i == index, data)
 					rs[i] = response
 					responses <- response
 				}
 
 				// Get the response selected by the Iterator
-				res := iter.Collect(0.0, cancel, responses)
+				res := iter.Collect(cancel, responses)
 				Expect(res).Should(Equal(rs[index]))
 
 				// Context should be canceled by the iterator
@@ -67,7 +63,7 @@ var _ = Describe("iterator", func() {
 				close(responses)
 
 				// Get the response selected by the Iterator
-				response := iter.Collect(0.0, cancel, responses)
+				response := iter.Collect(cancel, responses)
 				Expect(response.Error).ShouldNot(BeNil())
 
 				// Context should be canceled by the iterator
@@ -103,7 +99,7 @@ var _ = Describe("iterator", func() {
 				close(responses)
 
 				// Get the response selected by the Iterator
-				res := iter.Collect(0.0, cancel, responses)
+				res := iter.Collect(cancel, responses)
 				Expect(res.Error).Should(BeNil())
 
 				// Context should be canceled by the iterator
@@ -129,7 +125,7 @@ var _ = Describe("iterator", func() {
 				}
 
 				// Get the response selected by the Iterator
-				res := iter.Collect(0.0, cancel, responses)
+				res := iter.Collect(cancel, responses)
 				Expect(res.Error).ShouldNot(BeNil())
 
 				// Context should be canceled by the iterator
