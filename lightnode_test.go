@@ -85,7 +85,7 @@ package lightnode_test
 // 	darknodes := InitDarknodes(good, bad, requests)
 //
 // 	// Assume lightnode has connected to all darknodes.
-// 	bootstrap, err := darknodes[0].Store.AddrsRandom(good + bad)
+// 	bootstrap, err := darknodes[0].Store.RandomAddrs(good + bad)
 // 	Expect(err).NotTo(HaveOccurred())
 // 	opts := initOptions(bootstrap)
 // 	opts.SetZeroToDefault()

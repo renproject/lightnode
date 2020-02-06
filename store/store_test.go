@@ -20,7 +20,7 @@ var _ = Describe("Store", func() {
 			for i := 0; i < expectedSize; i++ {
 				multiaddrs[i] = testutil.RandomMultiAddress()
 			}
-			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
+			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
 			size, err := multiaddrStore.Size()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(size).Should(BeZero())
@@ -43,7 +43,7 @@ var _ = Describe("Store", func() {
 			for i := 0; i < expectedSize; i++ {
 				multiaddrs[i] = testutil.RandomMultiAddress()
 			}
-			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
+			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
 
 			// We need to increment the size by 1 since zero can be returned by rand.Intn
 			// and if we call rand.Intn(0) it will panic
@@ -71,7 +71,7 @@ var _ = Describe("Store", func() {
 			for i := 0; i < expectedSize; i++ {
 				multiaddrs[i] = testutil.RandomMultiAddress()
 			}
-			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
+			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
 
 			for i := 0; i < expectedSize; i++ {
 				Expect(multiaddrStore.Insert(multiaddrs[i])).ShouldNot(HaveOccurred())
@@ -81,23 +81,23 @@ var _ = Describe("Store", func() {
 			Expect(len(addrs)).To(Equal(expectedSize))
 		})
 
-		It("should return random multi-addrs on AddrsRandom", func() {
+		It("should return random multi-addrs on RandomAddrs", func() {
 			expectedSize := rand.Intn(100) + 1
 			multiaddrs := make(addr.MultiAddresses, expectedSize)
 			for i := 0; i < expectedSize; i++ {
 				multiaddrs[i] = testutil.RandomMultiAddress()
 			}
-			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
+			multiaddrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
 
 			for i := 0; i < expectedSize; i++ {
 				Expect(multiaddrStore.Insert(multiaddrs[i])).ShouldNot(HaveOccurred())
 			}
-			addrs, err := multiaddrStore.AddrsRandom(expectedSize + 1)
+			addrs, err := multiaddrStore.RandomAddrs(expectedSize + 1)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(len(addrs)).To(Equal(expectedSize))
 
 			randomSize := rand.Intn(expectedSize)
-			addrs, err = multiaddrStore.AddrsRandom(randomSize)
+			addrs, err = multiaddrStore.RandomAddrs(randomSize)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(len(addrs)).To(Equal(randomSize))
 		})

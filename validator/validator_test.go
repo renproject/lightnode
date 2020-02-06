@@ -31,7 +31,7 @@ var _ = Describe("Validator", func() {
 		inspector, messages := testutils.NewInspector(10)
 		go inspector.Run(ctx)
 
-		multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
+		multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
 		key, err := testutil.RandomEcdsaKey()
 		Expect(err).NotTo(HaveOccurred())
 		protocolAddr := common.HexToAddress("0x1deB773B50B66b0e65e62E41380355a1A2BEd2e1")

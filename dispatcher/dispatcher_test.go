@@ -22,7 +22,7 @@ import (
 func initDispatcher(ctx context.Context, bootstrapAddrs addr.MultiAddresses, timeout time.Duration) phi.Sender {
 	opts := phi.Options{Cap: 10}
 	logger := logrus.New()
-	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
+	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
 	for _, addr := range bootstrapAddrs {
 		Expect(multiStore.Insert(addr)).Should(Succeed())
 	}
@@ -35,7 +35,7 @@ func initDispatcher(ctx context.Context, bootstrapAddrs addr.MultiAddresses, tim
 
 func initDarknodes(n int) []*MockDarknode {
 	dns := make([]*MockDarknode, n)
-	store := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "multi"))
+	store := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "multi"), nil)
 	for i := 0; i < n; i++ {
 		server := httptest.NewServer(SimpleHandler(true, nil))
 		dns[i] = NewMockDarknode(server, store)

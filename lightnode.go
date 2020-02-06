@@ -137,16 +137,14 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 		Expiry:           options.Expiry,
 	}
 
-	// Create the store and insert the bootstrap addresses.
-	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
-	for _, bootstrapAddr := range options.BootstrapAddrs {
-		if err := multiStore.Insert(bootstrapAddr); err != nil {
-			logger.Fatalf("cannot insert bootstrap address: %v", err)
-		}
-	}
+	// Init the multiAddress store
+	table := kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses")
+	multiStore := store.New(table, options.BootstrapAddrs)
 
+	// Initialize the blockchain adapter
 	protocolAddr := common.HexToAddress(options.ProtocolAddr)
 	connPool := blockchain.New(logger, options.Network, protocolAddr)
+
 	updater := updater.New(logger, multiStore, options.UpdaterPollRate, options.ClientTimeout)
 	dispatcher := dispatcher.New(logger, options.ClientTimeout, multiStore, opts)
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
