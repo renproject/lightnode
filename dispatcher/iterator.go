@@ -2,11 +2,9 @@ package dispatcher
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/lightnode/http"
 	"github.com/sirupsen/logrus"
 )
 
@@ -20,6 +18,7 @@ type Iterator interface {
 // firstSuccessfulResponseIterator returns the first successful response it gets
 // and stop waiting for responses from the rest darknodes.
 type firstSuccessfulResponseIterator struct {
+	responses *interfaceMap
 }
 
 // NewFirstResponseIterator creates a new firstSuccessfulResponseIterator.
@@ -29,19 +28,20 @@ func NewFirstResponseIterator() Iterator {
 
 // Collect implements the Iterator interface.
 func (iter firstSuccessfulResponseIterator) Collect(id interface{}, cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response {
+	iter.responses = newInterfaceMap(cap(responses))
 	defer cancel()
 
-	errMsg := ""
 	for response := range responses {
 		if response.Error == nil {
 			return response
+		} else{
+			if ok := iter.responses.store(response); ok{
+				return response
+			}
 		}
-		errMsg += fmt.Sprintf("%v, ", response.Error.Message)
 	}
 
-	errMsg = fmt.Sprintf("lightnode could not forward request to darknode: [ %v ]", errMsg)
-	jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, errMsg, nil)
-	return jsonrpc.NewResponse(id, nil, &jsonErr)
+	return iter.responses.most().(jsonrpc.Response)
 }
 
 // majorityResponseIterator select and returns the response returned by majority
