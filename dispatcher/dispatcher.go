@@ -53,7 +53,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 		addrs, err = dispatcher.multiAddrs(msg.Request.Method)
 	}
 	if err != nil {
-		dispatcher.logger.Panicf("[dispatcher] error getting multi-address: %v", err)
+		dispatcher.logger.Errorf("[dispatcher] fail to send %v message to [%v], error getting multi-address: %v",msg.Request.Method, msg.DarknodeID, err)
 		return
 	}
 

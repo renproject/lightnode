@@ -133,7 +133,7 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) uint64 {
 		// not been set.
 		if err == redis.Nil {
 			if err := watcher.cache.Set(watcher.key(), currentBlockN-1, 0).Err(); err != nil {
-				watcher.logger.Panicf("[watcher] cannot initialise last checked block in redis: %v", err)
+				watcher.logger.Errorf("[watcher] cannot initialise last checked block in redis: %v", err)
 			}
 			last = currentBlockN - 1
 		} else {
