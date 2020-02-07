@@ -101,14 +101,13 @@ func (dispatcher *Dispatcher) multiAddr(darknodeID string) (addr.MultiAddresses,
 func (dispatcher *Dispatcher) multiAddrs(method string) (addr.MultiAddresses, error) {
 	switch method {
 	case jsonrpc.MethodSubmitTx:
-		return dispatcher.multiStore.AddrsRandom(3)
+		return dispatcher.multiStore.RandomBootstrapAddrs(3)
 	case jsonrpc.MethodQueryTx:
-		// Note: since the multiStore is updated by the updater, this function
-		// will only return the nodes which are alive, and not all addresses in
-		// the shard.
-		return dispatcher.multiStore.AddrsAll()
+		return dispatcher.multiStore.BootstrapAll()
+	case jsonrpc.MethodQueryStat:
+		return dispatcher.multiStore.RandomAddrs(3)
 	default:
-		return dispatcher.multiStore.AddrsRandom(5)
+		return dispatcher.multiStore.RandomBootstrapAddrs(5)
 	}
 }
 

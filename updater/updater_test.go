@@ -18,7 +18,7 @@ import (
 
 func initUpdater(ctx context.Context, bootstrapAddrs addr.MultiAddresses, pollRate, timeout time.Duration) store.MultiAddrStore {
 	logger := logrus.New()
-	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
+	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
 	for _, addr := range bootstrapAddrs {
 		multiStore.Insert(addr)
 	}
@@ -31,7 +31,7 @@ func initUpdater(ctx context.Context, bootstrapAddrs addr.MultiAddresses, pollRa
 
 func initDarknodes(n int) []*MockDarknode {
 	dns := make([]*MockDarknode, n)
-	store := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
+	store := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
 	for i := 0; i < n; i++ {
 		server := httptest.NewServer(RandomAddressHandler(store))
 		dns[i] = NewMockDarknode(server, store)
