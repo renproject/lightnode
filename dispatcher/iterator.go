@@ -35,15 +35,15 @@ func (iter firstResponseIterator) Collect(id interface{}, cancel context.CancelF
 	for response := range responses {
 		if response.Error == nil {
 			return response
-		} else{
+		} else {
 			iter.responses.store(response)
 		}
 	}
-	most :=  iter.responses.most()
+	most := iter.responses.most()
 
 	// Failed to get valid response from any nodes we sent to.(rare to happen)
 	if most == nil {
-		jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError,"network is down", nil)
+		jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, "network is down", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	}
 
@@ -74,8 +74,15 @@ func (iter majorityResponseIterator) Collect(id interface{}, cancel context.Canc
 			return response
 		}
 	}
+	most := iter.responses.most()
 
-	return iter.responses.most().(jsonrpc.Response)
+	// Failed to get valid response from any nodes we sent to.(rare to happen)
+	if most == nil {
+		jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, "network is down", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	return most.(jsonrpc.Response)
 }
 
 // interfaceMap use to is a customized map for storing interface{}. It uses
@@ -112,7 +119,7 @@ func (m *interfaceMap) store(key interface{}) bool {
 
 func (m *interfaceMap) most() interface{} {
 	if len(m.data) == 0 {
-		return nil 
+		return nil
 	}
 	max, index := 0, 0
 	for i := range m.counter {

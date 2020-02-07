@@ -74,6 +74,22 @@ var _ = Describe("iterator", func() {
 
 			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
 		})
+
+		It("should return an error if failed to connect to all darknodes", func() {
+			iter := NewFirstResponseIterator()
+
+			test := func() bool {
+				responses := make(chan jsonrpc.Response, 13)
+				_, cancel := context.WithCancel(context.Background())
+				close(responses)
+
+				// Get the response selected by the Iterator
+				response := iter.Collect(0.0, cancel, responses)
+				return response.Error != nil
+			}
+
+			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+		})
 	})
 
 	Context("majority response iterator", func() {
@@ -132,6 +148,23 @@ var _ = Describe("iterator", func() {
 				_, ok := <-ctx.Done()
 				Expect(ok).Should(BeFalse())
 				return true
+			}
+
+			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+		})
+
+		It("should return an error if failed to get any successful response from darknode", func() {
+			iter := NewMajorityResponseIterator(logrus.New())
+
+			test := func() bool {
+				responses := make(chan jsonrpc.Response, 13)
+				_, cancel := context.WithCancel(context.Background())
+
+				close(responses)
+
+				// Get the response selected by the Iterator
+				response := iter.Collect(0.0, cancel, responses)
+				return response.Error != nil
 			}
 
 			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
