@@ -3,117 +3,112 @@ package cacher_test
 import (
 	"context"
 	"database/sql"
+	"os"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/darknode"
+	. "github.com/renproject/lightnode/cacher"
+
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/lightnode/cacher"
+	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/db"
-	"github.com/renproject/lightnode/server"
+	"github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
 
-func initDB() db.DB {
-	sqlDB, err := sql.Open("sqlite3", "./test.db")
-	if err != nil {
-		panic(err)
-	}
-	return db.NewSQLDB(sqlDB)
-}
-
-func initCacher(ctx context.Context, cacheCap int, ttl time.Duration) (phi.Sender, <-chan phi.Message) {
-	opts := phi.Options{Cap: 10}
-	logger := logrus.New()
-	inspector, messages := testutils.NewInspector(10)
-	cacher := cacher.New(ctx, darknode.Localnet, initDB(), inspector, logger, cacheCap, ttl, 24*time.Hour, opts)
-
-	go cacher.Run(ctx)
-	go inspector.Run(ctx)
-
-	return cacher, messages
-}
-
 var _ = Describe("Cacher", func() {
-	Context("When receving a request that does not have a response in the cache", func() {
-		It("Should pass the request through", func() {
+	init := func(ctx context.Context, interval time.Duration) (phi.Sender, <-chan phi.Message) {
+		inspector, messages := testutils.NewInspector(10)
+		ttl := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", interval)
+
+		sqlDB, err := sql.Open("sqlite3", "./test.db")
+		Expect(err).NotTo(HaveOccurred())
+
+		database := db.New(sqlDB)
+		Expect(database.Init()).Should(Succeed())
+
+		cacher := New(inspector, logrus.New(), ttl, phi.Options{Cap: 10}, database)
+		go inspector.Run(ctx)
+		go cacher.Run(ctx)
+
+		return cacher, messages
+	}
+
+	cleanup := func() {
+		Expect(os.Remove("./test.db")).Should(BeNil())
+	}
+
+	Context("when receving a request that does not have a response in the cache", func() {
+		It("should pass the request through", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			cacher, messages := initCacher(ctx, 10, time.Second)
+			cacher, messages := init(ctx, time.Minute)
+			defer cleanup()
 
-			for method, _ := range jsonrpc.RPCs {
+			for method := range jsonrpc.RPCs {
 				// TODO: This method is not supported right now, but when it is
 				// this case should be tested too.
 				if method == jsonrpc.MethodQueryEpoch {
 					continue
 				}
 
-				request := testutils.ValidRequest(method)
-				cacher.Send(server.NewRequestWithResponder(request, ""))
+				request := http.NewRequestWithResponder(ctx, testutils.ValidRequest(method), "")
+				Expect(cacher.Send(request)).Should(BeTrue())
 
-				select {
-				case <-time.After(time.Second):
-					Fail("timeout")
-				case message := <-messages:
-					req, ok := message.(server.RequestWithResponder)
-					Expect(ok).To(BeTrue())
-					Expect(req.Request).To(Equal(request))
-					Expect(req.Responder).To(Not(BeNil()))
-					Eventually(req.Responder).ShouldNot(Receive())
-				}
+				var message phi.Message
+				Eventually(messages).Should(Receive(&message))
+				req, ok := message.(http.RequestWithResponder)
+				Expect(ok).To(BeTrue())
+				Expect(req.Request).To(Equal(request.Request))
+				Expect(req.Responder).To(Not(BeNil()))
+				Eventually(req.Responder).ShouldNot(Receive())
 			}
 		})
 	})
 
 	Context("when receiving a request that has a response in the cache", func() {
-		It("Should return the cached response", func() {
+		It("should return the cached response", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			cacher, messages := initCacher(ctx, 10, 1*time.Second)
+			cacher, messages := init(ctx, time.Minute)
+			defer cleanup()
 
-			for method, _ := range jsonrpc.RPCs {
-				// TODO: This method is not supported right now, but when it is
-				// this case should be tested too.
-				if method == jsonrpc.MethodQueryEpoch {
+			for method := range jsonrpc.RPCs {
+
+				// Ignore these methods.
+				switch method {
+				case jsonrpc.MethodQueryEpoch, jsonrpc.MethodSubmitTx, jsonrpc.MethodQueryTx:
 					continue
 				}
 
-				// We have disabled caching for these methods.
-				if method == jsonrpc.MethodSubmitTx || method == jsonrpc.MethodQueryTx {
-					continue
-				}
+				// Send the first request and respond with an error
+				valid := testutils.ValidRequest(method)
+				request := http.NewRequestWithResponder(ctx, valid, "")
+				Expect(cacher.Send(request)).Should(BeTrue())
+				var message phi.Message
+				Eventually(messages).Should(Receive(&message))
+				req, ok := message.(http.RequestWithResponder)
+				Expect(ok).To(BeTrue())
+				resp := testutils.ErrorResponse(request.Request.ID)
+				req.Responder <- resp
 
-				// Send the first request
-				request := testutils.ValidRequest(method)
-				reqWithRes := server.NewRequestWithResponder(request, "")
-				cacher.Send(reqWithRes)
-				forwardedReq := <-messages
-				res := testutils.ErrorResponse(request.ID)
-				forwardedReq.(server.RequestWithResponder).Responder <- res
-
-				select {
-				case <-time.After(time.Second):
-					Fail("timeout")
-				case response := <-reqWithRes.Responder:
-					Expect(response).To(Equal(res))
-				}
+				// Expect receiving the response from the responder channel
+				var receivedResp jsonrpc.Response
+				Eventually(request.Responder).Should(Receive(&receivedResp))
+				Expect(receivedResp).To(Equal(resp))
 
 				// Send the second request and expect a cached response
-				request = testutils.ValidRequest(method)
-				reqWithRes = server.NewRequestWithResponder(request, "")
-				cacher.Send(reqWithRes)
+				newReq := http.NewRequestWithResponder(ctx, valid, "")
+				Expect(cacher.Send(newReq)).Should(BeTrue())
 
-				select {
-				case <-time.After(time.Second):
-					Fail("timeout")
-				case response := <-reqWithRes.Responder:
-					Expect(response).To(Equal(res))
-					Eventually(messages).ShouldNot(Receive())
-				}
+				var newResp jsonrpc.Response
+				Eventually(newReq.Responder).Should(Receive(&newResp))
+				Expect(newResp).To(Equal(resp))
 			}
 		})
 	})

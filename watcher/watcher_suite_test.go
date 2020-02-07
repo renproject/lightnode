@@ -1,4 +1,4 @@
-package ratelimiter_test
+package watcher_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestRatelimiter(t *testing.T) {
+func TestWatcher(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Ratelimiter Suite")
+	RunSpecs(t, "Watcher Suite")
 }

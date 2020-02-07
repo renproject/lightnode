@@ -3,12 +3,13 @@ package updater
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"time"
 
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/lightnode/client"
+	"github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
@@ -20,49 +21,52 @@ import (
 // darknodes to a store. This store is shared by the `Dispatcher`, which needs
 // to know about the darknodes in the network.
 type Updater struct {
-	logger         logrus.FieldLogger
-	bootstrapAddrs addr.MultiAddresses
-	multiStore     store.MultiAddrStore
-	pollRate       time.Duration
-	timeout        time.Duration
+	logger     logrus.FieldLogger
+	multiStore store.MultiAddrStore
+	client     http.Client
+	pollRate   time.Duration
 }
 
 // New constructs a new `Updater`. If the given store of multi addresses is
 // empty, then the constructed `Updater` will be useless since it will not know
 // any darknodes to query. Therefore the given store must contain some number
 // of bootstrap addresses.
-func New(logger logrus.FieldLogger, bootstrapAddrs addr.MultiAddresses, multiStore store.MultiAddrStore, pollRate, timeout time.Duration) Updater {
+func New(logger logrus.FieldLogger, multiStore store.MultiAddrStore, pollRate, timeout time.Duration) Updater {
 	return Updater{
-		logger:         logger,
-		bootstrapAddrs: bootstrapAddrs,
-		multiStore:     multiStore,
-		pollRate:       pollRate,
-		timeout:        timeout,
+		logger:     logger,
+		multiStore: multiStore,
+		pollRate:   pollRate,
+		client:     http.NewClient(timeout),
 	}
 }
 
 // Run starts the `Updater` making requests to the darknodes and updating its
 // store. This function is blocking.
 func (updater *Updater) Run(ctx context.Context) {
+	ticker := time.NewTicker(updater.pollRate)
+	defer ticker.Stop()
+
+	updater.updateMultiAddress(ctx)
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-			updater.updateMultiAddress()
-			time.Sleep(updater.pollRate)
+		case <-ticker.C:
+			updater.updateMultiAddress(ctx)
 		}
 	}
 }
 
-func (updater *Updater) updateMultiAddress() {
+func (updater *Updater) updateMultiAddress(ctx context.Context) {
+	queryCtx, cancel := context.WithTimeout(ctx, updater.pollRate)
+	defer cancel()
+
 	params, err := json.Marshal(jsonrpc.ParamsQueryPeers{})
 	if err != nil {
 		updater.logger.Errorf("cannot marshal query peers params: %v", err)
 		return
 	}
-
-	addrs, err := updater.getQueryAddresses()
+	addrs, err := updater.multiStore.AddrsRandom(3)
 	if err != nil {
 		updater.logger.Errorf("cannot get query addresses: %v", err)
 		return
@@ -78,34 +82,27 @@ func (updater *Updater) updateMultiAddress() {
 			Method:  jsonrpc.MethodQueryPeers,
 			Params:  params,
 		}
-		response, err := client.SendToDarknode(client.URLFromMulti(multi), request, updater.timeout)
+
+		address := fmt.Sprintf("http://%s:%v", addrs[i].IP4(), addrs[i].Port()+1)
+		response, err := updater.client.SendRequest(queryCtx, address, request, nil)
 		if err != nil {
 			updater.logger.Warnf("[updater] cannot connect to node %v: %v", multi.String(), err)
-
-			// Delete address if it is not a Boostrap node and we do not receive
-			// a response.
-			isBootstrap := false
-			for _, bootstrapAddr := range updater.bootstrapAddrs {
-				if multi.String() == bootstrapAddr.String() {
-					isBootstrap = true
-				}
-			}
-
-			if !isBootstrap {
-				updater.multiStore.Delete(multi)
+			if err := updater.multiStore.Delete(multi); err != nil {
+				updater.logger.Warnf("[updater] cannot delete multi address from db : %v", err)
 			}
 			return
 		}
-
 		// Parse the response and write any multi-addresses returned by the node to the store.
 		raw, err := json.Marshal(response.Result)
 		if err != nil {
-			updater.logger.Panicf("[updater] error marshaling and already unmarshaled result: %v", err)
+			updater.logger.Errorf("[updater] error marshaling and already unmarshaled result: %v", err)
+			return
 		}
 		var resp jsonrpc.ResponseQueryPeers
 		err = json.Unmarshal(raw, &resp)
 		if err != nil {
-			updater.logger.Panicf("[updater] could not unmarshal into expected result type: %v", err)
+			updater.logger.Errorf("[updater] could not unmarshal into expected result type: %v", err)
+			return
 		}
 		for _, peer := range resp.Peers {
 			multiAddr, err := addr.NewMultiAddressFromString(peer)
@@ -119,10 +116,4 @@ func (updater *Updater) updateMultiAddress() {
 			}
 		}
 	})
-}
-
-func (updater *Updater) getQueryAddresses() (addr.MultiAddresses, error) {
-	// TODO: Should this be a constant number of random addresses always? If
-	// so, is this the right constant?
-	return updater.multiStore.AddrsRandom(3)
 }

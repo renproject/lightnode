@@ -5,3 +5,10 @@
 
 # Environment variables
 .env
+
+# IDE
+.idea
+.vscode
+
+# db
+*.db
