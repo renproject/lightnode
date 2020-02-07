@@ -48,7 +48,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 	var addrs addr.MultiAddresses
 	var err error
 	if msg.DarknodeID != "" {
-		addrs, err = dispatcher.multiAddr(msg.Request.Method, msg.DarknodeID)
+		addrs, err = dispatcher.multiAddr(msg.DarknodeID)
 	} else {
 		addrs, err = dispatcher.multiAddrs(msg.Request.Method)
 	}
@@ -69,26 +69,26 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 
 	go func() {
 		phi.ParForAll(addrs, func(i int) {
-			addr := fmt.Sprintf("http://%s:%v", addrs[i].IP4(), addrs[i].Port()+1)
-			response, err := dispatcher.client.SendRequest(ctx, addr, msg.Request, retryOptions)
+			address := fmt.Sprintf("http://%s:%v", addrs[i].IP4(), addrs[i].Port()+1)
+			response, err := dispatcher.client.SendRequest(ctx, address, msg.Request, retryOptions)
 			if err != nil {
 				return
 			}
 			responses <- response
 			if msg.Request.Method == jsonrpc.MethodSubmitTx && response.Error != nil {
-				log.Printf("✅ successfully send request to darknode = %v", addr)
+				log.Printf("✅ successfully send request to darknode = %v", address)
 			}
 		})
 		close(responses)
 	}()
 
 	go func() {
-		msg.Responder <- resIter.Collect(cancel, responses)
+		msg.Responder <- resIter.Collect(msg.Request.ID, cancel, responses)
 	}()
 }
 
 // multiAddrs returns the multi-address for the given Darknode ID.
-func (dispatcher *Dispatcher) multiAddr(method string, darknodeID string) (addr.MultiAddresses, error) {
+func (dispatcher *Dispatcher) multiAddr(darknodeID string) (addr.MultiAddresses, error) {
 	multi, err := dispatcher.multiStore.Get(darknodeID)
 	if err != nil {
 		return nil, err

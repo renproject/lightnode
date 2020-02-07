@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/lightnode/http"
 	"github.com/sirupsen/logrus"
 )
 
@@ -12,7 +13,7 @@ import (
 // combines them to a single response depending on different strategies. It
 // tries to cancel the ctx when it has the response.
 type Iterator interface {
-	Collect(cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response
+	Collect(id interface{}, cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response
 }
 
 // firstResponseIterator returns the first successful response it gets and stop
@@ -27,7 +28,7 @@ func NewFirstResponseIterator() Iterator {
 }
 
 // Collect implements the Iterator interface.
-func (iter firstResponseIterator) Collect(cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response {
+func (iter firstResponseIterator) Collect(id interface{}, cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response {
 	iter.responses = newInterfaceMap(cap(responses))
 	defer cancel()
 
@@ -38,8 +39,15 @@ func (iter firstResponseIterator) Collect(cancel context.CancelFunc, responses <
 			iter.responses.store(response)
 		}
 	}
+	most :=  iter.responses.most()
 
-	return iter.responses.most().(jsonrpc.Response)
+	// Failed to get valid response from any nodes we sent to.(rare to happen)
+	if most == nil {
+		jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError,"network is down", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	return most.(jsonrpc.Response)
 }
 
 // majorityResponseIterator select and returns the response returned by majority
@@ -57,7 +65,7 @@ func NewMajorityResponseIterator(logger logrus.FieldLogger) Iterator {
 }
 
 // Collect implements the `Iterator` interface.
-func (iter majorityResponseIterator) Collect( cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response {
+func (iter majorityResponseIterator) Collect(id interface{}, cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response {
 	iter.responses = newInterfaceMap(cap(responses))
 	defer cancel()
 
@@ -103,6 +111,9 @@ func (m *interfaceMap) store(key interface{}) bool {
 }
 
 func (m *interfaceMap) most() interface{} {
+	if len(m.data) == 0 {
+		return nil 
+	}
 	max, index := 0, 0
 	for i := range m.counter {
 		if m.counter[i] > max {

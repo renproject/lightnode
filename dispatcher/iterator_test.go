@@ -36,7 +36,7 @@ var _ = Describe("iterator", func() {
 				}
 
 				// Get the response selected by the Iterator
-				res := iter.Collect(cancel, responses)
+				res := iter.Collect(0.0, cancel, responses)
 				Expect(res).Should(Equal(rs[index]))
 
 				// Context should be canceled by the iterator
@@ -63,7 +63,7 @@ var _ = Describe("iterator", func() {
 				close(responses)
 
 				// Get the response selected by the Iterator
-				response := iter.Collect(cancel, responses)
+				response := iter.Collect(0.0, cancel, responses)
 				Expect(response.Error).ShouldNot(BeNil())
 
 				// Context should be canceled by the iterator
@@ -99,7 +99,7 @@ var _ = Describe("iterator", func() {
 				close(responses)
 
 				// Get the response selected by the Iterator
-				res := iter.Collect(cancel, responses)
+				res := iter.Collect(0.0, cancel, responses)
 				Expect(res.Error).Should(BeNil())
 
 				// Context should be canceled by the iterator
@@ -125,7 +125,7 @@ var _ = Describe("iterator", func() {
 				}
 
 				// Get the response selected by the Iterator
-				res := iter.Collect(cancel, responses)
+				res := iter.Collect(0.0, cancel, responses)
 				Expect(res.Error).ShouldNot(BeNil())
 
 				// Context should be canceled by the iterator
