@@ -66,7 +66,7 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		updater.logger.Errorf("cannot marshal query peers params: %v", err)
 		return
 	}
-	addrs, err := updater.multiStore.AddrsRandom(3)
+	addrs, err := updater.multiStore.RandomAddrs(3)
 	if err != nil {
 		updater.logger.Errorf("cannot get query addresses: %v", err)
 		return
