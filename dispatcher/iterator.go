@@ -2,7 +2,6 @@ package dispatcher
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	"github.com/renproject/darknode/jsonrpc"
@@ -17,31 +16,38 @@ type Iterator interface {
 	Collect(id interface{}, cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response
 }
 
-// firstSuccessfulResponseIterator returns the first successful response it gets
-// and stop waiting for responses from the rest darknodes.
-type firstSuccessfulResponseIterator struct {
+// firstResponseIterator returns the first successful response it gets and stop
+// waiting for responses from the rest darknodes.
+type firstResponseIterator struct {
+	responses *interfaceMap
 }
 
-// NewFirstResponseIterator creates a new firstSuccessfulResponseIterator.
+// NewFirstResponseIterator creates a new firstResponseIterator.
 func NewFirstResponseIterator() Iterator {
-	return firstSuccessfulResponseIterator{}
+	return firstResponseIterator{}
 }
 
 // Collect implements the Iterator interface.
-func (iter firstSuccessfulResponseIterator) Collect(id interface{}, cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response {
+func (iter firstResponseIterator) Collect(id interface{}, cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response {
+	iter.responses = newInterfaceMap(cap(responses))
 	defer cancel()
 
-	errMsg := ""
 	for response := range responses {
 		if response.Error == nil {
 			return response
+		} else {
+			iter.responses.store(response)
 		}
-		errMsg += fmt.Sprintf("%v, ", response.Error.Message)
+	}
+	most := iter.responses.most()
+
+	// Failed to get valid response from any nodes we sent to.(rare to happen)
+	if most == nil {
+		jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, "network is down", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	}
 
-	errMsg = fmt.Sprintf("lightnode could not forward request to darknode: [ %v ]", errMsg)
-	jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, errMsg, nil)
-	return jsonrpc.NewResponse(id, nil, &jsonErr)
+	return most.(jsonrpc.Response)
 }
 
 // majorityResponseIterator select and returns the response returned by majority
@@ -68,8 +74,15 @@ func (iter majorityResponseIterator) Collect(id interface{}, cancel context.Canc
 			return response
 		}
 	}
+	most := iter.responses.most()
 
-	return iter.responses.most().(jsonrpc.Response)
+	// Failed to get valid response from any nodes we sent to.(rare to happen)
+	if most == nil {
+		jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, "network is down", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	return most.(jsonrpc.Response)
 }
 
 // interfaceMap use to is a customized map for storing interface{}. It uses
@@ -105,6 +118,9 @@ func (m *interfaceMap) store(key interface{}) bool {
 }
 
 func (m *interfaceMap) most() interface{} {
+	if len(m.data) == 0 {
+		return nil
+	}
 	max, index := 0, 0
 	for i := range m.counter {
 		if m.counter[i] > max {
