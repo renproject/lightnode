@@ -54,7 +54,7 @@ func (multiStore *MultiAddrStore) Size() (int, error) {
 	return multiStore.store.Size()
 }
 
-// AddrsAll returns all of the multi addresses that are currently in the store.
+// AddrsAll returns all of the multi-addresses in the store.
 func (multiStore *MultiAddrStore) AddrsAll() (addr.MultiAddresses, error) {
 	addrs := addr.MultiAddresses{}
 	iter := multiStore.store.Iterator()
@@ -73,12 +73,13 @@ func (multiStore *MultiAddrStore) AddrsAll() (addr.MultiAddresses, error) {
 	return addrs, nil
 }
 
-// BootstrapAll returns all of the multi addresses of bootstrap nodes.
+// BootstrapAll returns the multi-addresses of all of the Bootstrap nodes.
 func (multiStore *MultiAddrStore) BootstrapAll() (addr.MultiAddresses, error) {
 	return multiStore.RandomBootstrapAddrs(len(multiStore.bootstrapIDs))
 }
 
-// RandomAddrs returns a random number of bootstrap nodes from the store.
+// RandomBootstrapAddrs returns a random number of Bootstrap multi-addresses in
+// the store.
 func (multiStore *MultiAddrStore) RandomBootstrapAddrs(n int) (addr.MultiAddresses, error) {
 	if n < len(multiStore.bootstrapIDs) {
 		rand.Shuffle(len(multiStore.bootstrapIDs), func(i, j int) {
@@ -98,7 +99,7 @@ func (multiStore *MultiAddrStore) RandomBootstrapAddrs(n int) (addr.MultiAddress
 	return addrs, nil
 }
 
-// RandomAddrs returns a random number of addresses from the store.
+// RandomAddrs returns a random number of multi-addresses in the store.
 func (multiStore *MultiAddrStore) RandomAddrs(n int) (addr.MultiAddresses, error) {
 	addrs, err := multiStore.AddrsAll()
 	if err != nil {
