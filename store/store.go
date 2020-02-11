@@ -1,8 +1,6 @@
 package store
 
 import (
-	"fmt"
-	"log"
 	"math/rand"
 
 	"github.com/renproject/darknode/addr"
@@ -11,23 +9,15 @@ import (
 
 // MultiAddrStore is a store of `addr.MultiAddress`es.
 type MultiAddrStore struct {
-	store        db.Table
-	bootstrapIDs addr.IDes
+	store          db.Table
+	bootstrapAddrs addr.MultiAddresses
 }
 
 // New constructs a new `MultiAddrStore`.
 func New(store db.Table, bootstrapAddrs addr.MultiAddresses) MultiAddrStore {
-	ids := make(addr.IDes, len(bootstrapAddrs))
-	for i := range bootstrapAddrs {
-		ids[i] = bootstrapAddrs[i].ID()
-		if err := store.Insert(ids[i].String(), bootstrapAddrs[i].String()); err != nil {
-			panic(fmt.Sprintf("[MultiAddrStore] cannot initialize the store with bootstrap nodes addresses"))
-		}
-	}
-
 	return MultiAddrStore{
-		store:        store,
-		bootstrapIDs: ids,
+		store:          store,
+		bootstrapAddrs: bootstrapAddrs,
 	}
 }
 
@@ -76,26 +66,20 @@ func (multiStore *MultiAddrStore) AddrsAll() (addr.MultiAddresses, error) {
 
 // BootstrapAll returns the multi-addresses of all of the Bootstrap nodes.
 func (multiStore *MultiAddrStore) BootstrapAll() (addr.MultiAddresses, error) {
-	return multiStore.RandomBootstrapAddrs(len(multiStore.bootstrapIDs))
+	return multiStore.RandomBootstrapAddrs(len(multiStore.bootstrapAddrs))
 }
 
 // RandomBootstrapAddrs returns a random number of Bootstrap multi-addresses in
 // the store.
 func (multiStore *MultiAddrStore) RandomBootstrapAddrs(n int) (addr.MultiAddresses, error) {
-	indexes := rand.Perm(len(multiStore.bootstrapIDs))
+	indexes := rand.Perm(len(multiStore.bootstrapAddrs))
+	if n > len(multiStore.bootstrapAddrs) {
+		n = len(multiStore.bootstrapAddrs)
+	}
 	addrs := make(addr.MultiAddresses, 0, n)
 
-	for _, index := range indexes{
-		if len(addrs) == n {
-			return addrs, nil
-		}
-		id := multiStore.bootstrapIDs[index].String()
-		addr, err := multiStore.Get(id)
-		if err != nil {
-			log.Printf("cannot find multiAddress of %v from the store", id)
-			continue
-		}
-		addrs = append(addrs, addr)
+	for _, index := range indexes {
+		addrs = append(addrs, multiStore.bootstrapAddrs[index])
 	}
 
 	return addrs, nil

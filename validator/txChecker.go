@@ -62,20 +62,18 @@ func (tc *txChecker) Run() {
 			}
 
 			// Check for duplicate.
-			duplicate, err := tc.checkDuplicate(tx)
+			storedTx, duplicate, err := tc.checkDuplicate(tx)
 			if err != nil {
 				tc.logger.Errorf("[txChecker] cannot check tx duplication, err = %v", err)
-				continue
-			}
-			if duplicate {
-				jsonErr := &jsonrpc.Error{Code: jsonrpc.ErrorCodeInvalidParams, Message: "tx already submitted", Data: nil}
-				req.Responder <- jsonrpc.NewResponse(req.Request.ID, nil, jsonErr)
 				continue
 			}
 
 			// Write the response to the responder channel.
 			response := jsonrpc.ResponseSubmitTx{
 				Tx: tx,
+			}
+			if duplicate {
+				response.Tx = storedTx
 			}
 			req.Responder <- jsonrpc.NewResponse(req.Request.ID, response, nil)
 		}
@@ -185,8 +183,8 @@ func (tc *txChecker) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 		if err != nil {
 			return abi.Tx{}, err
 		}
-		if int(utxo.Amount()) < MinShiftAmount {
-			return abi.Tx{}, fmt.Errorf("amount [%v] lower than minumum mint amount [%v]", utxo.Amount(), MinShiftAmount)
+		if int(utxo.Amount()) <= MinShiftAmount {
+			return abi.Tx{}, fmt.Errorf("amount [%v] needs to be greater than minumum mint amount [%v]", utxo.Amount(), MinShiftAmount)
 		}
 		utxoValue.Amount = abi.U256{Int: big.NewInt(int64(utxo.Amount()))}
 		tx.In.Append(abi.Arg{
@@ -227,8 +225,8 @@ func (tc *txChecker) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 		if err != nil {
 			return abi.Tx{}, err
 		}
-		if amount < MinShiftAmount {
-			return abi.Tx{}, fmt.Errorf("amount [%v] lower than minumum burn amount [%v]", amount, MinShiftAmount)
+		if amount <= MinShiftAmount {
+			return abi.Tx{}, fmt.Errorf("amount [%v] needs be greater than minumum burn amount [%v]", amount, MinShiftAmount)
 		}
 		tx.In.Append(
 			abi.Arg{
@@ -246,27 +244,21 @@ func (tc *txChecker) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 	return tx, nil
 }
 
-func (tc *txChecker) checkDuplicate(tx abi.Tx) (bool, error) {
+func (tc *txChecker) checkDuplicate(tx abi.Tx) (abi.Tx, bool, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
-	var err error
 	if blockchain.IsShiftIn(tx) {
-		_, err = tc.db.ShiftIn(tx.Hash)
-	} else {
-		_, err = tc.db.ShiftOut(tx.Hash)
-	}
-	if err != nil {
-		if err != sql.ErrNoRows {
-			return false, err
+		stored, err := tc.db.ShiftIn(tx.Hash)
+		if err == sql.ErrNoRows {
+			return tx, false, tc.db.InsertShiftIn(tx)
 		}
-	}
-	if err == nil {
-		return true, nil
-	}
-	if blockchain.IsShiftIn(tx) {
-		return false, tc.db.InsertShiftIn(tx)
+		return stored, true, err
 	} else {
-		return false, tc.db.InsertShiftOut(tx)
+		stored, err := tc.db.ShiftOut(tx.Hash)
+		if err == sql.ErrNoRows {
+			return tx, false, tc.db.InsertShiftOut(tx)
+		}
+		return stored, true, err
 	}
 }

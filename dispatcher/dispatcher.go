@@ -75,7 +75,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 				return
 			}
 			responses <- response
-			if msg.Request.Method == jsonrpc.MethodSubmitTx && response.Error != nil {
+			if msg.Request.Method == jsonrpc.MethodSubmitTx && response.Error == nil {
 				log.Printf("✅ successfully send request to darknode = %v", address)
 			}
 		})
