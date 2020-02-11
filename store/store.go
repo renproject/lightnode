@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"math/rand"
 
 	"github.com/renproject/darknode/addr"
@@ -15,6 +16,11 @@ type MultiAddrStore struct {
 
 // New constructs a new `MultiAddrStore`.
 func New(store db.Table, bootstrapAddrs addr.MultiAddresses) MultiAddrStore {
+	for _, addr := range bootstrapAddrs{
+		if err := store.Insert(addr.ID().String(), addr.String()); err != nil {
+			panic(fmt.Sprintf("cannot insert bootstrap address: %v", err))
+		}
+	}
 	return MultiAddrStore{
 		store:          store,
 		bootstrapAddrs: bootstrapAddrs,
