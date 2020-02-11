@@ -18,7 +18,7 @@ type MultiAddrStore struct {
 func New(store db.Table, bootstrapAddrs addr.MultiAddresses) MultiAddrStore {
 	for _, addr := range bootstrapAddrs {
 		if err := store.Insert(addr.ID().String(), addr.String()); err != nil {
-			panic(fmt.Sprintf("cannot insert bootstrap address: %v", err))
+			panic(fmt.Sprintf("[MultiAddrStore] cannot initialize the store with bootstrap nodes addresses"))
 		}
 	}
 	return MultiAddrStore{
