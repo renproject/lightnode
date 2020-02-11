@@ -72,7 +72,7 @@ func (multiStore *MultiAddrStore) AddrsAll() (addr.MultiAddresses, error) {
 
 // BootstrapAll returns the multi-addresses of all of the Bootstrap nodes.
 func (multiStore *MultiAddrStore) BootstrapAll() (addr.MultiAddresses, error) {
-	return multiStore.RandomBootstrapAddrs(len(multiStore.bootstrapAddrs))
+	return multiStore.bootstrapAddrs, nil
 }
 
 // RandomBootstrapAddrs returns a random number of Bootstrap multi-addresses in
