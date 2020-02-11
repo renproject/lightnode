@@ -68,7 +68,11 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		watcher.logger.Errorf("[watcher] error loading eth block header: %v", err)
 		return
 	}
-	last := watcher.lastCheckedBlockNumber(cur)
+	last, err := watcher.lastCheckedBlockNumber(cur)
+	if err != nil {
+		watcher.logger.Errorf("[watcher] error loading last checked block number: %v", err)
+		return
+	}
 
 	// Filter for all shift out events in this range of blocks.
 	shifter := watcher.pool.ShifterByAddress(watcher.addr)
@@ -126,22 +130,17 @@ func (watcher Watcher) currentBlockNumber(ctx context.Context) (uint64, error) {
 }
 
 // lastCheckedBlockNumber returns the last checked block number of Ethereum.
-func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) uint64 {
+func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, error) {
 	last, err := watcher.cache.Get(watcher.key()).Uint64()
-	if err != nil {
-		// Initialise the pointer with the last checked block number if it has
-		// not been set.
-		if err == redis.Nil {
-			if err := watcher.cache.Set(watcher.key(), currentBlockN-1, 0).Err(); err != nil {
-				watcher.logger.Errorf("[watcher] cannot initialise last checked block in redis: %v", err)
-			}
-			last = currentBlockN - 1
-		} else {
-			watcher.logger.Errorf("[watcher] cannot get last checked block in redis: %v", err)
-			return 0
+	// Initialise the pointer with current block number if it has not been yet.
+	if err == redis.Nil {
+		if err := watcher.cache.Set(watcher.key(), currentBlockN-1, 0).Err(); err != nil {
+			watcher.logger.Errorf("[watcher] cannot initialise last checked block in redis: %v", err)
+			return 0, err
 		}
+		return currentBlockN - 1, nil
 	}
-	return last
+	return last, err
 }
 
 // shiftOutToRequest construct a new request with given ref.
