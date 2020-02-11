@@ -56,8 +56,7 @@ func (tc *txChecker) Run() {
 		for req := range tc.requests {
 			tx, err := tc.verify(req.Request)
 			if err != nil {
-				jsonErr := &jsonrpc.Error{Code: jsonrpc.ErrorCodeInvalidParams, Message: err.Error(), Data: nil}
-				req.Responder <- jsonrpc.NewResponse(req.Request.ID, nil, jsonErr)
+				req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, err)
 				continue
 			}
 
@@ -65,6 +64,7 @@ func (tc *txChecker) Run() {
 			storedTx, duplicate, err := tc.checkDuplicate(tx)
 			if err != nil {
 				tc.logger.Errorf("[txChecker] cannot check tx duplication, err = %v", err)
+				req.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
 				continue
 			}
 

@@ -239,6 +239,11 @@ type RequestWithResponder struct {
 // IsMessage implements the `phi.Message` interface.
 func (RequestWithResponder) IsMessage() {}
 
+func (req RequestWithResponder) RespondWithErr(code int, err error) {
+	jsonErr := &jsonrpc.Error{Code: code, Message: err.Error(), Data: nil}
+	req.Responder <- jsonrpc.NewResponse(req.Request.ID, nil, jsonErr)
+}
+
 // NewRequestWithResponder constructs a new request wrapper object.
 func NewRequestWithResponder(ctx context.Context, req jsonrpc.Request, darknodeAddr string) RequestWithResponder {
 	responder := make(chan jsonrpc.Response, 1)

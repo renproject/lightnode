@@ -54,6 +54,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 	}
 	if err != nil {
 		dispatcher.logger.Errorf("[dispatcher] fail to send %v message to [%v], error getting multi-address: %v", msg.Request.Method, msg.DarknodeID, err)
+		msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
 		return
 	}
 
