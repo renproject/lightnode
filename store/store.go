@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 
 	"github.com/renproject/darknode/addr"
@@ -81,21 +82,22 @@ func (multiStore *MultiAddrStore) BootstrapAll() (addr.MultiAddresses, error) {
 // RandomBootstrapAddrs returns a random number of Bootstrap multi-addresses in
 // the store.
 func (multiStore *MultiAddrStore) RandomBootstrapAddrs(n int) (addr.MultiAddresses, error) {
-	if n < len(multiStore.bootstrapIDs) {
-		rand.Shuffle(len(multiStore.bootstrapIDs), func(i, j int) {
-			multiStore.bootstrapIDs[i], multiStore.bootstrapIDs[j] = multiStore.bootstrapIDs[j], multiStore.bootstrapIDs[i]
-		})
-	} else {
-		n = len(multiStore.bootstrapIDs)
-	}
-	addrs := make(addr.MultiAddresses, n)
-	for i := 0; i < n; i++ {
-		addr, err := multiStore.Get(multiStore.bootstrapIDs[i].String())
-		if err != nil {
-			return nil, err
+	indexes := rand.Perm(len(multiStore.bootstrapIDs))
+	addrs := make(addr.MultiAddresses, 0, n)
+
+	for _, index := range indexes{
+		if len(addrs) == n {
+			return addrs, nil
 		}
-		addrs[i] = addr
+		id := multiStore.bootstrapIDs[index].String()
+		addr, err := multiStore.Get(id)
+		if err != nil {
+			log.Printf("cannot find multiAddress of %v from the store", id)
+			continue
+		}
+		addrs = append(addrs, addr)
 	}
+
 	return addrs, nil
 }
 
