@@ -61,7 +61,7 @@ func (tc *txChecker) Run() {
 			}
 
 			// Check for duplicate.
-			storedTx, duplicate, err := tc.checkDuplicate(tx)
+			tx, err = tc.checkDuplicate(tx)
 			if err != nil {
 				tc.logger.Errorf("[txChecker] cannot check tx duplication, err = %v", err)
 				req.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
@@ -71,9 +71,6 @@ func (tc *txChecker) Run() {
 			// Write the response to the responder channel.
 			response := jsonrpc.ResponseSubmitTx{
 				Tx: tx,
-			}
-			if duplicate {
-				response.Tx = storedTx
 			}
 			req.Responder <- jsonrpc.NewResponse(req.Request.ID, response, nil)
 		}
@@ -244,21 +241,21 @@ func (tc *txChecker) verifyUTXO(tx abi.Tx) (abi.Tx, error) {
 	return tx, nil
 }
 
-func (tc *txChecker) checkDuplicate(tx abi.Tx) (abi.Tx, bool, error) {
+func (tc *txChecker) checkDuplicate(tx abi.Tx) (abi.Tx, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
 	if blockchain.IsShiftIn(tx) {
 		stored, err := tc.db.ShiftIn(tx.Hash)
 		if err == sql.ErrNoRows {
-			return tx, false, tc.db.InsertShiftIn(tx)
+			return tx, tc.db.InsertShiftIn(tx)
 		}
-		return stored, true, err
+		return stored, err
 	} else {
 		stored, err := tc.db.ShiftOut(tx.Hash)
 		if err == sql.ErrNoRows {
-			return tx, false, tc.db.InsertShiftOut(tx)
+			return tx, tc.db.InsertShiftOut(tx)
 		}
-		return stored, true, err
+		return stored, err
 	}
 }
