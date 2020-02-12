@@ -77,7 +77,7 @@ func (options *Options) SetZeroToDefault() {
 		options.ClientTimeout = time.Minute
 	}
 	if options.TTL == 0 {
-		options.TTL = 10 * time.Second
+		options.TTL = 3 * time.Second
 	}
 	if options.UpdaterPollRate == 0 {
 		options.UpdaterPollRate = 5 * time.Minute

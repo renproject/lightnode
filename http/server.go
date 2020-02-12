@@ -190,7 +190,7 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err := writeResponses(w, responses); err != nil {
-		server.logger.Errorf("error writing http response: %v", err)
+		server.logger.Warnf("error writing http response: %v", err)
 	}
 }
 
