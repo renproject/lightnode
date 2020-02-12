@@ -190,7 +190,7 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err := writeResponses(w, responses); err != nil {
-		server.logger.Errorf("error writing http response: %v", err)
+		server.logger.Warnf("error writing http response: %v", err)
 	}
 }
 
@@ -238,6 +238,11 @@ type RequestWithResponder struct {
 
 // IsMessage implements the `phi.Message` interface.
 func (RequestWithResponder) IsMessage() {}
+
+func (req RequestWithResponder) RespondWithErr(code int, err error) {
+	jsonErr := &jsonrpc.Error{Code: code, Message: err.Error(), Data: nil}
+	req.Responder <- jsonrpc.NewResponse(req.Request.ID, nil, jsonErr)
+}
 
 // NewRequestWithResponder constructs a new request wrapper object.
 func NewRequestWithResponder(ctx context.Context, req jsonrpc.Request, darknodeAddr string) RequestWithResponder {

@@ -58,6 +58,8 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	params, err := msg.Request.Params.MarshalJSON()
 	if err != nil {
 		cacher.logger.Errorf("[cacher] cannot marshal request to json: %v", err)
+		msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
+		return
 	}
 
 	// Calculate the request ID.
@@ -71,6 +73,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		req := jsonrpc.ParamsQueryTx{}
 		if err := json.Unmarshal(params, &req); err != nil {
 			cacher.logger.Errorf("[cacher] cannot unmarshal request request from json: %v", err)
+			msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
 			return
 		}
 		confirmed, err := cacher.db.Confirmed(req.TxHash)
@@ -81,6 +84,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 				break
 			}
 			cacher.logger.Errorf("[cacher] cannot get tx status from db: %v", err)
+			msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
 			return
 		}
 

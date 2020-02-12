@@ -27,14 +27,10 @@ var _ = Describe("iterator", func() {
 				// Simulate piping Responses from darknodes to the channel
 				rs := make([]jsonrpc.Response, 13)
 				index := rand.Intn(13) // index of darknode which returns a success response
-				good := false
 				for i := 0; i < 13; i++ {
-					if i == index {
-						good = true
-					}
 					data, err := json.Marshal(i)
 					Expect(err).NotTo(HaveOccurred())
-					response := RandomResponse(good, data)
+					response := RandomResponse(i == index, data)
 					rs[i] = response
 					responses <- response
 				}
@@ -74,6 +70,22 @@ var _ = Describe("iterator", func() {
 				_, ok := <-ctx.Done()
 				Expect(ok).Should(BeFalse())
 				return len(responses) == 0
+			}
+
+			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+		})
+
+		It("should return an error if failed to connect to all darknodes", func() {
+			iter := NewFirstResponseIterator()
+
+			test := func() bool {
+				responses := make(chan jsonrpc.Response, 13)
+				_, cancel := context.WithCancel(context.Background())
+				close(responses)
+
+				// Get the response selected by the Iterator
+				response := iter.Collect(0.0, cancel, responses)
+				return response.Error != nil
 			}
 
 			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
@@ -136,6 +148,23 @@ var _ = Describe("iterator", func() {
 				_, ok := <-ctx.Done()
 				Expect(ok).Should(BeFalse())
 				return true
+			}
+
+			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+		})
+
+		It("should return an error if failed to get any successful response from darknode", func() {
+			iter := NewMajorityResponseIterator(logrus.New())
+
+			test := func() bool {
+				responses := make(chan jsonrpc.Response, 13)
+				_, cancel := context.WithCancel(context.Background())
+
+				close(responses)
+
+				// Get the response selected by the Iterator
+				response := iter.Collect(0.0, cancel, responses)
+				return response.Error != nil
 			}
 
 			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())

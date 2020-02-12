@@ -21,6 +21,7 @@ import (
 // darknodes to a store. This store is shared by the `Dispatcher`, which needs
 // to know about the darknodes in the network.
 type Updater struct {
+	bootstrap  addr.MultiAddresses
 	logger     logrus.FieldLogger
 	multiStore store.MultiAddrStore
 	client     http.Client
@@ -66,7 +67,7 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		updater.logger.Errorf("cannot marshal query peers params: %v", err)
 		return
 	}
-	addrs, err := updater.multiStore.AddrsRandom(3)
+	addrs, err := updater.multiStore.RandomAddrs(3)
 	if err != nil {
 		updater.logger.Errorf("cannot get query addresses: %v", err)
 		return
@@ -101,7 +102,10 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		var resp jsonrpc.ResponseQueryPeers
 		err = json.Unmarshal(raw, &resp)
 		if err != nil {
-			updater.logger.Errorf("[updater] could not unmarshal into expected result type: %v", err)
+			updater.logger.Warnf("[updater] cannot connect to node %v: %v", multi.String(), err)
+			if !updater.isBootstrap(multi) {
+				updater.multiStore.Delete(multi)
+			}
 			return
 		}
 		for _, peer := range resp.Peers {
@@ -116,4 +120,14 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 			}
 		}
 	})
+}
+
+func (updater Updater) isBootstrap(addr addr.MultiAddress) bool {
+	for i := range updater.bootstrap {
+		if updater.bootstrap[i].ID().Equal(addr.ID()) {
+			return true
+		}
+	}
+
+	return false
 }

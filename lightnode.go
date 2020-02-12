@@ -114,39 +114,37 @@ type Lightnode struct {
 // New constructs a new `Lightnode`.
 func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB *sql.DB, client *redis.Client) Lightnode {
 	options.SetZeroToDefault()
-	// All tasks have the same capacity, and no scaling
+	// Define the options used for all Phi tasks.
 	opts := phi.Options{Cap: options.Cap}
 
-	// Initialize the databae
+	// Initialise the database.
 	db := db.New(sqlDB)
 	if err := db.Init(); err != nil {
 		logger.Panicf("fail to initialize db, err = %v", err)
 	}
 
-	// Server options
+	// Define the options used for the server.
 	serverOptions := http.Options{
 		Port:         options.Port,
 		MaxBatchSize: options.MaxBatchSize,
 		Timeout:      options.ServerTimeout,
 	}
 
-	// TODO: This is currently not configurable from the ENV variables
+	// TODO: These are currently not configurable from environment variables.
 	confirmerOptions := confirmer.Options{
 		MinConfirmations: darknode.DefaultMinConfirmations(options.Network),
 		PollInterval:     options.ConfirmerPollRate,
 		Expiry:           options.Expiry,
 	}
 
-	// Create the store and insert the bootstrap addresses.
-	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"))
-	for _, bootstrapAddr := range options.BootstrapAddrs {
-		if err := multiStore.Insert(bootstrapAddr); err != nil {
-			logger.Fatalf("cannot insert bootstrap address: %v", err)
-		}
-	}
+	// Initialise the multi-address store.
+	table := kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses")
+	multiStore := store.New(table, options.BootstrapAddrs)
 
+	// Initialise the blockchain adapter.
 	protocolAddr := common.HexToAddress(options.ProtocolAddr)
 	connPool := blockchain.New(logger, options.Network, protocolAddr)
+
 	updater := updater.New(logger, multiStore, options.UpdaterPollRate, options.ClientTimeout)
 	dispatcher := dispatcher.New(logger, options.ClientTimeout, multiStore, opts)
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
