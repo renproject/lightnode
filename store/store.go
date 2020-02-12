@@ -10,23 +10,20 @@ import (
 
 // MultiAddrStore is a store of `addr.MultiAddress`es.
 type MultiAddrStore struct {
-	store        db.Table
-	bootstrapIDs addr.IDes
+	store          db.Table
+	bootstrapAddrs addr.MultiAddresses
 }
 
 // New constructs a new `MultiAddrStore`.
 func New(store db.Table, bootstrapAddrs addr.MultiAddresses) MultiAddrStore {
-	ids := make(addr.IDes, len(bootstrapAddrs))
-	for i := range bootstrapAddrs {
-		ids[i] = bootstrapAddrs[i].ID()
-		if err := store.Insert(ids[i].String(), bootstrapAddrs[i].String()); err != nil {
+	for _, addr := range bootstrapAddrs {
+		if err := store.Insert(addr.ID().String(), addr.String()); err != nil {
 			panic(fmt.Sprintf("[MultiAddrStore] cannot initialize the store with bootstrap nodes addresses"))
 		}
 	}
-
 	return MultiAddrStore{
-		store:        store,
-		bootstrapIDs: ids,
+		store:          store,
+		bootstrapAddrs: bootstrapAddrs,
 	}
 }
 
@@ -75,27 +72,22 @@ func (multiStore *MultiAddrStore) AddrsAll() (addr.MultiAddresses, error) {
 
 // BootstrapAll returns the multi-addresses of all of the Bootstrap nodes.
 func (multiStore *MultiAddrStore) BootstrapAll() (addr.MultiAddresses, error) {
-	return multiStore.RandomBootstrapAddrs(len(multiStore.bootstrapIDs))
+	return multiStore.bootstrapAddrs, nil
 }
 
 // RandomBootstrapAddrs returns a random number of Bootstrap multi-addresses in
 // the store.
 func (multiStore *MultiAddrStore) RandomBootstrapAddrs(n int) (addr.MultiAddresses, error) {
-	if n < len(multiStore.bootstrapIDs) {
-		rand.Shuffle(len(multiStore.bootstrapIDs), func(i, j int) {
-			multiStore.bootstrapIDs[i], multiStore.bootstrapIDs[j] = multiStore.bootstrapIDs[j], multiStore.bootstrapIDs[i]
-		})
-	} else {
-		n = len(multiStore.bootstrapIDs)
+	indexes := rand.Perm(len(multiStore.bootstrapAddrs))
+	if n > len(multiStore.bootstrapAddrs) {
+		n = len(multiStore.bootstrapAddrs)
 	}
-	addrs := make(addr.MultiAddresses, n)
-	for i := 0; i < n; i++ {
-		addr, err := multiStore.Get(multiStore.bootstrapIDs[i].String())
-		if err != nil {
-			return nil, err
-		}
-		addrs[i] = addr
+	addrs := make(addr.MultiAddresses, 0, n)
+
+	for _, index := range indexes {
+		addrs = append(addrs, multiStore.bootstrapAddrs[index])
 	}
+
 	return addrs, nil
 }
 
