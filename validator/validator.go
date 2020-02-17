@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/renproject/darknode/consensus/txcheck/transform"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/lightnode/blockchain"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
@@ -30,13 +30,13 @@ type Validator struct {
 	cacher     phi.Sender
 	multiStore store.MultiAddrStore
 	requests   chan http.RequestWithResponder
-	connPool   blockchain.ConnPool
+	bc         transform.Blockchain
 }
 
 // New constructs a new `Validator`.
-func New(logger logrus.FieldLogger, cacher phi.Sender, multiStore store.MultiAddrStore, opts phi.Options, key ecdsa.PublicKey, connPool blockchain.ConnPool, db db.DB) phi.Task {
+func New(logger logrus.FieldLogger, cacher phi.Sender, multiStore store.MultiAddrStore, opts phi.Options, key ecdsa.PublicKey, bc transform.Blockchain, db db.DB) phi.Task {
 	requests := make(chan http.RequestWithResponder, 128)
-	txChecker := newTxChecker(logger, requests, key, connPool, db)
+	txChecker := newTxChecker(logger, requests, key, bc, db)
 	go txChecker.Run()
 
 	return phi.New(&Validator{

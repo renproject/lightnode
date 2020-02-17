@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/renproject/darknode/abi"
+	"github.com/renproject/darknode/consensus/txcheck/transform/blockchain"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/lightnode/blockchain"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/phi"
@@ -32,17 +32,17 @@ type Confirmer struct {
 	options    Options
 	dispatcher phi.Sender
 	database   db.DB
-	connPool   blockchain.ConnPool
+	bc         blockchain.ConnPool
 }
 
 // New returns a new Confirmer.
-func New(logger logrus.FieldLogger, options Options, dispatcher phi.Sender, db db.DB, connPool blockchain.ConnPool) Confirmer {
+func New(logger logrus.FieldLogger, options Options, dispatcher phi.Sender, db db.DB, bc blockchain.ConnPool) Confirmer {
 	return Confirmer{
 		logger:     logger,
 		options:    options,
 		dispatcher: dispatcher,
 		database:   db,
-		connPool:   connPool,
+		bc:         bc,
 	}
 }
 
@@ -92,7 +92,7 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 	phi.ParForAll(txs, func(i int) {
 		tx := txs[i]
 		var confirmed bool
-		if blockchain.IsShiftIn(tx) {
+		if abi.IsShiftIn(tx.To) {
 			confirmed = confirmer.shiftInTxConfirmed(ctx, tx)
 		} else {
 			confirmed = confirmer.shiftOutTxConfirmed(ctx, tx)
@@ -126,22 +126,22 @@ func (confirmer *Confirmer) confirm(tx abi.Tx) {
 // shiftInTxConfirmed checks if a given shift in transaction has received
 // sufficient confirmations.
 func (confirmer *Confirmer) shiftInTxConfirmed(ctx context.Context, tx abi.Tx) bool {
-	utxo := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
-
-	confirmations, err := confirmer.connPool.UtxoConfirmations(ctx, tx.To, utxo.TxHash)
+	utxoVal := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
+	utxo, err := confirmer.bc.Utxo(ctx, tx.To, utxoVal.TxHash, utxoVal.VOut)
 	if err != nil {
-		confirmer.logger.Errorf("[confirmer] cannot get confirmation for tx=%v (%v): %v", utxo.TxHash.String(), tx.To, err)
+		confirmer.logger.Errorf("[confirmer] cannot get confirmation for tx=%v (%v): %v", utxoVal.TxHash.String(), tx.To, err)
 		return false
 	}
-	minCon := confirmer.options.MinConfirmations[tx.To]
-	return confirmations >= minCon
+
+	return utxo.Confirmations() >= confirmer.options.MinConfirmations[tx.To]
 }
 
 // shiftOutTxConfirmed checks if a given shift out transaction has received
 // sufficient confirmations.
 func (confirmer *Confirmer) shiftOutTxConfirmed(ctx context.Context, tx abi.Tx) bool {
 	ref := tx.In.Get("ref").Value.(abi.U64)
-	confirmations, err := confirmer.connPool.EventConfirmations(ctx, tx.To, ref.Int.Uint64())
+
+	confirmations, err := confirmer.bc.EventConfirmations(ctx, tx.To, ref.Int.Uint64())
 	if err != nil {
 		confirmer.logger.Errorf("[confirmer] cannot get confirmation for ethereum event (%v): %v", tx.To, err)
 		return false
@@ -163,7 +163,7 @@ func submitTxRequest(tx abi.Tx) (jsonrpc.Request, error) {
 		return jsonrpc.Request{}, errors.New("missing amount argument")
 	}
 
-	if blockchain.IsShiftIn(tx) {
+	if abi.IsShiftIn(tx.To) {
 		tx.Autogen = abi.Args{}
 		utxo := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
 		tx.In.Set("utxo", abi.ExtBtcCompatUTXO{

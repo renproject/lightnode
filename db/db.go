@@ -13,9 +13,11 @@ import (
 type TxStatus int8
 
 const (
-	TxStatusNil        = TxStatus(0)
-	TxStatusConfirming = TxStatus(1)
-	TxStatusConfirmed  = TxStatus(2)
+	TxStatusNil TxStatus = iota
+	TxStatusConfirming
+	TxStatusConfirmed
+	TxStatusDispatched
+	TxStatusSubmitted
 )
 
 // DB abstracts all database interactions.

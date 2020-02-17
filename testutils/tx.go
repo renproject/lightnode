@@ -1,7 +1,6 @@
 package testutils
 
 import (
-	"bytes"
 	"math/big"
 	"math/rand"
 
@@ -54,22 +53,10 @@ func RandomShiftOut() abi.Tx {
 	amountArg := abi.Arg{
 		Name:  "amount",
 		Type:  abi.TypeU256,
-		Value: abi.U256{Int: big.NewInt(int64(rand.Int63()))},
+		Value: abi.U256{Int: big.NewInt(rand.Int63())},
 	}
 	tx.In.Append(toArg, amountArg)
 	return tx
-}
-
-func CompareTx(lhs, rhs abi.Tx) bool {
-	lData, err := lhs.MarshalBinary()
-	if err != nil {
-		panic(err)
-	}
-	rData, err := rhs.MarshalBinary()
-	if err != nil {
-		panic(err)
-	}
-	return bytes.Equal(lData, rData)
 }
 
 func RandomUtxo() abi.ExtBtcCompatUTXO {

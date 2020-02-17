@@ -4,14 +4,15 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/addr"
+	"github.com/renproject/darknode/consensus/txcheck/transform/blockchain"
 	"github.com/renproject/kv"
-	"github.com/renproject/lightnode/blockchain"
 	"github.com/renproject/lightnode/cacher"
 	"github.com/renproject/lightnode/confirmer"
 	"github.com/renproject/lightnode/db"
@@ -21,6 +22,9 @@ import (
 	"github.com/renproject/lightnode/updater"
 	"github.com/renproject/lightnode/validator"
 	"github.com/renproject/lightnode/watcher"
+	"github.com/renproject/mercury/sdk/client/btcclient"
+	"github.com/renproject/mercury/sdk/client/ethclient"
+	"github.com/renproject/mercury/types"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -143,18 +147,25 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 
 	// Initialise the blockchain adapter.
 	protocolAddr := common.HexToAddress(options.ProtocolAddr)
-	connPool := blockchain.New(logger, options.Network, protocolAddr)
+	btcClient := btcclient.NewClient(logger, darknode.BtcNetwork(types.Bitcoin, options.Network))
+	zecClient := btcclient.NewClient(logger, darknode.BtcNetwork(types.ZCash, options.Network))
+	bchClient := btcclient.NewClient(logger, darknode.BtcNetwork(types.BitcoinCash, options.Network))
+	ethClient, err := ethclient.New(logger, darknode.EthShifterNetwork(options.Network))
+	if err != nil {
+		panic(fmt.Errorf("cannot initialise eth client: %v", err))
+	}
+	bc := blockchain.New(logger, btcClient, zecClient, bchClient, ethClient, protocolAddr)
 
 	updater := updater.New(logger, multiStore, options.UpdaterPollRate, options.ClientTimeout)
 	dispatcher := dispatcher.New(logger, options.ClientTimeout, multiStore, opts)
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
 	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
-	validator := validator.New(logger, cacher, multiStore, opts, *options.DisPubkey, connPool, db)
+	validator := validator.New(logger, cacher, multiStore, opts, *options.DisPubkey, bc, db)
 	server := http.New(logger, serverOptions, validator)
-	confirmer := confirmer.New(logger, confirmerOptions, dispatcher, db, connPool)
-	btcWatcher := watcher.NewWatcher(logger, "BTC0Eth2Btc", connPool, validator, client, options.WatcherPollRate)
-	zecWatcher := watcher.NewWatcher(logger, "ZEC0Eth2Zec", connPool, validator, client, options.WatcherPollRate)
-	bchWatcher := watcher.NewWatcher(logger, "BCH0Eth2Bch", connPool, validator, client, options.WatcherPollRate)
+	confirmer := confirmer.New(logger, confirmerOptions, dispatcher, db, bc)
+	btcWatcher := watcher.NewWatcher(logger, "BTC0Eth2Btc", bc, validator, client, options.WatcherPollRate)
+	zecWatcher := watcher.NewWatcher(logger, "ZEC0Eth2Zec", bc, validator, client, options.WatcherPollRate)
+	bchWatcher := watcher.NewWatcher(logger, "BCH0Eth2Bch", bc, validator, client, options.WatcherPollRate)
 
 	return Lightnode{
 		options:    options,
