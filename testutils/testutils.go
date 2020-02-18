@@ -12,6 +12,26 @@ import (
 	"github.com/renproject/phi"
 )
 
+type MockSender struct {
+	Messages chan phi.Message
+}
+
+func (m *MockSender) Send(message phi.Message) bool {
+	select {
+	case m.Messages <- message:
+		return true
+	default:
+		return false
+	}
+}
+
+func NewMockSender() *MockSender{
+	return &MockSender{
+		Messages : make(chan phi.Message, 128),
+	}
+}
+
+
 // An Inspector is a mock task that will simply write all of its received
 // messages out on to a channel for inspection.
 type Inspector struct {
