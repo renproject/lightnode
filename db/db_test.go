@@ -16,6 +16,7 @@ import (
 	. "github.com/renproject/lightnode/testutils"
 
 	"github.com/renproject/darknode/abi"
+	"github.com/renproject/darknode/testutil"
 )
 
 const (
@@ -62,6 +63,18 @@ var _ = Describe("Lightnode db", func() {
 		}
 	}
 
+	// Initialize a shift in tx without scriptPubkey and amount as we are not
+	// going to store those fields in db.
+	randomShiftIn := func() abi.Tx {
+		shiftIn := testutil.RandomTransformedMintingTx("")
+		utxo := shiftIn.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
+		shiftIn.In.Set("utxo", abi.ExtBtcCompatUTXO{
+			TxHash: utxo.TxHash,
+			VOut:   utxo.VOut,
+		})
+		return shiftIn
+	}
+
 	BeforeSuite(func() {
 		os.Remove("./test.db")
 	})
@@ -105,8 +118,8 @@ var _ = Describe("Lightnode db", func() {
 						Expect(db.Init()).Should(Succeed())
 						defer dropTables(sqlDB, "shiftin", "shiftout")
 
-						shiftIn := RandomShiftIn()
-						shiftOut := RandomShiftOut()
+						shiftIn := randomShiftIn()
+						shiftOut := testutil.RandomTransformedBurningTx("")
 
 						Expect(db.InsertShiftIn(shiftIn)).Should(Succeed())
 						Expect(db.InsertShiftOut(shiftOut)).Should(Succeed())
@@ -138,10 +151,10 @@ var _ = Describe("Lightnode db", func() {
 
 						txs := map[abi.B32]abi.Tx{}
 						for i := 0; i < 50; i++ {
-							shiftIn := RandomShiftIn()
+							shiftIn := randomShiftIn()
 							txs[shiftIn.Hash] = shiftIn
 							Expect(db.InsertShiftIn(shiftIn)).To(Succeed())
-							shiftOut := RandomShiftOut()
+							shiftOut := testutil.RandomTransformedBurningTx("")
 							txs[shiftOut.Hash] = shiftOut
 							Expect(db.InsertShiftOut(shiftOut)).To(Succeed())
 						}
@@ -170,10 +183,10 @@ var _ = Describe("Lightnode db", func() {
 						defer dropTables(sqlDB, "shiftin", "shiftout")
 
 						for i := 0; i < 50; i++ {
-							shiftIn := RandomShiftIn()
+							shiftIn := randomShiftIn()
 							Expect(db.InsertShiftIn(shiftIn)).To(Succeed())
 							Expect(db.ConfirmTx(shiftIn.Hash)).Should(Succeed())
-							shiftOut := RandomShiftOut()
+							shiftOut := testutil.RandomTransformedBurningTx("")
 							Expect(db.InsertShiftOut(shiftOut)).To(Succeed())
 							Expect(db.ConfirmTx(shiftOut.Hash)).Should(Succeed())
 						}
@@ -196,10 +209,11 @@ var _ = Describe("Lightnode db", func() {
 						defer dropTables(sqlDB, "shiftin", "shiftout")
 
 						for i := 0; i < 50; i++ {
-							shiftIn := RandomShiftIn()
+
+							shiftIn := randomShiftIn()
 							Expect(db.InsertShiftIn(shiftIn)).To(Succeed())
 							Expect(UpdateTxCreatedTime(sqlDB, "shiftin", shiftIn.Hash, time.Now().Unix()-24*3600-1)).Should(Succeed())
-							shiftOut := RandomShiftOut()
+							shiftOut := testutil.RandomTransformedBurningTx("")
 							Expect(db.InsertShiftOut(shiftOut)).To(Succeed())
 							Expect(UpdateTxCreatedTime(sqlDB, "shiftout", shiftOut.Hash, time.Now().Unix()-24*3600-1)).Should(Succeed())
 						}
@@ -224,7 +238,7 @@ var _ = Describe("Lightnode db", func() {
 						defer dropTables(sqlDB, "shiftin", "shiftout")
 
 						for i := 0; i < 50; i++ {
-							shiftIn := RandomShiftIn()
+							shiftIn := randomShiftIn()
 							Expect(db.InsertShiftIn(shiftIn)).To(Succeed())
 							confirmed, err := db.Confirmed(shiftIn.Hash)
 							Expect(err).NotTo(HaveOccurred())
@@ -234,7 +248,7 @@ var _ = Describe("Lightnode db", func() {
 							Expect(err).NotTo(HaveOccurred())
 							Expect(confirmed).Should(BeTrue())
 
-							shiftOut := RandomShiftOut()
+							shiftOut := testutil.RandomTransformedBurningTx("")
 							Expect(db.InsertShiftOut(shiftOut)).To(Succeed())
 							confirmed, err = db.Confirmed(shiftOut.Hash)
 							Expect(err).NotTo(HaveOccurred())
@@ -264,9 +278,9 @@ var _ = Describe("Lightnode db", func() {
 						Expect(db.Init()).Should(Succeed())
 						defer dropTables(sqlDB, "shiftin", "shiftout")
 
-						shiftIn := RandomShiftIn()
+						shiftIn := randomShiftIn()
+						shiftOut := testutil.RandomTransformedBurningTx("")
 						Expect(db.InsertShiftIn(shiftIn)).To(Succeed())
-						shiftOut := RandomShiftOut()
 						Expect(db.InsertShiftOut(shiftOut)).To(Succeed())
 
 						// Expect no data gets pruned when they are not expired

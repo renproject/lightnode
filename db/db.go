@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/renproject/darknode/abi"
+	"github.com/renproject/darknode/consensus/txcheck/transform"
 )
 
 type TxStatus int8
@@ -41,7 +42,8 @@ func (db DB) Init() error {
     status               BIGINT,
     created_time         INT, 
     contract             VARCHAR(255),
-    phash                CHAR(64),
+    p                    VARCHAR,
+    phash                VARCHAR(64),
     token                CHAR(40),
     toAddr               CHAR(40),
     n                    CHAR(64),
@@ -72,10 +74,25 @@ func (db DB) Init() error {
 
 // InsertShiftIn stores a shift in tx to the database.
 func (db DB) InsertShiftIn(tx abi.Tx) error {
-	phash, ok := tx.In.Get("phash").Value.(abi.B32)
-	if !ok {
-		return fmt.Errorf("unexpected type for phash, expected abi.B32, got %v", tx.In.Get("phash").Value.Type())
+	p := tx.In.Get("p")
+	var pVal []byte
+	if !p.IsNil() {
+		var err error
+		pVal, err = p.Value.MarshalBinary()
+		if err != nil {
+			return err
+		}
 	}
+	phashArg := tx.In.Get("phash")
+	var phashVal []byte
+	if !phashArg.IsNil() {
+		phash, ok := phashArg.Value.(abi.B32)
+		if !ok {
+			return fmt.Errorf("unexpected type for phash, expected abi.B32, got %v", tx.In.Get("phash").Value.Type())
+		}
+		phashVal = phash[:]
+	}
+
 	amount, ok := tx.In.Get("amount").Value.(abi.U256)
 	if !ok {
 		return fmt.Errorf("unexpected type for amount, expected abi.U256, got %v", tx.In.Get("amount").Value.Type())
@@ -109,13 +126,14 @@ func (db DB) InsertShiftIn(tx abi.Tx) error {
 		return fmt.Errorf("unexpected type for sighash, expected abi.B32, got %v", tx.In.Get("sighash").Value.Type())
 	}
 
-	script := `INSERT INTO shiftin (hash, status, created_time, contract, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout)
-VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT DO NOTHING;`
+	script := `INSERT INTO shiftin (hash, status, created_time, contract, p, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout)
+VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);`
 	_, err := db.db.Exec(script,
 		hex.EncodeToString(tx.Hash[:]),
 		time.Now().Unix(),
 		tx.To,
-		hex.EncodeToString(phash[:]),
+		hex.EncodeToString(pVal),
+		hex.EncodeToString(phashVal),
 		hex.EncodeToString(token[:]),
 		hex.EncodeToString(to[:]),
 		hex.EncodeToString(n[:]),
@@ -126,6 +144,7 @@ VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT D
 		hex.EncodeToString(utxo.TxHash[:]),
 		utxo.VOut.Int.Int64(),
 	)
+
 	return err
 }
 
@@ -159,14 +178,14 @@ VALUES ($1, 1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING;`
 
 // ShiftIn returns the shift in tx with the given hash.
 func (db DB) ShiftIn(txHash abi.B32) (abi.Tx, error) {
-	var contract, phash, token, to, n, ghash, nhash, sighash, utxoHash string
+	var contract, p, phash, token, to, n, ghash, nhash, sighash, utxoHash string
 	var amount, utxoVout int
-	err := db.db.QueryRow("SELECT contract, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM shiftin WHERE hash = $1", hex.EncodeToString(txHash[:])).Scan(
-		&contract, &phash, &token, &to, &n, &amount, &ghash, &nhash, &sighash, &utxoHash, &utxoVout)
+	err := db.db.QueryRow("SELECT contract, p, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM shiftin WHERE hash = $1", hex.EncodeToString(txHash[:])).Scan(
+		&contract, &p, &phash, &token, &to, &n, &amount, &ghash, &nhash, &sighash, &utxoHash, &utxoVout)
 	if err != nil {
 		return abi.Tx{}, err
 	}
-	return constructShiftIn(txHash, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash, amount, utxoVout)
+	return constructShiftIn(txHash, contract, p, phash, token, to, n, ghash, nhash, sighash, utxoHash, amount, utxoVout)
 }
 
 // ShiftOut returns the shift out tx with the given hash.
@@ -187,7 +206,7 @@ func (db DB) PendingTxs() (abi.Txs, error) {
 	txs := make(abi.Txs, 0, 128)
 
 	// Get pending shift in txs.
-	shiftIns, err := db.db.Query(`SELECT hash, contract, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM shiftin 
+	shiftIns, err := db.db.Query(`SELECT hash, contract, p, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM shiftin 
 		WHERE status = $1 AND $2 - created_time < 86400`, TxStatusConfirming, time.Now().Unix())
 	if err != nil {
 		return nil, err
@@ -195,9 +214,9 @@ func (db DB) PendingTxs() (abi.Txs, error) {
 	defer shiftIns.Close()
 
 	for shiftIns.Next() {
-		var hash, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash string
+		var hash, contract, p, phash, token, to, n, ghash, nhash, sighash, utxoHash string
 		var amount, utxoVout int
-		err = shiftIns.Scan(&hash, &contract, &phash, &token, &to, &n, &amount, &ghash, &nhash, &sighash, &utxoHash, &utxoVout)
+		err = shiftIns.Scan(&hash, &contract, &p, &phash, &token, &to, &n, &amount, &ghash, &nhash, &sighash, &utxoHash, &utxoVout)
 		if err != nil {
 			return nil, err
 		}
@@ -206,7 +225,7 @@ func (db DB) PendingTxs() (abi.Txs, error) {
 		if err != nil {
 			return nil, err
 		}
-		tx, err := constructShiftIn(txHash, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash, amount, utxoVout)
+		tx, err := constructShiftIn(txHash, contract, p, phash, token, to, n, ghash, nhash, sighash, utxoHash, amount, utxoVout)
 		if err != nil {
 			return nil, err
 		}
@@ -282,15 +301,32 @@ func (db DB) ConfirmTx(hash abi.B32) error {
 
 // constructShiftIn constructs a transaction using the data queried from the
 // database.
-func constructShiftIn(hash abi.B32, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash string, amount, utxoVout int) (abi.Tx, error) {
+func constructShiftIn(hash abi.B32, contract, p, phash, token, to, n, ghash, nhash, sighash, utxoHash string, amount, utxoVout int) (abi.Tx, error) {
 	tx := abi.Tx{
 		Hash: hash,
 		To:   abi.Address(contract),
 	}
-	phashArg, err := decodeB32("phash", phash)
+
+	pArg, err := decodePayload(p)
 	if err != nil {
 		return abi.Tx{}, err
 	}
+	if !pArg.IsNil() {
+		tx.In.Append(pArg)
+	}
+
+	if phash != "" {
+		phashArg, err := decodeB32("phash", phash)
+		if err != nil {
+			return abi.Tx{}, err
+		}
+		tx.In.Append(phashArg)
+	}
+	tx, err = transform.Phash(tx)
+	if err != nil {
+		return abi.Tx{}, err
+	}
+
 	tokenArg, err := decodeEthAddress("token", token)
 	if err != nil {
 		return abi.Tx{}, err
@@ -332,10 +368,30 @@ func constructShiftIn(hash abi.B32, contract, phash, token, to, n, ghash, nhash,
 			VOut:   abi.U32{Int: big.NewInt(int64(utxoVout))},
 		},
 	}
-	tx.In.Append(phashArg, tokenArg, toArg, nArg, utxoArg, amountArg)
+	tx.In.Append(tokenArg, toArg, nArg, utxoArg, amountArg)
 	tx.Autogen.Append(ghashArg, nhashArg, sighashArg)
 
 	return tx, nil
+}
+
+func decodePayload(p string) (abi.Arg, error) {
+	if len(p) != 0 {
+		var pVal abi.ExtEthCompatPayload
+		data, err := hex.DecodeString(p)
+		if err != nil {
+			return abi.Arg{}, err
+		}
+		if err := pVal.UnmarshalBinary(data); err != nil {
+			return abi.Arg{}, err
+		}
+		return abi.Arg{
+			Name:  "p",
+			Type:  abi.ExtTypeEthCompatPayload,
+			Value: pVal,
+		}, nil
+	}
+
+	return abi.Arg{}, nil
 }
 
 // constructShiftOut constructs a transaction using the data queried from the

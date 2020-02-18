@@ -135,12 +135,27 @@ func RandomAbiValue(t abi.Type) abi.Value {
 	case abi.TypeU64:
 		return abi.U64{Int: big.NewInt(rand.Int63())}
 	case abi.ExtTypeBtcCompatUTXO:
-		return RandomUtxo()
+		return testutil.RandomExtBtcCompatUTXO()
 	case abi.ExtTypeEthCompatAddress:
 		return testutil.RandomExtEthCompatAddress()
+	case abi.ExtTypeEthCompatPayload:
+		return RandomExtCompatPayload()
 	default:
 		panic(fmt.Sprintf("unknown type %v", t))
 	}
+}
+
+func RandomExtCompatPayload() abi.Value {
+	abiArg := make([]abi.B, rand.Intn(32))
+	for i := range abiArg {
+		abiArg[i] = testutil.RandomB()
+	}
+	return abi.ExtEthCompatPayload{
+		ABI:   abiArg,
+		Value: testutil.RandomB(),
+		Fn:    testutil.RandomB(),
+	}
+
 }
 
 // ErrorResponse constructs a basic valid `jsonrpc.Response` that contains a
