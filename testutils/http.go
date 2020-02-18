@@ -151,6 +151,7 @@ func SendRequestAsync(req jsonrpc.Request, to string) (chan *jsonrpc.Response, e
 		}
 		respChan <- &resp
 	}()
+	time.Sleep(100 * time.Millisecond)
 	return respChan, nil
 }
 

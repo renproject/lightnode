@@ -106,7 +106,7 @@ var _ = Describe("Lightnode server", func() {
 				return cmp.Equal(*response.Error, *resp.Error, cmpopts.EquateEmpty())
 			}
 
-			Expect(quick.Check(test, &quick.Config{MaxCount: 1000})).NotTo(HaveOccurred())
+			Expect(quick.Check(test, &quick.Config{MaxCount: 50})).NotTo(HaveOccurred())
 		})
 	})
 
