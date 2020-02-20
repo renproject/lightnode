@@ -17,7 +17,7 @@ const (
 	TxStatusNil TxStatus = iota
 	TxStatusConfirming
 	TxStatusConfirmed
-	TxStatusDispatched
+	// TxStatusDispatched
 	TxStatusSubmitted
 )
 
@@ -265,6 +265,31 @@ func (db DB) PendingTxs() (abi.Txs, error) {
 	return txs, shiftOuts.Err()
 }
 
+func (db DB) UnsubmittedTx() ([]abi.B32, error) {
+	hashes := make([]abi.B32, 0)
+
+	// Get txs which haven't been submitted
+	shiftIns, err := db.db.Query(`SELECT hash FROM shiftin 
+		WHERE status = $1 AND $2 - created_time < 86400 AND LENGTH(payload)>0;`, TxStatusConfirmed, time.Now().Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer shiftIns.Close()
+
+	for shiftIns.Next() {
+		var hash string
+		if err := shiftIns.Scan(&hash); err != nil {
+			return nil, err
+		}
+		txHash, err := stringToB32(hash)
+		if err != nil {
+			return nil, err
+		}
+		hashes = append(hashes, txHash)
+	}
+	return hashes, shiftIns.Err()
+}
+
 // Prune deletes txs which have expired based on the given expiry.
 func (db DB) Prune(expiry time.Duration) error {
 	_, err := db.db.Exec("DELETE FROM shiftin WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
@@ -289,13 +314,14 @@ func (db DB) Confirmed(hash abi.B32) (bool, error) {
 	return TxStatus(status) == TxStatusConfirmed, err
 }
 
-// ConfirmTx sets the transaction status to confirmed.
-func (db DB) ConfirmTx(hash abi.B32) error {
-	_, err := db.db.Exec("UPDATE shiftin SET status = $1 WHERE hash = $2;", TxStatusConfirmed, hex.EncodeToString(hash[:]))
+
+// UpdateTxStatus sets the transaction status to confirmed.
+func (db DB) UpdateTxStatus(hash abi.B32, status TxStatus) error {
+	_, err := db.db.Exec("UPDATE shiftin SET status = $1 WHERE hash = $2 AND status < $1;", status, hex.EncodeToString(hash[:]))
 	if err != nil {
 		return err
 	}
-	_, err = db.db.Exec("UPDATE shiftout SET status = $1 WHERE hash = $2;", TxStatusConfirmed, hex.EncodeToString(hash[:]))
+	_, err = db.db.Exec("UPDATE shiftout SET status = $1 WHERE hash = $2 AND status < $1;", status, hex.EncodeToString(hash[:]))
 	return err
 }
 

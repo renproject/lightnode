@@ -118,7 +118,7 @@ func (confirmer *Confirmer) confirm(tx abi.Tx) {
 		return
 	}
 
-	if err := confirmer.database.ConfirmTx(tx.Hash); err != nil {
+	if err := confirmer.database.UpdateTxStatus(tx.Hash, db.TxStatusConfirmed); err != nil {
 		confirmer.logger.Errorf("[confirmer] cannot confirm tx in the database: %v", err)
 	}
 }

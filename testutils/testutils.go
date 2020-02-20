@@ -171,7 +171,7 @@ func RandomExtCompatPayload() abi.Value {
 		abiArg[i] = testutil.RandomB()
 	}
 	return abi.ExtEthCompatPayload{
-		ABI:   abiArg,
+		ABI:   testutil.RandomB(),
 		Value: testutil.RandomB(),
 		Fn:    testutil.RandomB(),
 	}
