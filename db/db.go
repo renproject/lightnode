@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"time"
@@ -78,7 +79,7 @@ func (db DB) InsertShiftIn(tx abi.Tx) error {
 	var pVal []byte
 	if !p.IsNil() {
 		var err error
-		pVal, err = p.Value.MarshalBinary()
+		pVal, err = json.Marshal(p.Value)
 		if err != nil {
 			return err
 		}
@@ -415,7 +416,7 @@ func decodePayload(p *string) (abi.Arg, error) {
 		if err != nil {
 			return abi.Arg{}, err
 		}
-		if err := pVal.UnmarshalBinary(data); err != nil {
+		if err := json.Unmarshal(data, &pVal); err != nil {
 			return abi.Arg{}, err
 		}
 		return abi.Arg{
