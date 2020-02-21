@@ -410,7 +410,7 @@ func constructShiftIn(hash abi.B32, p *string, contract, phash, token, to, n, gh
 }
 
 func decodePayload(p *string) (abi.Arg, error) {
-	if p != nil {
+	if p != nil && *p != ""{
 		var pVal abi.ExtEthCompatPayload
 		data, err := hex.DecodeString(*p)
 		if err != nil {

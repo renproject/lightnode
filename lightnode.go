@@ -212,7 +212,7 @@ func (lightnode Lightnode) Listen(ctx context.Context) {
 	httpHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,
-		AllowedMethods:   []string{"POST"},
+		AllowedMethods:   []string{"POST", "GET"},
 	}).Handler(r)
 
 	// Initialise a new HTTP server.

@@ -285,6 +285,8 @@ github.com/renproject/darknode v0.5.3-0.20200218022729-639ef1b45022 h1:iY5ru2uT6
 github.com/renproject/darknode v0.5.3-0.20200218022729-639ef1b45022/go.mod h1:f7f3Jqg5QJlEOzEvGq8Tmk7VKM5nOaVojrnzBW/lcLc=
 github.com/renproject/darknode v0.5.3-0.20200219004441-1b7059438f1c h1:Sbv+bT2Lkih6YkT+FMKAv00KUOW7ZR7Khm9HVi1hVvo=
 github.com/renproject/darknode v0.5.3-0.20200219004441-1b7059438f1c/go.mod h1:f7f3Jqg5QJlEOzEvGq8Tmk7VKM5nOaVojrnzBW/lcLc=
+github.com/renproject/darknode v0.5.3-0.20200221035815-be0d1b5d7c8a h1:SY6gtpgaONERhiJks+gCMFDnqo2ldLSDhdvQQOw8igg=
+github.com/renproject/darknode v0.5.3-0.20200221035815-be0d1b5d7c8a/go.mod h1:NbQSX8q/8BXTrFwEL8mP5VwZavsbBaIH0uuqnO1cYE8=
 github.com/renproject/hyperdrive v0.3.1 h1:txkmrf0RcZIxjg7bLzYiLlEcQMIO87p/5vpVGEXRqJA=
 github.com/renproject/hyperdrive v0.3.1/go.mod h1:kFiXW7enjQ5jzwprSr64B5HSCNvnXHfkLzz84R2gA/w=
 github.com/renproject/hyperdrive v1.0.0 h1:0mxMzulHGMxePGafng3JdVkpaU2X6o+Y323E01BVcD0=
@@ -305,6 +307,8 @@ github.com/renproject/mercury v0.3.7-0.20200124001538-53b9496b6702 h1:5zjmMIiIK6
 github.com/renproject/mercury v0.3.7-0.20200124001538-53b9496b6702/go.mod h1:aFKAxAsOgJeq2j6LiUKRPE/iR5gdDW8ZoW5jQBl8V9Q=
 github.com/renproject/mercury v0.3.11 h1:igdmj+2JDmR72StLe27lB4W6W1VQncr3Zdx76ygFZrU=
 github.com/renproject/mercury v0.3.11/go.mod h1:CPVgAn13vnOBvUYqfk9vAl6k8rbtDHAvNWMvoYRbelg=
+github.com/renproject/mercury v0.3.12 h1:agzls3W16/I2V9DDgN0Jj0h4lPOwFpLiieVMn6cRfwk=
+github.com/renproject/mercury v0.3.12/go.mod h1:CPVgAn13vnOBvUYqfk9vAl6k8rbtDHAvNWMvoYRbelg=
 github.com/renproject/phi v0.0.0-20190713013721-51f586bc4816 h1:oC/97ZhV0qi2wKf/lBalU48TkvihPCmUkDVSCup+zZU=
 github.com/renproject/phi v0.0.0-20190713013721-51f586bc4816/go.mod h1:Hrxx2ONVpfByficRjyRd1trecalYr0lo7Z0akx8UXqg=
 github.com/renproject/phi v0.1.0 h1:ZOn7QeDribk/uV46OhQWcTLxyuLg7P+xR1Hfl5cOQuI=
