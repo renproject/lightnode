@@ -83,7 +83,7 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, confirmer.options.PollInterval)
 	defer cancel()
 
-	txs, err := confirmer.database.PendingTxs()
+	txs, err := confirmer.database.PendingTxs("")
 	if err != nil {
 		confirmer.logger.Errorf("[confirmer] failed to read pending txs from database: %v", err)
 		return

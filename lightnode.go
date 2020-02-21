@@ -105,6 +105,7 @@ func (options *Options) SetZeroToDefault() {
 type Lightnode struct {
 	options    Options
 	logger     logrus.FieldLogger
+	db         db.DB
 	server     *lhttp.Server
 	updater    updater.Updater
 	confirmer  confirmer.Confirmer
@@ -172,6 +173,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	return Lightnode{
 		options:    options,
 		logger:     logger,
+		db:         db,
 		server:     server,
 		updater:    updater,
 		confirmer:  confirmer,
@@ -203,6 +205,7 @@ func (lightnode Lightnode) Listen(ctx context.Context) {
 	r := mux.NewRouter()
 	r.HandleFunc("/health", lightnode.server.HealthCheck).Methods("GET")
 	r.HandleFunc("/", lightnode.server.Handle).Methods("POST")
+	r.HandleFunc("/confirmationless", lhttp.ConfirmationlessTxs(lightnode.db)).Methods("GET")
 	rm := lhttp.NewRecoveryMiddleware(lightnode.logger)
 	r.Use(rm)
 

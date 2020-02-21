@@ -178,14 +178,15 @@ VALUES ($1, 1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING;`
 
 // ShiftIn returns the shift in tx with the given hash.
 func (db DB) ShiftIn(txHash abi.B32) (abi.Tx, error) {
-	var contract, p, phash, token, to, n, ghash, nhash, sighash, utxoHash string
+	var p *string
+	var contract, phash, token, to, n, ghash, nhash, sighash, utxoHash string
 	var amount, utxoVout int
 	err := db.db.QueryRow("SELECT contract, p, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM shiftin WHERE hash = $1", hex.EncodeToString(txHash[:])).Scan(
 		&contract, &p, &phash, &token, &to, &n, &amount, &ghash, &nhash, &sighash, &utxoHash, &utxoVout)
 	if err != nil {
 		return abi.Tx{}, err
 	}
-	return constructShiftIn(txHash, contract, p, phash, token, to, n, ghash, nhash, sighash, utxoHash, amount, utxoVout)
+	return constructShiftIn(txHash, p, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash, amount, utxoVout)
 }
 
 // ShiftOut returns the shift out tx with the given hash.
@@ -202,19 +203,27 @@ func (db DB) ShiftOut(txHash abi.B32) (abi.Tx, error) {
 
 // PendingTxs returns all pending txs from the database which have not yet
 // expired.
-func (db DB) PendingTxs() (abi.Txs, error) {
+func (db DB) PendingTxs(contract string) (abi.Txs, error) {
 	txs := make(abi.Txs, 0, 128)
+	var script string
+	if contract == ""{
+		script = `SELECT hash, contract, p, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM shiftin 
+		WHERE status = $1 AND $2 - created_time < 86400`
+	} else {
+		script = fmt.Sprintf(`SELECT hash, contract, p, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM shiftin 
+		WHERE status = $1 AND $2 - created_time < 86400 AND toAddr = '%v'`, contract)
+	}
 
 	// Get pending shift in txs.
-	shiftIns, err := db.db.Query(`SELECT hash, contract, p, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM shiftin 
-		WHERE status = $1 AND $2 - created_time < 86400`, TxStatusConfirming, time.Now().Unix())
+	shiftIns, err := db.db.Query(script, TxStatusConfirming, time.Now().Unix())
 	if err != nil {
 		return nil, err
 	}
 	defer shiftIns.Close()
 
 	for shiftIns.Next() {
-		var hash, contract, p, phash, token, to, n, ghash, nhash, sighash, utxoHash string
+		var p *string
+		var hash, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash string
 		var amount, utxoVout int
 		err = shiftIns.Scan(&hash, &contract, &p, &phash, &token, &to, &n, &amount, &ghash, &nhash, &sighash, &utxoHash, &utxoVout)
 		if err != nil {
@@ -225,7 +234,7 @@ func (db DB) PendingTxs() (abi.Txs, error) {
 		if err != nil {
 			return nil, err
 		}
-		tx, err := constructShiftIn(txHash, contract, p, phash, token, to, n, ghash, nhash, sighash, utxoHash, amount, utxoVout)
+		tx, err := constructShiftIn(txHash, p, contract,phash, token, to, n, ghash, nhash, sighash, utxoHash, amount, utxoVout)
 		if err != nil {
 			return nil, err
 		}
@@ -327,7 +336,7 @@ func (db DB) UpdateTxStatus(hash abi.B32, status TxStatus) error {
 
 // constructShiftIn constructs a transaction using the data queried from the
 // database.
-func constructShiftIn(hash abi.B32, contract, p, phash, token, to, n, ghash, nhash, sighash, utxoHash string, amount, utxoVout int) (abi.Tx, error) {
+func constructShiftIn(hash abi.B32, p *string, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash string, amount, utxoVout int) (abi.Tx, error) {
 	tx := abi.Tx{
 		Hash: hash,
 		To:   abi.Address(contract),
@@ -400,10 +409,10 @@ func constructShiftIn(hash abi.B32, contract, p, phash, token, to, n, ghash, nha
 	return tx, nil
 }
 
-func decodePayload(p string) (abi.Arg, error) {
-	if len(p) != 0 {
+func decodePayload(p *string) (abi.Arg, error) {
+	if p != nil  {
 		var pVal abi.ExtEthCompatPayload
-		data, err := hex.DecodeString(p)
+		data, err := hex.DecodeString(*p)
 		if err != nil {
 			return abi.Arg{}, err
 		}

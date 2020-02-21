@@ -1,11 +1,16 @@
 package http
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime/debug"
+	"strings"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/gorilla/mux"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/lightnode/db"
 	"github.com/sirupsen/logrus"
 )
 
@@ -18,12 +23,38 @@ func NewRecoveryMiddleware(logger logrus.FieldLogger) mux.MiddlewareFunc {
 				if err := recover(); err != nil {
 					errMsg := fmt.Sprintf("Recovered from a panic in the lightnode: %v", err)
 					logger.Error(errMsg)
+					logger.Error(string(debug.Stack()))
 					jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, errMsg, nil)
 					writeError(w, 0, jsonErr)
 				}
 			}()
 			h.ServeHTTP(w, r)
 		})
+	}
+}
+
+// ConfirmationlessTxs is the handler which returns all pending txs.
+func ConfirmationlessTxs(db db.DB) http.HandlerFunc{
+	return func(w http.ResponseWriter, r *http.Request) {
+		v := r.URL.Query()
+		contract := v.Get("contract")
+		if contract != ""{
+			if !common.IsHexAddress(contract){
+				http.Error(w, "invalid contract address", http.StatusBadRequest)
+				return
+			}
+			contract = strings.TrimPrefix(contract, "0x")
+		}
+
+		txs, err := db.PendingTxs(contract)
+		if err != nil {
+			http.Error(w, err.Error(),http.StatusInternalServerError)
+			return
+		}
+
+		if err := json.NewEncoder(w).Encode(txs); err != nil {
+			http.Error(w, err.Error(),http.StatusInternalServerError)
+		}
 	}
 }
 

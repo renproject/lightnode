@@ -158,7 +158,7 @@ var _ = Describe("Lightnode db", func() {
 							txs[shiftOut.Hash] = shiftOut
 							Expect(db.InsertShiftOut(shiftOut)).To(Succeed())
 						}
-						pendingTxs, err := db.PendingTxs()
+						pendingTxs, err := db.PendingTxs("")
 						Expect(err).NotTo(HaveOccurred())
 
 						Expect(len(pendingTxs)).Should(Equal(len(txs)))
@@ -190,7 +190,7 @@ var _ = Describe("Lightnode db", func() {
 							Expect(db.InsertShiftOut(shiftOut)).To(Succeed())
 							Expect(db.UpdateTxStatus(shiftOut.Hash, TxStatusConfirmed)).Should(Succeed())
 						}
-						pendingTxs, err := db.PendingTxs()
+						pendingTxs, err := db.PendingTxs("")
 						Expect(err).NotTo(HaveOccurred())
 
 						return len(pendingTxs) == 0
@@ -217,7 +217,7 @@ var _ = Describe("Lightnode db", func() {
 							Expect(db.InsertShiftOut(shiftOut)).To(Succeed())
 							Expect(UpdateTxCreatedTime(sqlDB, "shiftout", shiftOut.Hash, time.Now().Unix()-24*3600-1)).Should(Succeed())
 						}
-						pendingTxs, err := db.PendingTxs()
+						pendingTxs, err := db.PendingTxs("")
 						Expect(err).NotTo(HaveOccurred())
 
 						return len(pendingTxs) == 0
@@ -258,7 +258,7 @@ var _ = Describe("Lightnode db", func() {
 							Expect(err).NotTo(HaveOccurred())
 							Expect(confirmed).Should(BeTrue())
 						}
-						pendingTxs, err := db.PendingTxs()
+						pendingTxs, err := db.PendingTxs("")
 						Expect(err).NotTo(HaveOccurred())
 
 						return len(pendingTxs) == 0
