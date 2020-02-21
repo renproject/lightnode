@@ -115,15 +115,15 @@ func (db DB) InsertShiftIn(tx abi.Tx) error {
 	}
 	ghash, ok := tx.Autogen.Get("ghash").Value.(abi.B32)
 	if !ok {
-		return fmt.Errorf("unexpected type for ghash, expected abi.B32, got %v", tx.In.Get("ghash").Value.Type())
+		return fmt.Errorf("unexpected type for ghash, expected abi.B32, got %v", tx.Autogen.Get("ghash").Value.Type())
 	}
 	nhash, ok := tx.Autogen.Get("nhash").Value.(abi.B32)
 	if !ok {
-		return fmt.Errorf("unexpected type for nhash, expected abi.B32, got %v", tx.In.Get("nhash").Value.Type())
+		return fmt.Errorf("unexpected type for nhash, expected abi.B32, got %v", tx.Autogen.Get("nhash").Value.Type())
 	}
 	sighash, ok := tx.Autogen.Get("sighash").Value.(abi.B32)
 	if !ok {
-		return fmt.Errorf("unexpected type for sighash, expected abi.B32, got %v", tx.In.Get("sighash").Value.Type())
+		return fmt.Errorf("unexpected type for sighash, expected abi.B32, got %v", tx.Autogen.Get("sighash").Value.Type())
 	}
 
 	script := `INSERT INTO shiftin (hash, status, created_time, contract, p, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout)
@@ -206,7 +206,7 @@ func (db DB) ShiftOut(txHash abi.B32) (abi.Tx, error) {
 func (db DB) PendingTxs(contract string) (abi.Txs, error) {
 	txs := make(abi.Txs, 0, 128)
 	var script string
-	if contract == ""{
+	if contract == "" {
 		script = `SELECT hash, contract, p, phash, token, toAddr, n, amount, ghash, nhash, sighash, utxo_tx_hash, utxo_vout FROM shiftin 
 		WHERE status = $1 AND $2 - created_time < 86400`
 	} else {
@@ -234,7 +234,7 @@ func (db DB) PendingTxs(contract string) (abi.Txs, error) {
 		if err != nil {
 			return nil, err
 		}
-		tx, err := constructShiftIn(txHash, p, contract,phash, token, to, n, ghash, nhash, sighash, utxoHash, amount, utxoVout)
+		tx, err := constructShiftIn(txHash, p, contract, phash, token, to, n, ghash, nhash, sighash, utxoHash, amount, utxoVout)
 		if err != nil {
 			return nil, err
 		}
@@ -323,7 +323,6 @@ func (db DB) Confirmed(hash abi.B32) (bool, error) {
 	return TxStatus(status) == TxStatusConfirmed, err
 }
 
-
 // UpdateTxStatus sets the transaction status to confirmed.
 func (db DB) UpdateTxStatus(hash abi.B32, status TxStatus) error {
 	_, err := db.db.Exec("UPDATE shiftin SET status = $1 WHERE hash = $2 AND status < $1;", status, hex.EncodeToString(hash[:]))
@@ -410,7 +409,7 @@ func constructShiftIn(hash abi.B32, p *string, contract, phash, token, to, n, gh
 }
 
 func decodePayload(p *string) (abi.Arg, error) {
-	if p != nil  {
+	if p != nil {
 		var pVal abi.ExtEthCompatPayload
 		data, err := hex.DecodeString(*p)
 		if err != nil {

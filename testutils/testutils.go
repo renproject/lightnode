@@ -25,12 +25,11 @@ func (m *MockSender) Send(message phi.Message) bool {
 	}
 }
 
-func NewMockSender() *MockSender{
+func NewMockSender() *MockSender {
 	return &MockSender{
-		Messages : make(chan phi.Message, 128),
+		Messages: make(chan phi.Message, 128),
 	}
 }
-
 
 // An Inspector is a mock task that will simply write all of its received
 // messages out on to a channel for inspection.

@@ -34,12 +34,12 @@ func NewRecoveryMiddleware(logger logrus.FieldLogger) mux.MiddlewareFunc {
 }
 
 // ConfirmationlessTxs is the handler which returns all pending txs.
-func ConfirmationlessTxs(db db.DB) http.HandlerFunc{
+func ConfirmationlessTxs(db db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		v := r.URL.Query()
 		contract := v.Get("contract")
-		if contract != ""{
-			if !common.IsHexAddress(contract){
+		if contract != "" {
+			if !common.IsHexAddress(contract) {
 				http.Error(w, "invalid contract address", http.StatusBadRequest)
 				return
 			}
@@ -48,12 +48,12 @@ func ConfirmationlessTxs(db db.DB) http.HandlerFunc{
 
 		txs, err := db.PendingTxs(contract)
 		if err != nil {
-			http.Error(w, err.Error(),http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		if err := json.NewEncoder(w).Encode(txs); err != nil {
-			http.Error(w, err.Error(),http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}
 }

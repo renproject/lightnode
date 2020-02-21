@@ -205,7 +205,7 @@ func (lightnode Lightnode) Listen(ctx context.Context) {
 	r := mux.NewRouter()
 	r.HandleFunc("/health", lightnode.server.HealthCheck).Methods("GET")
 	r.HandleFunc("/", lightnode.server.Handle).Methods("POST")
-	r.HandleFunc("/confirmationless", lhttp.ConfirmationlessTxs(lightnode.db)).Methods("GET")
+	r.HandleFunc("/pending", lhttp.ConfirmationlessTxs(lightnode.db)).Methods("GET")
 	rm := lhttp.NewRecoveryMiddleware(lightnode.logger)
 	r.Use(rm)
 
@@ -223,7 +223,7 @@ func (lightnode Lightnode) Listen(ctx context.Context) {
 
 	// Close the server when the context is done.
 	go func() {
-		<- ctx.Done()
+		<-ctx.Done()
 		httpServer.Close()
 	}()
 
@@ -231,5 +231,3 @@ func (lightnode Lightnode) Listen(ctx context.Context) {
 	lightnode.logger.Infof("lightnode listening on 0.0.0.0:%v...", lightnode.options.Port)
 	lightnode.logger.Error(httpServer.ListenAndServe())
 }
-
-

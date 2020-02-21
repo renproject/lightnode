@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"runtime"
 	"sync"
 	"time"
@@ -75,7 +76,7 @@ func (tc *txChecker) verify(request jsonrpc.Request) (abi.Tx, error) {
 
 	var submiTx jsonrpc.ParamsSubmitTx
 	if err := json.Unmarshal(request.Params, &submiTx); err != nil {
-		return abi.Tx{}, ErrInvalidParams
+		return abi.Tx{}, fmt.Errorf("invalid params, err = %v", err)
 	}
 
 	// Verify the parameters
@@ -94,7 +95,11 @@ func (tc *txChecker) verify(request jsonrpc.Request) (abi.Tx, error) {
 
 	// Validate the utxo or shiftOut event.
 	if abi.IsShiftIn(tx.To) {
-		return transform.ValidateUtxo(ctx, tc.bc, tx, 0, tc.disPubkey)
+		tx, err = transform.ValidateUtxo(ctx, tc.bc, tx, 0, tc.disPubkey)
+		if err != nil {
+			return abi.Tx{}, err
+		}
+		return transform.Sighash(tx), nil
 	} else {
 		return transform.ValidateRefEvent(ctx, tx, tc.bc, 0)
 	}

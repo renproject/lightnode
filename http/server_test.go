@@ -23,7 +23,7 @@ import (
 
 var _ = Describe("Lightnode server", func() {
 
-	init := func()(*Server, <-chan phi.Message) {
+	init := func() (*Server, <-chan phi.Message) {
 		options := Options{
 			MaxBatchSize: 10,
 			Timeout:      3 * time.Second,
