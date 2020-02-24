@@ -109,17 +109,9 @@ func (tc *txChecker) checkDuplicate(tx abi.Tx) (abi.Tx, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
-	if abi.IsShiftIn(tx.To) {
-		stored, err := tc.db.ShiftIn(tx.Hash)
-		if err == sql.ErrNoRows {
-			return tx, tc.db.InsertShiftIn(tx)
-		}
-		return stored, err
-	} else {
-		stored, err := tc.db.ShiftOut(tx.Hash)
-		if err == sql.ErrNoRows {
-			return tx, tc.db.InsertShiftOut(tx)
-		}
-		return stored, err
+	stored, err := tc.db.Tx(tx.Hash)
+	if err == sql.ErrNoRows {
+		return tx, tc.db.InsertTx(tx)
 	}
+	return stored, err
 }

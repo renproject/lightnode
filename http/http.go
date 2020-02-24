@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gorilla/mux"
@@ -34,7 +35,7 @@ func NewRecoveryMiddleware(logger logrus.FieldLogger) mux.MiddlewareFunc {
 }
 
 // ConfirmationlessTxs is the handler which returns all pending txs.
-func ConfirmationlessTxs(db db.DB) http.HandlerFunc {
+func ConfirmationlessTxs(database db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		v := r.URL.Query()
 		contract := v.Get("contract")
@@ -46,7 +47,7 @@ func ConfirmationlessTxs(db db.DB) http.HandlerFunc {
 			contract = strings.TrimPrefix(contract, "0x")
 		}
 
-		txs, err := db.PendingTxs(contract)
+		txs, err := database.TxsWithStatus(db.TxStatusConfirming, 24 * time.Hour,  contract)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

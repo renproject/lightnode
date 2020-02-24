@@ -21,6 +21,7 @@ import (
 	"github.com/renproject/lightnode/dispatcher"
 	lhttp "github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
+	"github.com/renproject/lightnode/submitter"
 	"github.com/renproject/lightnode/updater"
 	"github.com/renproject/lightnode/validator"
 	"github.com/renproject/lightnode/watcher"
@@ -35,6 +36,7 @@ import (
 // Options for setting up a Lightnode, usually parsed from environment variables.
 type Options struct {
 	Network           darknode.Network
+	Key               *ecdsa.PrivateKey
 	DisPubkey         *ecdsa.PublicKey
 	Port              string
 	ProtocolAddr      string
@@ -46,6 +48,7 @@ type Options struct {
 	UpdaterPollRate   time.Duration
 	ConfirmerPollRate time.Duration
 	WatcherPollRate   time.Duration
+	SubmitterPollRate time.Duration
 	Expiry            time.Duration
 	BootstrapAddrs    addr.MultiAddresses
 }
@@ -58,6 +61,9 @@ func (options *Options) SetZeroToDefault() {
 	case darknode.Testnet, darknode.Devnet, darknode.Localnet:
 	default:
 		panic("unknown networks")
+	}
+	if options.Key ==nil {
+		panic("please specify the key of lightnode account for submitting gasless txs.")
 	}
 	if options.DisPubkey == nil {
 		panic("distributed public key is not initialized in the options")
@@ -95,6 +101,9 @@ func (options *Options) SetZeroToDefault() {
 	if options.WatcherPollRate == 0 {
 		options.WatcherPollRate = 10 * time.Second
 	}
+	if options.SubmitterPollRate == 0 {
+		options.SubmitterPollRate = 10 * time.Second
+	}
 	if options.Expiry == 0 {
 		options.Expiry = 7 * 24 * time.Hour
 	}
@@ -109,6 +118,7 @@ type Lightnode struct {
 	server     *lhttp.Server
 	updater    updater.Updater
 	confirmer  confirmer.Confirmer
+	submitter  submitter.Submitter
 	btcWatcher watcher.Watcher
 	zecWatcher watcher.Watcher
 	bchWatcher watcher.Watcher
@@ -166,6 +176,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	validator := validator.New(logger, cacher, multiStore, opts, *options.DisPubkey, bc, db)
 	server := lhttp.New(logger, serverOptions, validator)
 	confirmer := confirmer.New(logger, confirmerOptions, dispatcher, db, bc)
+	submitter := submitter.New(logger, dispatcher,db, ethClient, options.Key, options.SubmitterPollRate)
 	btcWatcher := watcher.NewWatcher(logger, "BTC0Eth2Btc", bc, validator, client, options.WatcherPollRate)
 	zecWatcher := watcher.NewWatcher(logger, "ZEC0Eth2Zec", bc, validator, client, options.WatcherPollRate)
 	bchWatcher := watcher.NewWatcher(logger, "BCH0Eth2Bch", bc, validator, client, options.WatcherPollRate)
@@ -177,6 +188,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 		server:     server,
 		updater:    updater,
 		confirmer:  confirmer,
+		submitter:  submitter,
 		btcWatcher: btcWatcher,
 		zecWatcher: zecWatcher,
 		bchWatcher: bchWatcher,
@@ -197,6 +209,7 @@ func (lightnode Lightnode) Run(ctx context.Context) {
 	go lightnode.btcWatcher.Run(ctx)
 	go lightnode.zecWatcher.Run(ctx)
 	go lightnode.bchWatcher.Run(ctx)
+	go lightnode.submitter.Run(ctx)
 
 	lightnode.Listen(ctx)
 }

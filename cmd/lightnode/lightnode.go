@@ -33,7 +33,8 @@ func main() {
 	name := os.Getenv("HEROKU_APP_NAME")
 	options := lightnode.Options{
 		Network:           parseNetwork(name),
-		DisPubkey:         parseKey(),
+		Key:               parsePriKey(),
+		DisPubkey:         parsePubKey(),
 		Port:              os.Getenv("PORT"),
 		ProtocolAddr:      os.Getenv("PROTOCOL_ADDRESS"),
 		Cap:               parseInt("CAP"),
@@ -149,10 +150,22 @@ func parseAddresses() addr.MultiAddresses {
 	return multis
 }
 
-func parseKey() *ecdsa.PublicKey {
-	keyBytes, err := hex.DecodeString(os.Getenv("KEY"))
+func parsePriKey() *ecdsa.PrivateKey{
+	keyBytes, err := hex.DecodeString(os.Getenv("PRI_KEY"))
 	if err != nil {
-		panic(fmt.Sprintf("invalid key string from the env variable, err = %v", err))
+		panic(fmt.Sprintf("invalid private key string from the env variable, err = %v", err))
+	}
+	key, err:= crypto.ToECDSA(keyBytes)
+	if err != nil {
+		panic(fmt.Sprintf("invalid private key for lightnode account, err = %v", err))
+	}
+	return key
+}
+
+func parsePubKey() *ecdsa.PublicKey {
+	keyBytes, err := hex.DecodeString(os.Getenv("PUB_KEY"))
+	if err != nil {
+		panic(fmt.Sprintf("invalid public key string from the env variable, err = %v", err))
 	}
 	key, err := crypto.DecompressPubkey(keyBytes)
 	if err != nil {
