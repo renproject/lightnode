@@ -265,12 +265,12 @@ func removeInput(method ethabi.Method, names ...string) ethabi.Method {
 
 func SigFromRSV(tx abi.Tx) []byte {
 	rArg := tx.Out.Get("r")
-	r := rArg.Value.(abi.B32)
+	r := rArg.Value.(abi.B)
 	sArg := tx.Out.Get("s")
-	s := sArg.Value.(abi.B32)
+	s := sArg.Value.(abi.B)
 	vArg := tx.Out.Get("v")
-	v := vArg.Value.(abi.U8)
-	vBytes := uint8(v.Int.Uint64()) + 27
+	v := vArg.Value.(abi.B)
+	v[0] += 27
 
-	return append(append(r[:], s[:]...), vBytes)
+	return append(append(r, s...), v...)
 }
