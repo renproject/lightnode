@@ -22,8 +22,9 @@ import (
 )
 
 type input struct {
-	ctx context.Context
-	tx  abi.Tx
+	ctx    context.Context
+	cancel context.CancelFunc
+	tx     abi.Tx
 }
 
 // Submitter polls txs which have been executed with a payload from the database.
@@ -57,7 +58,9 @@ func (sub Submitter) Run(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case tx := <-sub.txs:
-				sub.submitTx(tx)
+				if err := sub.submitTx(tx); err != nil {
+					sub.logger.Errorf("[submitter] cannot submit the tx to Ethereum, err = %v", err)
+				}
 			}
 		}
 	}, func() {
@@ -77,30 +80,32 @@ func (sub Submitter) Run(ctx context.Context) {
 
 func (sub Submitter) queryTx(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, sub.pollInterval)
-	defer cancel()
 
 	// Get unsubmitted tx hashes from the database.
-	txs, err := sub.database.TxsWithStatus(db.TxStatusConfirmed, 24 *time.Hour, "")
+	hashes, err := sub.database.UnsubmittedTx()
 	if err != nil {
 		sub.logger.Errorf("[submitter] failed to read unsubmitted txs from database: %v", err)
 		return
 	}
 
 	// Query the status of the tx
-	phi.ParForAll(txs, func(i int) {
-		status, tx, err := sub.queryStatus(ctx, txs[i].Hash)
+	phi.ParForAll(hashes, func(i int) {
+		status, tx, err := sub.queryStatus(ctx, hashes[i])
 		if err != nil {
-			sub.logger.Errorf("cannot get status of tx = %v, err = %v", txs[i].Hash.String(), err)
+			sub.logger.Errorf("cannot get status of tx = %v, err = %v", hashes[i].String(), err)
 			return
 		}
 		if status != "done" {
 			return
 		}
 
+		sub.logger.Infof("tx [%v] is done. Trying to submit it to the GaaS contract.", hashes[i].String())
+
 		// Send the tx to another background goroutine for submission.
 		in := input{
-			ctx: ctx,
-			tx:  tx,
+			ctx:    ctx,
+			cancel: cancel,
+			tx:     tx,
 		}
 		select {
 		case <-ctx.Done():
@@ -150,13 +155,22 @@ func (sub Submitter) queryStatus(ctx context.Context, hash abi.B32) (string, abi
 	}
 }
 
-func (sub Submitter) submitTx(in input) {
+func (sub Submitter) submitTx(in input) error {
+	defer in.cancel()
+
+	// TODO : remove this when darknode is updated.
+	tx, err := sub.database.Tx(in.tx.Hash)
+	if err != nil {
+		panic(err)
+	}
+	tx.Out = in.tx.Out
+	in.tx = tx
+
 	// Read payload and construct a signature from the r,s,v.
-	payloadArg := in.tx.In.Get("payload")
+	payloadArg := in.tx.In.Get("p")
 	payload, ok := payloadArg.Value.(abi.ExtEthCompatPayload)
 	if !ok {
-		sub.logger.Errorf("[submitter] no payload in the tx")
-		return
+		return fmt.Errorf("no payload in the tx")
 	}
 
 	// Construct the params from the payload and signature.
@@ -164,41 +178,38 @@ func (sub Submitter) submitTx(in input) {
 	to := toArg.Value.(abi.ExtEthCompatAddress)
 	contract, err := ethtypes.NewContract(sub.client.EthClient(), ethtypes.Address(to), payload.ABI)
 	if err != nil {
-		return
+		return err
 	}
 	from := ethtypes.AddressFromPublicKey(&sub.key.PublicKey)
+
 	params, err := params(in.tx)
 	if err != nil {
-		return
+		return err
 	}
 
 	unsignedTx, err := contract.BuildTx(in.ctx, from, string(payload.Fn), big.NewInt(0), params...)
 	if err != nil {
-		return
+		return err
 	}
 	if err := unsignedTx.Sign(sub.key); err != nil {
-		return
+		return err
 	}
 	txHash, err := sub.client.PublishSignedTx(in.ctx, unsignedTx)
 	if err != nil {
-		return
+		return err
 	}
-	sub.logger.Infof("successfully queryTx tx to Ethereum, hash = %x", txHash)
+	sub.logger.Infof("successfully submit tx to Ethereum, hash = %x", txHash)
 
 	// Update tx status in the database
-	if err := sub.database.UpdateStatus(in.tx.Hash, db.TxStatusSubmitted); err != nil {
-		return
-	}
+	return sub.database.UpdateStatus(in.tx.Hash, db.TxStatusSubmitted)
 }
 
 // params constructs the params for the Ethereum transaction. It first unpacks
 // the data from payload to get a list of params and appends amount, nhash and
 // signature to the end of params.
 func params(tx abi.Tx) ([]interface{}, error) {
-
-	// Read payload and construct signature from the r,s,v.
-	sig := SigFromRSV(tx)
-	payloadArg := tx.In.Get("payload")
+	// Read payload from the tx
+	payloadArg := tx.In.Get("p")
 	payload, ok := payloadArg.Value.(abi.ExtEthCompatPayload)
 	if !ok {
 		return nil, fmt.Errorf("no payload in the tx")
@@ -210,18 +221,19 @@ func params(tx abi.Tx) ([]interface{}, error) {
 		return nil, err
 	}
 	fnName := string(payload.Fn)
-	method, ok := a.Methods[fnName]
+	_, ok = a.Methods[fnName]
 	if !ok {
 		return nil, fmt.Errorf("invalid function name")
 	}
-	a.Methods[fnName] = removeInput(method, "_amount", "_nHash", "_sig")
+	a.Methods[fnName] = removeInput(a.Methods[fnName], "_amount", "nHash", "_sig")
+
 	values := map[string]interface{}{}
-	if err := a.UnpackIntoMap(values, fnName, payload.Value); err != nil {
+	if err := a.Methods[fnName].Inputs.UnpackIntoMap(values, payload.Value); err != nil {
 		return nil, err
 	}
 
-	// Append the amount, nhash and signature after the params.
-	params := make([]interface{}, len(values)+3)
+	// Append the amount, nHash and signature after the params.
+	params := make([]interface{}, 0, len(values)+3)
 	for _, arg := range a.Methods[fnName].Inputs {
 		value, ok := values[arg.Name]
 		if !ok {
@@ -232,6 +244,7 @@ func params(tx abi.Tx) ([]interface{}, error) {
 
 	amount := tx.In.Get("amount").Value.(abi.U256)
 	nhash := tx.Autogen.Get("nhash").Value.(abi.B32)
+	sig := SigFromRSV(tx)
 	return append(params, amount.Int, nhash, sig), nil
 }
 
@@ -240,9 +253,10 @@ func removeInput(method ethabi.Method, names ...string) ethabi.Method {
 	for _, name := range names {
 		m[name] = struct{}{}
 	}
-	for i := range method.Inputs {
+	for i := 0; i < len(method.Inputs); i++ {
 		if _, ok := m[method.Inputs[i].Name]; ok {
 			method.Inputs = append(method.Inputs[:i], method.Inputs[i+1:]...)
+			i--
 		}
 	}
 
@@ -251,12 +265,12 @@ func removeInput(method ethabi.Method, names ...string) ethabi.Method {
 
 func SigFromRSV(tx abi.Tx) []byte {
 	rArg := tx.Out.Get("r")
-	r := rArg.Value.(abi.B)
+	r := rArg.Value.(abi.B32)
 	sArg := tx.Out.Get("s")
-	s := sArg.Value.(abi.B)
+	s := sArg.Value.(abi.B32)
 	vArg := tx.Out.Get("v")
-	v := vArg.Value.(abi.B)
-	v[0] += 27
+	v := vArg.Value.(abi.U8)
+	vBytes := uint8(v.Int.Uint64()) + 27
 
-	return append(append(r, s...), v...)
+	return append(append(r[:], s[:]...), vBytes)
 }

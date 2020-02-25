@@ -43,6 +43,10 @@ type DB interface {
 	// TxsWithStatus returns shiftIn txs with given status and are not expired.
 	TxsWithStatus(status TxStatus, expiry time.Duration, contract string) (abi.Txs, error)
 
+	// UnsubmittedTx returns the txs which have reached enough confirmations and
+	// been sent to darknodes.
+	UnsubmittedTx() ([]abi.B32, error)
+
 	// TxStatus returns the current status of the tx with given has.
 	TxStatus(hash abi.B32) (TxStatus, error)
 
@@ -169,6 +173,31 @@ func (db database) TxsWithStatus(status TxStatus, expiry time.Duration, contract
 		txs = append(txs, tx)
 	}
 	return txs, shiftOuts.Err()
+}
+
+func (db database) UnsubmittedTx() ([]abi.B32, error) {
+	hashes := make([]abi.B32, 0)
+
+	// Get txs which haven't been submitted
+	shiftIns, err := db.db.Query(`SELECT hash FROM shiftin 
+		WHERE status = $1 AND $2 - created_time < 86400 AND LENGTH(p)>0;`, TxStatusConfirmed, time.Now().Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer shiftIns.Close()
+
+	for shiftIns.Next() {
+		var hash string
+		if err := shiftIns.Scan(&hash); err != nil {
+			return nil, err
+		}
+		txHash, err := stringToB32(hash)
+		if err != nil {
+			return nil, err
+		}
+		hashes = append(hashes, txHash)
+	}
+	return hashes, shiftIns.Err()
 }
 
 // TxStatus implements the `DB` interface.

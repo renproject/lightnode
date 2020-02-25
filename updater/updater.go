@@ -120,6 +120,14 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 			}
 		}
 	})
+
+	// Print how many nodes we have connected to.
+	all, err := updater.multiStore.AddrsAll()
+	if err != nil {
+		updater.logger.Errorf("cannot get query addresses: %v", err)
+		return
+	}
+	updater.logger.Infof("connected to %v nodes", len(all))
 }
 
 func (updater Updater) isBootstrap(addr addr.MultiAddress) bool {

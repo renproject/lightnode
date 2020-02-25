@@ -23,8 +23,7 @@ func NewRecoveryMiddleware(logger logrus.FieldLogger) mux.MiddlewareFunc {
 			defer func() {
 				if err := recover(); err != nil {
 					errMsg := fmt.Sprintf("Recovered from a panic in the lightnode: %v", err)
-					logger.Error(errMsg)
-					logger.Error(string(debug.Stack()))
+					logger.Errorf(fmt.Sprintf("%v\n%v", errMsg, string (debug.Stack())))
 					jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, errMsg, nil)
 					writeError(w, 0, jsonErr)
 				}
