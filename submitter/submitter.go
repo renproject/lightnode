@@ -23,7 +23,6 @@ import (
 
 type input struct {
 	ctx    context.Context
-	cancel context.CancelFunc
 	tx     abi.Tx
 }
 
@@ -80,6 +79,10 @@ func (sub Submitter) Run(ctx context.Context) {
 
 func (sub Submitter) queryTx(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, sub.pollInterval)
+	go func() {
+		<-time.After(sub.pollInterval)
+		cancel()
+	}()
 
 	// Get unsubmitted tx hashes from the database.
 	hashes, err := sub.database.UnsubmittedTx()
@@ -104,7 +107,6 @@ func (sub Submitter) queryTx(parent context.Context) {
 		// Send the tx to another background goroutine for submission.
 		in := input{
 			ctx:    ctx,
-			cancel: cancel,
 			tx:     tx,
 		}
 		select {
@@ -156,8 +158,6 @@ func (sub Submitter) queryStatus(ctx context.Context, hash abi.B32) (string, abi
 }
 
 func (sub Submitter) submitTx(in input) error {
-	defer in.cancel()
-
 	// TODO : remove this when darknode is updated.
 	tx, err := sub.database.Tx(in.tx.Hash)
 	if err != nil {
