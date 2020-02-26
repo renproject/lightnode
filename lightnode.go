@@ -62,7 +62,7 @@ func (options *Options) SetZeroToDefault() {
 	default:
 		panic("unknown networks")
 	}
-	if options.Key ==nil {
+	if options.Key == nil {
 		panic("please specify the key of lightnode account for submitting gasless txs.")
 	}
 	if options.DisPubkey == nil {
@@ -176,7 +176,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	validator := validator.New(logger, cacher, multiStore, opts, *options.DisPubkey, bc, db)
 	server := lhttp.New(logger, serverOptions, validator)
 	confirmer := confirmer.New(logger, confirmerOptions, dispatcher, db, bc)
-	submitter := submitter.New(logger, dispatcher,db, ethClient, options.Key, options.SubmitterPollRate)
+	submitter := submitter.New(logger, dispatcher, db, ethClient, options.Key, options.SubmitterPollRate)
 	btcWatcher := watcher.NewWatcher(logger, "BTC0Eth2Btc", bc, validator, client, options.WatcherPollRate)
 	zecWatcher := watcher.NewWatcher(logger, "ZEC0Eth2Zec", bc, validator, client, options.WatcherPollRate)
 	bchWatcher := watcher.NewWatcher(logger, "BCH0Eth2Bch", bc, validator, client, options.WatcherPollRate)

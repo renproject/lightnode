@@ -150,12 +150,12 @@ func parseAddresses() addr.MultiAddresses {
 	return multis
 }
 
-func parsePriKey() *ecdsa.PrivateKey{
+func parsePriKey() *ecdsa.PrivateKey {
 	keyBytes, err := hex.DecodeString(os.Getenv("PRI_KEY"))
 	if err != nil {
 		panic(fmt.Sprintf("invalid private key string from the env variable, err = %v", err))
 	}
-	key, err:= crypto.ToECDSA(keyBytes)
+	key, err := crypto.ToECDSA(keyBytes)
 	if err != nil {
 		panic(fmt.Sprintf("invalid private key for lightnode account, err = %v", err))
 	}

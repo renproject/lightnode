@@ -90,7 +90,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		// Darknodes do not yet know about the transaction), respond with a
 		// custom confirming status.
 		if status != db.TxStatusConfirmed {
-			tx, err := cacher.db.Tx(req.TxHash)
+			tx, err := cacher.db.Tx(req.TxHash, true)
 			if err == nil {
 				msg.Responder <- jsonrpc.Response{
 					Version: "2.0",

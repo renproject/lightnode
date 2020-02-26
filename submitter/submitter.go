@@ -22,8 +22,8 @@ import (
 )
 
 type input struct {
-	ctx    context.Context
-	tx     abi.Tx
+	ctx context.Context
+	tx  abi.Tx
 }
 
 // Submitter polls txs which have been executed with a payload from the database.
@@ -85,7 +85,7 @@ func (sub Submitter) queryTx(parent context.Context) {
 	}()
 
 	// Get unsubmitted tx hashes from the database.
-	hashes, err := sub.database.UnsubmittedTx()
+	hashes, err := sub.database.UnsubmittedTxs(24 * time.Hour)
 	if err != nil {
 		sub.logger.Errorf("[submitter] failed to read unsubmitted txs from database: %v", err)
 		return
@@ -106,8 +106,8 @@ func (sub Submitter) queryTx(parent context.Context) {
 
 		// Send the tx to another background goroutine for submission.
 		in := input{
-			ctx:    ctx,
-			tx:     tx,
+			ctx: ctx,
+			tx:  tx,
 		}
 		select {
 		case <-ctx.Done():
@@ -158,14 +158,6 @@ func (sub Submitter) queryStatus(ctx context.Context, hash abi.B32) (string, abi
 }
 
 func (sub Submitter) submitTx(in input) error {
-	// TODO : remove this when darknode is updated.
-	tx, err := sub.database.Tx(in.tx.Hash)
-	if err != nil {
-		panic(err)
-	}
-	tx.Out = in.tx.Out
-	in.tx = tx
-
 	// Read payload and construct a signature from the r,s,v.
 	payloadArg := in.tx.In.Get("p")
 	payload, ok := payloadArg.Value.(abi.ExtEthCompatPayload)

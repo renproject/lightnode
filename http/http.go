@@ -23,7 +23,7 @@ func NewRecoveryMiddleware(logger logrus.FieldLogger) mux.MiddlewareFunc {
 			defer func() {
 				if err := recover(); err != nil {
 					errMsg := fmt.Sprintf("Recovered from a panic in the lightnode: %v", err)
-					logger.Errorf(fmt.Sprintf("%v\n%v", errMsg, string (debug.Stack())))
+					logger.Errorf(fmt.Sprintf("%v\n%v", errMsg, string(debug.Stack())))
 					jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, errMsg, nil)
 					writeError(w, 0, jsonErr)
 				}
@@ -46,7 +46,7 @@ func ConfirmationlessTxs(database db.DB) http.HandlerFunc {
 			contract = strings.TrimPrefix(contract, "0x")
 		}
 
-		txs, err := database.TxsWithStatus(db.TxStatusConfirming, 24 * time.Hour,  contract)
+		txs, err := database.ShiftIns(db.TxStatusConfirming, 24*time.Hour, contract)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

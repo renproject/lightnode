@@ -3,7 +3,6 @@ package confirmer
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -83,7 +82,7 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, confirmer.options.PollInterval)
 	defer cancel()
 
-	txs, err := confirmer.database.TxsWithStatus(db.TxStatusConfirming, 24* time.Hour, "")
+	txs, err := confirmer.database.PendingTxs(24 * time.Hour)
 	if err != nil {
 		confirmer.logger.Errorf("[confirmer] failed to read pending txs from database: %v", err)
 		return
@@ -159,23 +158,6 @@ func (confirmer *Confirmer) prune() {
 
 // submitTxRequest converts a transaction to a `jsonrpc.Request`.
 func submitTxRequest(tx abi.Tx) (jsonrpc.Request, error) {
-	if i := tx.In.Remove("amount"); i == -1 {
-		return jsonrpc.Request{}, errors.New("missing amount argument")
-	}
-
-	if abi.IsShiftIn(tx.To) {
-		tx.Autogen = abi.Args{}
-		utxo := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
-		tx.In.Set("utxo", abi.ExtBtcCompatUTXO{
-			TxHash: utxo.TxHash,
-			VOut:   utxo.VOut,
-		})
-	} else {
-		if i := tx.In.Remove("to"); i == -1 {
-			return jsonrpc.Request{}, errors.New("missing to argument")
-		}
-	}
-
 	data, err := json.Marshal(jsonrpc.ParamsSubmitTx{Tx: tx})
 	if err != nil {
 		return jsonrpc.Request{}, fmt.Errorf("failed to marshal tx: %v", err)

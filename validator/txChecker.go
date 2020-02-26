@@ -109,7 +109,7 @@ func (tc *txChecker) checkDuplicate(tx abi.Tx) (abi.Tx, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
-	stored, err := tc.db.Tx(tx.Hash)
+	stored, err := tc.db.Tx(tx.Hash, false)
 	if err == sql.ErrNoRows {
 		return tx, tc.db.InsertTx(tx)
 	}
