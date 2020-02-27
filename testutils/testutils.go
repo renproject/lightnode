@@ -128,7 +128,7 @@ func RandomSubmitTx() jsonrpc.Request {
 			Type:  formal.Type,
 			Value: RandomAbiValue(formal.Type),
 		}
-		args.Append(arg)
+		args.Set(arg)
 	}
 	submitTx := jsonrpc.ParamsSubmitTx{Tx: abi.Tx{
 		Hash: testutil.RandomB32(),

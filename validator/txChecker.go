@@ -85,12 +85,12 @@ func (tc *txChecker) verify(request jsonrpc.Request) (abi.Tx, error) {
 	}
 
 	// Validate the phash and calculate other hashes.
-	tx, err := transform.Phash(submiTx.Tx)
+	tx, err := transform.PHash(submiTx.Tx)
 	if err != nil {
 		return abi.Tx{}, err
 	}
-	tx = transform.Ghash(tx)
-	tx = transform.Nhash(tx)
+	tx = transform.GHash(tx)
+	tx = transform.NHash(tx)
 	tx = transform.TxHash(tx)
 
 	// Validate the utxo or shiftOut event.
@@ -101,7 +101,7 @@ func (tc *txChecker) verify(request jsonrpc.Request) (abi.Tx, error) {
 		}
 		return transform.Sighash(tx), nil
 	} else {
-		return transform.ValidateRefEvent(ctx, tx, tc.bc, 0)
+		return transform.AddShiftOutDetails(ctx, tx, tc.bc, 0)
 	}
 }
 

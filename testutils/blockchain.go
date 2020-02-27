@@ -1,9 +1,12 @@
 package testutils
 
 import (
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/consensus/txcheck/transform/blockchain"
+	"github.com/renproject/darknode/ethrpc"
 	"github.com/renproject/mercury/sdk/client/btcclient"
 	"github.com/renproject/mercury/sdk/client/ethclient"
 	"github.com/renproject/mercury/types"
@@ -20,6 +23,10 @@ func InitConnPool(logger logrus.FieldLogger, network darknode.Network, protocolA
 	if err != nil {
 		logger.Panicf("[connPool] failed to connect to Ethereum: %v", err)
 	}
+	protocol, err := ethrpc.NewProtocol(ethClient.EthClient(), protocolAddr)
+	if err != nil {
+		panic(fmt.Errorf("cannot initialise protocol contract: %v", err))
+	}
 
-	return blockchain.New(logger, btcClient, zecClient, bchClient, ethClient, protocolAddr)
+	return blockchain.New(logger, btcClient, zecClient, bchClient, ethClient, protocol)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/consensus/txcheck/transform/blockchain"
+	"github.com/renproject/darknode/ethrpc"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/cacher"
 	"github.com/renproject/lightnode/confirmer"
@@ -167,7 +168,11 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	if err != nil {
 		panic(fmt.Errorf("cannot initialise eth client: %v", err))
 	}
-	bc := blockchain.New(logger, btcClient, zecClient, bchClient, ethClient, protocolAddr)
+	protocol, err := ethrpc.NewProtocol(ethClient.EthClient(), protocolAddr)
+	if err != nil {
+		panic(fmt.Errorf("cannot initialise protocol contract: %v", err))
+	}
+	bc := blockchain.New(logger, btcClient, zecClient, bchClient, ethClient, protocol)
 
 	updater := updater.New(logger, multiStore, options.UpdaterPollRate, options.ClientTimeout)
 	dispatcher := dispatcher.New(logger, options.ClientTimeout, multiStore, opts)
