@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/renproject/darknode/jsonrpc"
@@ -75,9 +76,6 @@ func (server *Server) HealthCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (server *Server) Handle(w http.ResponseWriter, r *http.Request) {
-	v := r.URL.Query()
-	darknodeID := v.Get("id")
-
 	// Decode and validate request body in JSON.
 	rawMessage := json.RawMessage{}
 	if err := json.NewDecoder(r.Body).Decode(&rawMessage); err != nil {
@@ -134,7 +132,7 @@ func (server *Server) Handle(w http.ResponseWriter, r *http.Request) {
 		// Send the request to validator and wait for response.
 		ctx, cancel := context.WithTimeout(r.Context(), server.options.Timeout)
 		defer cancel()
-		reqWithResponder := NewRequestWithResponder(ctx, reqs[i], darknodeID)
+		reqWithResponder := NewRequestWithResponder(ctx, reqs[i], r.URL.Query())
 		if ok := server.validator.Send(reqWithResponder); !ok {
 			errMsg := "fail to send request to validator, too much back pressure in server"
 			server.logger.Error(errMsg)
@@ -195,7 +193,7 @@ type RequestWithResponder struct {
 	Context    context.Context
 	Request    jsonrpc.Request
 	Responder  chan jsonrpc.Response
-	DarknodeID string
+	Values 	   url.Values
 }
 
 // IsMessage implements the `phi.Message` interface.
@@ -207,7 +205,7 @@ func (req RequestWithResponder) RespondWithErr(code int, err error) {
 }
 
 // NewRequestWithResponder constructs a new request wrapper object.
-func NewRequestWithResponder(ctx context.Context, req jsonrpc.Request, darknodeAddr string) RequestWithResponder {
+func NewRequestWithResponder(ctx context.Context, req jsonrpc.Request, values url.Values) RequestWithResponder {
 	responder := make(chan jsonrpc.Response, 1)
-	return RequestWithResponder{ctx, req, responder, darknodeAddr}
+	return RequestWithResponder{ctx, req, responder, values}
 }

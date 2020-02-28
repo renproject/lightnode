@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand"
+	"net/url"
 	"time"
 
 	ethabi "github.com/ethereum/go-ethereum/accounts/abi"
@@ -130,7 +131,7 @@ func (sub Submitter) queryStatus(ctx context.Context, hash abi.B32) (string, abi
 		ID:      rand.Int31(),
 		Method:  jsonrpc.MethodQueryTx,
 		Params:  data,
-	}, "")
+	}, url.Values{})
 	for !sub.dispatcher.Send(req) {
 		sub.logger.Errorf("[submitter] cannot send query tx request to dispatcher")
 		time.Sleep(time.Second)

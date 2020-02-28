@@ -104,7 +104,8 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 			}
 		}
 	default:
-		response, cached := cacher.get(reqID, msg.DarknodeID)
+		darknodeID := msg.Values.Get("id")
+		response, cached := cacher.get(reqID, darknodeID)
 		if cached {
 			msg.Responder <- response
 			return
@@ -138,12 +139,12 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 		Context:    msg.Context,
 		Request:    msg.Request,
 		Responder:  responder,
-		DarknodeID: msg.DarknodeID,
+		Values:     msg.Values,
 	})
 
 	go func() {
 		response := <-responder
-		cacher.insert(id, msg.DarknodeID, response)
+		cacher.insert(id, msg.Values.Get("id"), response)
 		msg.Responder <- response
 	}()
 }

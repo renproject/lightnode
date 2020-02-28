@@ -116,7 +116,7 @@ var _ = Describe("Lightnode db", func() {
 						defer dropTables(sqlDB, "shift_in", "shift_out")
 
 						tx := testutil.RandomTransformedTx()
-						Expect(db.InsertTx(tx)).Should(Succeed())
+						Expect(db.InsertTx(tx, true)).Should(Succeed())
 						_tx, err := db.Tx(tx.Hash, true)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(tx).Should(Equal(_tx))
@@ -144,7 +144,7 @@ var _ = Describe("Lightnode db", func() {
 						for i := 0; i < 50; i++ {
 							tx := testutil.RandomTransformedTx()
 							txs[tx.Hash] = tx
-							Expect(db.InsertTx(tx)).To(Succeed())
+							Expect(db.InsertTx(tx, true)).To(Succeed())
 						}
 
 						pendingTxs, err := db.PendingTxs(time.Hour)
@@ -174,7 +174,7 @@ var _ = Describe("Lightnode db", func() {
 
 						for i := 0; i < 50; i++ {
 							tx := testutil.RandomTransformedTx()
-							Expect(db.InsertTx(tx)).To(Succeed())
+							Expect(db.InsertTx(tx, true)).To(Succeed())
 							Expect(UpdateTxCreatedTime(sqlDB, "shift_in", tx.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
 							Expect(UpdateTxCreatedTime(sqlDB, "shift_out", tx.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
 						}
@@ -200,7 +200,7 @@ var _ = Describe("Lightnode db", func() {
 						txs := map[abi.B32]abi.Tx{}
 						for i := 0; i < 50; i++ {
 							tx := testutil.RandomTransformedMintingTx("")
-							Expect(db.InsertTx(tx)).To(Succeed())
+							Expect(db.InsertTx(tx, true)).To(Succeed())
 
 							p := tx.In.Get("p")
 							if !p.IsNil() {
@@ -236,7 +236,7 @@ var _ = Describe("Lightnode db", func() {
 						txs := map[abi.B32]abi.Tx{}
 						for i := 0; i < 50; i++ {
 							tx := testutil.RandomTransformedMintingTx("")
-							Expect(db.InsertTx(tx)).To(Succeed())
+							Expect(db.InsertTx(tx, true)).To(Succeed())
 							txs[tx.Hash] = tx
 							Expect(db.UpdateStatus(tx.Hash, TxStatusConfirmed)).Should(Succeed())
 						}
@@ -270,7 +270,7 @@ var _ = Describe("Lightnode db", func() {
 						for i := 0; i < 50; i++ {
 							tx := testutil.RandomTransformedTx()
 							txs[tx.Hash] = tx
-							Expect(db.InsertTx(tx)).To(Succeed())
+							Expect(db.InsertTx(tx, true)).To(Succeed())
 							Expect(db.UpdateStatus(tx.Hash, TxStatusConfirmed)).To(Succeed())
 
 							status, err := db.TxStatus(tx.Hash)
@@ -297,8 +297,8 @@ var _ = Describe("Lightnode db", func() {
 
 						shiftIn := testutil.RandomTransformedMintingTx("")
 						shiftOut := testutil.RandomTransformedBurningTx("")
-						Expect(db.InsertTx(shiftIn)).To(Succeed())
-						Expect(db.InsertTx(shiftOut)).To(Succeed())
+						Expect(db.InsertTx(shiftIn, true)).To(Succeed())
+						Expect(db.InsertTx(shiftOut, true)).To(Succeed())
 
 						// Expect no data gets pruned when they are not expired
 						Expect(db.Prune(5 * time.Second)).Should(Succeed())

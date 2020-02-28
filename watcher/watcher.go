@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"net/url"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -165,5 +166,5 @@ func (watcher Watcher) shiftOutToRequest(ref uint64) http.RequestWithResponder {
 		Method:  jsonrpc.MethodSubmitTx,
 		Params:  data,
 	}
-	return http.NewRequestWithResponder(context.Background(), req, "")
+	return http.NewRequestWithResponder(context.Background(), req, url.Values{})
 }

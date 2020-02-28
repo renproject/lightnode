@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"net/url"
 	"time"
 
 	"github.com/renproject/darknode/abi"
@@ -111,7 +112,7 @@ func (confirmer *Confirmer) confirm(tx abi.Tx) {
 		confirmer.logger.Errorf("[confirmer] cannot construct json request for transaction: %v", err)
 		return
 	}
-	req := http.NewRequestWithResponder(context.Background(), request, "")
+	req := http.NewRequestWithResponder(context.Background(), request, url.Values{})
 	if ok := confirmer.dispatcher.Send(req); !ok {
 		confirmer.logger.Errorf("[confirmer] cannot send message to dispatcher, too much back pressure")
 		return

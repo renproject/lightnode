@@ -35,7 +35,7 @@ type DB interface {
 	Init() error
 
 	// InsertTx inserts the tx into the database.
-	InsertTx(tx abi.Tx) error
+	InsertTx(tx abi.Tx, gaas bool) error
 
 	// Tx gets the details of the tx with given txHash. It returns an `sql.ErrNoRows`
 	// if tx cannot be found.
@@ -82,6 +82,7 @@ func (db database) Init() error {
 	shiftIn := `CREATE TABLE IF NOT EXISTS shift_in (
     hash                 CHAR(64) NOT NULL PRIMARY KEY,
     status               INT,
+    gaas                 BOOL DEFAULT FALSE,
     created_time         INT,
     contract             VARCHAR(255),
     p                    VARCHAR,
@@ -126,9 +127,9 @@ func (db database) Init() error {
 }
 
 // InsertTx implements the `DB` interface.
-func (db database) InsertTx(tx abi.Tx) error {
+func (db database) InsertTx(tx abi.Tx, gaas bool) error {
 	if abi.IsShiftIn(tx.To) {
-		if err := db.insertShiftIn(tx); err != nil {
+		if err := db.insertShiftIn(tx, gaas); err != nil {
 			return err
 		}
 		return db.insertShiftInAutogen(tx)
@@ -224,7 +225,7 @@ func (db database) UnsubmittedTxs(expiry time.Duration) ([]abi.B32, error) {
 
 	// Get txs which haven't been submitted
 	shiftIns, err := db.db.Query(`SELECT hash FROM shift_in 
-		WHERE status = $1 AND $2 - created_time < $3 AND LENGTH(p)>0;`, TxStatusConfirmed, time.Now().Unix(), int64(expiry.Seconds()))
+		WHERE status = $1 AND $2 - created_time < $3 AND gaas=TRUE;`, TxStatusConfirmed, time.Now().Unix(), int64(expiry.Seconds()))
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +279,7 @@ func (db database) Prune(expiry time.Duration) error {
 }
 
 // Inserts the original request received from user into the shift_in table.
-func (db database) insertShiftIn(tx abi.Tx) error {
+func (db database) insertShiftIn(tx abi.Tx, gaas bool) error {
 	p := tx.In.Get("p")
 	if p.IsNil() {
 		return errors.New("invalid tx, missing parameter p")
@@ -304,10 +305,11 @@ func (db database) insertShiftIn(tx abi.Tx) error {
 		return fmt.Errorf("unexpected type for utxo, expected abi.ExtTypeBtcCompatUTXO, got %v", tx.In.Get("utxo").Value.Type())
 	}
 
-	script := `INSERT INTO shift_in (hash, status, created_time, contract, p, token, toAddr, n, utxo_hash, utxo_vout)
-VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9);`
+	script := `INSERT INTO shift_in (hash, status, gaas, created_time, contract, p, token, toAddr, n, utxo_hash, utxo_vout)
+VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10);`
 	_, err = db.db.Exec(script,
 		hex.EncodeToString(tx.Hash[:]),
+		gaas,
 		time.Now().Unix(),
 		tx.To,
 		hex.EncodeToString(pVal),

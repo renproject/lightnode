@@ -82,7 +82,7 @@ func (validator *Validator) isValid(msg http.RequestWithResponder) *jsonrpc.Erro
 	}
 
 	// Reject requests with invalid Darknode IDs.
-	darknodeID := msg.DarknodeID
+	darknodeID := msg.Values.Get("id")
 	if darknodeID != "" {
 		if _, err := validator.multiStore.Get(darknodeID); err != nil {
 			errMsg := fmt.Sprintf("unknown darknode id %s", darknodeID)

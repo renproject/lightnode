@@ -54,7 +54,8 @@ func (tc *txChecker) Run() {
 			}
 
 			// Check for duplicate.
-			tx, err = tc.checkDuplicate(tx)
+			gaas := req.Values.Get("gaas")
+			tx, err = tc.checkDuplicate(tx, gaas)
 			if err != nil {
 				tc.logger.Errorf("[txChecker] cannot check tx duplication, err = %v", err)
 				req.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
@@ -89,6 +90,7 @@ func (tc *txChecker) verify(request jsonrpc.Request) (abi.Tx, error) {
 	if err != nil {
 		return abi.Tx{}, err
 	}
+	tx.Autogen.Set(phashArg)
 	tx = transform.GHash(tx)
 	tx = transform.NHash(tx)
 	tx = transform.TxHash(tx)
@@ -105,13 +107,13 @@ func (tc *txChecker) verify(request jsonrpc.Request) (abi.Tx, error) {
 	}
 }
 
-func (tc *txChecker) checkDuplicate(tx abi.Tx) (abi.Tx, error) {
+func (tc *txChecker) checkDuplicate(tx abi.Tx, gaas string) (abi.Tx, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
 	stored, err := tc.db.Tx(tx.Hash, false)
 	if err == sql.ErrNoRows {
-		return tx, tc.db.InsertTx(tx)
+		return tx, tc.db.InsertTx(tx, gaas!="")
 	}
 	return stored, err
 }

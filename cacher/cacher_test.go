@@ -3,6 +3,7 @@ package cacher_test
 import (
 	"context"
 	"database/sql"
+	"net/url"
 	"os"
 	"time"
 
@@ -57,7 +58,7 @@ var _ = Describe("Cacher", func() {
 					continue
 				}
 
-				request := http.NewRequestWithResponder(ctx, testutils.ValidRequest(method), "")
+				request := http.NewRequestWithResponder(ctx, testutils.ValidRequest(method), url.Values{})
 				Expect(cacher.Send(request)).Should(BeTrue())
 
 				var message phi.Message
@@ -88,7 +89,7 @@ var _ = Describe("Cacher", func() {
 
 				// Send the first request and respond with an error
 				valid := testutils.ValidRequest(method)
-				request := http.NewRequestWithResponder(ctx, valid, "")
+				request := http.NewRequestWithResponder(ctx, valid, url.Values{})
 				Expect(cacher.Send(request)).Should(BeTrue())
 				var message phi.Message
 				Eventually(messages).Should(Receive(&message))
@@ -103,7 +104,7 @@ var _ = Describe("Cacher", func() {
 				Expect(receivedResp).To(Equal(resp))
 
 				// Send the second request and expect a cached response
-				newReq := http.NewRequestWithResponder(ctx, valid, "")
+				newReq := http.NewRequestWithResponder(ctx, valid, url.Values{})
 				Expect(cacher.Send(newReq)).Should(BeTrue())
 
 				var newResp jsonrpc.Response

@@ -3,6 +3,7 @@ package validator_test
 import (
 	"context"
 	"database/sql"
+	"net/url"
 
 	_ "github.com/mattn/go-sqlite3"
 
@@ -56,7 +57,7 @@ var _ = Describe("Validator", func() {
 				}
 
 				validReq := testutils.ValidRequest(method)
-				request := http.NewRequestWithResponder(ctx, validReq, "")
+				request := http.NewRequestWithResponder(ctx, validReq, url.Values{})
 				Expect(validator.Send(request)).Should(BeTrue())
 
 				var message phi.Message
