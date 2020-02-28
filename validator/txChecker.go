@@ -90,7 +90,6 @@ func (tc *txChecker) verify(request jsonrpc.Request) (abi.Tx, error) {
 	if err != nil {
 		return abi.Tx{}, err
 	}
-	tx.Autogen.Set(phashArg)
 	tx = transform.GHash(tx)
 	tx = transform.NHash(tx)
 	tx = transform.TxHash(tx)
