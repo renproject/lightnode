@@ -97,13 +97,13 @@ func (options *Options) SetZeroToDefault() {
 		options.UpdaterPollRate = 5 * time.Minute
 	}
 	if options.ConfirmerPollRate == 0 {
-		options.ConfirmerPollRate = 10 * time.Second
+		options.ConfirmerPollRate = 15 * time.Second
 	}
 	if options.WatcherPollRate == 0 {
-		options.WatcherPollRate = 10 * time.Second
+		options.WatcherPollRate = 15 * time.Second
 	}
 	if options.SubmitterPollRate == 0 {
-		options.SubmitterPollRate = 10 * time.Second
+		options.SubmitterPollRate = 15 * time.Second
 	}
 	if options.Expiry == 0 {
 		options.Expiry = 7 * 24 * time.Hour
