@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/renproject/darknode/abi"
@@ -33,6 +35,9 @@ type Confirmer struct {
 	dispatcher phi.Sender
 	database   db.DB
 	bc         blockchain.ConnPool
+
+	pendingMu  *sync.RWMutex
+	pendingTxs map[abi.B32]struct{}
 }
 
 // New returns a new Confirmer.
@@ -100,27 +105,40 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 
 		if confirmed {
 			confirmer.logger.Infof("tx=%v has reached sufficient confirmations", tx.Hash.String())
-			confirmer.confirm(tx)
+			confirmer.confirm(ctx, tx)
 		}
 	})
 }
 
 // confirm sends the transaction to the dispatcher and marks it as confirmed.
-func (confirmer *Confirmer) confirm(tx abi.Tx) {
+func (confirmer *Confirmer) confirm(ctx context.Context, tx abi.Tx) {
 	request, err := submitTxRequest(tx)
 	if err != nil {
 		confirmer.logger.Errorf("[confirmer] cannot construct json request for transaction: %v", err)
 		return
 	}
-	req := http.NewRequestWithResponder(context.Background(), request, url.Values{})
+	req := http.NewRequestWithResponder(ctx, request, url.Values{})
 	if ok := confirmer.dispatcher.Send(req); !ok {
 		confirmer.logger.Errorf("[confirmer] cannot send message to dispatcher, too much back pressure")
 		return
 	}
 
-	if err := confirmer.database.UpdateStatus(tx.Hash, db.TxStatusConfirmed); err != nil {
-		confirmer.logger.Errorf("[confirmer] cannot confirm tx in the database: %v", err)
-	}
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case response := <-req.Responder:
+			if response.Error != nil {
+				confirmer.logger.Errorf("[confirmer] getting error back when submitting tx = %v: [%v] %v", tx.Hash.String(), response.Error.Code, response.Error.Message)
+				return
+			}
+			log.Printf("✅ successfully submit tx = %v to darknodes", tx.Hash.String())
+
+			if err := confirmer.database.UpdateStatus(tx.Hash, db.TxStatusConfirmed); err != nil {
+				confirmer.logger.Errorf("[confirmer] cannot confirm tx in the database: %v", err)
+			}
+		}
+	}()
 }
 
 // shiftInTxConfirmed checks if a given shift in transaction has received

@@ -190,10 +190,10 @@ func writeError(w http.ResponseWriter, id interface{}, err jsonrpc.Error) error 
 // RequestWithResponder wraps a `jsonrpc.Request` with a responder channel that
 // the response will be written to.
 type RequestWithResponder struct {
-	Context    context.Context
-	Request    jsonrpc.Request
-	Responder  chan jsonrpc.Response
-	Values 	   url.Values
+	Context   context.Context
+	Request   jsonrpc.Request
+	Responder chan jsonrpc.Response
+	Values    url.Values
 }
 
 // IsMessage implements the `phi.Message` interface.

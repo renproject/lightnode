@@ -3,7 +3,6 @@ package dispatcher
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/renproject/darknode/addr"
@@ -54,7 +53,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 		addrs, err = dispatcher.multiAddrs(msg.Request.Method)
 	}
 	if err != nil {
-		dispatcher.logger.Errorf("[dispatcher] fail to send %v message to [%v], error getting multi-address: %v", msg.Request.Method,id, err)
+		dispatcher.logger.Errorf("[dispatcher] fail to send %v message to [%v], error getting multi-address: %v", msg.Request.Method, id, err)
 		msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
 		return
 	}
@@ -64,22 +63,14 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 	responses := make(chan jsonrpc.Response, len(addrs))
 	resIter := dispatcher.newResponseIter(msg.Request.Method)
 
-	var retryOptions *http.RetryOptions
-	if msg.Request.Method == jsonrpc.MethodSubmitTx {
-		retryOptions = &http.DefaultRetryOptions
-	}
-
 	go func() {
 		phi.ParForAll(addrs, func(i int) {
 			address := fmt.Sprintf("http://%s:%v", addrs[i].IP4(), addrs[i].Port()+1)
-			response, err := dispatcher.client.SendRequest(ctx, address, msg.Request, retryOptions)
+			response, err := dispatcher.client.SendRequest(ctx, address, msg.Request, nil)
 			if err != nil {
 				return
 			}
 			responses <- response
-			if msg.Request.Method == jsonrpc.MethodSubmitTx && response.Error == nil {
-				log.Printf("✅ successfully send request to darknode = %v", address)
-			}
 		})
 		close(responses)
 	}()
