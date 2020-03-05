@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/url"
 	"time"
@@ -128,7 +127,7 @@ func (confirmer *Confirmer) confirm(ctx context.Context, tx abi.Tx) {
 				confirmer.logger.Errorf("[confirmer] getting error back when submitting tx = %v: [%v] %v", tx.Hash.String(), response.Error.Code, response.Error.Message)
 				return
 			}
-			log.Printf("✅ successfully submit tx = %v to darknodes", tx.Hash.String())
+			confirmer.logger.Infof("✅ successfully submit tx = %v to darknodes", tx.Hash.String())
 
 			if err := confirmer.database.UpdateStatus(tx.Hash, db.TxStatusConfirmed); err != nil {
 				confirmer.logger.Errorf("[confirmer] cannot confirm tx in the database: %v", err)
