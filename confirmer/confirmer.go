@@ -81,7 +81,10 @@ func (confirmer *Confirmer) Run(ctx context.Context) {
 // confirmations.
 func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, confirmer.options.PollInterval)
-	defer cancel()
+	go func() {
+		defer cancel()
+		<-ctx.Done()
+	}()
 
 	txs, err := confirmer.database.PendingTxs()
 	if err != nil {
@@ -100,13 +103,13 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 
 		if confirmed {
 			confirmer.logger.Infof("tx=%v has reached sufficient confirmations", tx.Hash.String())
-			confirmer.confirm(tx)
+			confirmer.confirm(ctx, tx)
 		}
 	})
 }
 
 // confirm sends the transaction to the dispatcher and marks it as confirmed.
-func (confirmer *Confirmer) confirm(tx abi.Tx) {
+func (confirmer *Confirmer) confirm(ctx context.Context, tx abi.Tx) {
 	request, err := submitTxRequest(tx)
 	if err != nil {
 		confirmer.logger.Errorf("[confirmer] cannot construct json request for transaction: %v", err)
@@ -118,9 +121,23 @@ func (confirmer *Confirmer) confirm(tx abi.Tx) {
 		return
 	}
 
-	if err := confirmer.database.ConfirmTx(tx.Hash); err != nil {
-		confirmer.logger.Errorf("[confirmer] cannot confirm tx in the database: %v", err)
-	}
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case response := <-req.Responder:
+			if response.Error != nil {
+				confirmer.logger.Errorf("[confirmer] getting error back when submitting tx = %v: [%v] %v", tx.Hash.String(), response.Error.Code, response.Error.Message)
+				return
+			}
+			confirmer.logger.Infof("✅ successfully submit tx = %v to darknodes", tx.Hash.String())
+
+			if err := confirmer.database.ConfirmTx(tx.Hash); err != nil {
+				confirmer.logger.Errorf("[confirmer] cannot confirm tx in the database: %v", err)
+			}
+		}
+	}()
+
 }
 
 // shiftInTxConfirmed checks if a given shift in transaction has received
