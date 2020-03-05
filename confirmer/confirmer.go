@@ -7,7 +7,6 @@ import (
 	"log"
 	"math/rand"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/renproject/darknode/abi"
@@ -35,9 +34,6 @@ type Confirmer struct {
 	dispatcher phi.Sender
 	database   db.DB
 	bc         blockchain.ConnPool
-
-	pendingMu  *sync.RWMutex
-	pendingTxs map[abi.B32]struct{}
 }
 
 // New returns a new Confirmer.
