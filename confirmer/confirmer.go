@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/url"
 	"time"
@@ -81,7 +82,10 @@ func (confirmer *Confirmer) Run(ctx context.Context) {
 // confirmations.
 func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, confirmer.options.PollInterval)
-	defer cancel()
+	go func() {
+		defer cancel()
+		<-ctx.Done()
+	}()
 
 	txs, err := confirmer.database.PendingTxs(24 * time.Hour)
 	if err != nil {
