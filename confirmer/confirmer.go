@@ -105,7 +105,8 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 	})
 }
 
-// confirm sends the transaction to the dispatcher and marks it as confirmed.
+// confirm sends the transaction to the dispatcher and marks it as confirmed if
+// it receives a non-error response from the Darknodes.
 func (confirmer *Confirmer) confirm(ctx context.Context, tx abi.Tx) {
 	request, err := submitTxRequest(tx)
 	if err != nil {
