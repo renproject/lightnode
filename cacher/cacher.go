@@ -4,9 +4,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 
-	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/db"
@@ -76,7 +74,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 			msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
 			return
 		}
-		confirmed, err := cacher.db.Confirmed(req.TxHash)
+		status, err := cacher.db.TxStatus(req.TxHash)
 		if err != nil {
 			// Send the request to the Darknodes if we do not have it in our
 			// database.
@@ -91,8 +89,8 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		// If the transaction has not reached sufficient confirmations (i.e. the
 		// Darknodes do not yet know about the transaction), respond with a
 		// custom confirming status.
-		if !confirmed {
-			tx, err := cacher.tx(req)
+		if status != db.TxStatusConfirmed {
+			tx, err := cacher.db.Tx(req.TxHash, true)
 			if err == nil {
 				msg.Responder <- jsonrpc.Response{
 					Version: "2.0",
@@ -106,7 +104,8 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 			}
 		}
 	default:
-		response, cached := cacher.get(reqID, msg.DarknodeID)
+		darknodeID := msg.Values.Get("id")
+		response, cached := cacher.get(reqID, darknodeID)
 		if cached {
 			msg.Responder <- response
 			return
@@ -140,29 +139,12 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 		Context:    msg.Context,
 		Request:    msg.Request,
 		Responder:  responder,
-		DarknodeID: msg.DarknodeID,
+		Values:     msg.Values,
 	})
 
 	go func() {
 		response := <-responder
-		cacher.insert(id, msg.DarknodeID, response)
+		cacher.insert(id, msg.Values.Get("id"), response)
 		msg.Responder <- response
 	}()
-}
-
-func (cacher *Cacher) tx(req jsonrpc.ParamsQueryTx) (abi.Tx, error) {
-	// Fetch the transaction if it is a shift in.
-	tx, err := cacher.db.ShiftIn(req.TxHash)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			// Check if the transaction is a shift out.
-			tx, err = cacher.db.ShiftOut(req.TxHash)
-			if err != nil {
-				return abi.Tx{}, fmt.Errorf("[cacher] cannot get tx from db: %v", err)
-			}
-		} else {
-			return abi.Tx{}, fmt.Errorf("[cacher] cannot get tx from db: %v", err)
-		}
-	}
-	return tx, nil
 }

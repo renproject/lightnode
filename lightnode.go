@@ -4,30 +4,40 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"database/sql"
+	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/go-redis/redis/v7"
+	"github.com/gorilla/mux"
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/addr"
+	"github.com/renproject/darknode/consensus/txcheck/transform/blockchain"
+	"github.com/renproject/darknode/ethrpc"
 	"github.com/renproject/kv"
-	"github.com/renproject/lightnode/blockchain"
 	"github.com/renproject/lightnode/cacher"
 	"github.com/renproject/lightnode/confirmer"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/dispatcher"
-	"github.com/renproject/lightnode/http"
+	lhttp "github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
+	"github.com/renproject/lightnode/submitter"
 	"github.com/renproject/lightnode/updater"
 	"github.com/renproject/lightnode/validator"
 	"github.com/renproject/lightnode/watcher"
+	"github.com/renproject/mercury/sdk/client/btcclient"
+	"github.com/renproject/mercury/sdk/client/ethclient"
+	"github.com/renproject/mercury/types"
 	"github.com/renproject/phi"
+	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 )
 
 // Options for setting up a Lightnode, usually parsed from environment variables.
 type Options struct {
 	Network           darknode.Network
+	Key               *ecdsa.PrivateKey
 	DisPubkey         *ecdsa.PublicKey
 	Port              string
 	ProtocolAddr      string
@@ -39,6 +49,7 @@ type Options struct {
 	UpdaterPollRate   time.Duration
 	ConfirmerPollRate time.Duration
 	WatcherPollRate   time.Duration
+	SubmitterPollRate time.Duration
 	Expiry            time.Duration
 	BootstrapAddrs    addr.MultiAddresses
 }
@@ -51,6 +62,9 @@ func (options *Options) SetZeroToDefault() {
 	case darknode.Testnet, darknode.Devnet, darknode.Localnet:
 	default:
 		panic("unknown networks")
+	}
+	if options.Key == nil {
+		panic("please specify the key of lightnode account for submitting gasless txs.")
 	}
 	if options.DisPubkey == nil {
 		panic("distributed public key is not initialized in the options")
@@ -83,10 +97,13 @@ func (options *Options) SetZeroToDefault() {
 		options.UpdaterPollRate = 5 * time.Minute
 	}
 	if options.ConfirmerPollRate == 0 {
-		options.ConfirmerPollRate = 10 * time.Second
+		options.ConfirmerPollRate = 15 * time.Second
 	}
 	if options.WatcherPollRate == 0 {
-		options.WatcherPollRate = 10 * time.Second
+		options.WatcherPollRate = 15 * time.Second
+	}
+	if options.SubmitterPollRate == 0 {
+		options.SubmitterPollRate = 15 * time.Second
 	}
 	if options.Expiry == 0 {
 		options.Expiry = 7 * 24 * time.Hour
@@ -98,9 +115,11 @@ func (options *Options) SetZeroToDefault() {
 type Lightnode struct {
 	options    Options
 	logger     logrus.FieldLogger
-	server     *http.Server
+	db         db.DB
+	server     *lhttp.Server
 	updater    updater.Updater
 	confirmer  confirmer.Confirmer
+	submitter  submitter.Submitter
 	btcWatcher watcher.Watcher
 	zecWatcher watcher.Watcher
 	bchWatcher watcher.Watcher
@@ -124,8 +143,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	}
 
 	// Define the options used for the server.
-	serverOptions := http.Options{
-		Port:         options.Port,
+	serverOptions := lhttp.Options{
 		MaxBatchSize: options.MaxBatchSize,
 		Timeout:      options.ServerTimeout,
 	}
@@ -143,25 +161,39 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 
 	// Initialise the blockchain adapter.
 	protocolAddr := common.HexToAddress(options.ProtocolAddr)
-	connPool := blockchain.New(logger, options.Network, protocolAddr)
+	btcClient := btcclient.NewClient(logger, darknode.BtcNetwork(types.Bitcoin, options.Network))
+	zecClient := btcclient.NewClient(logger, darknode.BtcNetwork(types.ZCash, options.Network))
+	bchClient := btcclient.NewClient(logger, darknode.BtcNetwork(types.BitcoinCash, options.Network))
+	ethClient, err := ethclient.New(logger, darknode.EthShifterNetwork(options.Network))
+	if err != nil {
+		panic(fmt.Errorf("cannot initialise eth client: %v", err))
+	}
+	protocol, err := ethrpc.NewProtocol(ethClient.EthClient(), protocolAddr)
+	if err != nil {
+		panic(fmt.Errorf("cannot initialise protocol contract: %v", err))
+	}
+	bc := blockchain.New(logger, btcClient, zecClient, bchClient, ethClient, protocol)
 
 	updater := updater.New(logger, multiStore, options.UpdaterPollRate, options.ClientTimeout)
 	dispatcher := dispatcher.New(logger, options.ClientTimeout, multiStore, opts)
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
 	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
-	validator := validator.New(logger, cacher, multiStore, opts, *options.DisPubkey, connPool, db)
-	server := http.New(logger, serverOptions, validator)
-	confirmer := confirmer.New(logger, confirmerOptions, dispatcher, db, connPool)
-	btcWatcher := watcher.NewWatcher(logger, "BTC0Eth2Btc", connPool, validator, client, options.WatcherPollRate)
-	zecWatcher := watcher.NewWatcher(logger, "ZEC0Eth2Zec", connPool, validator, client, options.WatcherPollRate)
-	bchWatcher := watcher.NewWatcher(logger, "BCH0Eth2Bch", connPool, validator, client, options.WatcherPollRate)
+	validator := validator.New(logger, cacher, multiStore, opts, *options.DisPubkey, bc, db)
+	server := lhttp.New(logger, serverOptions, validator)
+	confirmer := confirmer.New(logger, confirmerOptions, dispatcher, db, bc)
+	submitter := submitter.New(logger, dispatcher, db, ethClient, options.Key, options.SubmitterPollRate)
+	btcWatcher := watcher.NewWatcher(logger, "BTC0Eth2Btc", bc, validator, client, options.WatcherPollRate)
+	zecWatcher := watcher.NewWatcher(logger, "ZEC0Eth2Zec", bc, validator, client, options.WatcherPollRate)
+	bchWatcher := watcher.NewWatcher(logger, "BCH0Eth2Bch", bc, validator, client, options.WatcherPollRate)
 
 	return Lightnode{
 		options:    options,
 		logger:     logger,
+		db:         db,
 		server:     server,
 		updater:    updater,
 		confirmer:  confirmer,
+		submitter:  submitter,
 		btcWatcher: btcWatcher,
 		zecWatcher: zecWatcher,
 		bchWatcher: bchWatcher,
@@ -182,6 +214,38 @@ func (lightnode Lightnode) Run(ctx context.Context) {
 	go lightnode.btcWatcher.Run(ctx)
 	go lightnode.zecWatcher.Run(ctx)
 	go lightnode.bchWatcher.Run(ctx)
+	go lightnode.submitter.Run(ctx)
 
-	lightnode.server.Listen(ctx)
+	lightnode.Listen(ctx)
+}
+
+func (lightnode Lightnode) Listen(ctx context.Context) {
+	r := mux.NewRouter()
+	r.HandleFunc("/health", lightnode.server.HealthCheck).Methods("GET")
+	r.HandleFunc("/", lightnode.server.Handle).Methods("POST")
+	r.HandleFunc("/pending", lhttp.ConfirmationlessTxs(lightnode.db)).Methods("GET")
+	rm := lhttp.NewRecoveryMiddleware(lightnode.logger)
+	r.Use(rm)
+
+	httpHandler := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowCredentials: true,
+		AllowedMethods:   []string{"POST", "GET"},
+	}).Handler(r)
+
+	// Initialise a new HTTP server.
+	httpServer := &http.Server{
+		Addr:    fmt.Sprintf(":%s", lightnode.options.Port),
+		Handler: httpHandler,
+	}
+
+	// Close the server when the context is done.
+	go func() {
+		<-ctx.Done()
+		httpServer.Close()
+	}()
+
+	// Start running the server.
+	lightnode.logger.Infof("lightnode listening on 0.0.0.0:%v...", lightnode.options.Port)
+	lightnode.logger.Error(httpServer.ListenAndServe())
 }

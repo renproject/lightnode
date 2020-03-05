@@ -1,4 +1,4 @@
-package blockchain_test
+package submitter_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestBlockchain(t *testing.T) {
+func TestSubmitter(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Blockchain Suite")
+	RunSpecs(t, "Submitter Suite")
 }

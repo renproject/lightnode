@@ -3,6 +3,7 @@ package validator_test
 import (
 	"context"
 	"database/sql"
+	"net/url"
 
 	_ "github.com/mattn/go-sqlite3"
 
@@ -14,7 +15,6 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/testutil"
 	"github.com/renproject/kv"
-	"github.com/renproject/lightnode/blockchain"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
@@ -32,10 +32,9 @@ var _ = Describe("Validator", func() {
 		go inspector.Run(ctx)
 
 		multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
-		key, err := testutil.RandomEcdsaKey()
-		Expect(err).NotTo(HaveOccurred())
+		key := testutil.RandomEcdsaKey()
 		protocolAddr := common.HexToAddress("0x1deB773B50B66b0e65e62E41380355a1A2BEd2e1")
-		connPool := blockchain.New(logger, darknode.Devnet, protocolAddr)
+		connPool := testutils.InitConnPool(logger, darknode.Devnet, protocolAddr)
 		sqlDB, err := sql.Open("sqlite3", "./test.db")
 		Expect(err).NotTo(HaveOccurred())
 		database := db.New(sqlDB)
@@ -58,7 +57,7 @@ var _ = Describe("Validator", func() {
 				}
 
 				validReq := testutils.ValidRequest(method)
-				request := http.NewRequestWithResponder(ctx, validReq, "")
+				request := http.NewRequestWithResponder(ctx, validReq, url.Values{})
 				Expect(validator.Send(request)).Should(BeTrue())
 
 				var message phi.Message

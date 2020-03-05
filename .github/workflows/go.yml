@@ -49,12 +49,11 @@ jobs:
           cd $GITHUB_WORKSPACE
           CI=true ginkgo --v --race --cover --coverprofile coverprofile.out ./...
           covermerge                                  \
-            blockchain/coverprofile.out               \
             cacher/coverprofile.out                   \
             confirmer/coverprofile.out                \
-            http/coverprofile.out                     \
             db/coverprofile.out                       \
             dispatcher/coverprofile.out               \
+            http/coverprofile.out                     \
             store/coverprofile.out                    \
             updater/coverprofile.out                  \
             validator/coverprofile.out > covermerge.out
