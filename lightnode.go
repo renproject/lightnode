@@ -97,7 +97,7 @@ func (options *Options) SetZeroToDefault() {
 		options.UpdaterPollRate = 5 * time.Minute
 	}
 	if options.ConfirmerPollRate == 0 {
-		options.ConfirmerPollRate = 15 * time.Second
+		options.ConfirmerPollRate = 30 * time.Second
 	}
 	if options.WatcherPollRate == 0 {
 		options.WatcherPollRate = 15 * time.Second

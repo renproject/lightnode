@@ -136,10 +136,10 @@ func (cacher *Cacher) get(reqID ID, darknodeID string) (jsonrpc.Response, bool) 
 func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 	responder := make(chan jsonrpc.Response, 1)
 	cacher.dispatcher.Send(http.RequestWithResponder{
-		Context:    msg.Context,
-		Request:    msg.Request,
-		Responder:  responder,
-		Values:     msg.Values,
+		Context:   msg.Context,
+		Request:   msg.Request,
+		Responder: responder,
+		Values:    msg.Values,
 	})
 
 	go func() {

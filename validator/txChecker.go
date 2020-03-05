@@ -112,7 +112,7 @@ func (tc *txChecker) checkDuplicate(tx abi.Tx, gaas string) (abi.Tx, error) {
 
 	stored, err := tc.db.Tx(tx.Hash, false)
 	if err == sql.ErrNoRows {
-		return tx, tc.db.InsertTx(tx, gaas!="")
+		return tx, tc.db.InsertTx(tx, gaas != "")
 	}
 	return stored, err
 }
