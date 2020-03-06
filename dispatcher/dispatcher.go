@@ -46,13 +46,14 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 
 	var addrs addr.MultiAddresses
 	var err error
-	if msg.DarknodeID != "" {
-		addrs, err = dispatcher.multiAddr(msg.DarknodeID)
+	id := msg.Values.Get("id")
+	if id != "" {
+		addrs, err = dispatcher.multiAddr(id)
 	} else {
 		addrs, err = dispatcher.multiAddrs(msg.Request.Method)
 	}
 	if err != nil {
-		dispatcher.logger.Errorf("[dispatcher] fail to send %v message to [%v], error getting multi-address: %v", msg.Request.Method, msg.DarknodeID, err)
+		dispatcher.logger.Errorf("[dispatcher] fail to send %v message to [%v], error getting multi-address: %v", msg.Request.Method, id, err)
 		msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
 		return
 	}

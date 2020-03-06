@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/phi"
-	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -36,7 +35,6 @@ var (
 
 // Options are used when constructing a `Server`.
 type Options struct {
-	Port         string        // Server listens on
 	MaxBatchSize int           // Maximum batch size that will be accepted
 	Timeout      time.Duration // Timeout for each request
 }
@@ -44,9 +42,6 @@ type Options struct {
 // SetZeroToDefault verify each field of the Options and set zero values to
 // default.
 func (options *Options) SetZeroToDefault() {
-	if options.Port == "" {
-		panic("port is not set in the options")
-	}
 	if options.MaxBatchSize == 0 {
 		options.MaxBatchSize = 10
 	}
@@ -75,47 +70,12 @@ func New(logger logrus.FieldLogger, options Options, validator phi.Sender) *Serv
 	}
 }
 
-// Listen starts the `Server` on the port specified in its options. This
-// function is blocking.
-func (server *Server) Listen(ctx context.Context) {
-	r := mux.NewRouter()
-	r.HandleFunc("/health", server.healthCheck).Methods("GET")
-	r.HandleFunc("/", server.handleFunc).Methods("POST")
-	rm := NewRecoveryMiddleware(server.logger)
-	r.Use(rm)
-
-	httpHandler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowCredentials: true,
-		AllowedMethods:   []string{"POST"},
-	}).Handler(r)
-
-	// Initialise a new HTTP server.
-	httpServer := http.Server{
-		Addr:    fmt.Sprintf(":%s", server.options.Port),
-		Handler: httpHandler,
-	}
-
-	// Close the server when context is canceled.
-	go func() {
-		<-ctx.Done()
-		httpServer.Shutdown(ctx)
-	}()
-
-	// Start running the server.
-	server.logger.Infof("lightnode listening on 0.0.0.0:%v...", server.options.Port)
-	server.logger.Error(httpServer.ListenAndServe())
-}
-
-func (server *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
+func (server *Server) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	return
 }
 
-func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
-	v := r.URL.Query()
-	darknodeID := v.Get("id")
-
+func (server *Server) Handle(w http.ResponseWriter, r *http.Request) {
 	// Decode and validate request body in JSON.
 	rawMessage := json.RawMessage{}
 	if err := json.NewDecoder(r.Body).Decode(&rawMessage); err != nil {
@@ -172,7 +132,7 @@ func (server *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 		// Send the request to validator and wait for response.
 		ctx, cancel := context.WithTimeout(r.Context(), server.options.Timeout)
 		defer cancel()
-		reqWithResponder := NewRequestWithResponder(ctx, reqs[i], darknodeID)
+		reqWithResponder := NewRequestWithResponder(ctx, reqs[i], r.URL.Query())
 		if ok := server.validator.Send(reqWithResponder); !ok {
 			errMsg := "fail to send request to validator, too much back pressure in server"
 			server.logger.Error(errMsg)
@@ -230,10 +190,10 @@ func writeError(w http.ResponseWriter, id interface{}, err jsonrpc.Error) error 
 // RequestWithResponder wraps a `jsonrpc.Request` with a responder channel that
 // the response will be written to.
 type RequestWithResponder struct {
-	Context    context.Context
-	Request    jsonrpc.Request
-	Responder  chan jsonrpc.Response
-	DarknodeID string
+	Context   context.Context
+	Request   jsonrpc.Request
+	Responder chan jsonrpc.Response
+	Values    url.Values
 }
 
 // IsMessage implements the `phi.Message` interface.
@@ -245,7 +205,7 @@ func (req RequestWithResponder) RespondWithErr(code int, err error) {
 }
 
 // NewRequestWithResponder constructs a new request wrapper object.
-func NewRequestWithResponder(ctx context.Context, req jsonrpc.Request, darknodeAddr string) RequestWithResponder {
+func NewRequestWithResponder(ctx context.Context, req jsonrpc.Request, values url.Values) RequestWithResponder {
 	responder := make(chan jsonrpc.Response, 1)
-	return RequestWithResponder{ctx, req, responder, darknodeAddr}
+	return RequestWithResponder{ctx, req, responder, values}
 }

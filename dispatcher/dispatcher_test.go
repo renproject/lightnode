@@ -3,6 +3,7 @@ package dispatcher_test
 import (
 	"context"
 	"net/http/httptest"
+	"net/url"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -62,7 +63,7 @@ var _ = Describe("Dispatcher", func() {
 					continue
 				}
 
-				req := http.NewRequestWithResponder(ctx, ValidRequest(method), "")
+				req := http.NewRequestWithResponder(ctx, ValidRequest(method), url.Values{})
 				Expect(dispatcher.Send(req)).To(BeTrue())
 
 				var response jsonrpc.Response

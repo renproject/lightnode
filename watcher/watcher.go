@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"net/url"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode/abi"
+	"github.com/renproject/darknode/consensus/txcheck/transform/blockchain"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/lightnode/blockchain"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
@@ -165,5 +166,5 @@ func (watcher Watcher) shiftOutToRequest(ref uint64) http.RequestWithResponder {
 		Method:  jsonrpc.MethodSubmitTx,
 		Params:  data,
 	}
-	return http.NewRequestWithResponder(context.Background(), req, "")
+	return http.NewRequestWithResponder(context.Background(), req, url.Values{})
 }
