@@ -33,7 +33,7 @@ var _ = Describe("Validator", func() {
 
 		multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
 		key := testutil.RandomEcdsaKey()
-		protocolAddr := common.HexToAddress("0x1deB773B50B66b0e65e62E41380355a1A2BEd2e1")
+		protocolAddr := common.HexToAddress("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455")
 		connPool := testutils.InitConnPool(logger, darknode.Devnet, protocolAddr)
 		sqlDB, err := sql.Open("sqlite3", "./test.db")
 		Expect(err).NotTo(HaveOccurred())
