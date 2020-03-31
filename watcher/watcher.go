@@ -77,7 +77,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 
 	// Filter for all shift out events in this range of blocks.
 	shifter := watcher.pool.ShifterByAddress(watcher.addr)
-	iter, err := shifter.FilterLogShiftOut(
+	iter, err := shifter.FilterLogBurn(
 		&bind.FilterOpts{
 			Context: ctx,
 			Start:   last + 1, // Add one to avoid duplication.
@@ -93,7 +93,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 
 	// Loop through the logs and check if there are ShiftOut events.
 	for iter.Next() {
-		ref := iter.Event.ShiftID.Uint64()
+		ref := iter.Event.N.Uint64()
 		amount := iter.Event.Amount.Uint64()
 		watcher.logger.Infof("[watcher] detect shift out for %v, ref=%v, amount=%v SATs/ZATs", watcher.addr, ref, amount)
 
