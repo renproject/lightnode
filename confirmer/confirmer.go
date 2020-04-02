@@ -9,13 +9,18 @@ import (
 	"time"
 
 	"github.com/renproject/darknode/abi"
-	"github.com/renproject/darknode/consensus/txcheck/transform/blockchain"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
+	"github.com/renproject/mercury/types/btctypes"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
+
+type ConnPool interface {
+	Utxo(ctx context.Context, addr abi.Address, hash abi.B32, vout abi.U32) (btctypes.UTXO, error)
+	EventConfirmations(ctx context.Context, addr abi.Address, ref uint64) (uint64, error)
+}
 
 // Options for initialising a confirmer.
 type Options struct {
@@ -32,11 +37,11 @@ type Confirmer struct {
 	options    Options
 	dispatcher phi.Sender
 	database   db.DB
-	bc         blockchain.ConnPool
+	bc         ConnPool
 }
 
 // New returns a new Confirmer.
-func New(logger logrus.FieldLogger, options Options, dispatcher phi.Sender, db db.DB, bc blockchain.ConnPool) Confirmer {
+func New(logger logrus.FieldLogger, options Options, dispatcher phi.Sender, db db.DB, bc ConnPool) Confirmer {
 	return Confirmer{
 		logger:     logger,
 		options:    options,
