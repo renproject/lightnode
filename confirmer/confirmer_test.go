@@ -51,7 +51,7 @@ var _ = Describe("Confirmer", func() {
 			go confirmer.Run(ctx)
 
 			// Insert random txs into database.
-			hashes := make([]abi.B32, 1000)
+			hashes := make([]abi.B32, 100)
 			for i := range hashes {
 				tx := testutil.RandomTransformedMintingTx(abi.IntrinsicBTC0Btc2Eth.Address)
 				Expect(database.InsertTx(tx, false)).To(Succeed())
@@ -63,7 +63,7 @@ var _ = Describe("Confirmer", func() {
 			}
 
 			// Sleep and ensure the tx statuses have updated.
-			time.Sleep(time.Duration(maxAttempts)*pollInterval + 2*time.Second)
+			time.Sleep(time.Duration(maxAttempts+1) * pollInterval)
 
 			for i := range hashes {
 				status, err := database.TxStatus(hashes[i])
