@@ -154,6 +154,8 @@ func (db database) PendingTxs(expiry time.Duration) ([]abi.Tx, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer shiftIns.Close()
+
 	// Loop through rows and convert them to txs.
 	for shiftIns.Next() {
 		tx, err := rowToShiftIn(shiftIns)
