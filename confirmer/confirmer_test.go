@@ -41,6 +41,8 @@ var _ = Describe("Confirmer", func() {
 
 			sqlDB, err := sql.Open("sqlite3", "./test.db")
 			Expect(err).ToNot(HaveOccurred())
+			sqlDB.SetMaxOpenConns(1)
+
 			database := db.New(sqlDB)
 			Expect(database.Init()).To(Succeed())
 
