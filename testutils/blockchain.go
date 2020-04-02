@@ -54,30 +54,16 @@ func MockConnPool(logger logrus.FieldLogger, maxAttemptsUntilConfirmed int) *con
 	}
 }
 
-func (cp connPool) Utxo(ctx context.Context, addr abi.Address, hash abi.B32, vout abi.U32) (btctypes.UTXO, error) {
-	cp.numAttemptsMu.Lock()
-	defer cp.numAttemptsMu.Unlock()
-
+func (cp *connPool) Utxo(ctx context.Context, addr abi.Address, hash abi.B32, vout abi.U32) (btctypes.UTXO, error) {
 	ref := binary.BigEndian.Uint64(hash[:])
-	cp.numAttempts[ref]++
-
-	confirmations := uint64(0)
-	// There is a 50% chance the UTXO will be marked as confirmed, until it
-	// exceeds the threshold.
-	if rand.Int()%2 == 0 || cp.numAttempts[ref] >= cp.maxAttemptsUntilConfirmed {
-		confirmations = math.MaxUint64
-
-		// Increase the number of attempts so in future queries this tx remains
-		// confirmed.
-		cp.numAttempts[ref] = cp.maxAttemptsUntilConfirmed
-	} else {
-		cp.logger.Infof("tx with hash=%v is not confirmed (attempt %d/%d)", hash.String(), cp.numAttempts[ref], cp.maxAttemptsUntilConfirmed)
-	}
-
-	return btctypes.NewUTXO(btctypes.NewOutPoint("", 0), btctypes.Amount(rand.Uint64()), []byte{}, confirmations, []byte{}), nil
+	return btctypes.NewUTXO(btctypes.NewOutPoint("", 0), btctypes.Amount(rand.Uint64()), []byte{}, cp.confirmations(ref), []byte{}), nil
 }
 
-func (cp connPool) EventConfirmations(ctx context.Context, addr abi.Address, ref uint64) (uint64, error) {
+func (cp *connPool) EventConfirmations(ctx context.Context, addr abi.Address, ref uint64) (uint64, error) {
+	return cp.confirmations(ref), nil
+}
+
+func (cp *connPool) confirmations(ref uint64) uint64 {
 	cp.numAttemptsMu.Lock()
 	defer cp.numAttemptsMu.Unlock()
 
@@ -96,5 +82,5 @@ func (cp connPool) EventConfirmations(ctx context.Context, addr abi.Address, ref
 		cp.logger.Infof("tx with ref=%v is not confirmed (attempt %d/%d)", ref, cp.numAttempts[ref], cp.maxAttemptsUntilConfirmed)
 	}
 
-	return confirmations, nil
+	return confirmations
 }
