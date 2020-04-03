@@ -56,5 +56,5 @@ jobs:
             http/coverprofile.out                     \
             store/coverprofile.out                    \
             updater/coverprofile.out                  \
-            validator/coverprofile.out > covermerge.out
+            resolver/coverprofile.out > covermerge.out
           goveralls -coverprofile=coverprofile.out -service=github
