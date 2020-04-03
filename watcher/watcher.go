@@ -55,7 +55,7 @@ func (watcher Watcher) Run(ctx context.Context) {
 
 // watchLogShiftOuts checks logs that have occurred between current block number
 // and the last checked block number. It constructs a `jsonrpc.Request` from
-// these events and forwards them to the validator.
+// these events and forwards them to the resolver.
 func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, watcher.PollInterval)
 	defer cancel()
