@@ -40,6 +40,12 @@ var _ = Describe("Lightnode db", func() {
 		}
 		sqlDB, err := sql.Open(name, source)
 		Expect(err).NotTo(HaveOccurred())
+
+		// foreign_key needs to be manually enabled for Sqlite
+		if name == Sqlite{
+			_, err := sqlDB.Exec("PRAGMA foreign_keys = ON;")
+			Expect(err).NotTo(HaveOccurred())
+		}
 		return sqlDB
 	}
 
@@ -113,8 +119,7 @@ var _ = Describe("Lightnode db", func() {
 
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in", "shift_out")
-
+						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
 						tx := testutil.RandomTransformedTx()
 						Expect(db.InsertTx(tx, true)).Should(Succeed())
 						_tx, err := db.Tx(tx.Hash, true)
@@ -138,7 +143,7 @@ var _ = Describe("Lightnode db", func() {
 
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in", "shift_out")
+						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
 
 						txs := map[abi.B32]abi.Tx{}
 						for i := 0; i < 50; i++ {
@@ -170,7 +175,7 @@ var _ = Describe("Lightnode db", func() {
 
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in", "shift_out")
+						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
 
 						for i := 0; i < 50; i++ {
 							tx := testutil.RandomTransformedTx()
@@ -195,7 +200,7 @@ var _ = Describe("Lightnode db", func() {
 
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in", "shift_out")
+						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
 
 						txs := map[abi.B32]abi.Tx{}
 						for i := 0; i < 50; i++ {
@@ -231,7 +236,7 @@ var _ = Describe("Lightnode db", func() {
 
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in", "shift_out")
+						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
 
 						txs := map[abi.B32]abi.Tx{}
 						for i := 0; i < 50; i++ {
@@ -264,7 +269,7 @@ var _ = Describe("Lightnode db", func() {
 
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in", "shift_out")
+						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
 
 						txs := map[abi.B32]abi.Tx{}
 						for i := 0; i < 50; i++ {
@@ -293,7 +298,7 @@ var _ = Describe("Lightnode db", func() {
 
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in", "shift_out")
+						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
 
 						shiftIn := testutil.RandomTransformedMintingTx("")
 						shiftOut := testutil.RandomTransformedBurningTx("")
@@ -316,9 +321,12 @@ var _ = Describe("Lightnode db", func() {
 						numShiftIn, err = NumOfDataEntries(sqlDB, "shift_in")
 						Expect(err).NotTo(HaveOccurred())
 						Expect(numShiftIn).Should(BeZero())
+						numShiftInAutogen, err := NumOfDataEntries(sqlDB, "shift_in_autogen")
+						Expect(err).NotTo(HaveOccurred())
+						Expect(numShiftInAutogen).Should(BeZero())
 						numShiftOut, err = NumOfDataEntries(sqlDB, "shift_out")
 						Expect(err).NotTo(HaveOccurred())
-						Expect(numShiftIn).Should(BeZero())
+						Expect(numShiftOut).Should(BeZero())
 
 						return true
 					}
