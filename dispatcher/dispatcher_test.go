@@ -63,7 +63,8 @@ var _ = Describe("Dispatcher", func() {
 					continue
 				}
 
-				req := http.NewRequestWithResponder(ctx, ValidRequest(method), url.Values{})
+				id, params := ValidRequest(method)
+				req := http.NewRequestWithResponder(ctx, id, method, params, url.Values{})
 				Expect(dispatcher.Send(req)).To(BeTrue())
 
 				var response jsonrpc.Response

@@ -5,7 +5,6 @@ import (
 	"reflect"
 
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/lightnode/http"
 	"github.com/sirupsen/logrus"
 )
 
@@ -41,9 +40,9 @@ func (iter firstResponseIterator) Collect(id interface{}, cancel context.CancelF
 	}
 	most := iter.responses.most()
 
-	// Failed to get valid response from any nodes we sent to.(rare to happen)
+	// Failed to get a valid response from any of the nodes (rare).
 	if most == nil {
-		jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, "network is down", nil)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "network is down", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	}
 
@@ -76,9 +75,9 @@ func (iter majorityResponseIterator) Collect(id interface{}, cancel context.Canc
 	}
 	most := iter.responses.most()
 
-	// Failed to get valid response from any nodes we sent to.(rare to happen)
+	// Failed to get a valid response from any of the nodes (rare).
 	if most == nil {
-		jsonErr := jsonrpc.NewError(http.ErrorCodeForwardingError, "network is down", nil)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "network is down", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	}
 

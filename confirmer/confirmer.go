@@ -116,7 +116,7 @@ func (confirmer *Confirmer) confirm(ctx context.Context, tx abi.Tx) {
 		confirmer.logger.Errorf("[confirmer] cannot construct json request for transaction: %v", err)
 		return
 	}
-	req := http.NewRequestWithResponder(ctx, request, url.Values{})
+	req := http.NewRequestWithResponder(ctx, request.ID, request.Method, request.Params, url.Values{})
 	if ok := confirmer.dispatcher.Send(req); !ok {
 		confirmer.logger.Errorf("[confirmer] cannot send message to dispatcher, too much back pressure")
 		return

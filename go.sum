@@ -414,6 +414,10 @@ github.com/renproject/darknode v0.0.0-20200203035225-fa645c392896 h1:cE6Ao5M+Sad
 github.com/renproject/darknode v0.0.0-20200203035225-fa645c392896/go.mod h1:j053dWqwOlaZspVG5UloWSUL7sS79WlCTW+Dl9LQyHA=
 github.com/renproject/darknode v0.0.0-20200330024450-29f41d261852 h1:U+rtpdw82ApIwDtvL2EplF5uiOAhgpM2emMdm/xhb3M=
 github.com/renproject/darknode v0.0.0-20200330024450-29f41d261852/go.mod h1:Ym19jPoIOBDhIRzzpAHwnd14Da+opSHsRw+plmWjMYI=
+github.com/renproject/darknode v0.0.0-20200403010732-7c3caf6d8c36 h1:opOQhxYbl0LsPc+sqf1EgI+U5oG8jv6kAfgN7U1UU+A=
+github.com/renproject/darknode v0.0.0-20200403010732-7c3caf6d8c36/go.mod h1:Ym19jPoIOBDhIRzzpAHwnd14Da+opSHsRw+plmWjMYI=
+github.com/renproject/darknode v0.0.0-20200403012617-7c4384e6f343 h1:LbZInTsZsD1qjaAdXSLlP39f7fqn7X5CyFAOxzfXpgg=
+github.com/renproject/darknode v0.0.0-20200403012617-7c4384e6f343/go.mod h1:Ym19jPoIOBDhIRzzpAHwnd14Da+opSHsRw+plmWjMYI=
 github.com/renproject/darknode v0.5.2 h1:aczcW0JqEWq+jZO25KV4yzkQ2MevPOPttFjuGSzM+F0=
 github.com/renproject/darknode v0.5.2/go.mod h1:kMcgMH1pyr8cFzymYTRzxnCmwQRouKIu4ygeAhy3V7E=
 github.com/renproject/darknode v0.5.3-0.20200114023845-63071c4b6cb5 h1:BmZ8wjpAd1cTpLWbTKzgOvVTnZrKhTbdAShrKjocr3k=

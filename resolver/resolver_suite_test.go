@@ -1,4 +1,4 @@
-package validator_test
+package resolver_test
 
 import (
 	"testing"
@@ -9,5 +9,5 @@ import (
 
 func TestValidator(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Validator Suite")
+	RunSpecs(t, "Resolver Suite")
 }

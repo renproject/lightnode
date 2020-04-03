@@ -5,32 +5,29 @@ import (
 	"crypto/ecdsa"
 	"database/sql"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/go-redis/redis/v7"
-	"github.com/gorilla/mux"
 	"github.com/renproject/darknode"
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/consensus/txcheck/transform/blockchain"
 	"github.com/renproject/darknode/ethrpc"
+	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/cacher"
 	"github.com/renproject/lightnode/confirmer"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/dispatcher"
-	lhttp "github.com/renproject/lightnode/http"
+	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/submitter"
 	"github.com/renproject/lightnode/updater"
-	"github.com/renproject/lightnode/validator"
 	"github.com/renproject/lightnode/watcher"
 	"github.com/renproject/mercury/sdk/client/btcclient"
 	"github.com/renproject/mercury/sdk/client/ethclient"
 	"github.com/renproject/mercury/types"
 	"github.com/renproject/phi"
-	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -116,7 +113,7 @@ type Lightnode struct {
 	options    Options
 	logger     logrus.FieldLogger
 	db         db.DB
-	server     *lhttp.Server
+	server     *jsonrpc.Server
 	updater    updater.Updater
 	confirmer  confirmer.Confirmer
 	submitter  submitter.Submitter
@@ -125,7 +122,6 @@ type Lightnode struct {
 	bchWatcher watcher.Watcher
 
 	// Tasks
-	validator  phi.Task
 	cacher     phi.Task
 	dispatcher phi.Task
 }
@@ -143,10 +139,9 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	}
 
 	// Define the options used for the server.
-	serverOptions := lhttp.Options{
-		MaxBatchSize: options.MaxBatchSize,
-		Timeout:      options.ServerTimeout,
-	}
+	serverOptions := jsonrpc.DefaultOptions()
+	serverOptions.MaxBatchSize = options.MaxBatchSize
+	serverOptions.Timeout = options.ServerTimeout
 
 	// TODO: These are currently not configurable from environment variables.
 	confirmerOptions := confirmer.Options{
@@ -178,13 +173,13 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	dispatcher := dispatcher.New(logger, options.ClientTimeout, multiStore, opts)
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
 	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
-	validator := validator.New(logger, cacher, multiStore, opts, *options.DisPubkey, bc, db)
-	server := lhttp.New(logger, serverOptions, validator)
+	resolver := resolver.New(logger, cacher, multiStore, *options.DisPubkey, bc, db)
+	server := jsonrpc.NewServer(serverOptions, resolver)
 	confirmer := confirmer.New(logger, confirmerOptions, dispatcher, db, bc)
 	submitter := submitter.New(logger, dispatcher, db, ethClient, options.Key, options.SubmitterPollRate)
-	btcWatcher := watcher.NewWatcher(logger, "BTC0Eth2Btc", bc, validator, client, options.WatcherPollRate)
-	zecWatcher := watcher.NewWatcher(logger, "ZEC0Eth2Zec", bc, validator, client, options.WatcherPollRate)
-	bchWatcher := watcher.NewWatcher(logger, "BCH0Eth2Bch", bc, validator, client, options.WatcherPollRate)
+	btcWatcher := watcher.NewWatcher(logger, "BTC0Eth2Btc", bc, resolver, client, options.WatcherPollRate)
+	zecWatcher := watcher.NewWatcher(logger, "ZEC0Eth2Zec", bc, resolver, client, options.WatcherPollRate)
+	bchWatcher := watcher.NewWatcher(logger, "BCH0Eth2Bch", bc, resolver, client, options.WatcherPollRate)
 
 	return Lightnode{
 		options:    options,
@@ -198,7 +193,6 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 		zecWatcher: zecWatcher,
 		bchWatcher: bchWatcher,
 
-		validator:  validator,
 		cacher:     cacher,
 		dispatcher: dispatcher,
 	}
@@ -207,7 +201,6 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 // Run starts the `Lightnode`. This function call is blocking.
 func (lightnode Lightnode) Run(ctx context.Context) {
 	go lightnode.updater.Run(ctx)
-	go lightnode.validator.Run(ctx)
 	go lightnode.cacher.Run(ctx)
 	go lightnode.dispatcher.Run(ctx)
 	go lightnode.confirmer.Run(ctx)
@@ -216,36 +209,5 @@ func (lightnode Lightnode) Run(ctx context.Context) {
 	go lightnode.bchWatcher.Run(ctx)
 	go lightnode.submitter.Run(ctx)
 
-	lightnode.Listen(ctx)
-}
-
-func (lightnode Lightnode) Listen(ctx context.Context) {
-	r := mux.NewRouter()
-	r.HandleFunc("/health", lightnode.server.HealthCheck).Methods("GET")
-	r.HandleFunc("/", lightnode.server.Handle).Methods("POST")
-	r.HandleFunc("/pending", lhttp.ConfirmationlessTxs(lightnode.db)).Methods("GET")
-	rm := lhttp.NewRecoveryMiddleware(lightnode.logger)
-	r.Use(rm)
-
-	httpHandler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowCredentials: true,
-		AllowedMethods:   []string{"POST", "GET"},
-	}).Handler(r)
-
-	// Initialise a new HTTP server.
-	httpServer := &http.Server{
-		Addr:    fmt.Sprintf(":%s", lightnode.options.Port),
-		Handler: httpHandler,
-	}
-
-	// Close the server when the context is done.
-	go func() {
-		<-ctx.Done()
-		httpServer.Close()
-	}()
-
-	// Start running the server.
-	lightnode.logger.Infof("lightnode listening on 0.0.0.0:%v...", lightnode.options.Port)
-	lightnode.logger.Error(httpServer.ListenAndServe())
+	lightnode.server.Listen(ctx, fmt.Sprintf(":%s", lightnode.options.Port))
 }

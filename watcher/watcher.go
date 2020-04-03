@@ -2,10 +2,8 @@ package watcher
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/big"
-	"net/url"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -13,30 +11,29 @@ import (
 	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/consensus/txcheck/transform/blockchain"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/lightnode/http"
-	"github.com/renproject/phi"
+	"github.com/renproject/lightnode/resolver"
 	"github.com/sirupsen/logrus"
 )
 
 // Watcher watches for event logs for shift out transactions. These transactions
-// are then forwarded to the validator.
+// are then forwarded to the cacher.
 type Watcher struct {
 	logger       logrus.FieldLogger
 	addr         abi.Address
 	pool         blockchain.ConnPool
+	resolver     *resolver.Resolver
 	cache        *redis.Client
-	validator    phi.Sender
 	PollInterval time.Duration
 }
 
 // NewWatcher returns a new Watcher.
-func NewWatcher(logger logrus.FieldLogger, addr abi.Address, pool blockchain.ConnPool, validator phi.Sender, cache *redis.Client, pollInterval time.Duration) Watcher {
+func NewWatcher(logger logrus.FieldLogger, addr abi.Address, pool blockchain.ConnPool, resolver *resolver.Resolver, cache *redis.Client, pollInterval time.Duration) Watcher {
 	return Watcher{
 		logger:       logger,
 		addr:         addr,
 		pool:         pool,
+		resolver:     resolver,
 		cache:        cache,
-		validator:    validator,
 		PollInterval: pollInterval,
 	}
 }
@@ -97,12 +94,9 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		amount := iter.Event.Amount.Uint64()
 		watcher.logger.Infof("[watcher] detect shift out for %v, ref=%v, amount=%v SATs/ZATs", watcher.addr, ref, amount)
 
-		// send the ShiftOut tx to validator
-		req := watcher.shiftOutToRequest(ref)
-		if ok := watcher.validator.Send(req); !ok {
-			watcher.logger.Error("[watcher] failed to send request to the validator")
-			return
-		}
+		// Send the ShiftOut tx to the resolver.
+		params := watcher.shiftOutToParams(ref)
+		watcher.resolver.SubmitTx(ctx, 0, &params, nil)
 	}
 	if err := iter.Error(); err != nil {
 		watcher.logger.Errorf("[watcher] error iterating LogShiftOut events from=%v to=%v: %v", last, cur, err)
@@ -144,8 +138,8 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, err
 	return last, err
 }
 
-// shiftOutToRequest construct a new request with given ref.
-func (watcher Watcher) shiftOutToRequest(ref uint64) http.RequestWithResponder {
+// shiftOutToParams constructs params for a SubmitTx request with given ref.
+func (watcher Watcher) shiftOutToParams(ref uint64) jsonrpc.ParamsSubmitTx {
 	tx := abi.Tx{
 		Hash: abi.B32{},
 		To:   watcher.addr,
@@ -155,16 +149,5 @@ func (watcher Watcher) shiftOutToRequest(ref uint64) http.RequestWithResponder {
 			Value: abi.U64{Int: big.NewInt(int64(ref))},
 		}},
 	}
-	data, err := json.Marshal(jsonrpc.ParamsSubmitTx{Tx: tx})
-	if err != nil {
-		watcher.logger.Errorf("[watcher] error marshaling SubmitTx event: %v", err)
-		return http.RequestWithResponder{}
-	}
-	req := jsonrpc.Request{
-		Version: "2.0",
-		ID:      0,
-		Method:  jsonrpc.MethodSubmitTx,
-		Params:  data,
-	}
-	return http.NewRequestWithResponder(context.Background(), req, url.Values{})
+	return jsonrpc.ParamsSubmitTx{Tx: tx}
 }
