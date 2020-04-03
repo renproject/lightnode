@@ -1,1 +1,1 @@
-package resolver
+package resolver_test
