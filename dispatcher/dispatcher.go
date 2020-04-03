@@ -71,7 +71,12 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 			if err != nil {
 				return
 			}
-			req := jsonrpc.Request{"2.0", msg.ID, msg.Method, params}
+			req := jsonrpc.Request{
+				Version: "2.0",
+				ID:      msg.ID,
+				Method:  msg.Method,
+				Params:  params,
+			}
 			response, err := dispatcher.client.SendRequest(ctx, address, req, nil)
 			if err != nil {
 				return
