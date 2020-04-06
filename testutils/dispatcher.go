@@ -1,0 +1,31 @@
+package testutils
+
+import (
+	"fmt"
+
+	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/lightnode/http"
+	"github.com/renproject/phi"
+)
+
+type MockDispatcher struct {
+}
+
+func NewMockDispatcher() phi.Task {
+	return phi.New(
+		&MockDispatcher{},
+		phi.Options{
+			Cap: 128,
+		},
+	)
+}
+
+// Handle implements the `phi.Handler` interface.
+func (dispatcher *MockDispatcher) Handle(_ phi.Task, message phi.Message) {
+	msg, ok := message.(http.RequestWithResponder)
+	if !ok {
+		panic(fmt.Errorf("unexpected message type %T", message))
+	}
+
+	msg.Responder <- jsonrpc.Response{}
+}
