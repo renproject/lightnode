@@ -99,7 +99,7 @@ func (db database) Init() error {
 
 	// Create the shift_in_autogen table if not exist.
 	shiftInAutogen := `CREATE TABLE IF NOT EXISTS shift_in_autogen (
-    hash                 CHAR(64) NOT NULL PRIMARY KEY,
+    hash                 CHAR(64) NOT NULL PRIMARY KEY REFERENCES shift_in(hash) ON DELETE CASCADE,
     ghash                CHAR(64),
 	nhash                CHAR(64),
 	sighash              CHAR(64),
