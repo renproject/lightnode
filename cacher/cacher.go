@@ -56,7 +56,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	paramsBytes, err := json.Marshal(msg.Params)
 	if err != nil {
 		cacher.logger.Errorf("[cacher] cannot marshal request to json: %v", err)
-		msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
+		msg.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, err)
 		return
 	}
 
