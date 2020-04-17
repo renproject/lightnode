@@ -61,65 +61,32 @@ func jsonrpcResponse(id interface{}, result interface{}, err *jsonrpc.Error) jso
 
 // ValidRequest constructs a basic but valid `jsonrpc.Request` of the given
 // method.
-func ValidRequest(method string) jsonrpc.Request {
+func ValidRequest(method string) (id interface{}, params interface{}) {
+	id = 1
 	switch method {
 	case jsonrpc.MethodQueryBlock:
-		return jsonrpc.Request{
-			Version: "2.0",
-			ID:      float64(1),
-			Method:  method,
-			Params:  json.RawMessage{},
-		}
+		params = jsonrpc.ParamsQueryBlock{}
 	case jsonrpc.MethodQueryBlocks:
-		return jsonrpc.Request{
-			Version: "2.0",
-			ID:      float64(1),
-			Method:  method,
-			Params:  json.RawMessage{},
-		}
+		params = jsonrpc.ParamsQueryBlocks{}
 	case jsonrpc.MethodSubmitTx:
-		return RandomSubmitTx()
+		params = RandomSubmitTxParams()
 	case jsonrpc.MethodQueryTx:
-		// TODO: Add fields to params struct.
-		rawMsg, err := json.Marshal(jsonrpc.ParamsQueryTx{})
-		if err != nil {
-			panic("marshalling error")
-		}
-		return jsonrpc.Request{
-			Version: "2.0",
-			ID:      float64(1),
-			Method:  method,
-			Params:  rawMsg,
-		}
+		params = jsonrpc.ParamsQueryTx{}
 	case jsonrpc.MethodQueryNumPeers:
-		return jsonrpc.Request{
-			Version: "2.0",
-			ID:      float64(1),
-			Method:  method,
-			Params:  json.RawMessage{},
-		}
+		params = jsonrpc.ParamsQueryNumPeers{}
 	case jsonrpc.MethodQueryPeers:
-		return jsonrpc.Request{
-			Version: "2.0",
-			ID:      float64(1),
-			Method:  method,
-			Params:  json.RawMessage{},
-		}
+		params = jsonrpc.ParamsQueryPeers{}
 	case jsonrpc.MethodQueryEpoch:
-		panic("unsupported method")
+		params = jsonrpc.ParamsQueryEpoch{}
 	case jsonrpc.MethodQueryStat:
-		return jsonrpc.Request{
-			Version: "2.0",
-			ID:      float64(1),
-			Method:  method,
-			Params:  json.RawMessage{},
-		}
+		params = jsonrpc.ParamsQueryStat{}
 	default:
 		panic("invalid method")
 	}
+	return
 }
 
-func RandomSubmitTx() jsonrpc.Request {
+func RandomSubmitTxParams() jsonrpc.ParamsSubmitTx {
 	contract := testutil.RandomMintMethod()
 	args := abi.Args{}
 	for _, formal := range abi.Intrinsics[contract].In {
@@ -130,21 +97,11 @@ func RandomSubmitTx() jsonrpc.Request {
 		}
 		args.Set(arg)
 	}
-	submitTx := jsonrpc.ParamsSubmitTx{Tx: abi.Tx{
+	return jsonrpc.ParamsSubmitTx{Tx: abi.Tx{
 		Hash: testutil.RandomB32(),
 		To:   contract,
 		In:   args,
 	}}
-	rawMsg, err := json.Marshal(submitTx)
-	if err != nil {
-		panic(err)
-	}
-	return jsonrpc.Request{
-		Version: "2.0",
-		ID:      float64(1),
-		Method:  jsonrpc.MethodSubmitTx,
-		Params:  rawMsg,
-	}
 }
 
 func RandomAbiValue(t abi.Type) abi.Value {

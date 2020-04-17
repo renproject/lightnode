@@ -1,11 +1,9 @@
-package validator
+package resolver
 
 import (
 	"context"
 	"crypto/ecdsa"
 	"database/sql"
-	"encoding/json"
-	"fmt"
 	"runtime"
 	"sync"
 	"time"
@@ -47,14 +45,14 @@ func (tc *txChecker) Run() {
 	workers := 2 * runtime.NumCPU()
 	phi.ForAll(workers, func(_ int) {
 		for req := range tc.requests {
-			tx, err := tc.verify(req.Request)
+			tx, err := tc.verify(req.Params.(jsonrpc.ParamsSubmitTx))
 			if err != nil {
 				req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, err)
 				continue
 			}
 
 			// Check for duplicate.
-			gaas := req.Values.Get("gaas")
+			gaas := req.Query.Get("gaas")
 			tx, err = tc.checkDuplicate(tx, gaas)
 			if err != nil {
 				tc.logger.Errorf("[txChecker] cannot check tx duplication, err = %v", err)
@@ -66,27 +64,22 @@ func (tc *txChecker) Run() {
 			response := jsonrpc.ResponseSubmitTx{
 				Tx: tx,
 			}
-			req.Responder <- jsonrpc.NewResponse(req.Request.ID, response, nil)
+			req.Responder <- jsonrpc.NewResponse(req.ID, response, nil)
 		}
 	})
 }
 
-func (tc *txChecker) verify(request jsonrpc.Request) (abi.Tx, error) {
+func (tc *txChecker) verify(params jsonrpc.ParamsSubmitTx) (abi.Tx, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	var submiTx jsonrpc.ParamsSubmitTx
-	if err := json.Unmarshal(request.Params, &submiTx); err != nil {
-		return abi.Tx{}, fmt.Errorf("invalid params, err = %v", err)
-	}
-
 	// Verify the parameters
-	if err := transform.ValidateTxParams(submiTx.Tx); err != nil {
+	if err := transform.ValidateTxParams(params.Tx); err != nil {
 		return abi.Tx{}, err
 	}
 
 	// Validate the phash and calculate other hashes.
-	tx, err := transform.PHash(submiTx.Tx)
+	tx, err := transform.PHash(params.Tx)
 	if err != nil {
 		return abi.Tx{}, err
 	}
