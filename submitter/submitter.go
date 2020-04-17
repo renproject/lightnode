@@ -119,29 +119,19 @@ func (sub Submitter) queryTx(parent context.Context) {
 
 // query the status of the tx.
 func (sub Submitter) queryStatus(ctx context.Context, hash abi.B32) (string, abi.Tx, error) {
-	queryTx := jsonrpc.ParamsQueryTx{TxHash: hash}
-	data, err := json.Marshal(queryTx)
-	if err != nil {
-		return "", abi.Tx{}, err
-	}
-
-	// Send to dispatcher and wait for response
-	req := http.NewRequestWithResponder(ctx, jsonrpc.Request{
-		Version: "2.0",
-		ID:      rand.Int31(),
-		Method:  jsonrpc.MethodQueryTx,
-		Params:  data,
-	}, url.Values{})
+	// Send to the dispatcher and wait for a response.
+	params := jsonrpc.ParamsQueryTx{TxHash: hash}
+	req := http.NewRequestWithResponder(ctx, rand.Int31(), jsonrpc.MethodQueryTx, params, url.Values{})
 	for !sub.dispatcher.Send(req) {
 		sub.logger.Errorf("[submitter] cannot send query tx request to dispatcher")
 		time.Sleep(time.Second)
 	}
 
-	// Waiting for response from the darknode.
+	// Wait for a response from the Darknodes.
 	select {
 	case response := <-req.Responder:
 		if response.Error != nil {
-			return "", abi.Tx{}, fmt.Errorf("fail to get status of tx = %v, code = %v, err = %v", hash.String(), response.Error.Code, response.Error.Message)
+			return "", abi.Tx{}, fmt.Errorf("failed to get status of tx=%v: [%v] %v", hash.String(), response.Error.Code, response.Error.Message)
 		}
 		data, err := json.Marshal(response.Result)
 		if err != nil {

@@ -3,6 +3,7 @@ package cacher_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"net/url"
 	"os"
 	"time"
@@ -58,16 +59,20 @@ var _ = Describe("Cacher", func() {
 					continue
 				}
 
-				request := http.NewRequestWithResponder(ctx, testutils.ValidRequest(method), url.Values{})
+				id, params := testutils.ValidRequest(method)
+				request := http.NewRequestWithResponder(ctx, id, method, params, url.Values{})
 				Expect(cacher.Send(request)).Should(BeTrue())
 
 				var message phi.Message
 				Eventually(messages).Should(Receive(&message))
-				req, ok := message.(http.RequestWithResponder)
+				msgRequest, ok := message.(http.RequestWithResponder)
 				Expect(ok).To(BeTrue())
-				Expect(req.Request).To(Equal(request.Request))
-				Expect(req.Responder).To(Not(BeNil()))
-				Eventually(req.Responder).ShouldNot(Receive())
+				Expect(msgRequest.ID).To(Equal(request.ID))
+				Expect(msgRequest.Method).To(Equal(request.Method))
+				Expect(msgRequest.Params).To(Equal(request.Params))
+				Expect(msgRequest.Query).To(Equal(request.Query))
+				Expect(msgRequest.Responder).To(Not(BeNil()))
+				Eventually(msgRequest.Responder).ShouldNot(Receive())
 			}
 		})
 	})
@@ -80,7 +85,6 @@ var _ = Describe("Cacher", func() {
 			defer cleanup()
 
 			for method := range jsonrpc.RPCs {
-
 				// Ignore these methods.
 				switch method {
 				case jsonrpc.MethodQueryEpoch, jsonrpc.MethodSubmitTx, jsonrpc.MethodQueryTx:
@@ -88,14 +92,14 @@ var _ = Describe("Cacher", func() {
 				}
 
 				// Send the first request and respond with an error
-				valid := testutils.ValidRequest(method)
-				request := http.NewRequestWithResponder(ctx, valid, url.Values{})
+				id, params := testutils.ValidRequest(method)
+				request := http.NewRequestWithResponder(ctx, id, method, params, url.Values{})
 				Expect(cacher.Send(request)).Should(BeTrue())
 				var message phi.Message
 				Eventually(messages).Should(Receive(&message))
 				req, ok := message.(http.RequestWithResponder)
 				Expect(ok).To(BeTrue())
-				resp := testutils.ErrorResponse(request.Request.ID)
+				resp := testutils.ErrorResponse(request.ID)
 				req.Responder <- resp
 
 				// Expect receiving the response from the responder channel
@@ -104,12 +108,17 @@ var _ = Describe("Cacher", func() {
 				Expect(receivedResp).To(Equal(resp))
 
 				// Send the second request and expect a cached response
-				newReq := http.NewRequestWithResponder(ctx, valid, url.Values{})
+				newReq := http.NewRequestWithResponder(ctx, id, method, params, url.Values{})
 				Expect(cacher.Send(newReq)).Should(BeTrue())
 
 				var newResp jsonrpc.Response
 				Eventually(newReq.Responder).Should(Receive(&newResp))
-				Expect(newResp).To(Equal(resp))
+
+				respBytes, err := json.Marshal(resp)
+				Expect(err).ToNot(HaveOccurred())
+				newRespBytes, err := json.Marshal(resp)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(respBytes).To(Equal(newRespBytes))
 			}
 		})
 	})

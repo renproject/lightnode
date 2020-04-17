@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -46,14 +47,14 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 
 	var addrs addr.MultiAddresses
 	var err error
-	id := msg.Values.Get("id")
+	id := msg.Query.Get("id")
 	if id != "" {
 		addrs, err = dispatcher.multiAddr(id)
 	} else {
-		addrs, err = dispatcher.multiAddrs(msg.Request.Method)
+		addrs, err = dispatcher.multiAddrs(msg.Method)
 	}
 	if err != nil {
-		dispatcher.logger.Errorf("[dispatcher] fail to send %v message to [%v], error getting multi-address: %v", msg.Request.Method, id, err)
+		dispatcher.logger.Errorf("[dispatcher] fail to send %v message to [%v], error getting multi-address: %v", msg.Method, id, err)
 		msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
 		return
 	}
@@ -61,12 +62,22 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 	// Send the request to the darknodes and pipe the response to the iterator
 	ctx, cancel := context.WithCancel(msg.Context)
 	responses := make(chan jsonrpc.Response, len(addrs))
-	resIter := dispatcher.newResponseIter(msg.Request.Method)
+	resIter := dispatcher.newResponseIter(msg.Method)
 
 	go func() {
 		phi.ParForAll(addrs, func(i int) {
 			address := fmt.Sprintf("http://%s:%v", addrs[i].IP4(), addrs[i].Port()+1)
-			response, err := dispatcher.client.SendRequest(ctx, address, msg.Request, nil)
+			params, err := json.Marshal(msg.Params)
+			if err != nil {
+				return
+			}
+			req := jsonrpc.Request{
+				Version: "2.0",
+				ID:      msg.ID,
+				Method:  msg.Method,
+				Params:  params,
+			}
+			response, err := dispatcher.client.SendRequest(ctx, address, req, nil)
 			if err != nil {
 				return
 			}
@@ -76,7 +87,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 	}()
 
 	go func() {
-		msg.Responder <- resIter.Collect(msg.Request.ID, cancel, responses)
+		msg.Responder <- resIter.Collect(msg.ID, cancel, responses)
 	}()
 }
 
