@@ -458,6 +458,8 @@ github.com/renproject/darknode v0.5.3-0.20200228031634-764ca8a615ec h1:pryxYCZ6L
 github.com/renproject/darknode v0.5.3-0.20200228031634-764ca8a615ec/go.mod h1:NbQSX8q/8BXTrFwEL8mP5VwZavsbBaIH0uuqnO1cYE8=
 github.com/renproject/darknode v0.5.3-0.20200305061420-d6e9dfc7e941 h1:P7WpVl/37MP/rK2z+0nB65zjjJBwdX2ddsoauaqMob8=
 github.com/renproject/darknode v0.5.3-0.20200305061420-d6e9dfc7e941/go.mod h1:NbQSX8q/8BXTrFwEL8mP5VwZavsbBaIH0uuqnO1cYE8=
+github.com/renproject/darknode v0.5.3-0.20200417034119-e54c505d1837 h1:TuJrlTCXKGpD2g4OGqKmbRDL2634f8PFcC546Mz/Fx0=
+github.com/renproject/darknode v0.5.3-0.20200417034119-e54c505d1837/go.mod h1:nVXgEXF0RUFkUzEB2HQ1o1OaEaSuovHQ0gcXh4yMiCI=
 github.com/renproject/hyperdrive v0.3.1 h1:txkmrf0RcZIxjg7bLzYiLlEcQMIO87p/5vpVGEXRqJA=
 github.com/renproject/hyperdrive v0.3.1/go.mod h1:kFiXW7enjQ5jzwprSr64B5HSCNvnXHfkLzz84R2gA/w=
 github.com/renproject/hyperdrive v1.0.0 h1:0mxMzulHGMxePGafng3JdVkpaU2X6o+Y323E01BVcD0=
@@ -501,6 +503,8 @@ github.com/renproject/surge v1.1.2 h1:Yy3pTlRyaMJGLfn64JHgCnWs3cWbRJjE+aFxZXRGfW
 github.com/renproject/surge v1.1.2/go.mod h1:UnnFYpLSD0T9MzCcyHjbNdmxiQsDVyBDCuqcbhcaLCY=
 github.com/renproject/z0 v0.1.1-0.20200205062627-0a0422e23ec0 h1:yNi1/DBRT2jot0CT9McjTq66UAyxZJ07+na5EcxUt94=
 github.com/renproject/z0 v0.1.1-0.20200205062627-0a0422e23ec0/go.mod h1:HlKzkWv+aX4nBvk4T2XPR4jJXyLqzx4dSYiYtl1dzgw=
+github.com/renproject/z0 v0.2.1 h1:ZaIJYBcKUnjq6Z055XV+4AaRTnn6H7cKYOR/nd2Qpx8=
+github.com/renproject/z0 v0.2.1/go.mod h1:HlKzkWv+aX4nBvk4T2XPR4jJXyLqzx4dSYiYtl1dzgw=
 github.com/republicprotocol/co-go v0.0.0-20180723052914-4e299fdb0e80 h1:jcfajT2zPmtzIGn/JnWCkaWwz1kFprPYO9Y5qBUv0/U=
 github.com/republicprotocol/co-go v0.0.0-20180723052914-4e299fdb0e80/go.mod h1:NdfPrY+l1x6DwEs+wn5eJejQ+DibNnXGia8tkxumgsU=
 github.com/rjeczalik/notify v0.9.2 h1:MiTWrPj55mNDHEiIX5YUSKefw/+lCQVoAFmD6oQm5w8=
