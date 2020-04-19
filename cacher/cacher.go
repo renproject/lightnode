@@ -67,7 +67,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	switch msg.Method {
 	case jsonrpc.MethodSubmitTx:
 	case jsonrpc.MethodQueryTx:
-		params := msg.Params.(jsonrpc.ParamsQueryTx)
+		params := msg.Params.(*jsonrpc.ParamsQueryTx)
 
 		// Retrieve transaction status from the database.
 		status, err := cacher.db.TxStatus(params.TxHash)
