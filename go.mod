@@ -43,5 +43,3 @@ require (
 	github.com/uber/jaeger-lib v2.1.1+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20200221231518-2aa609cf4a9d
 )
-
-replace github.com/renproject/darknode => ../darknode
