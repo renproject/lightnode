@@ -30,7 +30,7 @@ require (
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.8.1
 	github.com/oschwald/maxminddb-golang v1.3.1 // indirect
-	github.com/renproject/darknode v0.5.3-0.20200417034119-e54c505d1837
+	github.com/renproject/darknode v0.5.3-0.20200419223225-886f0eecd0da
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/mercury v0.3.13-0.20200320014029-ac591cfcfcfe
 	github.com/renproject/phi v0.1.0
@@ -43,3 +43,5 @@ require (
 	github.com/uber/jaeger-lib v2.1.1+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20200221231518-2aa609cf4a9d
 )
+
+replace github.com/renproject/darknode => ../darknode
