@@ -60,8 +60,8 @@ func (resolver *Resolver) QueryNumPeers(ctx context.Context, id interface{}, par
 	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryNumPeers, *params, req, false)
 }
 
-func (resolver *Resolver) QueryEpoch(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryEpoch, req *http.Request) jsonrpc.Response {
-	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryEpoch, *params, req, false)
+func (resolver *Resolver) QueryShards(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryShards, req *http.Request) jsonrpc.Response {
+	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryShards, *params, req, false)
 }
 
 func (resolver *Resolver) QueryStat(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryStat, req *http.Request) jsonrpc.Response {

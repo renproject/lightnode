@@ -57,12 +57,6 @@ var _ = Describe("Dispatcher", func() {
 			dispatcher := initDispatcher(ctx, multis, time.Second)
 
 			for method, _ := range jsonrpc.RPCs {
-				// TODO: This method is not supported right now, but when it is
-				// this case should be tested too.
-				if method == jsonrpc.MethodQueryEpoch {
-					continue
-				}
-
 				id, params := ValidRequest(method)
 				req := http.NewRequestWithResponder(ctx, id, method, params, url.Values{})
 				Expect(dispatcher.Send(req)).To(BeTrue())
