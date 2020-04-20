@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/renproject/darknode/consensus/txcheck/transform"
 	"github.com/renproject/darknode/jsonrpc"
@@ -68,12 +69,15 @@ func (resolver *Resolver) QueryStat(ctx context.Context, id interface{}, params 
 }
 
 func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, method string, params interface{}, r *http.Request, isSubmitTx bool) jsonrpc.Response {
-	query := r.URL.Query()
-	darknodeID := query.Get("id")
-	if darknodeID != "" {
-		if _, err := resolver.multiStore.Get(darknodeID); err != nil {
-			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("unknown darknode id %s", darknodeID), nil)
-			return jsonrpc.NewResponse(id, nil, &jsonErr)
+	query := url.Values{}
+	if r != nil {
+		query = r.URL.Query()
+		darknodeID := query.Get("id")
+		if darknodeID != "" {
+			if _, err := resolver.multiStore.Get(darknodeID); err != nil {
+				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("unknown darknode id %s", darknodeID), nil)
+				return jsonrpc.NewResponse(id, nil, &jsonErr)
+			}
 		}
 	}
 
