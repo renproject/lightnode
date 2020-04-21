@@ -88,26 +88,26 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		response, err := updater.client.SendRequest(queryCtx, address, request, nil)
 		if err != nil {
 			updater.logger.Warnf("[updater] cannot connect to node %v: %v", multi.String(), err)
-			if err := updater.multiStore.Delete(multi); err != nil {
-				updater.logger.Warnf("[updater] cannot delete multi address from db : %v", err)
+			if !updater.isBootstrap(multi) {
+				if err := updater.multiStore.Delete(multi); err != nil {
+					updater.logger.Warnf("[updater] cannot delete multi address from db : %v", err)
+				}
 			}
 			return
 		}
+
 		// Parse the response and write any multi-addresses returned by the node to the store.
 		raw, err := json.Marshal(response.Result)
 		if err != nil {
-			updater.logger.Errorf("[updater] error marshaling and already unmarshaled result: %v", err)
+			updater.logger.Errorf("[updater] error marshaling queryPeers result: %v", err)
 			return
 		}
 		var resp jsonrpc.ResponseQueryPeers
-		err = json.Unmarshal(raw, &resp)
-		if err != nil {
-			updater.logger.Warnf("[updater] cannot connect to node %v: %v", multi.String(), err)
-			if !updater.isBootstrap(multi) {
-				updater.multiStore.Delete(multi)
-			}
+		if err := json.Unmarshal(raw, &resp); err != nil {
+			updater.logger.Warnf("[updater] cannot unmarshal queryPeers result from %v: %v", multi.String(), err)
 			return
 		}
+
 		for _, peer := range resp.Peers {
 			multiAddr, err := addr.NewMultiAddressFromString(peer)
 			if err != nil {

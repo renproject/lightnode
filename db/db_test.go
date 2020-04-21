@@ -42,7 +42,7 @@ var _ = Describe("Lightnode db", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		// foreign_key needs to be manually enabled for Sqlite
-		if name == Sqlite{
+		if name == Sqlite {
 			_, err := sqlDB.Exec("PRAGMA foreign_keys = ON;")
 			Expect(err).NotTo(HaveOccurred())
 		}
