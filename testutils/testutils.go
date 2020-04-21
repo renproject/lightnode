@@ -76,8 +76,8 @@ func ValidRequest(method string) (id interface{}, params interface{}) {
 		params = jsonrpc.ParamsQueryNumPeers{}
 	case jsonrpc.MethodQueryPeers:
 		params = jsonrpc.ParamsQueryPeers{}
-	case jsonrpc.MethodQueryEpoch:
-		params = jsonrpc.ParamsQueryEpoch{}
+	case jsonrpc.MethodQueryShards:
+		params = jsonrpc.ParamsQueryShards{}
 	case jsonrpc.MethodQueryStat:
 		params = jsonrpc.ParamsQueryStat{}
 	default:

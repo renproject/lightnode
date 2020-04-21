@@ -53,12 +53,6 @@ var _ = Describe("Cacher", func() {
 			defer cleanup()
 
 			for method := range jsonrpc.RPCs {
-				// TODO: This method is not supported right now, but when it is
-				// this case should be tested too.
-				if method == jsonrpc.MethodQueryEpoch {
-					continue
-				}
-
 				id, params := testutils.ValidRequest(method)
 				request := http.NewRequestWithResponder(ctx, id, method, params, url.Values{})
 				Expect(cacher.Send(request)).Should(BeTrue())
@@ -87,7 +81,7 @@ var _ = Describe("Cacher", func() {
 			for method := range jsonrpc.RPCs {
 				// Ignore these methods.
 				switch method {
-				case jsonrpc.MethodQueryEpoch, jsonrpc.MethodSubmitTx, jsonrpc.MethodQueryTx:
+				case jsonrpc.MethodSubmitTx, jsonrpc.MethodQueryTx:
 					continue
 				}
 
