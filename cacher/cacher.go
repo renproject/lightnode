@@ -23,8 +23,7 @@ func (id ID) String() string {
 }
 
 // Cacher is a task responsible for caching responses for corresponding
-// requests. Upon receiving a request (in the current architecture this request
-// comes from the `Validator`) it will check its cache to see if it has a
+// requests. Upon receiving a request it will check its cache to see if it has a
 // cached response. If it does, it will write this immediately as a response,
 // otherwise it will forward the request on to the `Dispatcher`. Once the
 // `Dispatcher` has a response ready, the `Cacher` will store this response in
@@ -53,28 +52,25 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	if !ok {
 		cacher.logger.Panicf("[cacher] unexpected message type %T", message)
 	}
-	params, err := msg.Request.Params.MarshalJSON()
+
+	paramsBytes, err := json.Marshal(msg.Params)
 	if err != nil {
 		cacher.logger.Errorf("[cacher] cannot marshal request to json: %v", err)
-		msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
+		msg.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, err)
 		return
 	}
 
 	// Calculate the request ID.
-	data := append(params, []byte(msg.Request.Method)...)
+	data := append(paramsBytes, []byte(msg.Method)...)
 	reqID := sha3.Sum256(data)
 
-	switch msg.Request.Method {
+	switch msg.Method {
 	case jsonrpc.MethodSubmitTx:
 	case jsonrpc.MethodQueryTx:
+		params := msg.Params.(jsonrpc.ParamsQueryTx)
+
 		// Retrieve transaction status from the database.
-		req := jsonrpc.ParamsQueryTx{}
-		if err := json.Unmarshal(params, &req); err != nil {
-			cacher.logger.Errorf("[cacher] cannot unmarshal request request from json: %v", err)
-			msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
-			return
-		}
-		status, err := cacher.db.TxStatus(req.TxHash)
+		status, err := cacher.db.TxStatus(params.TxHash)
 		if err != nil {
 			// Send the request to the Darknodes if we do not have it in our
 			// database.
@@ -90,11 +86,11 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		// Darknodes do not yet know about the transaction), respond with a
 		// custom confirming status.
 		if status != db.TxStatusConfirmed {
-			tx, err := cacher.db.Tx(req.TxHash, true)
+			tx, err := cacher.db.Tx(params.TxHash, true)
 			if err == nil {
 				msg.Responder <- jsonrpc.Response{
 					Version: "2.0",
-					ID:      msg.Request.ID,
+					ID:      msg.ID,
 					Result: jsonrpc.ResponseQueryTx{
 						Tx:       tx,
 						TxStatus: "confirming",
@@ -104,7 +100,7 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 			}
 		}
 	default:
-		darknodeID := msg.Values.Get("id")
+		darknodeID := msg.Query.Get("id")
 		response, cached := cacher.get(reqID, darknodeID)
 		if cached {
 			msg.Responder <- response
@@ -137,14 +133,16 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 	responder := make(chan jsonrpc.Response, 1)
 	cacher.dispatcher.Send(http.RequestWithResponder{
 		Context:   msg.Context,
-		Request:   msg.Request,
+		ID:        msg.ID,
+		Method:    msg.Method,
+		Params:    msg.Params,
 		Responder: responder,
-		Values:    msg.Values,
+		Query:     msg.Query,
 	})
 
 	go func() {
 		response := <-responder
-		cacher.insert(id, msg.Values.Get("id"), response)
+		cacher.insert(id, msg.Query.Get("id"), response)
 		msg.Responder <- response
 	}()
 }

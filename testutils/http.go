@@ -163,7 +163,7 @@ func RandomMethod() string {
 		jsonrpc.MethodQueryTx,
 		jsonrpc.MethodQueryNumPeers,
 		jsonrpc.MethodQueryPeers,
-		jsonrpc.MethodQueryEpoch,
+		jsonrpc.MethodQueryShards,
 		jsonrpc.MethodQueryStat,
 	}
 	return methods[rand.Intn(len(methods))]
@@ -226,11 +226,9 @@ func RandomRequest(method string) jsonrpc.Request {
 	case jsonrpc.MethodQueryPeers:
 		params = jsonrpc.ParamsQueryPeers{}
 
-	// Epoch
-	case jsonrpc.MethodQueryEpoch:
-		params = jsonrpc.ParamsQueryEpoch{
-			EpochHash: testutil.RandomB32(),
-		}
+	// Shards
+	case jsonrpc.MethodQueryShards:
+		params = jsonrpc.ParamsQueryShards{}
 
 	// System stats
 	case jsonrpc.MethodQueryStat:

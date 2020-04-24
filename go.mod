@@ -30,7 +30,7 @@ require (
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.8.1
 	github.com/oschwald/maxminddb-golang v1.3.1 // indirect
-	github.com/renproject/darknode v0.0.0-20200330024450-29f41d261852
+	github.com/renproject/darknode v0.5.3-0.20200420233600-960056616e61
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/mercury v0.3.13-0.20200320014029-ac591cfcfcfe
 	github.com/renproject/phi v0.1.0
