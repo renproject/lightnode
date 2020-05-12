@@ -1,6 +1,6 @@
 module github.com/renproject/lightnode
 
-go 1.12
+go 1.13
 
 require (
 	github.com/apilayer/freegeoip v3.5.0+incompatible // indirect
