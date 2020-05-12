@@ -118,6 +118,9 @@ func parseNetwork(appName string) darknode.Network {
 	if strings.Contains(appName, "localnet") {
 		return darknode.Localnet
 	}
+	if strings.Contains(appName, "mainnet") {
+		return darknode.Mainnet
+	}
 	panic("unsupported network")
 }
 

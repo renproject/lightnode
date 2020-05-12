@@ -1,3 +1,8 @@
+## 0.1.6
+
+- Add support for Mainnet network
+- Update to go v1.13
+
 ## 0.1.5
 
 - Update Lightnode to use the Darknode JSON-RPC server
