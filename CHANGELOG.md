@@ -1,3 +1,7 @@
+## 0.1.6
+
+- Add support for Mainnet network
+
 ## 0.1.5
 
 - Update Lightnode to use the Darknode JSON-RPC server
