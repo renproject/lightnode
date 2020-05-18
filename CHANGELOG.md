@@ -1,3 +1,6 @@
+## 0.1.7
+- Update confirmations to be the same as darknodes
+
 ## 0.1.6
 
 - Add support for Mainnet network
