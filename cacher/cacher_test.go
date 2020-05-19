@@ -53,6 +53,12 @@ var _ = Describe("Cacher", func() {
 			defer cleanup()
 
 			for method := range jsonrpc.RPCs {
+				// Ignore these methods.
+				switch method {
+				case jsonrpc.MethodQueryTxs:
+					continue
+				}
+
 				id, params := testutils.ValidRequest(method)
 				request := http.NewRequestWithResponder(ctx, id, method, params, url.Values{})
 				Expect(cacher.Send(request)).Should(BeTrue())
@@ -81,7 +87,7 @@ var _ = Describe("Cacher", func() {
 			for method := range jsonrpc.RPCs {
 				// Ignore these methods.
 				switch method {
-				case jsonrpc.MethodSubmitTx, jsonrpc.MethodQueryTx:
+				case jsonrpc.MethodSubmitTx, jsonrpc.MethodQueryTx, jsonrpc.MethodQueryTxs:
 					continue
 				}
 
