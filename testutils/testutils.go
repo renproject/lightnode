@@ -3,6 +3,7 @@ package testutils
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"math/rand"
 
@@ -81,6 +82,7 @@ func ValidRequest(method string) (id interface{}, params interface{}) {
 	case jsonrpc.MethodQueryStat:
 		params = jsonrpc.ParamsQueryStat{}
 	default:
+		log.Print("method = ", method)
 		panic("invalid method")
 	}
 	return
