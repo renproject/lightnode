@@ -69,7 +69,7 @@ func (resolver *Resolver) QueryStat(ctx context.Context, id interface{}, params 
 }
 
 func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryTxs, r *http.Request) jsonrpc.Response {
-	// TODO : Implement the queryTx method.
+	// TODO: Implement the queryTx method.
 	return jsonrpc.NewResponse(id, nil, &jsonrpc.Error{
 		Code:    jsonrpc.ErrorCodeMethodNotFound,
 		Message: "unsupported method",
