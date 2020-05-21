@@ -72,6 +72,8 @@ func ValidRequest(method string) (id interface{}, params interface{}) {
 		params = RandomSubmitTxParams()
 	case jsonrpc.MethodQueryTx:
 		params = jsonrpc.ParamsQueryTx{}
+	case jsonrpc.MethodQueryTxs:
+		params = jsonrpc.ParamsQueryTxs{}
 	case jsonrpc.MethodQueryNumPeers:
 		params = jsonrpc.ParamsQueryNumPeers{}
 	case jsonrpc.MethodQueryPeers:
@@ -80,6 +82,8 @@ func ValidRequest(method string) (id interface{}, params interface{}) {
 		params = jsonrpc.ParamsQueryShards{}
 	case jsonrpc.MethodQueryStat:
 		params = jsonrpc.ParamsQueryStat{}
+	case jsonrpc.MethodQueryFees:
+		params = jsonrpc.ParamsQueryFees{}
 	default:
 		panic("invalid method")
 	}
