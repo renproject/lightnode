@@ -87,7 +87,7 @@ var _ = Describe("Cacher", func() {
 			for method := range jsonrpc.RPCs {
 				// Ignore these methods.
 				switch method {
-				case jsonrpc.MethodSubmitTx, jsonrpc.MethodQueryTx, jsonrpc.MethodQueryTxs:
+				case jsonrpc.MethodSubmitTx, jsonrpc.MethodQueryTx:
 					continue
 				}
 

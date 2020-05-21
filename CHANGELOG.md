@@ -1,4 +1,9 @@
+## 0.1.8
+
+- Add support for the QueryFees method
+
 ## 0.1.7
+
 - Update confirmations to be the same as Darknodes
 
 ## 0.1.6
