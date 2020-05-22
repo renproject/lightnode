@@ -2,6 +2,7 @@ package db_test
 
 import (
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"testing/quick"
@@ -329,6 +330,42 @@ var _ = Describe("Lightnode db", func() {
 						Expect(numShiftOut).Should(BeZero())
 
 						return true
+					}
+
+					Expect(quick.Check(test, &quick.Config{MaxCount: 10})).NotTo(HaveOccurred())
+				})
+			})
+
+			Context("when querying txs with a given tag", func() {
+				It("should return the correct txs", func() {
+					sqlDB := init(dbname)
+					defer cleanup(sqlDB)
+					db := New(sqlDB)
+
+					test := func(tagBytes [32]byte) bool {
+						Expect(db.Init()).Should(Succeed())
+						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
+
+						tag := hex.EncodeToString(tagBytes[:])
+
+						txs := map[abi.B32]abi.Tx{}
+						for i := 0; i < 50; i++ {
+							tx := testutil.RandomTransformedMintingTx("")
+							Expect(db.InsertTx(tx, tag, true)).To(Succeed())
+
+							txs[tx.Hash] = tx
+						}
+						matchingTxs, err := db.Txs(tag, 0, 10)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(len(matchingTxs)).Should(Equal(10))
+						for _, tx := range matchingTxs {
+							stored, ok := txs[tx.Hash]
+							Expect(ok).Should(BeTrue())
+							Expect(untransform(stored)).Should(Equal(tx))
+							delete(txs, tx.Hash)
+						}
+
+						return len(txs) == 0
 					}
 
 					Expect(quick.Check(test, &quick.Config{MaxCount: 10})).NotTo(HaveOccurred())
