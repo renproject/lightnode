@@ -30,19 +30,21 @@ func (id ID) String() string {
 // its cache with a key derived from the request, and then pass the response
 // along to be given to the client.
 type Cacher struct {
-	logger     logrus.FieldLogger
-	dispatcher phi.Sender
-	db         db.DB
-	ttlCache   kv.Table
+	logger        logrus.FieldLogger
+	dispatcher    phi.Sender
+	db            db.DB
+	ttlCache      kv.Table
+	serverOptions jsonrpc.Options
 }
 
 // New constructs a new `Cacher` as a `phi.Task` which can be `Run()`.
-func New(dispatcher phi.Sender, logger logrus.FieldLogger, ttl kv.Table, opts phi.Options, db db.DB) phi.Task {
+func New(dispatcher phi.Sender, logger logrus.FieldLogger, ttl kv.Table, opts phi.Options, db db.DB, serverOptions jsonrpc.Options) phi.Task {
 	return phi.New(&Cacher{
-		logger:     logger,
-		dispatcher: dispatcher,
-		db:         db,
-		ttlCache:   ttl,
+		logger:        logger,
+		dispatcher:    dispatcher,
+		db:            db,
+		ttlCache:      ttl,
+		serverOptions: serverOptions,
 	}, opts)
 }
 
@@ -131,18 +133,64 @@ func (cacher *Cacher) get(reqID ID, darknodeID string) (jsonrpc.Response, bool) 
 
 func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 	responder := make(chan jsonrpc.Response, 1)
-	cacher.dispatcher.Send(http.RequestWithResponder{
-		Context:   msg.Context,
-		ID:        msg.ID,
-		Method:    msg.Method,
-		Params:    msg.Params,
-		Responder: responder,
-		Query:     msg.Query,
-	})
 
-	go func() {
-		response := <-responder
+	// We handle this request directly without forwarding it to the Darknodes as
+	// they do not support QueryTxs.
+	if msg.Method == jsonrpc.MethodQueryTxs {
+		response, err := cacher.handleQueryTxs(msg)
+		if err != nil {
+			msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
+			return
+		}
 		cacher.insert(id, msg.Query.Get("id"), response)
 		msg.Responder <- response
-	}()
+	} else {
+		cacher.dispatcher.Send(http.RequestWithResponder{
+			Context:   msg.Context,
+			ID:        msg.ID,
+			Method:    msg.Method,
+			Params:    msg.Params,
+			Responder: responder,
+			Query:     msg.Query,
+		})
+
+		go func() {
+			response := <-responder
+			cacher.insert(id, msg.Query.Get("id"), response)
+			msg.Responder <- response
+		}()
+	}
+}
+
+func (cacher *Cacher) handleQueryTxs(msg http.RequestWithResponder) (jsonrpc.Response, error) {
+	params := msg.Params.(jsonrpc.ParamsQueryTxs)
+
+	var tag string
+	if params.Tags != nil && len(*params.Tags) > 0 {
+		// Currently we only support a maximum of one tag, but this can be
+		// extended in the future.
+		tag = hex.EncodeToString((*params.Tags)[0][:])
+	}
+	var page uint64
+	if params.Page != nil {
+		page = params.Page.Int.Uint64()
+	}
+	var pageSize uint64
+	if params.PageSize != nil {
+		pageSize = params.PageSize.Int.Uint64()
+	} else {
+		pageSize = uint64(cacher.serverOptions.MaxPageSize)
+	}
+	txs, err := cacher.db.Txs(tag, page, pageSize)
+	if err != nil {
+		return jsonrpc.Response{}, err
+	}
+
+	return jsonrpc.Response{
+		Version: "2.0",
+		ID:      msg.ID,
+		Result: jsonrpc.ResponseQueryTxs{
+			Txs: txs,
+		},
+	}, nil
 }

@@ -35,11 +35,14 @@ type DB interface {
 	Init() error
 
 	// InsertTx inserts the tx into the database.
-	InsertTx(tx abi.Tx, gaas bool) error
+	InsertTx(tx abi.Tx, tag string, gaas bool) error
 
 	// Tx gets the details of the tx with given txHash. It returns an `sql.ErrNoRows`
 	// if tx cannot be found.
 	Tx(hash abi.B32, transformed bool) (abi.Tx, error)
+
+	// Txs returns txs with the given tag.
+	Txs(tag string, page, pageSize uint64) (abi.Txs, error)
 
 	// ShiftIns returns shiftIn txs with given status and are not expired.
 	ShiftIns(status TxStatus, expiry time.Duration, contract string) (abi.Txs, error)
@@ -90,7 +93,8 @@ func (db database) Init() error {
     toAddr               CHAR(40),
     n                    CHAR(64),
     utxo_hash            CHAR(64),
-    utxo_vout            INT
+	utxo_vout            INT,
+	tag0                 CHAR(64)
 );`
 	_, err := db.db.Exec(shiftIn)
 	if err != nil {
@@ -120,21 +124,22 @@ func (db database) Init() error {
     contract             VARCHAR(255), 
     ref                  VARCHAR, 
     toAddr               VARCHAR(255),
-    amount               VARCHAR
+	amount               VARCHAR,
+	tag0                 CHAR(64)
 );`
 	_, err = db.db.Exec(shiftOut)
 	return err
 }
 
 // InsertTx implements the `DB` interface.
-func (db database) InsertTx(tx abi.Tx, gaas bool) error {
+func (db database) InsertTx(tx abi.Tx, tag string, gaas bool) error {
 	if abi.IsShiftIn(tx.To) {
-		if err := db.insertShiftIn(tx, gaas); err != nil {
+		if err := db.insertShiftIn(tx, tag, gaas); err != nil {
 			return err
 		}
 		return db.insertShiftInAutogen(tx)
 	} else {
-		return db.insertShiftOut(tx)
+		return db.insertShiftOut(tx, tag)
 	}
 }
 
@@ -147,6 +152,30 @@ func (db database) Tx(hash abi.B32, transformed bool) (abi.Tx, error) {
 	return tx, err
 }
 
+// Txs implements the `DB` interface.
+func (db database) Txs(tag string, page, pageSize uint64) (abi.Txs, error) {
+	txs := make(abi.Txs, 0, pageSize)
+	shifts, err := db.db.Query(`SELECT hash, contract, p, token, toAddr, n, utxo_hash, utxo_vout, ref, amount FROM (
+		SELECT hash, created_time, contract, p, token, toAddr, n, utxo_hash, utxo_vout, tag0, '' AS ref, '' AS amount FROM shift_in UNION
+		SELECT hash, created_time, contract, '' as p, '' AS token, toAddr, '' AS n, '' AS utxo_hash, 0 AS utxo_vout, tag0, ref, amount FROM shift_out
+	) AS shifts WHERE tag0 = $1 ORDER BY created_time DESC LIMIT $2 OFFSET $3;`, tag, pageSize, page*pageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer shifts.Close()
+
+	// Loop through rows and convert them to txs.
+	for shifts.Next() {
+		tx, err := rowToShift(shifts)
+		if err != nil {
+			return nil, err
+		}
+		txs = append(txs, tx)
+	}
+	return txs, shifts.Err()
+}
+
+// PendingTxs implements the `DB` interface.
 func (db database) PendingTxs(expiry time.Duration) ([]abi.Tx, error) {
 	txs := make(abi.Txs, 0, 128)
 	shiftIns, err := db.db.Query(`SELECT hash, contract, p, token, toAddr, n, utxo_hash, utxo_vout FROM shift_in 
@@ -281,7 +310,7 @@ func (db database) Prune(expiry time.Duration) error {
 }
 
 // Inserts the original request received from user into the shift_in table.
-func (db database) insertShiftIn(tx abi.Tx, gaas bool) error {
+func (db database) insertShiftIn(tx abi.Tx, tag string, gaas bool) error {
 	p := tx.In.Get("p")
 	if p.IsNil() {
 		return errors.New("invalid tx, missing parameter p")
@@ -307,8 +336,8 @@ func (db database) insertShiftIn(tx abi.Tx, gaas bool) error {
 		return fmt.Errorf("unexpected type for utxo, expected abi.ExtTypeBtcCompatUTXO, got %v", tx.In.Get("utxo").Value.Type())
 	}
 
-	script := `INSERT INTO shift_in (hash, status, gaas, created_time, contract, p, token, toAddr, n, utxo_hash, utxo_vout)
-VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10);`
+	script := `INSERT INTO shift_in (hash, status, gaas, created_time, contract, p, token, toAddr, n, utxo_hash, utxo_vout, tag0)
+VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);`
 	_, err = db.db.Exec(script,
 		hex.EncodeToString(tx.Hash[:]),
 		gaas,
@@ -320,6 +349,7 @@ VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10);`
 		hex.EncodeToString(n[:]),
 		hex.EncodeToString(utxo.TxHash[:]),
 		utxo.VOut.Int.Int64(),
+		tag,
 	)
 
 	return err
@@ -372,7 +402,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7);`
 }
 
 // InsertShiftOut stores a shift out tx to the database.
-func (db database) insertShiftOut(tx abi.Tx) error {
+func (db database) insertShiftOut(tx abi.Tx, tag string) error {
 	ref, ok := tx.In.Get("ref").Value.(abi.U64)
 	if !ok {
 		return fmt.Errorf("unexpected type for ref, expected abi.U64, got %v", tx.In.Get("ref").Value.Type())
@@ -386,8 +416,8 @@ func (db database) insertShiftOut(tx abi.Tx) error {
 		return fmt.Errorf("unexpected type for amount, expected abi.U256, got %v", tx.In.Get("amount").Value.Type())
 	}
 
-	script := `INSERT INTO shift_out (hash, status, created_time, contract, ref, toAddr, amount) 
-VALUES ($1, 1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING;`
+	script := `INSERT INTO shift_out (hash, status, created_time, contract, ref, toAddr, amount, tag0)
+VALUES ($1, 1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING;`
 	_, err := db.db.Exec(script,
 		hex.EncodeToString(tx.Hash[:]),
 		time.Now().Unix(),
@@ -395,6 +425,7 @@ VALUES ($1, 1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING;`
 		ref.Int.String(),
 		hex.EncodeToString(to),
 		amount.Int.String(),
+		tag,
 	)
 	return err
 }
@@ -420,16 +451,31 @@ func (db database) shiftOut(txHash abi.B32, transformed bool) (abi.Tx, error) {
 	return rowToShiftOut(row, transformed)
 }
 
+func rowToShift(row Scannable) (abi.Tx, error) {
+	var hashStr, p, contract, token, to, n, utxoHash, amountStr, refStr string
+	var utxoVout int
+	if err := row.Scan(&hashStr, &contract, &p, &token, &to, &n, &utxoHash, &utxoVout, &amountStr, &refStr); err != nil {
+		return abi.Tx{}, err
+	}
+
+	if refStr != "" {
+		return shiftOutTx(hashStr, contract, to, amountStr, refStr, false)
+	}
+	return shiftInTx(hashStr, p, contract, token, to, n, utxoHash, utxoVout)
+}
+
 // scan data from the returned row and parse it into a abi.Tx.
 func rowToShiftIn(row Scannable) (abi.Tx, error) {
 	var hashStr, p, contract, token, to, n, utxoHash string
 	var utxoVout int
-
-	err := row.Scan(&hashStr, &contract, &p, &token, &to, &n, &utxoHash, &utxoVout)
-	if err != nil {
+	if err := row.Scan(&hashStr, &contract, &p, &token, &to, &n, &utxoHash, &utxoVout); err != nil {
 		return abi.Tx{}, err
 	}
 
+	return shiftInTx(hashStr, p, contract, token, to, n, utxoHash, utxoVout)
+}
+
+func shiftInTx(hashStr, p, contract, token, to, n, utxoHash string, utxoVout int) (abi.Tx, error) {
 	tx := abi.Tx{}
 	hash, err := stringToB32(hashStr)
 	if err != nil {
@@ -539,11 +585,14 @@ func (db database) autogen(tx abi.Tx) (abi.Tx, error) {
 
 func rowToShiftOut(row Scannable, transformed bool) (abi.Tx, error) {
 	var hashStr, contract, to, amountStr, refStr string
-	err := row.Scan(&hashStr, &contract, &refStr, &to, &amountStr)
-	if err != nil {
+	if err := row.Scan(&hashStr, &contract, &refStr, &to, &amountStr); err != nil {
 		return abi.Tx{}, err
 	}
 
+	return shiftOutTx(hashStr, contract, to, amountStr, refStr, transformed)
+}
+
+func shiftOutTx(hashStr, contract, to, amountStr, refStr string, transformed bool) (abi.Tx, error) {
 	hash, err := stringToB32(hashStr)
 	if err != nil {
 		return abi.Tx{}, err
