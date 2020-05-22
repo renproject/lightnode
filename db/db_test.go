@@ -353,7 +353,18 @@ var _ = Describe("Lightnode db", func() {
 							tx := testutil.RandomTransformedMintingTx("")
 							Expect(db.InsertTx(tx, tag, true)).To(Succeed())
 
-							txs[tx.Hash] = tx
+							// Only add the first 10 to the map as these are
+							// what we expect to see on the first page of the
+							// response.
+							if i < 10 {
+								txs[tx.Hash] = tx
+							}
+
+							// Sleep every 10 txs to ensure the timestamps are
+							// different.
+							if i%10 == 0 {
+								time.Sleep(time.Second)
+							}
 						}
 						matchingTxs, err := db.Txs(tag, 0, 10)
 						Expect(err).NotTo(HaveOccurred())
