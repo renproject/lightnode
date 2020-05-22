@@ -348,38 +348,59 @@ var _ = Describe("Lightnode db", func() {
 
 						tag := hex.EncodeToString(tagBytes[:])
 
-						txs := map[abi.B32]abi.Tx{}
-						for i := 0; i < 50; i++ {
+						firstPage := map[abi.B32]abi.Tx{}
+						secondPage := map[abi.B32]abi.Tx{}
+						for i := 0; i < 4; i++ {
 							tx := testutil.RandomTransformedMintingTx("")
 							Expect(db.InsertTx(tx, tag, true)).To(Succeed())
 
-							// Only add the first 10 to the map as these are
-							// what we expect to see on the first page of the
-							// response.
-							if i < 10 {
-								txs[tx.Hash] = tx
+							if i < 2 {
+								firstPage[tx.Hash] = tx
+							} else {
+								secondPage[tx.Hash] = tx
 							}
 
-							// Sleep every 10 txs to ensure the timestamps are
-							// different.
-							if i%10 == 0 {
-								time.Sleep(time.Second)
-							}
+							// Sleep to ensure the timestamps are different.
+							time.Sleep(time.Second)
 						}
-						matchingTxs, err := db.Txs(tag, 0, 10)
+
+						// Validate the first page.
+						matchingTxs, err := db.Txs(tag, 0, 2)
 						Expect(err).NotTo(HaveOccurred())
-						Expect(len(matchingTxs)).Should(Equal(10))
+						Expect(len(matchingTxs)).Should(Equal(2))
+
 						for _, tx := range matchingTxs {
-							stored, ok := txs[tx.Hash]
+							stored, ok := firstPage[tx.Hash]
 							Expect(ok).Should(BeTrue())
 							Expect(untransform(stored)).Should(Equal(tx))
-							delete(txs, tx.Hash)
+							delete(firstPage, tx.Hash)
 						}
 
-						return len(txs) == 0
+						Expect(len(firstPage)).To(Equal(0))
+
+						// Validate the second page.
+						matchingTxs, err = db.Txs(tag, 1, 2)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(len(matchingTxs)).Should(Equal(2))
+
+						for _, tx := range matchingTxs {
+							stored, ok := secondPage[tx.Hash]
+							Expect(ok).Should(BeTrue())
+							Expect(untransform(stored)).Should(Equal(tx))
+							delete(secondPage, tx.Hash)
+						}
+
+						Expect(len(secondPage)).To(Equal(0))
+
+						// Validate the third page.
+						matchingTxs, err = db.Txs(tag, 2, 2)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(len(matchingTxs)).Should(Equal(0))
+
+						return true
 					}
 
-					Expect(quick.Check(test, &quick.Config{MaxCount: 10})).NotTo(HaveOccurred())
+					Expect(quick.Check(test, &quick.Config{MaxCount: 3})).NotTo(HaveOccurred())
 				})
 			})
 		})
