@@ -177,7 +177,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	updater := updater.New(logger, multiStore, options.UpdaterPollRate, options.ClientTimeout)
 	dispatcher := dispatcher.New(logger, options.ClientTimeout, multiStore, opts)
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
-	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db, serverOptions)
+	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
 	resolver := resolver.New(logger, cacher, multiStore, *options.DisPubkey, bc, db, serverOptions)
 	server := jsonrpc.NewServer(serverOptions, resolver)
 	confirmer := confirmer.New(logger, confirmerOptions, dispatcher, db, bc)

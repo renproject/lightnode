@@ -34,7 +34,7 @@ var _ = Describe("Cacher", func() {
 		database := db.New(sqlDB)
 		Expect(database.Init()).Should(Succeed())
 
-		cacher := New(inspector, logrus.New(), ttl, phi.Options{Cap: 10}, database, jsonrpc.DefaultOptions())
+		cacher := New(inspector, logrus.New(), ttl, phi.Options{Cap: 10}, database)
 		go inspector.Run(ctx)
 		go cacher.Run(ctx)
 
