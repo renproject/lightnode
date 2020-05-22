@@ -158,7 +158,7 @@ func (db database) Txs(tag string, page, pageSize uint64) (abi.Txs, error) {
 	shifts, err := db.db.Query(`SELECT hash, contract, p, token, toAddr, n, utxo_hash, utxo_vout, ref, amount FROM (
 		SELECT hash, created_time, contract, p, token, toAddr, n, utxo_hash, utxo_vout, tag0, '' AS ref, '' AS amount FROM shift_in UNION
 		SELECT hash, created_time, contract, '' as p, '' AS token, toAddr, '' AS n, '' AS utxo_hash, 0 AS utxo_vout, tag0, ref, amount FROM shift_out
-	) AS shifts WHERE tag0 = $1 ORDER BY created_time DESC LIMIT $2 OFFSET $3;`, tag, pageSize, page*pageSize)
+	) AS shifts WHERE tag0 = $1 ORDER BY created_time ASC LIMIT $2 OFFSET $3;`, tag, pageSize, page*pageSize)
 	if err != nil {
 		return nil, err
 	}
