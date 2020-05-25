@@ -83,16 +83,15 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 
 func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryTxs, req *http.Request) jsonrpc.Response {
 	var tag abi.B32
-	if params.Tags != nil {
+	if params.Tags != nil && len(*params.Tags) > 0 {
 		if len(*params.Tags) > resolver.serverOptions.MaxTags {
-			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("maximum number of tags is %d", resolver.serverOptions.MaxTags), nil)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("maximum number of tags supported is %d", resolver.serverOptions.MaxTags), nil)
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
-		if len(*params.Tags) > 0 {
-			// Currently we only support a maximum of one tag, but this can be
-			// extended in the future.
-			tag = (*params.Tags)[0]
-		}
+
+		// Currently we only support a maximum of one tag, but this can be
+		// extended in the future.
+		tag = (*params.Tags)[0]
 	}
 
 	var page uint64
@@ -101,14 +100,10 @@ func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *
 	}
 
 	var pageSize uint64
-	if params.PageSize != nil {
-		if params.PageSize.Int.Uint64() > uint64(resolver.serverOptions.MaxPageSize) {
-			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("maximum page size is %d", resolver.serverOptions.MaxPageSize), nil)
-			return jsonrpc.NewResponse(id, nil, &jsonErr)
-		}
-		pageSize = params.PageSize.Int.Uint64()
-	} else {
+	if params.PageSize == nil || params.PageSize.Int.Uint64() > uint64(resolver.serverOptions.MaxPageSize) {
 		pageSize = uint64(resolver.serverOptions.MaxPageSize)
+	} else {
+		pageSize = params.PageSize.Int.Uint64()
 	}
 
 	// Fetch the matching transactions from the database.
