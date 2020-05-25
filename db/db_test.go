@@ -348,13 +348,14 @@ var _ = Describe("Lightnode db", func() {
 
 						tag := hex.EncodeToString(tagBytes[:])
 
+						pageSize := 2
 						firstPage := map[abi.B32]abi.Tx{}
 						secondPage := map[abi.B32]abi.Tx{}
-						for i := 0; i < 4; i++ {
+						for i := 0; i < 2*pageSize; i++ {
 							tx := testutil.RandomTransformedMintingTx("")
 							Expect(db.InsertTx(tx, tag, true)).To(Succeed())
 
-							if i < 2 {
+							if i < pageSize {
 								firstPage[tx.Hash] = tx
 							} else {
 								secondPage[tx.Hash] = tx
@@ -365,9 +366,9 @@ var _ = Describe("Lightnode db", func() {
 						}
 
 						// Validate the first page.
-						matchingTxs, err := db.Txs(tag, 0, 2)
+						matchingTxs, err := db.Txs(tag, 0, uint64(pageSize))
 						Expect(err).NotTo(HaveOccurred())
-						Expect(len(matchingTxs)).Should(Equal(2))
+						Expect(len(matchingTxs)).Should(Equal(pageSize))
 
 						for _, tx := range matchingTxs {
 							stored, ok := firstPage[tx.Hash]
@@ -379,9 +380,9 @@ var _ = Describe("Lightnode db", func() {
 						Expect(len(firstPage)).To(Equal(0))
 
 						// Validate the second page.
-						matchingTxs, err = db.Txs(tag, 1, 2)
+						matchingTxs, err = db.Txs(tag, 1, uint64(pageSize))
 						Expect(err).NotTo(HaveOccurred())
-						Expect(len(matchingTxs)).Should(Equal(2))
+						Expect(len(matchingTxs)).Should(Equal(pageSize))
 
 						for _, tx := range matchingTxs {
 							stored, ok := secondPage[tx.Hash]
@@ -393,7 +394,7 @@ var _ = Describe("Lightnode db", func() {
 						Expect(len(secondPage)).To(Equal(0))
 
 						// Validate the third page.
-						matchingTxs, err = db.Txs(tag, 2, 2)
+						matchingTxs, err = db.Txs(tag, 2, uint64(pageSize))
 						Expect(err).NotTo(HaveOccurred())
 						Expect(len(matchingTxs)).Should(Equal(0))
 
