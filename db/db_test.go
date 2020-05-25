@@ -401,6 +401,27 @@ var _ = Describe("Lightnode db", func() {
 					Expect(quick.Check(test, &quick.Config{MaxCount: 3})).NotTo(HaveOccurred())
 				})
 			})
+
+			Context("when querying txs with a non-existent tag", func() {
+				It("should return no txs", func() {
+					sqlDB := init(dbname)
+					defer cleanup(sqlDB)
+					db := New(sqlDB)
+
+					test := func(tag abi.B32) bool {
+						Expect(db.Init()).Should(Succeed())
+						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
+
+						// Validate the third page.
+						matchingTxs, err := db.Txs(tag, 0, 10)
+						Expect(err).NotTo(HaveOccurred())
+
+						return len(matchingTxs) == 0
+					}
+
+					Expect(quick.Check(test, &quick.Config{MaxCount: 10})).NotTo(HaveOccurred())
+				})
+			})
 		})
 	}
 })
