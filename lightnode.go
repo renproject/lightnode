@@ -40,6 +40,7 @@ type Options struct {
 	ProtocolAddr      string
 	Cap               int
 	MaxBatchSize      int
+	MaxPageSize       int
 	ServerTimeout     time.Duration
 	ClientTimeout     time.Duration
 	TTL               time.Duration
@@ -80,6 +81,9 @@ func (options *Options) SetZeroToDefault() {
 	}
 	if options.MaxBatchSize == 0 {
 		options.MaxBatchSize = 10
+	}
+	if options.MaxPageSize == 0 {
+		options.MaxPageSize = 10
 	}
 	if options.ServerTimeout == 0 {
 		options.ServerTimeout = 15 * time.Second
@@ -141,6 +145,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	// Define the options used for the server.
 	serverOptions := jsonrpc.DefaultOptions()
 	serverOptions.MaxBatchSize = options.MaxBatchSize
+	serverOptions.MaxPageSize = options.MaxPageSize
 	serverOptions.Timeout = options.ServerTimeout
 
 	// TODO: These are currently not configurable from environment variables.
@@ -173,7 +178,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	dispatcher := dispatcher.New(logger, options.ClientTimeout, multiStore, opts)
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
 	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
-	resolver := resolver.New(logger, cacher, multiStore, *options.DisPubkey, bc, db)
+	resolver := resolver.New(logger, cacher, multiStore, *options.DisPubkey, bc, db, serverOptions)
 	server := jsonrpc.NewServer(serverOptions, resolver)
 	confirmer := confirmer.New(logger, confirmerOptions, dispatcher, db, bc)
 	submitter := submitter.New(logger, dispatcher, db, ethClient, options.Key, options.SubmitterPollRate)

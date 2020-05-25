@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/consensus/txcheck/transform"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/db"
@@ -21,9 +22,11 @@ type Resolver struct {
 	txCheckerRequests chan lhttp.RequestWithResponder
 	multiStore        store.MultiAddrStore
 	cacher            phi.Task
+	db                db.DB
+	serverOptions     jsonrpc.Options
 }
 
-func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, key ecdsa.PublicKey, bc transform.Blockchain, db db.DB) *Resolver {
+func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, key ecdsa.PublicKey, bc transform.Blockchain, db db.DB, serverOptions jsonrpc.Options) *Resolver {
 	requests := make(chan lhttp.RequestWithResponder, 128)
 	txChecker := newTxChecker(logger, requests, key, bc, db)
 	go txChecker.Run()
@@ -33,6 +36,8 @@ func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrS
 		txCheckerRequests: requests,
 		multiStore:        multiStore,
 		cacher:            cacher,
+		db:                db,
+		serverOptions:     serverOptions,
 	}
 }
 
@@ -45,6 +50,10 @@ func (resolver *Resolver) QueryBlocks(ctx context.Context, id interface{}, param
 }
 
 func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *jsonrpc.ParamsSubmitTx, req *http.Request) jsonrpc.Response {
+	if params.Tags != nil && len(*params.Tags) > resolver.serverOptions.MaxTags {
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("maximum number of tags is %d", resolver.serverOptions.MaxTags), nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
 	return resolver.handleMessage(ctx, id, jsonrpc.MethodSubmitTx, *params, req, true)
 }
 
@@ -68,12 +77,43 @@ func (resolver *Resolver) QueryStat(ctx context.Context, id interface{}, params 
 	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryStat, *params, req, false)
 }
 
-func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryTxs, r *http.Request) jsonrpc.Response {
-	// TODO: Implement the queryTx method.
-	return jsonrpc.NewResponse(id, nil, &jsonrpc.Error{
-		Code:    jsonrpc.ErrorCodeMethodNotFound,
-		Message: "unsupported method",
-	})
+func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryFees, req *http.Request) jsonrpc.Response {
+	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryFees, *params, req, false)
+}
+
+func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryTxs, req *http.Request) jsonrpc.Response {
+	var tag abi.B32
+	if params.Tags != nil && len(*params.Tags) > 0 {
+		if len(*params.Tags) > resolver.serverOptions.MaxTags {
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("maximum number of tags supported is %d", resolver.serverOptions.MaxTags), nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
+
+		// Currently we only support a maximum of one tag, but this can be
+		// extended in the future.
+		tag = (*params.Tags)[0]
+	}
+
+	var page uint64
+	if params.Page != nil {
+		page = params.Page.Int.Uint64()
+	}
+
+	var pageSize uint64
+	if params.PageSize == nil || params.PageSize.Int.Uint64() > uint64(resolver.serverOptions.MaxPageSize) {
+		pageSize = uint64(resolver.serverOptions.MaxPageSize)
+	} else {
+		pageSize = params.PageSize.Int.Uint64()
+	}
+
+	// Fetch the matching transactions from the database.
+	txs, err := resolver.db.Txs(tag, page, pageSize)
+	if err != nil {
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, fmt.Sprintf("failed to fetch txs: %v", err), nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	return jsonrpc.NewResponse(id, jsonrpc.ResponseQueryTxs{Txs: txs}, nil)
 }
 
 func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, method string, params interface{}, r *http.Request, isSubmitTx bool) jsonrpc.Response {

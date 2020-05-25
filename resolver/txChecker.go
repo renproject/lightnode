@@ -45,17 +45,23 @@ func (tc *txChecker) Run() {
 	workers := 2 * runtime.NumCPU()
 	phi.ForAll(workers, func(_ int) {
 		for req := range tc.requests {
-			tx, err := tc.verify(req.Params.(jsonrpc.ParamsSubmitTx))
+			params := req.Params.(jsonrpc.ParamsSubmitTx)
+			tx, err := tc.verify(params)
 			if err != nil {
 				req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, err)
 				continue
 			}
 
-			// Check for duplicate.
+			var tag abi.B32
+			if params.Tags != nil && len(*params.Tags) > 0 {
+				tag = (*params.Tags)[0]
+			}
+
+			// Check if the transaction is a duplicate.
 			gaas := req.Query.Get("gaas")
-			tx, err = tc.checkDuplicate(tx, gaas)
+			tx, err = tc.checkDuplicate(tx, tag, gaas)
 			if err != nil {
-				tc.logger.Errorf("[txChecker] cannot check tx duplication, err = %v", err)
+				tc.logger.Errorf("[txChecker] cannot check tx duplication: %v", err)
 				req.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
 				continue
 			}
@@ -73,7 +79,7 @@ func (tc *txChecker) verify(params jsonrpc.ParamsSubmitTx) (abi.Tx, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	// Verify the parameters
+	// Verify the parameters.
 	if err := transform.ValidateTxParams(params.Tx); err != nil {
 		return abi.Tx{}, err
 	}
@@ -99,13 +105,13 @@ func (tc *txChecker) verify(params jsonrpc.ParamsSubmitTx) (abi.Tx, error) {
 	}
 }
 
-func (tc *txChecker) checkDuplicate(tx abi.Tx, gaas string) (abi.Tx, error) {
+func (tc *txChecker) checkDuplicate(tx abi.Tx, tag abi.B32, gaas string) (abi.Tx, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
 	stored, err := tc.db.Tx(tx.Hash, false)
 	if err == sql.ErrNoRows {
-		return tx, tc.db.InsertTx(tx, gaas != "")
+		return tx, tc.db.InsertTx(tx, tag, gaas != "")
 	}
 	return stored, err
 }
