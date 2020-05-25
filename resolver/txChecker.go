@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"database/sql"
-	"encoding/hex"
 	"runtime"
 	"sync"
 	"time"
@@ -53,9 +52,9 @@ func (tc *txChecker) Run() {
 				continue
 			}
 
-			var tag string
+			var tag abi.B32
 			if params.Tags != nil && len(*params.Tags) > 0 {
-				tag = hex.EncodeToString((*params.Tags)[0][:])
+				tag = (*params.Tags)[0]
 			}
 
 			// Check if the transaction is a duplicate.
@@ -106,7 +105,7 @@ func (tc *txChecker) verify(params jsonrpc.ParamsSubmitTx) (abi.Tx, error) {
 	}
 }
 
-func (tc *txChecker) checkDuplicate(tx abi.Tx, tag string, gaas string) (abi.Tx, error) {
+func (tc *txChecker) checkDuplicate(tx abi.Tx, tag abi.B32, gaas string) (abi.Tx, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 

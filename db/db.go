@@ -35,14 +35,14 @@ type DB interface {
 	Init() error
 
 	// InsertTx inserts the tx into the database.
-	InsertTx(tx abi.Tx, tag string, gaas bool) error
+	InsertTx(tx abi.Tx, tag abi.B32, gaas bool) error
 
 	// Tx gets the details of the tx with given txHash. It returns an `sql.ErrNoRows`
 	// if tx cannot be found.
 	Tx(hash abi.B32, transformed bool) (abi.Tx, error)
 
 	// Txs returns txs with the given tag.
-	Txs(tag string, page, pageSize uint64) (abi.Txs, error)
+	Txs(tag abi.B32, page, pageSize uint64) (abi.Txs, error)
 
 	// ShiftIns returns shiftIn txs with given status and are not expired.
 	ShiftIns(status TxStatus, expiry time.Duration, contract string) (abi.Txs, error)
@@ -132,7 +132,7 @@ func (db database) Init() error {
 }
 
 // InsertTx implements the `DB` interface.
-func (db database) InsertTx(tx abi.Tx, tag string, gaas bool) error {
+func (db database) InsertTx(tx abi.Tx, tag abi.B32, gaas bool) error {
 	if abi.IsShiftIn(tx.To) {
 		if err := db.insertShiftIn(tx, tag, gaas); err != nil {
 			return err
@@ -153,12 +153,12 @@ func (db database) Tx(hash abi.B32, transformed bool) (abi.Tx, error) {
 }
 
 // Txs implements the `DB` interface.
-func (db database) Txs(tag string, page, pageSize uint64) (abi.Txs, error) {
+func (db database) Txs(tag abi.B32, page, pageSize uint64) (abi.Txs, error) {
 	txs := make(abi.Txs, 0, pageSize)
 	shifts, err := db.db.Query(`SELECT hash, contract, p, token, toAddr, n, utxo_hash, utxo_vout, ref, amount FROM (
 		SELECT hash, created_time, contract, p, token, toAddr, n, utxo_hash, utxo_vout, tag0, '' AS ref, '' AS amount FROM shift_in UNION
 		SELECT hash, created_time, contract, '' as p, '' AS token, toAddr, '' AS n, '' AS utxo_hash, 0 AS utxo_vout, tag0, ref, amount FROM shift_out
-	) AS shifts WHERE tag0 = $1 ORDER BY created_time ASC LIMIT $2 OFFSET $3;`, tag, pageSize, page*pageSize)
+	) AS shifts WHERE tag0 = $1 ORDER BY created_time ASC LIMIT $2 OFFSET $3;`, hex.EncodeToString(tag[:]), pageSize, page*pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +310,7 @@ func (db database) Prune(expiry time.Duration) error {
 }
 
 // Inserts the original request received from user into the shift_in table.
-func (db database) insertShiftIn(tx abi.Tx, tag string, gaas bool) error {
+func (db database) insertShiftIn(tx abi.Tx, tag abi.B32, gaas bool) error {
 	p := tx.In.Get("p")
 	if p.IsNil() {
 		return errors.New("invalid tx, missing parameter p")
@@ -349,7 +349,7 @@ VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);`
 		hex.EncodeToString(n[:]),
 		hex.EncodeToString(utxo.TxHash[:]),
 		utxo.VOut.Int.Int64(),
-		tag,
+		hex.EncodeToString(tag[:]),
 	)
 
 	return err
@@ -402,7 +402,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7);`
 }
 
 // InsertShiftOut stores a shift out tx to the database.
-func (db database) insertShiftOut(tx abi.Tx, tag string) error {
+func (db database) insertShiftOut(tx abi.Tx, tag abi.B32) error {
 	ref, ok := tx.In.Get("ref").Value.(abi.U64)
 	if !ok {
 		return fmt.Errorf("unexpected type for ref, expected abi.U64, got %v", tx.In.Get("ref").Value.Type())
@@ -425,7 +425,7 @@ VALUES ($1, 1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING;`
 		ref.Int.String(),
 		hex.EncodeToString(to),
 		amount.Int.String(),
-		tag,
+		hex.EncodeToString(tag[:]),
 	)
 	return err
 }

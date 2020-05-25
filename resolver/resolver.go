@@ -3,11 +3,11 @@ package resolver
 import (
 	"context"
 	"crypto/ecdsa"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/url"
 
+	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/consensus/txcheck/transform"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/db"
@@ -82,7 +82,7 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 }
 
 func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryTxs, req *http.Request) jsonrpc.Response {
-	var tag string
+	var tag abi.B32
 	if params.Tags != nil {
 		if len(*params.Tags) > resolver.serverOptions.MaxTags {
 			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("maximum number of tags is %d", resolver.serverOptions.MaxTags), nil)
@@ -91,7 +91,7 @@ func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *
 		if len(*params.Tags) > 0 {
 			// Currently we only support a maximum of one tag, but this can be
 			// extended in the future.
-			tag = hex.EncodeToString((*params.Tags)[0][:])
+			tag = (*params.Tags)[0]
 		}
 	}
 

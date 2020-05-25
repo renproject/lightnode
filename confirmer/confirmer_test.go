@@ -56,7 +56,7 @@ var _ = Describe("Confirmer", func() {
 			hashes := make([]abi.B32, 100)
 			for i := range hashes {
 				tx := testutil.RandomTransformedMintingTx(abi.IntrinsicBTC0Btc2Eth.Address)
-				Expect(database.InsertTx(tx, "", false)).To(Succeed())
+				Expect(database.InsertTx(tx, abi.B32{}, false)).To(Succeed())
 
 				hashes[i] = tx.Hash
 				status, err := database.TxStatus(tx.Hash)
