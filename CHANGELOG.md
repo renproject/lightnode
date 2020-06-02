@@ -1,3 +1,7 @@
+## 0.1.9
+
+- Update to Darknode v0.2.14
+
 ## 0.1.8
 
 - Add support for the QueryFees method
