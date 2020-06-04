@@ -1,3 +1,6 @@
+## 0.1.10
+- Improve p2p logic of the lightnode which will reduce connection time for new darknode.
+
 ## 0.1.9
 
 - Update to Darknode v0.2.14
