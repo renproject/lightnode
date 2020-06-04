@@ -1,5 +1,5 @@
 ## 0.1.10
-- Improve p2p logic of the lightnode which will reduce connection time for new darknode.
+- Improve P2P logic to reduce connection times for new Darknodes
 
 ## 0.1.9
 
