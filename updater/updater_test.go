@@ -18,7 +18,7 @@ import (
 
 func initUpdater(ctx context.Context, bootstrapAddrs addr.MultiAddresses, pollRate, timeout time.Duration) store.MultiAddrStore {
 	logger := logrus.New()
-	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
+	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), bootstrapAddrs)
 	for _, addr := range bootstrapAddrs {
 		multiStore.Insert(addr)
 	}
