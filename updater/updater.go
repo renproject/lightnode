@@ -73,7 +73,7 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		return
 	}
 
-	// Collecting all Peers connected to bootstrap nodes.
+	// Collect all peers connected to Bootstrap nodes.
 	phi.ParForAll(addrs, func(i int) {
 		multi := addrs[i]
 
