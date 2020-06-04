@@ -74,7 +74,6 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 	}
 
 	// Collecting all Peers connected to bootstrap nodes.
-	peers := map[string]struct{}{}
 	phi.ParForAll(addrs, func(i int) {
 		multi := addrs[i]
 
@@ -110,22 +109,17 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 			return
 		}
 		for _, peer := range resp.Peers {
-			peers[peer] = struct{}{}
+			multiAddr, err := addr.NewMultiAddressFromString(peer)
+			if err != nil {
+				updater.logger.Errorf("[updater] failed to decode multi-address: %v", err)
+				continue
+			}
+			if err := updater.multiStore.Insert(multiAddr); err != nil {
+				updater.logger.Errorf("[updater] failed to add multi-address to store: %v", err)
+				return
+			}
 		}
 	})
-
-	// Add peers into the store.
-	for peer := range peers{
-		multiAddr, err := addr.NewMultiAddressFromString(peer)
-		if err != nil {
-			updater.logger.Errorf("[updater] failed to decode multi-address: %v", err)
-			continue
-		}
-		if err := updater.multiStore.Insert(multiAddr); err != nil {
-			updater.logger.Errorf("[updater] failed to add multi-address to store: %v", err)
-			return
-		}
-	}
 
 	// Print how many nodes we have connected to.
 	size, err := updater.multiStore.Size()
