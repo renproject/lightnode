@@ -1,3 +1,7 @@
+## 0.1.10
+- Improve P2P logic to reduce connection times for new Darknodes
+- Update to Darknode v0.2.17
+
 ## 0.1.9
 
 - Update to Darknode v0.2.14

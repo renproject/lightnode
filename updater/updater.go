@@ -67,12 +67,13 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		updater.logger.Errorf("cannot marshal query peers params: %v", err)
 		return
 	}
-	addrs, err := updater.multiStore.RandomAddrs(3)
+	addrs, err := updater.multiStore.BootstrapAll()
 	if err != nil {
 		updater.logger.Errorf("cannot get query addresses: %v", err)
 		return
 	}
 
+	// Collect all peers connected to Bootstrap nodes.
 	phi.ParForAll(addrs, func(i int) {
 		multi := addrs[i]
 
@@ -96,7 +97,7 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 			return
 		}
 
-		// Parse the response and write any multi-addresses returned by the node to the store.
+		// Parse the response
 		raw, err := json.Marshal(response.Result)
 		if err != nil {
 			updater.logger.Errorf("[updater] error marshaling queryPeers result: %v", err)
@@ -107,7 +108,6 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 			updater.logger.Warnf("[updater] cannot unmarshal queryPeers result from %v: %v", multi.String(), err)
 			return
 		}
-
 		for _, peer := range resp.Peers {
 			multiAddr, err := addr.NewMultiAddressFromString(peer)
 			if err != nil {
@@ -122,12 +122,12 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 	})
 
 	// Print how many nodes we have connected to.
-	all, err := updater.multiStore.AddrsAll()
+	size, err := updater.multiStore.Size()
 	if err != nil {
 		updater.logger.Errorf("cannot get query addresses: %v", err)
 		return
 	}
-	updater.logger.Infof("connected to %v nodes", len(all))
+	updater.logger.Infof("connected to %v nodes", size)
 }
 
 func (updater Updater) isBootstrap(addr addr.MultiAddress) bool {
