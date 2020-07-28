@@ -208,11 +208,11 @@ func (lightnode Lightnode) Run(ctx context.Context) {
 	go lightnode.updater.Run(ctx)
 	go lightnode.cacher.Run(ctx)
 	go lightnode.dispatcher.Run(ctx)
-	// go lightnode.confirmer.Run(ctx)
-	// go lightnode.btcWatcher.Run(ctx)
-	// go lightnode.zecWatcher.Run(ctx)
-	// go lightnode.bchWatcher.Run(ctx)
-	// go lightnode.submitter.Run(ctx)
+	go lightnode.confirmer.Run(ctx)
+	go lightnode.btcWatcher.Run(ctx)
+	go lightnode.zecWatcher.Run(ctx)
+	go lightnode.bchWatcher.Run(ctx)
+	go lightnode.submitter.Run(ctx)
 
 	lightnode.server.Listen(ctx, fmt.Sprintf(":%s", lightnode.options.Port))
 }
