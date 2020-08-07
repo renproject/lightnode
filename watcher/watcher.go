@@ -96,7 +96,10 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 
 		// Send the ShiftOut tx to the resolver.
 		params := watcher.shiftOutToParams(ref)
-		watcher.resolver.SubmitTx(ctx, 0, &params, nil)
+		response := watcher.resolver.SubmitTx(ctx, 0, &params, nil)
+		if response.Error != nil{
+			watcher.logger.Infof("invalid burn tx, err = %v", response.Error.Message)
+		}
 	}
 	if err := iter.Error(); err != nil {
 		watcher.logger.Errorf("[watcher] error iterating LogShiftOut events from=%v to=%v: %v", last, cur, err)
