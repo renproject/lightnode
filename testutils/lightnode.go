@@ -1,6 +1,6 @@
 package testutils
 
-import "github.com/renproject/darknode/jsonrpc"
+/* import "github.com/renproject/darknode/jsonrpc"
 
 var QueryRequests = []string{
 	jsonrpc.MethodQueryBlock,
@@ -10,4 +10,4 @@ var QueryRequests = []string{
 	jsonrpc.MethodQueryStat,
 	// jsonrpc.MethodQueryEpoch,
 	jsonrpc.MethodQueryTx,
-}
+} */

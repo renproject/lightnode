@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
-	"github.com/renproject/darknode/addr"
+	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
@@ -45,7 +47,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 		dispatcher.logger.Panicf("[dispatcher] unexpected message type %T", message)
 	}
 
-	var addrs addr.MultiAddresses
+	var addrs []wire.Address
 	var err error
 	id := msg.Query.Get("id")
 	if id != "" {
@@ -66,7 +68,17 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 
 	go func() {
 		phi.ParForAll(addrs, func(i int) {
-			address := fmt.Sprintf("http://%s:%v", addrs[i].IP4(), addrs[i].Port()+1)
+			addrParts := strings.Split(addrs[i].Value, ":")
+			if len(addrParts) != 2 {
+				dispatcher.logger.Errorf("[dispatcher] invalid address value=%v", addrs[i].Value)
+				return
+			}
+			port, err := strconv.Atoi(addrParts[1])
+			if err != nil {
+				dispatcher.logger.Errorf("[dispatcher] invalid port=%v", addrParts[1])
+				return
+			}
+			addrString := fmt.Sprintf("http://%s:%v", addrParts[0], port+1)
 			params, err := json.Marshal(msg.Params)
 			if err != nil {
 				return
@@ -77,7 +89,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 				Method:  msg.Method,
 				Params:  params,
 			}
-			response, err := dispatcher.client.SendRequest(ctx, address, req, nil)
+			response, err := dispatcher.client.SendRequest(ctx, addrString, req, nil)
 			if err != nil {
 				return
 			}
@@ -92,17 +104,17 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 }
 
 // multiAddrs returns the multi-address for the given Darknode ID.
-func (dispatcher *Dispatcher) multiAddr(darknodeID string) (addr.MultiAddresses, error) {
+func (dispatcher *Dispatcher) multiAddr(darknodeID string) ([]wire.Address, error) {
 	multi, err := dispatcher.multiStore.Get(darknodeID)
 	if err != nil {
 		return nil, err
 	}
-	return addr.MultiAddresses{multi}, nil
+	return []wire.Address{multi}, nil
 }
 
 // multiAddrs returns the multi-addresses for the Darknodes based on the given
 // method.
-func (dispatcher *Dispatcher) multiAddrs(method string) (addr.MultiAddresses, error) {
+func (dispatcher *Dispatcher) multiAddrs(method string) ([]wire.Address, error) {
 	switch method {
 	case jsonrpc.MethodSubmitTx:
 		return dispatcher.multiStore.RandomBootstrapAddrs(3)

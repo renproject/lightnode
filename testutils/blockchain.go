@@ -1,6 +1,6 @@
 package testutils
 
-import (
+/* import (
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -84,3 +84,4 @@ func (cp *connPool) confirmations(ref uint64) uint64 {
 
 	return confirmations
 }
+*/

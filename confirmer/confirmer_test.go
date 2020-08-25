@@ -1,6 +1,6 @@
 package confirmer_test
 
-import (
+/* import (
 	"context"
 	"database/sql"
 	"time"
@@ -74,4 +74,4 @@ var _ = Describe("Confirmer", func() {
 			}
 		})
 	})
-})
+}) */

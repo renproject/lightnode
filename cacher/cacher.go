@@ -1,6 +1,6 @@
 package cacher
 
-import (
+/* import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -146,3 +146,4 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 		msg.Responder <- response
 	}()
 }
+*/

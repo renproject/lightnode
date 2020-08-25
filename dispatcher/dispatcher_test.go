@@ -1,6 +1,6 @@
 package dispatcher_test
 
-import (
+/* import (
 	"context"
 	"net/http/httptest"
 	"net/url"
@@ -67,4 +67,4 @@ var _ = Describe("Dispatcher", func() {
 			}
 		})
 	})
-})
+}) */

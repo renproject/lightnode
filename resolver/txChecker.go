@@ -4,44 +4,45 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"database/sql"
+	"fmt"
 	"runtime"
 	"sync"
 	"time"
 
-	"github.com/renproject/darknode/abi"
-	"github.com/renproject/darknode/consensus/txcheck/transform"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/tx"
+	"github.com/renproject/darknode/txengine"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
 
-// A txChecker reads submitTx requests from a channel and validate the details
-// of the tx. It will store the tx if it's valid.
-type txChecker struct {
+// A txchecker reads SubmitTx requests from a channel and validates the details
+// of the transaction. It will store the transaction if it is valid.
+type txchecker struct {
 	mu        *sync.Mutex
 	logger    logrus.FieldLogger
 	requests  <-chan http.RequestWithResponder
 	disPubkey ecdsa.PublicKey
-	bc        transform.Blockchain
+	bindings  txengine.Bindings
 	db        db.DB
 }
 
-// newTxChecker returns a new txChecker.
-func newTxChecker(logger logrus.FieldLogger, requests <-chan http.RequestWithResponder, key ecdsa.PublicKey, bc transform.Blockchain, db db.DB) txChecker {
-	return txChecker{
+// newTxChecker returns a new txchecker.
+func newTxChecker(logger logrus.FieldLogger, requests <-chan http.RequestWithResponder, key ecdsa.PublicKey, bindings txengine.Bindings, db db.DB) txchecker {
+	return txchecker{
 		mu:        new(sync.Mutex),
 		logger:    logger,
 		requests:  requests,
 		disPubkey: key,
-		bc:        bc,
+		bindings:  bindings,
 		db:        db,
 	}
 }
 
-// Run starts the txChecker until the requests channel is closed.
-func (tc *txChecker) Run() {
+// Run starts the txchecker until the requests channel is closed.
+func (tc *txchecker) Run() {
 	workers := 2 * runtime.NumCPU()
 	phi.ForAll(workers, func(_ int) {
 		for req := range tc.requests {
@@ -52,66 +53,54 @@ func (tc *txChecker) Run() {
 				continue
 			}
 
-			var tag abi.B32
-			if params.Tags != nil && len(*params.Tags) > 0 {
-				tag = (*params.Tags)[0]
-			}
-
 			// Check if the transaction is a duplicate.
-			gaas := req.Query.Get("gaas")
-			tx, err = tc.checkDuplicate(tx, tag, gaas)
+			tx, err = tc.checkDuplicate(tx)
 			if err != nil {
-				tc.logger.Errorf("[txChecker] cannot check tx duplication: %v", err)
+				tc.logger.Errorf("[txchecker] cannot check tx duplication: %v", err)
 				req.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
 				continue
 			}
 
 			// Write the response to the responder channel.
-			response := jsonrpc.ResponseSubmitTx{
-				Tx: tx,
-			}
+			response := jsonrpc.ResponseSubmitTx{}
 			req.Responder <- jsonrpc.NewResponse(req.ID, response, nil)
 		}
 	})
 }
 
-func (tc *txChecker) verify(params jsonrpc.ParamsSubmitTx) (abi.Tx, error) {
+func (tc *txchecker) verify(params jsonrpc.ParamsSubmitTx) (tx.Tx, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	// Verify the parameters.
-	if err := transform.ValidateTxParams(params.Tx); err != nil {
-		return abi.Tx{}, err
-	}
-
-	// Validate the phash and calculate other hashes.
-	tx, err := transform.PHash(params.Tx)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	tx = transform.GHash(tx)
-	tx = transform.NHash(tx)
-	tx = transform.TxHash(tx)
-
-	// Validate the utxo or shiftOut event.
-	if abi.IsShiftIn(tx.To) {
-		tx, err = transform.ValidateUtxo(ctx, tc.bc, tx, 0, tc.disPubkey)
-		if err != nil {
-			return abi.Tx{}, err
+	transaction := &params.Tx
+	switch {
+	case params.Tx.Selector.IsLockAndMint():
+		if err := txengine.UTXOLockAndMintPreparation(ctx, tc.bindings, transaction); err != nil {
+			return tx.Tx{}, err
 		}
-		return transform.Sighash(tx), nil
-	} else {
-		return transform.AddShiftOutDetails(ctx, tx, tc.bc, 0)
+		return *transaction, nil
+	case params.Tx.Selector.IsBurnAndRelease():
+		if err := txengine.UTXOBurnAndReleasePreparation(ctx, tc.bindings, transaction); err != nil {
+			return tx.Tx{}, err
+		}
+		return *transaction, nil
+	case params.Tx.Selector.IsBurnAndMint():
+		if err := txengine.AccountBurnAndMintPreparation(ctx, tc.bindings, transaction); err != nil {
+			return tx.Tx{}, err
+		}
+		return *transaction, nil
+	default:
+		return tx.Tx{}, fmt.Errorf("non-exhaustive pattern: selector %v", params.Tx.Selector)
 	}
 }
 
-func (tc *txChecker) checkDuplicate(tx abi.Tx, tag abi.B32, gaas string) (abi.Tx, error) {
+func (tc *txchecker) checkDuplicate(transaction tx.Tx) (tx.Tx, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
-	stored, err := tc.db.Tx(tx.Hash, false)
+	stored, err := tc.db.Tx(transaction.Hash)
 	if err == sql.ErrNoRows {
-		return tx, tc.db.InsertTx(tx, tag, gaas != "")
+		return transaction, tc.db.InsertTx(transaction)
 	}
 	return stored, err
 }

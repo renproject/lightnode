@@ -2,14 +2,16 @@ package db
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"math/big"
 	"time"
 
-	"github.com/renproject/darknode/abi"
+	"github.com/renproject/darknode/tx"
+	"github.com/renproject/darknode/txengine"
+	"github.com/renproject/multichain/api/utxo"
+	"github.com/renproject/pack"
 )
 
 type TxStatus int8
@@ -18,7 +20,6 @@ const (
 	TxStatusNil TxStatus = iota
 	TxStatusConfirming
 	TxStatusConfirmed
-	// TxStatusDispatched
 	TxStatusSubmitted
 )
 
@@ -26,42 +27,36 @@ type Scannable interface {
 	Scan(dest ...interface{}) error
 }
 
-// DB is an storage adapter building on top of a sql database. It is the place
-// where all txs details are stored. We can query details of a particular txs or
-// update its status.
+// DB is a storage adapter (built on top of a SQL database) that stores all
+// transaction details.
 type DB interface {
-
-	// Initialize the database. Init should be called once the db object is created.
+	// Initialise the database. Init should be called once the database object
+	// is created.
 	Init() error
 
-	// InsertTx inserts the tx into the database.
-	InsertTx(tx abi.Tx, tag abi.B32, gaas bool) error
+	// InsertTx inserts the transaction into the database.
+	InsertTx(tx tx.Tx) error
 
-	// Tx gets the details of the tx with given txHash. It returns an `sql.ErrNoRows`
-	// if tx cannot be found.
-	Tx(hash abi.B32, transformed bool) (abi.Tx, error)
+	// Tx gets the details of the transaction with the given hash. It returns an
+	// `sql.ErrNoRows` if the transaction cannot be found.
+	Tx(hash pack.Bytes32) (tx.Tx, error)
 
-	// Txs returns txs with the given tag.
-	Txs(tag abi.B32, page, pageSize uint64) (abi.Txs, error)
+	// Txs returns transactions with the given pagination options.
+	Txs(offset, limit int) ([]tx.Tx, error)
 
-	// ShiftIns returns shiftIn txs with given status and are not expired.
-	ShiftIns(status TxStatus, expiry time.Duration, contract string) (abi.Txs, error)
+	// PendingTxs returns all pending transactions in the database which are not
+	// expired.
+	PendingTxs(expiry time.Duration) ([]tx.Tx, error)
 
-	// PendingTxs returns all pending txs in the database which are not expired.
-	PendingTxs(expiry time.Duration) ([]abi.Tx, error)
+	// TxStatus returns the current status of the transaction with the given
+	// hash.
+	TxStatus(hash pack.Bytes32) (TxStatus, error)
 
-	// UnsubmittedTxs returns the txs with payload which have reached enough
-	// confirmations and been sent to darknodes.
-	UnsubmittedTxs(expiry time.Duration) ([]abi.B32, error)
+	// UpdateStatus updates the status of the given transaction. The status
+	// cannot be updated to a previous status.
+	UpdateStatus(hash pack.Bytes32, status TxStatus) error
 
-	// TxStatus returns the current status of the tx with given has.
-	TxStatus(hash abi.B32) (TxStatus, error)
-
-	// UpdateStatus updates the status of given tx. Please noted the status cannot
-	// be updated to an previous status.
-	UpdateStatus(hash abi.B32, status TxStatus) error
-
-	// Prune deletes tx which are expired.
+	// Prune deletes transactions which have expired.
 	Prune(expiry time.Duration) error
 }
 
@@ -81,618 +76,552 @@ func New(db *sql.DB) DB {
 // TODO: Decide approach for versioning database tables.
 func (db database) Init() error {
 
-	// Create the shift_in table if not exist.
-	shiftIn := `CREATE TABLE IF NOT EXISTS shift_in (
-    hash                 CHAR(64) NOT NULL PRIMARY KEY,
-    status               INT,
-    gaas                 BOOL DEFAULT FALSE,
-    created_time         INT,
-    contract             VARCHAR(255),
-    p                    VARCHAR,
-    token                CHAR(40),
-    toAddr               CHAR(40),
-    n                    CHAR(64),
-    utxo_hash            CHAR(64),
-	utxo_vout            INT,
-	tag0                 CHAR(64)
-);`
-	_, err := db.db.Exec(shiftIn)
+	// Create the lock-and-mint table if it does not exist.
+	lockAndMint := `CREATE TABLE IF NOT EXISTS lock_and_mint (
+		hash         CHAR(43) NOT NULL PRIMARY KEY,
+		status       INT,
+		created_time INT,
+		selector     VARCHAR(255),
+		utxo_hash    VARCHAR,
+		utxo_index   INT,
+		payload      VARCHAR,
+		phash        CHAR(43),
+		token        VARCHAR,
+		to           VARCHAR,
+		nonce        CHAR(43),
+		nhash        CHAR(43),
+		gpubkey      VARCHAR,
+		ghash        CHAR(43)
+	);`
+	_, err := db.db.Exec(lockAndMint)
 	if err != nil {
 		return err
 	}
 
-	// Create the shift_in_autogen table if not exist.
-	shiftInAutogen := `CREATE TABLE IF NOT EXISTS shift_in_autogen (
-    hash                 CHAR(64) NOT NULL PRIMARY KEY REFERENCES shift_in(hash) ON DELETE CASCADE,
-    ghash                CHAR(64),
-	nhash                CHAR(64),
-	sighash              CHAR(64),
-	phash                CHAR(64),
-	amount               VARCHAR,
-	utxo                 VARCHAR
-);`
-	_, err = db.db.Exec(shiftInAutogen)
-	if err != nil {
-		return err
-	}
+	// Create the burn-and-release table if not exist.
+	burnAndRelease := `CREATE TABLE IF NOT EXISTS burn_and_release (
+		hash         CHAR(43) NOT NULL PRIMARY KEY,
+		status       INT,
+		created_time INT,
+		selector     VARCHAR(255),
+		amount       VARCHAR(100),
+		to           VARCHAR,
+		nonce        CHAR(43)
+	);`
+	_, err = db.db.Exec(burnAndRelease)
 
-	// Create the shift_out table if not exist.
-	shiftOut := `CREATE TABLE IF NOT EXISTS shift_out (
-    hash                 CHAR(64) NOT NULL PRIMARY KEY,
-    status               INT,
-    created_time         INT,
-    contract             VARCHAR(255), 
-    ref                  VARCHAR, 
-    toAddr               VARCHAR(255),
-	amount               VARCHAR,
-	tag0                 CHAR(64)
-);`
-	_, err = db.db.Exec(shiftOut)
+	// Create the burn-and-mint table if not exist.
+	burnAndMint := `CREATE TABLE IF NOT EXISTS burn_and_mint (
+		hash         CHAR(43) NOT NULL PRIMARY KEY,
+		status       INT,
+		created_time INT,
+		selector     VARCHAR(255), 
+		amount       VARCHAR(100),
+		payload      VARCHAR,
+		phash        CHAR(43),
+		token        VARCHAR,
+		to           VARCHAR,
+		nonce        CHAR(43),
+		nhash        CHAR(43),
+		ghash        CHAR(43)
+	);`
+	_, err = db.db.Exec(burnAndMint)
 	return err
 }
 
-// InsertTx implements the `DB` interface.
-func (db database) InsertTx(tx abi.Tx, tag abi.B32, gaas bool) error {
-	if abi.IsShiftIn(tx.To) {
-		if err := db.insertShiftIn(tx, tag, gaas); err != nil {
-			return err
-		}
-		return db.insertShiftInAutogen(tx)
-	} else {
-		return db.insertShiftOut(tx, tag)
+// InsertTx implements the DB interface.
+func (db database) InsertTx(tx tx.Tx) error {
+	switch {
+	case tx.Selector.IsLockAndMint():
+		return db.insertLockAndMintTx(tx)
+	case tx.Selector.IsBurnAndRelease():
+		return db.insertBurnAndReleaseTx(tx)
+	case tx.Selector.IsBurnAndMint():
+		return db.insertBurnAndMintTx(tx)
+	default:
+		return fmt.Errorf("unexpected tx selector %v", tx.Selector.String())
 	}
 }
 
-// Tx implements the `DB` interface.
-func (db database) Tx(hash abi.B32, transformed bool) (abi.Tx, error) {
-	tx, err := db.shiftIn(hash, transformed)
+// Tx implements the DB interface.
+func (db database) Tx(hash pack.Bytes32) (tx.Tx, error) {
+	tx, err := db.lockAndMintTx(hash)
 	if err == sql.ErrNoRows {
-		return db.shiftOut(hash, transformed)
+		tx, err = db.burnAndReleaseTx(hash)
+		if err == sql.ErrNoRows {
+			return db.burnAndMintTx(hash)
+		}
 	}
 	return tx, err
 }
 
-// Txs implements the `DB` interface.
-func (db database) Txs(tag abi.B32, page, pageSize uint64) (abi.Txs, error) {
-	txs := make(abi.Txs, 0, pageSize)
-	shifts, err := db.db.Query(`SELECT hash, contract, p, token, toAddr, n, utxo_hash, utxo_vout, ref, amount FROM (
-		SELECT hash, created_time, contract, p, token, toAddr, n, utxo_hash, utxo_vout, tag0, '' AS ref, '' AS amount FROM shift_in UNION
-		SELECT hash, created_time, contract, '' as p, '' AS token, toAddr, '' AS n, '' AS utxo_hash, 0 AS utxo_vout, tag0, ref, amount FROM shift_out
-	) AS shifts WHERE tag0 = $1 ORDER BY created_time ASC LIMIT $2 OFFSET $3;`, hex.EncodeToString(tag[:]), pageSize, page*pageSize)
+// Txs implements the DB interface.
+func (db database) Txs(offset, limit int) ([]tx.Tx, error) {
+	txs := make([]tx.Tx, 0, limit)
+	rows, err := db.db.Query(`SELECT hash, selector, utxo_hash, utxo_index, payload, phash, token, to, nonce, nhash, gpubkey, ghash, amount FROM (
+		SELECT hash, created_time, selector, utxo_hash, utxo_index, payload, phash, token, to, nonce, nhash, gpubkey, ghash, '' AS amount FROM lock_and_mint UNION
+		SELECT hash, created_time, selector, utxo_hash AS '', utxo_index AS '', payload AS '', phash AS '', token AS '', to, nonce, nhash AS '', gpubkey AS '', ghash AS '', amount FROM burn_and_release UNION
+		SELECT hash, created_time, selector, utxo_hash AS '', utxo_index AS '', payload, phash, token, to, nonce, nhash, gpubkey AS '', ghash, amount FROM burn_and_mint
+	) AS shifts ORDER BY created_time ASC LIMIT $1 OFFSET $2;`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
-	defer shifts.Close()
+	defer rows.Close()
 
-	// Loop through rows and convert them to txs.
-	for shifts.Next() {
-		tx, err := rowToShift(shifts)
+	// Loop through rows and convert them to transactions.
+	for rows.Next() {
+		tx, err := rowToTx(rows)
 		if err != nil {
 			return nil, err
 		}
 		txs = append(txs, tx)
 	}
-	return txs, shifts.Err()
+	return txs, rows.Err()
 }
 
-// PendingTxs implements the `DB` interface.
-func (db database) PendingTxs(expiry time.Duration) ([]abi.Tx, error) {
-	txs := make(abi.Txs, 0, 128)
-	shiftIns, err := db.db.Query(`SELECT hash, contract, p, token, toAddr, n, utxo_hash, utxo_vout FROM shift_in 
-	WHERE status = $1 AND $2 - created_time < $3;`, TxStatusConfirming, time.Now().Unix(), int64(expiry.Seconds()))
+// PendingTxs implements the DB interface.
+func (db database) PendingTxs(expiry time.Duration) ([]tx.Tx, error) {
+	txs := make([]tx.Tx, 0, 128)
+
+	// Get pending lock-and-mint transactions from the database.
+	rows, err := db.db.Query(`SELECT hash, selector, utxo_hash, utxo_index, payload, phash, token, to, nonce, nhash, gpubkey, ghash FROM lock_and_mint
+		WHERE status = $1 AND $2 - created_time < $3;`, TxStatusConfirming, time.Now().Unix(), int64(expiry.Seconds()))
 	if err != nil {
 		return nil, err
 	}
-	defer shiftIns.Close()
+	defer rows.Close()
 
 	// Loop through rows and convert them to txs.
-	for shiftIns.Next() {
-		tx, err := rowToShiftIn(shiftIns)
+	for rows.Next() {
+		tx, err := rowToLockAndMintTx(rows)
 		if err != nil {
 			return nil, err
 		}
 		txs = append(txs, tx)
 	}
-	if shiftIns.Err() != nil {
+	if rows.Err() != nil {
 		return nil, err
 	}
 
-	// Get pending shiftOuts txs from the db.
-	shiftOuts, err := db.db.Query(`SELECT hash, contract, ref, toAddr, amount FROM shift_out 
+	// Get pending burn-and-release transactions from the database.
+	rows, err = db.db.Query(`SELECT hash, selector, amount, to, nonce FROM burn_and_release
 		WHERE status = $1 AND $2 - created_time < $3`, TxStatusConfirming, time.Now().Unix(), int64(expiry.Seconds()))
 	if err != nil {
 		return nil, err
 	}
-	defer shiftOuts.Close()
+	defer rows.Close()
 
-	for shiftOuts.Next() {
-		tx, err := rowToShiftOut(shiftOuts, false)
-		if err != nil {
-			return nil, err
-		}
-		txs = append(txs, tx)
-	}
-	return txs, shiftOuts.Err()
-}
-
-// TxsWithStatus implements the `DB` interface.
-func (db database) ShiftIns(status TxStatus, expiry time.Duration, contract string) (abi.Txs, error) {
-	txs := make(abi.Txs, 0, 128)
-
-	// Check if a particular contract address if provided.
-	contractCons := ""
-	if contract != "" {
-		contractCons = fmt.Sprintf("AND toAddr = '%v'", contract)
-	}
-	script := fmt.Sprintf(`SELECT hash, contract, p, token, toAddr, n, utxo_hash, utxo_vout FROM shift_in 
-    WHERE status = $1 AND $2 - created_time < %v %v;`, int64(expiry.Seconds()), contractCons)
-
-	// Get pending shiftIn txs from db.
-	shiftIns, err := db.db.Query(script, status, time.Now().Unix())
-	if err != nil {
-		return nil, err
-	}
-	defer shiftIns.Close()
-
-	// Loop through rows and convert them to txs.
-	for shiftIns.Next() {
-		tx, err := rowToShiftIn(shiftIns)
-		if err != nil {
-			return nil, err
-		}
-		tx, err = db.autogen(tx)
+	for rows.Next() {
+		tx, err := rowToBurnAndReleaseTx(rows)
 		if err != nil {
 			return nil, err
 		}
 		txs = append(txs, tx)
 	}
 
-	return txs, shiftIns.Err()
-}
-
-// UnsubmittedTxs implements the `DB` interface.
-func (db database) UnsubmittedTxs(expiry time.Duration) ([]abi.B32, error) {
-	hashes := make([]abi.B32, 0)
-
-	// Get txs which haven't been submitted
-	shiftIns, err := db.db.Query(`SELECT hash FROM shift_in 
-		WHERE status = $1 AND $2 - created_time < $3 AND gaas=TRUE;`, TxStatusConfirmed, time.Now().Unix(), int64(expiry.Seconds()))
+	// Get pending burn-and-mint transactions from the database.
+	rows, err = db.db.Query(`SELECT hash, selector, amount, payload, phash, token, to, nonce, nhash, ghash FROM burn_and_mint
+		WHERE status = $1 AND $2 - created_time < $3`, TxStatusConfirming, time.Now().Unix(), int64(expiry.Seconds()))
 	if err != nil {
 		return nil, err
 	}
-	defer shiftIns.Close()
+	defer rows.Close()
 
-	for shiftIns.Next() {
-		var hash string
-		if err := shiftIns.Scan(&hash); err != nil {
-			return nil, err
-		}
-		txHash, err := stringToB32(hash)
+	for rows.Next() {
+		tx, err := rowToBurnAndMintTx(rows)
 		if err != nil {
 			return nil, err
 		}
-		hashes = append(hashes, txHash)
+		txs = append(txs, tx)
 	}
-	return hashes, shiftIns.Err()
+	return txs, rows.Err()
 }
 
-// TxStatus implements the `DB` interface.
-func (db database) TxStatus(hash abi.B32) (TxStatus, error) {
+// TxStatus implements the DB interface.
+func (db database) TxStatus(hash pack.Bytes32) (TxStatus, error) {
 	var status int
-	err := db.db.QueryRow(`SELECT status FROM shift_in WHERE hash = $1;`,
-		hex.EncodeToString(hash[:])).Scan(&status)
+	err := db.db.QueryRow(`SELECT status FROM lock_and_mint WHERE hash = $1;`, hex.EncodeToString(hash[:])).Scan(&status)
 	if err == sql.ErrNoRows {
-		err = db.db.QueryRow(`SELECT status FROM shift_out WHERE hash = $1;`,
-			hex.EncodeToString(hash[:])).Scan(&status)
+		err = db.db.QueryRow(`SELECT status FROM burn_and_release WHERE hash = $1;`, hex.EncodeToString(hash[:])).Scan(&status)
+		if err == sql.ErrNoRows {
+			err = db.db.QueryRow(`SELECT status FROM burn_and_mint WHERE hash = $1;`, hex.EncodeToString(hash[:])).Scan(&status)
+		}
 	}
 	return TxStatus(status), err
 }
 
-// UpdateStatus implements the `DB` interface.
-func (db database) UpdateStatus(hash abi.B32, status TxStatus) error {
-	_, err := db.db.Exec("UPDATE shift_in SET status = $1 WHERE hash = $2 AND status < $1;", status, hex.EncodeToString(hash[:]))
+// UpdateStatus implements the DB interface.
+func (db database) UpdateStatus(hash pack.Bytes32, status TxStatus) error {
+	_, err := db.db.Exec("UPDATE lock_and_mint SET status = $1 WHERE hash = $2 AND status < $1;", status, hex.EncodeToString(hash[:]))
 	if err != nil {
 		return err
 	}
-	_, err = db.db.Exec("UPDATE shift_out SET status = $1 WHERE hash = $2 AND status < $1;", status, hex.EncodeToString(hash[:]))
+	_, err = db.db.Exec("UPDATE burn_and_release SET status = $1 WHERE hash = $2 AND status < $1;", status, hex.EncodeToString(hash[:]))
+	if err != nil {
+		return err
+	}
+	_, err = db.db.Exec("UPDATE burn_and_mint SET status = $1 WHERE hash = $2 AND status < $1;", status, hex.EncodeToString(hash[:]))
 	return err
 }
 
 // Prune deletes txs which have expired based on the given expiry.
 func (db database) Prune(expiry time.Duration) error {
-	_, err := db.db.Exec("DELETE FROM shift_in WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
+	_, err := db.db.Exec("DELETE FROM lock_and_mint WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
 	if err != nil {
 		return err
 	}
-
-	_, err = db.db.Exec("DELETE FROM shift_out WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
-	return err
-}
-
-// Inserts the original request received from user into the shift_in table.
-func (db database) insertShiftIn(tx abi.Tx, tag abi.B32, gaas bool) error {
-	p := tx.In.Get("p")
-	if p.IsNil() {
-		return errors.New("invalid tx, missing parameter p")
-	}
-	pVal, err := json.Marshal(p.Value)
+	_, err = db.db.Exec("DELETE FROM burn_and_release WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
 	if err != nil {
 		return err
 	}
-	token, ok := tx.In.Get("token").Value.(abi.ExtEthCompatAddress)
-	if !ok {
-		return fmt.Errorf("unexpected type for token, expected abi.ExtEthCompatAddress, got %v", tx.In.Get("token").Value.Type())
-	}
-	to, ok := tx.In.Get("to").Value.(abi.ExtEthCompatAddress)
-	if !ok {
-		return fmt.Errorf("unexpected type for to, expected abi.ExtEthCompatAddress, got %v", tx.In.Get("to").Value.Type())
-	}
-	n, ok := tx.In.Get("n").Value.(abi.B32)
-	if !ok {
-		return fmt.Errorf("unexpected type for n, expected abi.B32, got %v", tx.In.Get("n").Value.Type())
-	}
-	utxo, ok := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
-	if !ok {
-		return fmt.Errorf("unexpected type for utxo, expected abi.ExtTypeBtcCompatUTXO, got %v", tx.In.Get("utxo").Value.Type())
-	}
-
-	script := `INSERT INTO shift_in (hash, status, gaas, created_time, contract, p, token, toAddr, n, utxo_hash, utxo_vout, tag0)
-VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);`
-	_, err = db.db.Exec(script,
-		hex.EncodeToString(tx.Hash[:]),
-		gaas,
-		time.Now().Unix(),
-		tx.To,
-		hex.EncodeToString(pVal),
-		hex.EncodeToString(token[:]),
-		hex.EncodeToString(to[:]),
-		hex.EncodeToString(n[:]),
-		hex.EncodeToString(utxo.TxHash[:]),
-		utxo.VOut.Int.Int64(),
-		hex.EncodeToString(tag[:]),
-	)
-
+	_, err = db.db.Exec("DELETE FROM burn_and_mint WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
 	return err
 }
 
-// Inserts extra fields generated by lightnode into shift_in_autogen table.
-func (db database) insertShiftInAutogen(tx abi.Tx) error {
-	ghash, ok := tx.Autogen.Get("ghash").Value.(abi.B32)
+func (db database) insertLockAndMintTx(tx tx.Tx) error {
+	output, ok := tx.Input.Get("output").(pack.Struct)
 	if !ok {
-		return fmt.Errorf("unexpected type for ghash, expected abi.B32, got %v", tx.Autogen.Get("ghash").Value.Type())
+		return fmt.Errorf("unexpected type for output: expected pack.Struct, got %v", tx.Input.Get("output").Type())
 	}
-	nhash, ok := tx.Autogen.Get("nhash").Value.(abi.B32)
+	outpoint, ok := tx.Input.Get("outpoint").(pack.Struct)
 	if !ok {
-		return fmt.Errorf("unexpected type for nhash, expected abi.B32, got %v", tx.Autogen.Get("nhash").Value.Type())
+		return fmt.Errorf("unexpected type for outpoint: expected pack.Struct, got %v", output.Get("outpoint").Type())
 	}
-	sighash, ok := tx.Autogen.Get("sighash").Value.(abi.B32)
+	hash, ok := outpoint.Get("hash").(pack.Bytes32)
 	if !ok {
-		return fmt.Errorf("unexpected type for sighash, expected abi.B32, got %v", tx.Autogen.Get("sighash").Value.Type())
+		return fmt.Errorf("unexpected type for hash: expected pack.Bytes32, got %v", outpoint.Get("hash").Type())
 	}
-	phash, ok := tx.Autogen.Get("phash").Value.(abi.B32)
+	index, ok := outpoint.Get("index").(pack.U32)
 	if !ok {
-		return fmt.Errorf("unexpected nil value for phash argument in tx = %v", tx.Hash.String())
+		return fmt.Errorf("unexpected type for index: expected pack.U32, got %v", outpoint.Get("index").Type())
 	}
-	amount, ok := tx.Autogen.Get("amount").Value.(abi.U256)
+	payload, ok := tx.Input.Get("payload").(pack.Bytes)
 	if !ok {
-		return fmt.Errorf("unexpected type for amount, expected abi.U256, got %v", tx.In.Get("amount").Value.Type())
+		return fmt.Errorf("unexpected type for payload: expected pack.Bytes, got %v", tx.Input.Get("payload").Type())
 	}
-	utxo, ok := tx.Autogen.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
+	phash, ok := tx.Input.Get("phash").(pack.Bytes32)
 	if !ok {
-		return fmt.Errorf("unexpected type for utxo, expected abi.ExtTypeBtcCompatUTXO, got %v", tx.In.Get("utxo").Value.Type())
+		return fmt.Errorf("unexpected type for phash: expected pack.Bytes32, got %v", tx.Input.Get("phash").Type())
 	}
-	utxoBytes, err := utxo.MarshalBinary()
-	if err != nil {
-		panic(err)
+	token, ok := tx.Input.Get("token").(pack.String)
+	if !ok {
+		return fmt.Errorf("unexpected type for token: expected pack.String, got %v", tx.Input.Get("token").Type())
+	}
+	to, ok := tx.Input.Get("to").(pack.String)
+	if !ok {
+		return fmt.Errorf("unexpected type for to: expected pack.String, got %v", tx.Input.Get("to").Type())
+	}
+	nonce, ok := tx.Input.Get("nonce").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for nonce: expected pack.Bytes32, got %v", tx.Input.Get("nonce").Type())
+	}
+	nhash, ok := tx.Input.Get("nhash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for nhash: expected pack.Bytes32, got %v", tx.Input.Get("nhash").Type())
+	}
+	gpubkey, ok := tx.Input.Get("gpubkey").(pack.Bytes)
+	if !ok {
+		return fmt.Errorf("unexpected type for gpubkey: expected pack.Bytes, got %v", tx.Input.Get("gpubkey").Type())
+	}
+	ghash, ok := tx.Input.Get("ghash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for ghash: expected pack.Bytes32, got %v", tx.Input.Get("ghash").Type())
 	}
 
-	script := `INSERT INTO shift_in_autogen (hash, ghash, nhash, sighash, phash, amount, utxo)
-VALUES ($1, $2, $3, $4, $5, $6, $7);`
-	_, err = db.db.Exec(script,
-		hex.EncodeToString(tx.Hash[:]),
-		hex.EncodeToString(ghash[:]),
-		hex.EncodeToString(nhash[:]),
-		hex.EncodeToString(sighash[:]),
-		hex.EncodeToString(phash[:]),
-		amount.Int.String(),
-		hex.EncodeToString(utxoBytes),
-	)
-
-	return err
-}
-
-// InsertShiftOut stores a shift out tx to the database.
-func (db database) insertShiftOut(tx abi.Tx, tag abi.B32) error {
-	ref, ok := tx.In.Get("ref").Value.(abi.U64)
-	if !ok {
-		return fmt.Errorf("unexpected type for ref, expected abi.U64, got %v", tx.In.Get("ref").Value.Type())
-	}
-	to, ok := tx.In.Get("to").Value.(abi.B)
-	if !ok {
-		return fmt.Errorf("unexpected type for to, expected abi.B, got %v", tx.In.Get("to").Value.Type())
-	}
-	amount, ok := tx.In.Get("amount").Value.(abi.U256)
-	if !ok {
-		return fmt.Errorf("unexpected type for amount, expected abi.U256, got %v", tx.In.Get("amount").Value.Type())
-	}
-
-	script := `INSERT INTO shift_out (hash, status, created_time, contract, ref, toAddr, amount, tag0)
-VALUES ($1, 1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING;`
+	script := `INSERT INTO lock_and_mint (hash, status, created_time, selector, utxo_hash, utxo_index, payload, phash, token, to, nonce, nhash, gpubkey, ghash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);`
 	_, err := db.db.Exec(script,
-		hex.EncodeToString(tx.Hash[:]),
+		tx.Hash.String(),
+		TxStatusConfirming,
 		time.Now().Unix(),
-		tx.To,
-		ref.Int.String(),
-		hex.EncodeToString(to),
-		amount.Int.String(),
-		hex.EncodeToString(tag[:]),
+		tx.Selector.String(),
+		hash.String(),
+		index,
+		payload.String(),
+		phash.String(),
+		token.String(),
+		to.String(),
+		nonce.String(),
+		nhash.String(),
+		gpubkey.String(),
+		ghash.String(),
 	)
+
 	return err
 }
 
-// ShiftIn returns the shift in tx with the given hash.
-func (db database) shiftIn(txHash abi.B32, transformed bool) (abi.Tx, error) {
-	script := "SELECT hash, contract, p, token, toAddr, n, utxo_hash, utxo_vout FROM shift_in WHERE hash = $1"
+func (db database) insertBurnAndReleaseTx(tx tx.Tx) error {
+	amount, ok := tx.Input.Get("amount").(pack.U256)
+	if !ok {
+		return fmt.Errorf("unexpected type for amount: expected pack.U256, got %v", tx.Input.Get("amount").Type())
+	}
+	to, ok := tx.Input.Get("to").(pack.String)
+	if !ok {
+		return fmt.Errorf("unexpected type for to: expected pack.String, got %v", tx.Input.Get("to").Type())
+	}
+	nonce, ok := tx.Input.Get("nonce").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for nonce: expected pack.Bytes32, got %v", tx.Input.Get("nonce").Type())
+	}
+
+	script := `INSERT INTO burn_and_release (hash, status, created_time, selector, amount, to, nonce) VALUES ($1, $2, $3, $4, $5, $6, $7);`
+	_, err := db.db.Exec(script,
+		tx.Hash.String(),
+		TxStatusConfirming,
+		time.Now().Unix(),
+		tx.Selector.String(),
+		amount.String(),
+		to.String(),
+		nonce.String(),
+	)
+
+	return err
+}
+
+func (db database) insertBurnAndMintTx(tx tx.Tx) error {
+	amount, ok := tx.Input.Get("amount").(pack.U256)
+	if !ok {
+		return fmt.Errorf("unexpected type for amount: expected pack.U256, got %v", tx.Input.Get("amount").Type())
+	}
+	payload, ok := tx.Input.Get("payload").(pack.Bytes)
+	if !ok {
+		return fmt.Errorf("unexpected type for payload: expected pack.Bytes, got %v", tx.Input.Get("payload").Type())
+	}
+	phash, ok := tx.Input.Get("phash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for phash: expected pack.Bytes32, got %v", tx.Input.Get("phash").Type())
+	}
+	token, ok := tx.Input.Get("token").(pack.String)
+	if !ok {
+		return fmt.Errorf("unexpected type for token: expected pack.String, got %v", tx.Input.Get("token").Type())
+	}
+	to, ok := tx.Input.Get("to").(pack.String)
+	if !ok {
+		return fmt.Errorf("unexpected type for to: expected pack.String, got %v", tx.Input.Get("to").Type())
+	}
+	nonce, ok := tx.Input.Get("nonce").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for nonce: expected pack.Bytes32, got %v", tx.Input.Get("nonce").Type())
+	}
+	nhash, ok := tx.Input.Get("nhash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for nhash: expected pack.Bytes32, got %v", tx.Input.Get("nhash").Type())
+	}
+	ghash, ok := tx.Input.Get("ghash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for ghash: expected pack.Bytes32, got %v", tx.Input.Get("ghash").Type())
+	}
+
+	script := `INSERT INTO burn_and_mint (hash, status, created_time, selector, amount, payload, phash, token, to, nonce, nhash, ghash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`
+	_, err := db.db.Exec(script,
+		tx.Hash.String(),
+		TxStatusConfirming,
+		time.Now().Unix(),
+		tx.Selector.String(),
+		amount.String(),
+		payload.String(),
+		phash.String(),
+		token.String(),
+		to.String(),
+		nonce.String(),
+		nhash.String(),
+		ghash.String(),
+	)
+
+	return err
+}
+
+func (db database) lockAndMintTx(txHash pack.Bytes32) (tx.Tx, error) {
+	script := "SELECT hash, selector, utxo_hash, utxo_index, payload, phash, token, to, nonce, nhash, gpubkey, ghash FROM lock_and_mint WHERE hash = $1"
 	row := db.db.QueryRow(script, hex.EncodeToString(txHash[:]))
-	tx, err := rowToShiftIn(row)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	if transformed {
-		return db.autogen(tx)
-	}
-	return tx, nil
+	return rowToLockAndMintTx(row)
 }
 
-// ShiftOut returns the shift out tx with the given hash.
-func (db database) shiftOut(txHash abi.B32, transformed bool) (abi.Tx, error) {
-	script := "SELECT hash, contract, ref, toAddr, amount FROM shift_out WHERE hash = $1"
+func (db database) burnAndReleaseTx(txHash pack.Bytes32) (tx.Tx, error) {
+	script := "SELECT hash, selector, amount, to, nonce FROM burn_and_release WHERE hash = $1"
 	row := db.db.QueryRow(script, hex.EncodeToString(txHash[:]))
-	return rowToShiftOut(row, transformed)
+	return rowToBurnAndReleaseTx(row)
 }
 
-func rowToShift(row Scannable) (abi.Tx, error) {
-	var hashStr, p, contract, token, to, n, utxoHash, amountStr, refStr string
-	var utxoVout int
-	if err := row.Scan(&hashStr, &contract, &p, &token, &to, &n, &utxoHash, &utxoVout, &amountStr, &refStr); err != nil {
-		return abi.Tx{}, err
-	}
-
-	if refStr != "" {
-		return shiftOutTx(hashStr, contract, to, amountStr, refStr, false)
-	}
-	return shiftInTx(hashStr, p, contract, token, to, n, utxoHash, utxoVout)
+func (db database) burnAndMintTx(txHash pack.Bytes32) (tx.Tx, error) {
+	script := "SELECT hash, selector, amount, payload, phash, token, to, nonce, nhash, ghash FROM burn_and_mint WHERE hash = $1"
+	row := db.db.QueryRow(script, hex.EncodeToString(txHash[:]))
+	return rowToBurnAndMintTx(row)
 }
 
-// scan data from the returned row and parse it into a abi.Tx.
-func rowToShiftIn(row Scannable) (abi.Tx, error) {
-	var hashStr, p, contract, token, to, n, utxoHash string
-	var utxoVout int
-	if err := row.Scan(&hashStr, &contract, &p, &token, &to, &n, &utxoHash, &utxoVout); err != nil {
-		return abi.Tx{}, err
+func rowToTx(row Scannable) (tx.Tx, error) {
+	var hash, selector, utxoHash, payload, phash, token, to, nonce, nhash, gpubkey, ghash, amount string
+	var utxoIndex int
+	if err := row.Scan(&hash, &selector, &utxoHash, &utxoIndex, &payload, &phash, &token, &to, &nonce, &nhash, &gpubkey, &ghash, &amount); err != nil {
+		return tx.Tx{}, err
 	}
 
-	return shiftInTx(hashStr, p, contract, token, to, n, utxoHash, utxoVout)
+	if amount == "" {
+		return lockAndMintTx(hash, selector, utxoHash, payload, phash, token, to, nonce, nhash, gpubkey, ghash, utxoIndex)
+	}
+	if payload == "" {
+		return burnAndReleaseTx(hash, selector, amount, to, nonce)
+	}
+	return burnAndMintTx(hash, selector, amount, payload, phash, token, to, nonce, nhash, ghash)
 }
 
-func shiftInTx(hashStr, p, contract, token, to, n, utxoHash string, utxoVout int) (abi.Tx, error) {
-	tx := abi.Tx{}
-	hash, err := stringToB32(hashStr)
-	if err != nil {
-		return abi.Tx{}, err
+func rowToLockAndMintTx(row Scannable) (tx.Tx, error) {
+	var hash, selector, utxoHash, payload, phash, token, to, nonce, nhash, gpubkey, ghash string
+	var utxoIndex int
+	if err := row.Scan(&hash, &selector, &utxoHash, &utxoIndex, &payload, &phash, &token, &to, &nonce, &nhash, &gpubkey, &ghash); err != nil {
+		return tx.Tx{}, err
 	}
-	tx.Hash = hash
-	tx.To = abi.Address(contract)
 
-	// Decode all the parameters
-	pArg, err := decodePayload(p)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	tx.In.Set(pArg)
+	return lockAndMintTx(hash, selector, utxoHash, payload, phash, token, to, nonce, nhash, gpubkey, ghash, utxoIndex)
+}
 
-	tokenArg, err := decodeEthAddress("token", token)
+func lockAndMintTx(hashStr, selector, utxoHashStr, payloadStr, phashStr, token, to, nonceStr, nhashStr, gpubkeyStr, ghashStr string, utxoIndex int) (tx.Tx, error) {
+	utxoHash, err := base64.RawStdEncoding.DecodeString(utxoHashStr)
 	if err != nil {
-		return abi.Tx{}, err
+		return tx.Tx{}, err
 	}
-	tx.In.Set(tokenArg)
-
-	toArg, err := decodeEthAddress("to", to)
+	payload, err := base64.RawStdEncoding.DecodeString(payloadStr)
 	if err != nil {
-		return abi.Tx{}, err
+		return tx.Tx{}, err
 	}
-	tx.In.Set(toArg)
-
-	nArg, err := decodeB32("n", n)
+	phash, err := decodeBytes32(phashStr)
 	if err != nil {
-		return abi.Tx{}, err
+		return tx.Tx{}, err
 	}
-	tx.In.Set(nArg)
-
-	utxoHashArg, err := decodeB32("utxo", utxoHash)
+	nonce, err := decodeBytes32(nonceStr)
 	if err != nil {
-		return abi.Tx{}, err
+		return tx.Tx{}, err
 	}
-	utxoArg := abi.Arg{
-		Name: "utxo",
-		Type: abi.ExtTypeBtcCompatUTXO,
-		Value: abi.ExtBtcCompatUTXO{
-			TxHash: utxoHashArg.Value.(abi.B32),
-			VOut:   abi.U32{Int: big.NewInt(int64(utxoVout))},
+	nhash, err := decodeBytes32(nhashStr)
+	if err != nil {
+		return tx.Tx{}, err
+	}
+	gpubkey, err := base64.RawStdEncoding.DecodeString(gpubkeyStr)
+	if err != nil {
+		return tx.Tx{}, err
+	}
+	ghash, err := decodeBytes32(ghashStr)
+	if err != nil {
+		return tx.Tx{}, err
+	}
+	input, err := pack.Encode(
+		txengine.UTXOLockAndMintInput{
+			Output: utxo.Output{
+				Outpoint: utxo.Outpoint{
+					Hash:  utxoHash,
+					Index: pack.NewU32(uint32(utxoIndex)),
+				},
+			},
+			Payload: payload,
+			Phash:   phash,
+			Token:   pack.String(token),
+			To:      pack.String(to),
+			Nonce:   nonce,
+			Nhash:   nhash,
+			Gpubkey: gpubkey,
+			Ghash:   ghash,
 		},
+	)
+	if err != nil {
+		return tx.Tx{}, err
 	}
-	tx.In.Set(utxoArg)
-	return tx, nil
+	return tx.NewTx(tx.Selector(selector), pack.Typed(input.(pack.Struct)))
 }
 
-// Get extra data generated by the lightnode and add to the given tx.
-func (db database) autogen(tx abi.Tx) (abi.Tx, error) {
-	var phash, ghash, nhash, sighash, amountStr, utxoStr string
+func rowToBurnAndReleaseTx(row Scannable) (tx.Tx, error) {
+	var hash, selector, amount, to, nonce string
+	if err := row.Scan(&hash, &selector, &amount, &to, &nonce); err != nil {
+		return tx.Tx{}, err
+	}
+	return burnAndReleaseTx(hash, selector, amount, to, nonce)
+}
 
-	script := "SELECT phash, ghash, nhash, sighash, amount, utxo FROM shift_in_autogen WHERE hash = $1"
-	err := db.db.QueryRow(script, hex.EncodeToString(tx.Hash[:])).Scan(
-		&phash, &ghash, &nhash, &sighash, &amountStr, &utxoStr)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	// Decode other inputs
-	phashArg, err := decodeB32("phash", phash)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	ghashArg, err := decodeB32("ghash", ghash)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	nhashArg, err := decodeB32("nhash", nhash)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	sighashArg, err := decodeB32("sighash", sighash)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	amount, ok := big.NewInt(0).SetString(amountStr, 10)
+func burnAndReleaseTx(hash, selector, amountStr, to, nonceStr string) (tx.Tx, error) {
+	amount, ok := new(big.Int).SetString(amountStr, 10)
 	if !ok {
-		return abi.Tx{}, fmt.Errorf("fail to parse big number [%v]", amountStr)
+		return tx.Tx{}, fmt.Errorf("invalid amount %v", amount)
 	}
-	amountArg := abi.Arg{
-		Name:  "amount",
-		Type:  abi.TypeU256,
-		Value: abi.U256{Int: amount},
-	}
-	utxoBytes, err := hex.DecodeString(utxoStr)
+	nonce, err := decodeBytes32(nonceStr)
 	if err != nil {
-		return abi.Tx{}, err
+		return tx.Tx{}, err
 	}
-	var utxo abi.ExtBtcCompatUTXO
-	if err := utxo.UnmarshalBinary(utxoBytes); err != nil {
-		return abi.Tx{}, err
+	input, err := pack.Encode(
+		txengine.UTXOBurnAndReleaseInput{
+			Amount: pack.NewU256FromInt(amount),
+			To:     pack.String(to),
+			Nonce:  nonce,
+		},
+	)
+	if err != nil {
+		return tx.Tx{}, err
 	}
-	utxoArg := abi.Arg{
-		Name:  "utxo",
-		Type:  abi.ExtTypeBtcCompatUTXO,
-		Value: utxo,
-	}
-	tx.Autogen.Set(phashArg)
-	tx.Autogen.Set(ghashArg)
-	tx.Autogen.Set(nhashArg)
-	tx.Autogen.Set(sighashArg)
-	tx.Autogen.Set(amountArg)
-	tx.Autogen.Set(utxoArg)
-	return tx, nil
+	return tx.NewTx(tx.Selector(selector), pack.Typed(input.(pack.Struct)))
 }
 
-func rowToShiftOut(row Scannable, transformed bool) (abi.Tx, error) {
-	var hashStr, contract, to, amountStr, refStr string
-	if err := row.Scan(&hashStr, &contract, &refStr, &to, &amountStr); err != nil {
-		return abi.Tx{}, err
+func rowToBurnAndMintTx(row Scannable) (tx.Tx, error) {
+	var hash, selector, amount, payload, phash, token, to, nonce, nhash, ghash string
+	if err := row.Scan(&hash, &selector, &amount, &payload, &phash, &token, &to, &nonce, &nhash, &ghash); err != nil {
+		return tx.Tx{}, err
 	}
-
-	return shiftOutTx(hashStr, contract, to, amountStr, refStr, transformed)
+	return burnAndMintTx(hash, selector, amount, payload, phash, token, to, nonce, nhash, ghash)
 }
 
-func shiftOutTx(hashStr, contract, to, amountStr, refStr string, transformed bool) (abi.Tx, error) {
-	hash, err := stringToB32(hashStr)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	tx := abi.Tx{
-		Hash: hash,
-		To:   abi.Address(contract),
-	}
-
-	ref, ok := big.NewInt(0).SetString(refStr, 10)
+func burnAndMintTx(hashStr, selector, amountStr, payloadStr, phashStr, token, to, nonceStr, nhashStr, ghashStr string) (tx.Tx, error) {
+	amount, ok := new(big.Int).SetString(amountStr, 10)
 	if !ok {
-		return abi.Tx{}, fmt.Errorf("fail to parse big number [%v]", refStr)
+		return tx.Tx{}, fmt.Errorf("invalid amount %v", amount)
 	}
-	refArg := abi.Arg{
-		Name:  "ref",
-		Type:  abi.TypeU64,
-		Value: abi.U64{Int: ref},
+	payload, err := base64.RawStdEncoding.DecodeString(payloadStr)
+	if err != nil {
+		return tx.Tx{}, err
 	}
-	tx.In.Set(refArg)
-
-	if transformed {
-		toBytes, err := hex.DecodeString(to)
-		if err != nil {
-			return abi.Tx{}, err
-		}
-		toArg := abi.Arg{
-			Name:  "to",
-			Type:  abi.TypeB,
-			Value: abi.B(toBytes),
-		}
-		tx.In.Set(toArg)
-
-		amount, ok := big.NewInt(0).SetString(amountStr, 10)
-		if !ok {
-			return abi.Tx{}, fmt.Errorf("fail to parse big number [%v]", amountStr)
-		}
-
-		amountArg := abi.Arg{
-			Name:  "amount",
-			Type:  abi.TypeU256,
-			Value: abi.U256{Int: amount},
-		}
-		tx.In.Set(amountArg)
+	phash, err := decodeBytes32(phashStr)
+	if err != nil {
+		return tx.Tx{}, err
 	}
-
-	return tx, nil
+	nonce, err := decodeBytes32(nonceStr)
+	if err != nil {
+		return tx.Tx{}, err
+	}
+	nhash, err := decodeBytes32(nhashStr)
+	if err != nil {
+		return tx.Tx{}, err
+	}
+	ghash, err := decodeBytes32(ghashStr)
+	if err != nil {
+		return tx.Tx{}, err
+	}
+	input, err := pack.Encode(
+		txengine.AccountBurnAndMintInput{
+			Amount:  pack.NewU256FromInt(amount),
+			Payload: payload,
+			Phash:   phash,
+			Token:   pack.String(token),
+			To:      pack.String(to),
+			Nonce:   nonce,
+			Nhash:   nhash,
+			Ghash:   ghash,
+		},
+	)
+	if err != nil {
+		return tx.Tx{}, err
+	}
+	return tx.NewTx(tx.Selector(selector), pack.Typed(input.(pack.Struct)))
 }
 
-func decodePayload(p string) (abi.Arg, error) {
-	var pVal abi.ExtEthCompatPayload
-	data, err := hex.DecodeString(p)
+func decodeStruct(name, value string) (pack.Struct, error) {
+	val, err := decodeBytes32(value)
 	if err != nil {
-		return abi.Arg{}, err
+		return pack.Struct{}, err
 	}
-	if err := json.Unmarshal(data, &pVal); err != nil {
-		return abi.Arg{}, err
-	}
-	return abi.Arg{
-		Name:  "p",
-		Type:  abi.ExtTypeEthCompatPayload,
-		Value: pVal,
-	}, nil
+	return pack.NewStruct(name, val), nil
 }
 
-// decodeB32 decodes the value into a RenVM B32 argument.
-func decodeB32(name, value string) (abi.Arg, error) {
-	val, err := stringToB32(value)
+func decodeBytes32(str string) (pack.Bytes32, error) {
+	var res pack.Bytes32
+	b, err := base64.RawStdEncoding.DecodeString(str)
 	if err != nil {
-		return abi.Arg{}, err
+		return pack.Bytes32{}, err
 	}
-	return abi.Arg{
-		Name:  name,
-		Type:  abi.TypeB32,
-		Value: val,
-	}, nil
-}
-
-// stringToB32 decoding the hex string into a RenVM B32 object.
-func stringToB32(str string) (abi.B32, error) {
-	decoded, err := hex.DecodeString(str)
-	if err != nil {
-		return abi.B32{}, err
-	}
-	var val abi.B32
-	copy(val[:], decoded)
-	return val, nil
-}
-
-// decodeEthAddress decodes the value into a RenVM ExtTypeEthCompatAddress
-// argument.
-func decodeEthAddress(name, value string) (abi.Arg, error) {
-	decoded, err := hex.DecodeString(value)
-	if err != nil {
-		return abi.Arg{}, err
-	}
-	var val abi.ExtEthCompatAddress
-	copy(val[:], decoded)
-	return abi.Arg{
-		Name:  name,
-		Type:  abi.ExtTypeEthCompatAddress,
-		Value: val,
-	}, nil
+	copy(res[:], b)
+	return res, nil
 }

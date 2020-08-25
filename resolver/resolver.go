@@ -7,9 +7,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/renproject/darknode/abi"
-	"github.com/renproject/darknode/consensus/txcheck/transform"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/txengine"
 	"github.com/renproject/lightnode/db"
 	lhttp "github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
@@ -26,9 +25,9 @@ type Resolver struct {
 	serverOptions     jsonrpc.Options
 }
 
-func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, key ecdsa.PublicKey, bc transform.Blockchain, db db.DB, serverOptions jsonrpc.Options) *Resolver {
+func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, key ecdsa.PublicKey, bindings txengine.Bindings, db db.DB, serverOptions jsonrpc.Options) *Resolver {
 	requests := make(chan lhttp.RequestWithResponder, 128)
-	txChecker := newTxChecker(logger, requests, key, bc, db)
+	txChecker := newTxChecker(logger, requests, key, bindings, db)
 	go txChecker.Run()
 
 	return &Resolver{
@@ -50,10 +49,6 @@ func (resolver *Resolver) QueryBlocks(ctx context.Context, id interface{}, param
 }
 
 func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *jsonrpc.ParamsSubmitTx, req *http.Request) jsonrpc.Response {
-	if params.Tags != nil && len(*params.Tags) > resolver.serverOptions.MaxTags {
-		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("maximum number of tags is %d", resolver.serverOptions.MaxTags), nil)
-		return jsonrpc.NewResponse(id, nil, &jsonErr)
-	}
 	return resolver.handleMessage(ctx, id, jsonrpc.MethodSubmitTx, *params, req, true)
 }
 
@@ -82,32 +77,24 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 }
 
 func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryTxs, req *http.Request) jsonrpc.Response {
-	var tag abi.B32
-	if params.Tags != nil && len(*params.Tags) > 0 {
-		if len(*params.Tags) > resolver.serverOptions.MaxTags {
-			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("maximum number of tags supported is %d", resolver.serverOptions.MaxTags), nil)
-			return jsonrpc.NewResponse(id, nil, &jsonErr)
-		}
-
-		// Currently we only support a maximum of one tag, but this can be
-		// extended in the future.
-		tag = (*params.Tags)[0]
-	}
-
-	var page uint64
-	if params.Page != nil {
-		page = params.Page.Int.Uint64()
-	}
-
-	var pageSize uint64
-	if params.PageSize == nil || params.PageSize.Int.Uint64() > uint64(resolver.serverOptions.MaxPageSize) {
-		pageSize = uint64(resolver.serverOptions.MaxPageSize)
+	var offset int
+	if params.Offset == nil {
+		// If the offset is nil, set it to 0.
+		offset = 0
 	} else {
-		pageSize = params.PageSize.Int.Uint64()
+		offset = int(*params.Offset)
+	}
+
+	var limit int
+	if params.Limit == nil {
+		// If the limit is nil, set it to 8.
+		limit = 8
+	} else {
+		limit = int(*params.Limit)
 	}
 
 	// Fetch the matching transactions from the database.
-	txs, err := resolver.db.Txs(tag, page, pageSize)
+	txs, err := resolver.db.Txs(offset, limit)
 	if err != nil {
 		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, fmt.Sprintf("failed to fetch txs: %v", err), nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)

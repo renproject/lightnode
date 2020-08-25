@@ -1,6 +1,6 @@
 package testutils
 
-import (
+/* import (
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -147,4 +147,4 @@ func ErrorResponse(id interface{}) jsonrpc.Response {
 		ID:      id,
 		Error:   &err,
 	}
-}
+} */

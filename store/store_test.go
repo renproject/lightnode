@@ -1,6 +1,6 @@
 package store_test
 
-import (
+/* import (
 	"math/rand"
 
 	. "github.com/onsi/ginkgo"
@@ -102,4 +102,4 @@ var _ = Describe("Store", func() {
 			Expect(len(addrs)).To(Equal(randomSize))
 		})
 	})
-})
+}) */

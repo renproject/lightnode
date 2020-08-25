@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"strconv"
+	"strings"
 	"time"
 
-	"github.com/renproject/darknode/addr"
+	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
@@ -21,7 +23,7 @@ import (
 // darknodes to a store. This store is shared by the `Dispatcher`, which needs
 // to know about the darknodes in the network.
 type Updater struct {
-	bootstrap  addr.MultiAddresses
+	bootstraps []wire.Address
 	logger     logrus.FieldLogger
 	multiStore store.MultiAddrStore
 	client     http.Client
@@ -64,12 +66,12 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 
 	params, err := json.Marshal(jsonrpc.ParamsQueryPeers{})
 	if err != nil {
-		updater.logger.Errorf("cannot marshal query peers params: %v", err)
+		updater.logger.Errorf("[updater] cannot marshal query peers params: %v", err)
 		return
 	}
 	addrs, err := updater.multiStore.BootstrapAll()
 	if err != nil {
-		updater.logger.Errorf("cannot get query addresses: %v", err)
+		updater.logger.Errorf("[updater] cannot get query addresses: %v", err)
 		return
 	}
 
@@ -85,8 +87,18 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 			Params:  params,
 		}
 
-		address := fmt.Sprintf("http://%s:%v", addrs[i].IP4(), addrs[i].Port()+1)
-		response, err := updater.client.SendRequest(queryCtx, address, request, nil)
+		addrParts := strings.Split(addrs[i].Value, ":")
+		if len(addrParts) != 2 {
+			updater.logger.Errorf("[updater] invalid address value=%v", addrs[i].Value)
+			return
+		}
+		port, err := strconv.Atoi(addrParts[1])
+		if err != nil {
+			updater.logger.Errorf("[updater] invalid port=%v", addrParts[1])
+			return
+		}
+		addrString := fmt.Sprintf("http://%s:%v", addrParts[0], port+1)
+		response, err := updater.client.SendRequest(queryCtx, addrString, request, nil)
 		if err != nil {
 			updater.logger.Warnf("[updater] cannot connect to node %v: %v", multi.String(), err)
 			if !updater.isBootstrap(multi) {
@@ -109,12 +121,12 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 			return
 		}
 		for _, peer := range resp.Peers {
-			multiAddr, err := addr.NewMultiAddressFromString(peer)
+			addr, err := wire.DecodeString(peer)
 			if err != nil {
 				updater.logger.Errorf("[updater] failed to decode multi-address: %v", err)
 				continue
 			}
-			if err := updater.multiStore.Insert(multiAddr); err != nil {
+			if err := updater.multiStore.Insert(addr); err != nil {
 				updater.logger.Errorf("[updater] failed to add multi-address to store: %v", err)
 				return
 			}
@@ -130,9 +142,9 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 	updater.logger.Infof("connected to %v nodes", size)
 }
 
-func (updater Updater) isBootstrap(addr addr.MultiAddress) bool {
-	for i := range updater.bootstrap {
-		if updater.bootstrap[i].ID().Equal(addr.ID()) {
+func (updater Updater) isBootstrap(addr wire.Address) bool {
+	for i := range updater.bootstraps {
+		if updater.bootstraps[i].Value == addr.Value {
 			return true
 		}
 	}

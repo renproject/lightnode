@@ -1,6 +1,6 @@
 package submitter
 
-import (
+/* import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
@@ -256,4 +256,4 @@ func SigFromRSV(tx abi.Tx) []byte {
 	v[0] += 27
 
 	return append(append(r, s...), v...)
-}
+} */

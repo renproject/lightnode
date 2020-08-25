@@ -1,6 +1,6 @@
 package testutils
 
-import (
+/* import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -53,4 +53,4 @@ func NewMockDarknode(server *httptest.Server, store store.MultiAddrStore) *MockD
 
 func (dn *MockDarknode) Close() {
 	dn.Server.Close()
-}
+} */

@@ -4,20 +4,20 @@ import (
 	"fmt"
 	"math/rand"
 
-	"github.com/renproject/darknode/addr"
+	"github.com/renproject/aw/wire"
 	"github.com/renproject/kv/db"
 )
 
-// MultiAddrStore is a store of `addr.MultiAddress`es.
+// MultiAddrStore is a store of `wire.Address`es.
 type MultiAddrStore struct {
 	store          db.Table
-	bootstrapAddrs addr.MultiAddresses
+	bootstrapAddrs []wire.Address
 }
 
 // New constructs a new `MultiAddrStore`.
-func New(store db.Table, bootstrapAddrs addr.MultiAddresses) MultiAddrStore {
+func New(store db.Table, bootstrapAddrs []wire.Address) MultiAddrStore {
 	for _, addr := range bootstrapAddrs {
-		if err := store.Insert(addr.ID().String(), addr.String()); err != nil {
+		if err := store.Insert(addr.Value, addr.String()); err != nil {
 			panic(fmt.Sprintf("[MultiAddrStore] cannot initialize the store with bootstrap nodes addresses"))
 		}
 	}
@@ -28,22 +28,22 @@ func New(store db.Table, bootstrapAddrs addr.MultiAddresses) MultiAddrStore {
 }
 
 // Get retrieves a multi-address from the store.
-func (multiStore *MultiAddrStore) Get(id string) (addr.MultiAddress, error) {
-	var multiAddrString string
-	if err := multiStore.store.Get(id, &multiAddrString); err != nil {
-		return addr.MultiAddress{}, err
+func (multiStore *MultiAddrStore) Get(id string) (wire.Address, error) {
+	var addrString string
+	if err := multiStore.store.Get(id, &addrString); err != nil {
+		return wire.Address{}, err
 	}
-	return addr.NewMultiAddressFromString(multiAddrString)
+	return wire.DecodeString(addrString)
 }
 
 // Insert puts the given multi-address into the store.
-func (multiStore *MultiAddrStore) Insert(addr addr.MultiAddress) error {
-	return multiStore.store.Insert(addr.ID().String(), addr.String())
+func (multiStore *MultiAddrStore) Insert(addr wire.Address) error {
+	return multiStore.store.Insert(addr.Value, addr.String())
 }
 
 // Delete removes the given multi-address from the store.
-func (multiStore *MultiAddrStore) Delete(addr addr.MultiAddress) error {
-	return multiStore.store.Delete(addr.ID().String())
+func (multiStore *MultiAddrStore) Delete(addr wire.Address) error {
+	return multiStore.store.Delete(addr.Value)
 }
 
 // Size returns the number of entries in the store.
@@ -52,8 +52,8 @@ func (multiStore *MultiAddrStore) Size() (int, error) {
 }
 
 // AddrsAll returns all of the multi-addresses in the store.
-func (multiStore *MultiAddrStore) AddrsAll() (addr.MultiAddresses, error) {
-	addrs := addr.MultiAddresses{}
+func (multiStore *MultiAddrStore) AddrsAll() ([]wire.Address, error) {
+	addrs := []wire.Address{}
 	iter := multiStore.store.Iterator()
 	defer iter.Close()
 	for iter.Next() {
@@ -71,18 +71,18 @@ func (multiStore *MultiAddrStore) AddrsAll() (addr.MultiAddresses, error) {
 }
 
 // BootstrapAll returns the multi-addresses of all of the Bootstrap nodes.
-func (multiStore *MultiAddrStore) BootstrapAll() (addr.MultiAddresses, error) {
+func (multiStore *MultiAddrStore) BootstrapAll() ([]wire.Address, error) {
 	return multiStore.bootstrapAddrs, nil
 }
 
 // RandomBootstrapAddrs returns a random number of Bootstrap multi-addresses in
 // the store.
-func (multiStore *MultiAddrStore) RandomBootstrapAddrs(n int) (addr.MultiAddresses, error) {
+func (multiStore *MultiAddrStore) RandomBootstrapAddrs(n int) ([]wire.Address, error) {
 	indexes := rand.Perm(len(multiStore.bootstrapAddrs))
 	if n > len(multiStore.bootstrapAddrs) {
 		n = len(multiStore.bootstrapAddrs)
 	}
-	addrs := make(addr.MultiAddresses, 0, n)
+	addrs := make([]wire.Address, 0, n)
 
 	for _, index := range indexes {
 		addrs = append(addrs, multiStore.bootstrapAddrs[index])
@@ -92,7 +92,7 @@ func (multiStore *MultiAddrStore) RandomBootstrapAddrs(n int) (addr.MultiAddress
 }
 
 // RandomAddrs returns a random number of multi-addresses in the store.
-func (multiStore *MultiAddrStore) RandomAddrs(n int) (addr.MultiAddresses, error) {
+func (multiStore *MultiAddrStore) RandomAddrs(n int) ([]wire.Address, error) {
 	addrs, err := multiStore.AddrsAll()
 	if err != nil {
 		return nil, err

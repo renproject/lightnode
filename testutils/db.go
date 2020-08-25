@@ -1,6 +1,6 @@
 package testutils
 
-import (
+/* import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
@@ -56,4 +56,4 @@ func UpdateTxCreatedTime(db *sql.DB, name string, hash abi.B32, createdTime int6
 	script := fmt.Sprintf("UPDATE %v set created_time = %v where hash = $1;", name, createdTime)
 	_, err := db.Exec(script, txHash)
 	return err
-}
+} */

@@ -1,6 +1,6 @@
 package testutils
 
-import (
+/* import (
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -252,4 +252,4 @@ func BatchRequest(size int) []jsonrpc.Request {
 		reqs[i] = RandomRequest(RandomMethod())
 	}
 	return reqs
-}
+} */

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
@@ -19,8 +18,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/go-redis/redis/v7"
+	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode"
-	"github.com/renproject/darknode/addr"
+	"github.com/renproject/id"
 	"github.com/renproject/lightnode"
 	"github.com/sirupsen/logrus"
 )
@@ -31,21 +31,20 @@ func main() {
 
 	// Parse Lightnode options from environment variables.
 	name := os.Getenv("HEROKU_APP_NAME")
-	options := lightnode.Options{
-		Network:           parseNetwork(name),
-		Key:               parsePriKey(),
-		DisPubkey:         parsePubKey(),
-		Port:              os.Getenv("PORT"),
-		ProtocolAddr:      os.Getenv("PROTOCOL_ADDRESS"),
-		Cap:               parseInt("CAP"),
-		MaxBatchSize:      parseInt("MAX_BATCH_SIZE"),
-		ServerTimeout:     parseTime("SERVER_TIMEOUT"),
-		ClientTimeout:     parseTime("CLIENT_TIMEOUT"),
-		TTL:               parseTime("TTL"),
-		UpdaterPollRate:   parseTime("UPDATER_POLL_RATE"),
-		ConfirmerPollRate: parseTime("CONFIRMER_POLL_RATE"),
-		BootstrapAddrs:    parseAddresses(),
-	}
+	options := lightnode.DefaultOptions().
+		WithNetwork(parseNetwork(name)).
+		WithKey(parsePrivKey()).
+		WithDistPubKey(parsePubKey()).
+		WithPort(os.Getenv("PORT")).
+		WithProtocolAddr(os.Getenv("PROTOCOL_ADDRESS")).
+		WithCap(parseInt("CAP")).
+		WithMaxBatchSize(parseInt("MAX_BATCH_SIZE")).
+		WithServerTimeout(parseTime("SERVER_TIMEOUT")).
+		WithClientTimeout(parseTime("CLIENT_TIMEOUT")).
+		WithTTL(parseTime("TTL")).
+		WithUpdaterPollRate(parseTime("UPDATER_POLL_RATE")).
+		WithConfirmerPollRate(parseTime("CONFIRMER_POLL_RATE")).
+		WithBootstrapAddrs(parseAddresses())
 
 	// Initialise logger and attach Sentry hook.
 	logger := initLogger(options.Network)
@@ -64,11 +63,11 @@ func main() {
 
 	// Run Lightnode.
 	ctx := context.Background()
-	node := lightnode.New(ctx, options, logger, sqlDB, client)
+	node := lightnode.New(options, ctx, logger, sqlDB, client)
 	node.Run(ctx)
 }
 
-func initLogger(network darknode.Network) logrus.FieldLogger {
+func initLogger(network string) logrus.FieldLogger {
 	logger := logrus.New()
 	sentryURL := os.Getenv("SENTRY_URL")
 	name := os.Getenv("HEROKU_APP_NAME")
@@ -105,18 +104,12 @@ func initRedis() *redis.Client {
 	})
 }
 
-func parseNetwork(appName string) darknode.Network {
+func parseNetwork(appName string) string {
 	if strings.Contains(appName, "devnet") {
 		return darknode.Devnet
 	}
 	if strings.Contains(appName, "testnet") {
 		return darknode.Testnet
-	}
-	if strings.Contains(appName, "chaosnet") {
-		return darknode.Chaosnet
-	}
-	if strings.Contains(appName, "localnet") {
-		return darknode.Localnet
 	}
 	if strings.Contains(appName, "mainnet") {
 		return darknode.Mainnet
@@ -140,39 +133,41 @@ func parseTime(name string) time.Duration {
 	return time.Duration(duration) * time.Second
 }
 
-func parseAddresses() addr.MultiAddresses {
-	addrs := strings.Split(os.Getenv("ADDRESSES"), ",")
-	multis := make([]addr.MultiAddress, len(addrs))
-	for i := range multis {
-		multi, err := addr.NewMultiAddressFromString(addrs[i])
+func parseAddresses() []wire.Address {
+	addrStrings := strings.Split(os.Getenv("ADDRESSES"), ",")
+	addrs := make([]wire.Address, len(addrStrings))
+	for i := range addrs {
+		addr, err := wire.DecodeString(addrStrings[i])
 		if err != nil {
-			panic(fmt.Sprintf("invalid bootstrap address : fail to parse from string `%v`", addrs[i]))
+			panic(fmt.Sprintf("invalid bootstrap address %v: %v", addrStrings[i], err))
 		}
-		multis[i] = multi
+		addrs[i] = addr
 	}
-	return multis
+	return addrs
 }
 
-func parsePriKey() *ecdsa.PrivateKey {
-	keyBytes, err := hex.DecodeString(os.Getenv("PRI_KEY"))
+func parsePrivKey() *id.PrivKey {
+	privKeyString := os.Getenv("PRIV_KEY")
+	keyBytes, err := hex.DecodeString(privKeyString)
 	if err != nil {
-		panic(fmt.Sprintf("invalid private key string from the env variable, err = %v", err))
+		panic(fmt.Sprintf("invalid private key %v: %v", privKeyString, err))
 	}
 	key, err := crypto.ToECDSA(keyBytes)
 	if err != nil {
-		panic(fmt.Sprintf("invalid private key for lightnode account, err = %v", err))
+		panic(fmt.Sprintf("invalid private key %v: %v", privKeyString, err))
 	}
-	return key
+	return (*id.PrivKey)(key)
 }
 
-func parsePubKey() *ecdsa.PublicKey {
-	keyBytes, err := hex.DecodeString(os.Getenv("PUB_KEY"))
+func parsePubKey() *id.PubKey {
+	pubKeyString := os.Getenv("PUB_KEY")
+	keyBytes, err := hex.DecodeString(pubKeyString)
 	if err != nil {
-		panic(fmt.Sprintf("invalid public key string from the env variable, err = %v", err))
+		panic(fmt.Sprintf("invalid distributed public key %v: %v", pubKeyString, err))
 	}
 	key, err := crypto.DecompressPubkey(keyBytes)
 	if err != nil {
-		panic(fmt.Sprintf("invalid distribute public key, err = %v", err))
+		panic(fmt.Sprintf("invalid distributed public key %v: %v", pubKeyString, err))
 	}
-	return key
+	return (*id.PubKey)(key)
 }

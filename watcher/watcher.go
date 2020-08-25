@@ -1,6 +1,6 @@
 package watcher
 
-import (
+/* import (
 	"context"
 	"fmt"
 	"math/big"
@@ -8,18 +8,16 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/go-redis/redis/v7"
-	"github.com/renproject/darknode/abi"
-	"github.com/renproject/darknode/consensus/txcheck/transform/blockchain"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/lightnode/resolver"
 	"github.com/sirupsen/logrus"
 )
 
-// Watcher watches for event logs for shift out transactions. These transactions
-// are then forwarded to the cacher.
+// Watcher watches for event logs for burn transactions. These transactions are
+// then forwarded to the cacher.
 type Watcher struct {
 	logger       logrus.FieldLogger
-	addr         abi.Address
+	addr         pack.Address
 	pool         blockchain.ConnPool
 	resolver     *resolver.Resolver
 	cache        *redis.Client
@@ -27,7 +25,7 @@ type Watcher struct {
 }
 
 // NewWatcher returns a new Watcher.
-func NewWatcher(logger logrus.FieldLogger, addr abi.Address, pool blockchain.ConnPool, resolver *resolver.Resolver, cache *redis.Client, pollInterval time.Duration) Watcher {
+func NewWatcher(logger logrus.FieldLogger, addr pack.Address, pool blockchain.ConnPool, resolver *resolver.Resolver, cache *redis.Client, pollInterval time.Duration) Watcher {
 	return Watcher{
 		logger:       logger,
 		addr:         addr,
@@ -143,14 +141,14 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, err
 
 // shiftOutToParams constructs params for a SubmitTx request with given ref.
 func (watcher Watcher) shiftOutToParams(ref uint64) jsonrpc.ParamsSubmitTx {
-	tx := abi.Tx{
-		Hash: abi.B32{},
+	tx := pack.Tx{
+		Hash: pack.B32{},
 		To:   watcher.addr,
-		In: abi.Args{{
+		In: pack.Args{{
 			Name:  "ref",
-			Type:  abi.TypeU64,
-			Value: abi.U64{Int: big.NewInt(int64(ref))},
+			Type:  pack.TypeU64,
+			Value: pack.U64{Int: big.NewInt(int64(ref))},
 		}},
 	}
 	return jsonrpc.ParamsSubmitTx{Tx: tx}
-}
+} */

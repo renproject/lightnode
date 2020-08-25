@@ -1,6 +1,6 @@
 package db_test
 
-import (
+/* import (
 	"database/sql"
 	"fmt"
 	"os"
@@ -424,4 +424,4 @@ var _ = Describe("Lightnode db", func() {
 			})
 		})
 	}
-})
+}) */
