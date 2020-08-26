@@ -1,11 +1,12 @@
 package cacher
 
-/* import (
+import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/tx"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
@@ -86,14 +87,14 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 		// Darknodes do not yet know about the transaction), respond with a
 		// custom confirming status.
 		if status != db.TxStatusConfirmed {
-			tx, err := cacher.db.Tx(params.TxHash, true)
+			transaction, err := cacher.db.Tx(params.TxHash)
 			if err == nil {
 				msg.Responder <- jsonrpc.Response{
 					Version: "2.0",
 					ID:      msg.ID,
 					Result: jsonrpc.ResponseQueryTx{
-						Tx:       tx,
-						TxStatus: "confirming",
+						Tx:       transaction,
+						TxStatus: tx.StatusConfirming,
 					},
 				}
 				return
@@ -146,4 +147,3 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 		msg.Responder <- response
 	}()
 }
-*/
