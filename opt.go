@@ -22,7 +22,6 @@ var (
 	DefaultUpdaterPollRate   = 5 * time.Minute
 	DefaultConfirmerPollRate = confirmer.DefaultPollInterval
 	DefaultWatcherPollRate   = 15 * time.Second
-	DefaultSubmitterPollRate = 15 * time.Second
 	DefaultTransactionExpiry = confirmer.DefaultExpiry
 	DefaultBootstrapAddrs    = []wire.Address{}
 	DefaultRPCs              = map[multichain.Chain]pack.String{}
@@ -44,7 +43,6 @@ type Options struct {
 	UpdaterPollRate   time.Duration
 	ConfirmerPollRate time.Duration
 	WatcherPollRate   time.Duration
-	SubmitterPollRate time.Duration
 	TransactionExpiry time.Duration
 	BootstrapAddrs    []wire.Address
 	RPCs              map[multichain.Chain]pack.String
@@ -66,7 +64,6 @@ func DefaultOptions() Options {
 		UpdaterPollRate:   DefaultUpdaterPollRate,
 		ConfirmerPollRate: DefaultConfirmerPollRate,
 		WatcherPollRate:   DefaultWatcherPollRate,
-		SubmitterPollRate: DefaultSubmitterPollRate,
 		TransactionExpiry: DefaultTransactionExpiry,
 		BootstrapAddrs:    DefaultBootstrapAddrs,
 		RPCs:              DefaultRPCs,
@@ -146,12 +143,6 @@ func (opts Options) WithConfirmerPollRate(confirmerPollRate time.Duration) Optio
 // WithWatcherPollRate updates the watcher poll rate.
 func (opts Options) WithWatcherPollRate(watcherPollRate time.Duration) Options {
 	opts.WatcherPollRate = watcherPollRate
-	return opts
-}
-
-// WithSubmitterPollRate updates the submitter poll rate.
-func (opts Options) WithSubmitterPollRate(submitterPollRate time.Duration) Options {
-	opts.SubmitterPollRate = submitterPollRate
 	return opts
 }
 

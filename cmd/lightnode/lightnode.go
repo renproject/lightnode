@@ -44,6 +44,9 @@ func main() {
 	if os.Getenv("MAX_BATCH_SIZE") != "" {
 		options = options.WithMaxBatchSize(parseInt("MAX_BATCH_SIZE"))
 	}
+	if os.Getenv("MAX_PAGE_SIZE") != "" {
+		options = options.WithMaxBatchSize(parseInt("MAX_PAGE_SIZE"))
+	}
 	if os.Getenv("SERVER_TIMEOUT") != "" {
 		options = options.WithServerTimeout(parseTime("SERVER_TIMEOUT"))
 	}
@@ -58,6 +61,12 @@ func main() {
 	}
 	if os.Getenv("CONFIRMER_POLL_RATE") != "" {
 		options = options.WithConfirmerPollRate(parseTime("CONFIRMER_POLL_RATE"))
+	}
+	if os.Getenv("WATCHER_POLL_RATE") != "" {
+		options = options.WithWatcherPollRate(parseTime("WATCHER_POLL_RATE"))
+	}
+	if os.Getenv("EXPIRY") != "" {
+		options = options.WithTransactionExpiry(parseTime("EXPIRY"))
 	}
 	if os.Getenv("ADDRESSES") != "" {
 		options = options.WithBootstrapAddrs(parseAddresses())
