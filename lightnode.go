@@ -37,8 +37,7 @@ type Lightnode struct {
 	server    *jsonrpc.Server
 	updater   updater.Updater
 	confirmer confirmer.Confirmer
-	// submitter  submitter.Submitter
-	watchers map[multichain.Chain]map[multichain.Asset]watcher.Watcher
+	watchers  map[multichain.Chain]map[multichain.Asset]watcher.Watcher
 
 	// Tasks
 	cacher     phi.Task
@@ -115,7 +114,6 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		db,
 		bindings,
 	)
-	// submitter := submitter.New(logger, dispatcher, db, ethClient, options.Key, options.SubmitterPollRate)
 	watchers := map[multichain.Chain]map[multichain.Asset]watcher.Watcher{}
 	for chain, contracts := range ethCompatContracts {
 		for asset, bindings := range contracts {
@@ -125,17 +123,15 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	}
 
 	return Lightnode{
-		options:   options,
-		logger:    logger,
-		db:        db,
-		server:    server,
-		updater:   updater,
-		confirmer: confirmer,
-		// submitter:  submitter,
-		watchers: watchers,
-
-		cacher:     cacher,
+		options:    options,
+		logger:     logger,
+		db:         db,
+		updater:    updater,
 		dispatcher: dispatcher,
+		cacher:     cacher,
+		server:     server,
+		confirmer:  confirmer,
+		watchers:   watchers,
 	}
 }
 
@@ -152,7 +148,6 @@ func (lightnode Lightnode) Run(ctx context.Context) {
 			go watcher.Run(ctx)
 		}
 	}
-	// go lightnode.submitter.Run(ctx)
 
 	lightnode.server.Listen(ctx, fmt.Sprintf(":%s", lightnode.options.Port))
 }
