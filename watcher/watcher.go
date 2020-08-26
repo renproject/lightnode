@@ -1,15 +1,19 @@
 package watcher
 
-/* import (
+import (
 	"context"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/tx"
+	"github.com/renproject/darknode/txengine"
+	"github.com/renproject/darknode/txengine/txenginebindings/ethereumbindings"
 	"github.com/renproject/lightnode/resolver"
+	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
 )
 
@@ -17,28 +21,30 @@ package watcher
 // then forwarded to the cacher.
 type Watcher struct {
 	logger       logrus.FieldLogger
-	addr         pack.Address
-	pool         blockchain.ConnPool
+	selector     tx.Selector
+	ethClient    *ethclient.Client
+	ethBindings  *ethereumbindings.GatewayLogicV1
 	resolver     *resolver.Resolver
 	cache        *redis.Client
-	PollInterval time.Duration
+	pollInterval time.Duration
 }
 
 // NewWatcher returns a new Watcher.
-func NewWatcher(logger logrus.FieldLogger, addr pack.Address, pool blockchain.ConnPool, resolver *resolver.Resolver, cache *redis.Client, pollInterval time.Duration) Watcher {
+func NewWatcher(logger logrus.FieldLogger, selector tx.Selector, ethClient *ethclient.Client, ethBindings *ethereumbindings.GatewayLogicV1, resolver *resolver.Resolver, cache *redis.Client, pollInterval time.Duration) Watcher {
 	return Watcher{
 		logger:       logger,
-		addr:         addr,
-		pool:         pool,
+		selector:     selector,
+		ethClient:    ethClient,
+		ethBindings:  ethBindings,
 		resolver:     resolver,
 		cache:        cache,
-		PollInterval: pollInterval,
+		pollInterval: pollInterval,
 	}
 }
 
 // Run starts the watcher until the context is canceled.
 func (watcher Watcher) Run(ctx context.Context) {
-	ticker := time.NewTicker(watcher.PollInterval)
+	ticker := time.NewTicker(watcher.pollInterval)
 	defer ticker.Stop()
 
 	for {
@@ -55,7 +61,7 @@ func (watcher Watcher) Run(ctx context.Context) {
 // and the last checked block number. It constructs a `jsonrpc.Request` from
 // these events and forwards them to the resolver.
 func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
-	ctx, cancel := context.WithTimeout(parent, watcher.PollInterval)
+	ctx, cancel := context.WithTimeout(parent, watcher.pollInterval)
 	defer cancel()
 
 	// Get current block number and last checked block number.
@@ -70,9 +76,8 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		return
 	}
 
-	// Filter for all shift out events in this range of blocks.
-	shifter := watcher.pool.ShifterByAddress(watcher.addr)
-	iter, err := shifter.FilterLogBurn(
+	// Filter for all burn events in this range of blocks.
+	iter, err := watcher.ethBindings.FilterLogBurn(
 		&bind.FilterOpts{
 			Context: ctx,
 			Start:   last + 1, // Add one to avoid duplication.
@@ -82,25 +87,32 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		nil,
 	)
 	if err != nil {
-		watcher.logger.Errorf("[watcher] error filtering LogShiftOut events from=%v to=%v: %v", last, cur, err)
+		watcher.logger.Errorf("[watcher] error filtering LogBurn events from=%v to=%v: %v", last, cur, err)
 		return
 	}
 
-	// Loop through the logs and check if there are ShiftOut events.
+	// Loop through the logs and check if there are burn events.
 	for iter.Next() {
-		ref := iter.Event.N.Uint64()
+		to := string(iter.Event.To)
 		amount := iter.Event.Amount.Uint64()
-		watcher.logger.Infof("[watcher] detect shift out for %v, ref=%v, amount=%v SATs/ZATs", watcher.addr, ref, amount)
+		nonce := iter.Event.N.Uint64()
+		watcher.logger.Infof("[watcher] detected burn for %v (to=%v, amount=%v, nonce=%v)", watcher.selector.String(), to, amount, nonce)
 
-		// Send the ShiftOut tx to the resolver.
-		params := watcher.shiftOutToParams(ref)
+		var nonceBytes pack.Bytes32
+		copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
+
+		// Send the burn transaction to the resolver.
+		params, err := watcher.burnToParams(pack.NewU256FromU64(pack.NewU64(amount)), pack.String(to), nonceBytes)
+		if err != nil {
+			watcher.logger.Infof("[watcher] cannot get params from burn transaction: %v", err)
+		}
 		response := watcher.resolver.SubmitTx(ctx, 0, &params, nil)
-		if response.Error != nil{
-			watcher.logger.Infof("invalid burn tx, err = %v", response.Error.Message)
+		if response.Error != nil {
+			watcher.logger.Infof("[watcher] invalid burn transaction: %v", response.Error.Message)
 		}
 	}
 	if err := iter.Error(); err != nil {
-		watcher.logger.Errorf("[watcher] error iterating LogShiftOut events from=%v to=%v: %v", last, cur, err)
+		watcher.logger.Errorf("[watcher] error iterating LogBurn events from=%v to=%v: %v", last, cur, err)
 		return
 	}
 
@@ -112,13 +124,12 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 
 // key returns the key that is used to store the last checked block.
 func (watcher Watcher) key() string {
-	return fmt.Sprintf("%v_lastCheckedBlock", watcher.addr)
+	return fmt.Sprintf("%v_lastCheckedBlock", watcher.selector.String())
 }
 
 // currentBlockNumber returns the current block number on Ethereum.
 func (watcher Watcher) currentBlockNumber(ctx context.Context) (uint64, error) {
-	client := watcher.pool.EthClient()
-	currentBlock, err := client.HeaderByNumber(ctx, nil)
+	currentBlock, err := watcher.ethClient.HeaderByNumber(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -139,16 +150,19 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, err
 	return last, err
 }
 
-// shiftOutToParams constructs params for a SubmitTx request with given ref.
-func (watcher Watcher) shiftOutToParams(ref uint64) jsonrpc.ParamsSubmitTx {
-	tx := pack.Tx{
-		Hash: pack.B32{},
-		To:   watcher.addr,
-		In: pack.Args{{
-			Name:  "ref",
-			Type:  pack.TypeU64,
-			Value: pack.U64{Int: big.NewInt(int64(ref))},
-		}},
+// burnToParams constructs params for a SubmitTx request with given ref.
+func (watcher Watcher) burnToParams(amount pack.U256, to pack.String, nonce pack.Bytes32) (jsonrpc.ParamsSubmitTx, error) {
+	input, err := pack.Encode(txengine.UTXOBurnAndReleaseInput{
+		Amount: amount,
+		To:     to,
+		Nonce:  nonce,
+	})
+	if err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
 	}
-	return jsonrpc.ParamsSubmitTx{Tx: tx}
-} */
+	transaction, err := tx.NewTx(watcher.selector, pack.Typed(input.(pack.Struct)))
+	if err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
+	return jsonrpc.ParamsSubmitTx{Tx: transaction}, nil
+}
