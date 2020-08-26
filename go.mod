@@ -34,4 +34,5 @@ require (
 	github.com/sirupsen/logrus v1.6.0
 	github.com/status-im/keycard-go v0.0.0-20200107115650-f38e9a19958e // indirect
 	github.com/tyler-smith/go-bip39 v1.0.2 // indirect
+	golang.org/x/crypto v0.0.0-20200728195943-123391ffb6de
 )

@@ -33,21 +33,39 @@ func main() {
 	name := os.Getenv("HEROKU_APP_NAME")
 	options := lightnode.DefaultOptions().
 		WithNetwork(parseNetwork(name)).
-		WithKey(parsePrivKey()).
-		WithDistPubKey(parsePubKey()).
-		WithPort(os.Getenv("PORT")).
-		WithProtocolAddr(os.Getenv("PROTOCOL_ADDRESS")).
-		WithCap(parseInt("CAP")).
-		WithMaxBatchSize(parseInt("MAX_BATCH_SIZE")).
-		WithServerTimeout(parseTime("SERVER_TIMEOUT")).
-		WithClientTimeout(parseTime("CLIENT_TIMEOUT")).
-		WithTTL(parseTime("TTL")).
-		WithUpdaterPollRate(parseTime("UPDATER_POLL_RATE")).
-		WithConfirmerPollRate(parseTime("CONFIRMER_POLL_RATE")).
-		WithBootstrapAddrs(parseAddresses())
+		WithDistPubKey(parsePubKey())
+
+	if os.Getenv("PORT") != "" {
+		options = options.WithPort(os.Getenv("PORT"))
+	}
+	if os.Getenv("CAP") != "" {
+		options = options.WithCap(parseInt("CAP"))
+	}
+	if os.Getenv("MAX_BATCH_SIZE") != "" {
+		options = options.WithMaxBatchSize(parseInt("MAX_BATCH_SIZE"))
+	}
+	if os.Getenv("SERVER_TIMEOUT") != "" {
+		options = options.WithServerTimeout(parseTime("SERVER_TIMEOUT"))
+	}
+	if os.Getenv("CLIENT_TIMEOUT") != "" {
+		options = options.WithClientTimeout(parseTime("CLIENT_TIMEOUT"))
+	}
+	if os.Getenv("TTL") != "" {
+		options = options.WithTTL(parseTime("TTL"))
+	}
+	if os.Getenv("UPDATER_POLL_RATE") != "" {
+		options = options.WithUpdaterPollRate(parseTime("UPDATER_POLL_RATE"))
+	}
+	if os.Getenv("CONFIRMER_POLL_RATE") != "" {
+		options = options.WithConfirmerPollRate(parseTime("CONFIRMER_POLL_RATE"))
+	}
+	if os.Getenv("ADDRESSES") != "" {
+		options = options.WithBootstrapAddrs(parseAddresses())
+	}
+	// TODO: WithRPCs, WithGateways, WithConfirmations
 
 	// Initialise logger and attach Sentry hook.
-	logger := initLogger(options.Network)
+	logger := initLogger(name, options.Network)
 
 	// Initialise the database.
 	driver, dbURL := os.Getenv("DATABASE_DRIVER"), os.Getenv("DATABASE_URL")
@@ -67,10 +85,9 @@ func main() {
 	node.Run(ctx)
 }
 
-func initLogger(network string) logrus.FieldLogger {
+func initLogger(name, network string) logrus.FieldLogger {
 	logger := logrus.New()
 	sentryURL := os.Getenv("SENTRY_URL")
-	name := os.Getenv("HEROKU_APP_NAME")
 	if network != darknode.Devnet {
 		tags := map[string]string{
 			"name": name,
@@ -144,19 +161,6 @@ func parseAddresses() []wire.Address {
 		addrs[i] = addr
 	}
 	return addrs
-}
-
-func parsePrivKey() *id.PrivKey {
-	privKeyString := os.Getenv("PRIV_KEY")
-	keyBytes, err := hex.DecodeString(privKeyString)
-	if err != nil {
-		panic(fmt.Sprintf("invalid private key %v: %v", privKeyString, err))
-	}
-	key, err := crypto.ToECDSA(keyBytes)
-	if err != nil {
-		panic(fmt.Sprintf("invalid private key %v: %v", privKeyString, err))
-	}
-	return (*id.PrivKey)(key)
 }
 
 func parsePubKey() *id.PubKey {

@@ -3,30 +3,46 @@ package lightnode
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode"
+	"github.com/renproject/darknode/darknodeutil"
+	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/tx"
+	"github.com/renproject/darknode/txengine"
+	"github.com/renproject/darknode/txengine/txenginebindings"
+	"github.com/renproject/darknode/txpool/txpoolverifier"
+	"github.com/renproject/kv"
+	"github.com/renproject/lightnode/cacher"
+	"github.com/renproject/lightnode/confirmer"
 	"github.com/renproject/lightnode/db"
+	"github.com/renproject/lightnode/dispatcher"
+	"github.com/renproject/lightnode/resolver"
+	"github.com/renproject/lightnode/store"
+	"github.com/renproject/lightnode/updater"
+	"github.com/renproject/lightnode/watcher"
+	"github.com/renproject/multichain"
+	"github.com/renproject/multichain/chain/ethereum"
+	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
 
 // Lightnode is the top level container that encapsulates the functionality of
 // the lightnode.
 type Lightnode struct {
-	options Options
-	logger  logrus.FieldLogger
-	db      db.DB
-	/* server     *jsonrpc.Server
-	updater    updater.Updater
-	confirmer  confirmer.Confirmer
-	submitter  submitter.Submitter
-	btcWatcher watcher.Watcher
-	zecWatcher watcher.Watcher
-	bchWatcher watcher.Watcher
+	options   Options
+	logger    logrus.FieldLogger
+	db        db.DB
+	server    *jsonrpc.Server
+	updater   updater.Updater
+	confirmer confirmer.Confirmer
+	// submitter  submitter.Submitter
+	watchers map[multichain.Chain]map[multichain.Asset]watcher.Watcher
 
 	// Tasks
 	cacher     phi.Task
-	dispatcher phi.Task */
+	dispatcher phi.Task
 }
 
 // New constructs a new Lightnode.
@@ -36,102 +52,107 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	default:
 		panic("unknown network")
 	}
-	if options.Key == nil {
-		panic("private key for submitting gasless transactions not specified")
-	}
 	if options.DistPubKey == nil {
 		panic("distributed public key not specified")
 	}
 	if options.Port == "" {
 		panic("port not specified")
 	}
-	if options.ProtocolAddr == "" {
-		panic("protocol contract address not specified")
-	}
 	if len(options.BootstrapAddrs) == 0 {
 		panic("bootstrap addresses not specified")
 	}
 
 	// Define the options used for all Phi tasks.
-	// opts := phi.Options{Cap: options.Cap}
+	opts := phi.Options{Cap: options.Cap}
 
 	// Initialise the database.
 	db := db.New(sqlDB)
 	if err := db.Init(); err != nil {
-		logger.Panicf("fail to initialize db, err = %v", err)
+		logger.Panicf("failed to initialise db: %v", err)
 	}
 
 	// Define the options used for the server.
-	/* serverOptions := jsonrpc.DefaultOptions().
-	WithMaxBatchSize(options.MaxBatchSize).
-	WithMaxPageSize(options.MaxPageSize).
-	WithTimeout(options.ServerTimeout)
-
-	// TODO: Define minimum confirmations for each chain.
-	confirmerOptions := confirmer.DefaultOptions().
-		WithPollInterval(options.ConfirmerPollRate).
-		WithExpiry(options.TransactionExpiry)
+	serverOptions := jsonrpc.DefaultOptions().
+		WithMaxBatchSize(options.MaxBatchSize).
+		WithMaxPageSize(options.MaxPageSize).
+		WithTimeout(options.ServerTimeout)
 
 	// Initialise the multi-address store.
 	table := kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses")
 	multiStore := store.New(table, options.BootstrapAddrs)
 
 	// Initialise the blockchain adapter.
-	protocolAddr := common.HexToAddress(options.ProtocolAddr)
-	btcClient := btcclient.NewClient(logger, darknode.BtcNetwork(types.Bitcoin, options.Network))
-	zecClient := btcclient.NewClient(logger, darknode.BtcNetwork(types.ZCash, options.Network))
-	bchClient := btcclient.NewClient(logger, darknode.BtcNetwork(types.BitcoinCash, options.Network))
-	ethClient, err := ethclient.New(logger, darknode.EthShifterNetwork(options.Network))
-	if err != nil {
-		panic(fmt.Errorf("cannot initialise eth client: %v", err))
-	}
-	protocol, err := ethrpc.NewProtocol(ethClient.EthClient(), protocolAddr)
-	if err != nil {
-		panic(fmt.Errorf("cannot initialise protocol contract: %v", err))
-	}
-	bc := blockchain.New(logger, btcClient, zecClient, bchClient, ethClient, protocol)
+	ethCompatClients, ethCompatContracts := darknodeutil.SetupTxengineEthBindings(options.RPCs, options.Gateways)
+	utxoCompatClients, utxoTxBuilders, gasEstimators := darknodeutil.SetupTxengineUTXOBindings()
+	bindings := txenginebindings.New(
+		map[multichain.Chain]multichain.AccountClient{},
+		map[multichain.Chain]multichain.AccountTxBuilder{},
+		map[multichain.Chain]multichain.AddressEncodeDecoder{
+			multichain.Ethereum: ethereum.NewAddressEncodeDecoder(),
+		},
+		map[multichain.Chain]multichain.ContractCaller{},
+		gasEstimators,
+		utxoCompatClients,
+		utxoTxBuilders,
+		ethCompatClients,
+		ethCompatContracts,
+		options.Confirmations,
+	)
 
 	updater := updater.New(logger, multiStore, options.UpdaterPollRate, options.ClientTimeout)
 	dispatcher := dispatcher.New(logger, options.ClientTimeout, multiStore, opts)
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
 	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
-	resolver := resolver.New(logger, cacher, multiStore, *options.DisPubkey, bc, db, serverOptions)
+	verifier := txpoolverifier.New(txengine.New(txengine.DefaultOptions(), nil, bindings))
+	resolver := resolver.New(logger, cacher, multiStore, verifier, db, serverOptions)
 	server := jsonrpc.NewServer(serverOptions, resolver)
-	confirmer := confirmer.New(logger, confirmerOptions, dispatcher, db, bc)
-	submitter := submitter.New(logger, dispatcher, db, ethClient, options.Key, options.SubmitterPollRate)
-	btcWatcher := watcher.NewWatcher(logger, "BTC0Eth2Btc", bc, resolver, client, options.WatcherPollRate)
-	zecWatcher := watcher.NewWatcher(logger, "ZEC0Eth2Zec", bc, resolver, client, options.WatcherPollRate)
-	bchWatcher := watcher.NewWatcher(logger, "BCH0Eth2Bch", bc, resolver, client, options.WatcherPollRate) */
+	confirmer := confirmer.New(
+		confirmer.DefaultOptions().
+			WithLogger(logger).
+			WithPollInterval(options.ConfirmerPollRate).
+			WithExpiry(options.TransactionExpiry),
+		dispatcher,
+		db,
+		bindings,
+	)
+	// submitter := submitter.New(logger, dispatcher, db, ethClient, options.Key, options.SubmitterPollRate)
+	watchers := map[multichain.Chain]map[multichain.Asset]watcher.Watcher{}
+	for chain, contracts := range ethCompatContracts {
+		for asset, bindings := range contracts {
+			selector := tx.Selector(fmt.Sprintf("%v/from%v", asset, chain))
+			watchers[chain][asset] = watcher.NewWatcher(logger, selector, ethCompatClients[chain], bindings, resolver, client, options.WatcherPollRate)
+		}
+	}
 
 	return Lightnode{
-		options: options,
-		logger:  logger,
-		db:      db,
-		// server:     server,
-		// updater:    updater,
-		// confirmer:  confirmer,
+		options:   options,
+		logger:    logger,
+		db:        db,
+		server:    server,
+		updater:   updater,
+		confirmer: confirmer,
 		// submitter:  submitter,
-		// btcWatcher: btcWatcher,
-		// zecWatcher: zecWatcher,
-		// bchWatcher: bchWatcher,
+		watchers: watchers,
 
-		// cacher:     cacher,
-		// dispatcher: dispatcher,
+		cacher:     cacher,
+		dispatcher: dispatcher,
 	}
 }
 
 // Run starts the `Lightnode`. This function call is blocking.
 func (lightnode Lightnode) Run(ctx context.Context) {
-	/* go lightnode.updater.Run(ctx)
+	go lightnode.updater.Run(ctx)
 	go lightnode.cacher.Run(ctx)
 	go lightnode.dispatcher.Run(ctx)
 
 	// Note: the following should be disabled when running locally.
 	go lightnode.confirmer.Run(ctx)
-	go lightnode.btcWatcher.Run(ctx)
-	go lightnode.zecWatcher.Run(ctx)
-	go lightnode.bchWatcher.Run(ctx)
-	go lightnode.submitter.Run(ctx)
+	for _, assetMap := range lightnode.watchers {
+		for _, watcher := range assetMap {
+			go watcher.Run(ctx)
+		}
+	}
+	// go lightnode.submitter.Run(ctx)
 
-	lightnode.server.Listen(ctx, fmt.Sprintf(":%s", lightnode.options.Port)) */
+	lightnode.server.Listen(ctx, fmt.Sprintf(":%s", lightnode.options.Port))
 }
