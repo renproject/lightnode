@@ -2,13 +2,12 @@ package resolver
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"fmt"
 	"net/http"
 	"net/url"
 
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/darknode/txengine"
+	"github.com/renproject/darknode/txpool"
 	"github.com/renproject/lightnode/db"
 	lhttp "github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
@@ -25,9 +24,9 @@ type Resolver struct {
 	serverOptions     jsonrpc.Options
 }
 
-func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, key ecdsa.PublicKey, bindings txengine.Bindings, db db.DB, serverOptions jsonrpc.Options) *Resolver {
+func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, verifier txpool.Verifier, db db.DB, serverOptions jsonrpc.Options) *Resolver {
 	requests := make(chan lhttp.RequestWithResponder, 128)
-	txChecker := newTxChecker(logger, requests, key, bindings, db)
+	txChecker := newTxChecker(logger, requests, verifier, db)
 	go txChecker.Run()
 
 	return &Resolver{
