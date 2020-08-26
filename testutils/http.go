@@ -87,7 +87,7 @@ func SimpleHandler(alwaysSuccess bool, requests chan jsonrpc.Request) http.Handl
 				},
 			}
 			if err := json.NewEncoder(w).Encode(response); err != nil {
-				panic(fmt.Sprintf("fail to write response back, err = %v", err))
+				panic(fmt.Sprintf("failed to write response: %v", err))
 			}
 		}
 		if requests != nil {
