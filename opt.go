@@ -5,30 +5,36 @@ import (
 
 	"github.com/renproject/aw/wire"
 	"github.com/renproject/id"
+	"github.com/renproject/lightnode/confirmer"
+	"github.com/renproject/multichain"
+	"github.com/renproject/pack"
 )
 
 // Enumerate default options.
 var (
+	DefaultPort              = "5000"
 	DefaultCap               = 128
 	DefaultMaxBatchSize      = 10
 	DefaultMaxPageSize       = 10
 	DefaultServerTimeout     = 15 * time.Second
-	DefaultClientTimeout     = time.Minute
+	DefaultClientTimeout     = 15 * time.Second
 	DefaultTTL               = 3 * time.Second
 	DefaultUpdaterPollRate   = 5 * time.Minute
-	DefaultConfirmerPollRate = 30 * time.Second
+	DefaultConfirmerPollRate = confirmer.DefaultPollInterval
 	DefaultWatcherPollRate   = 15 * time.Second
 	DefaultSubmitterPollRate = 15 * time.Second
-	DefaultTransactionExpiry = 14 * 24 * time.Hour
+	DefaultTransactionExpiry = confirmer.DefaultExpiry
+	DefaultBootstrapAddrs    = []wire.Address{}
+	DefaultRPCs              = map[multichain.Chain]pack.String{}
+	DefaultGateways          = map[multichain.Chain]pack.String{}
+	DefaultConfirmations     = map[multichain.Chain]pack.U64{}
 )
 
 // Options to configure the precise behaviour of the Lightnode.
 type Options struct {
 	Network           string
-	Key               *id.PrivKey
 	DistPubKey        *id.PubKey
 	Port              string
-	ProtocolAddr      string
 	Cap               int
 	MaxBatchSize      int
 	MaxPageSize       int
@@ -41,12 +47,16 @@ type Options struct {
 	SubmitterPollRate time.Duration
 	TransactionExpiry time.Duration
 	BootstrapAddrs    []wire.Address
+	RPCs              map[multichain.Chain]pack.String
+	Gateways          map[multichain.Chain]pack.String
+	Confirmations     map[multichain.Chain]pack.U64
 }
 
 // DefaultOptions returns new options with default configurations that should
 // work for the majority of use cases.
 func DefaultOptions() Options {
 	return Options{
+		Port:              DefaultPort,
 		Cap:               DefaultCap,
 		MaxBatchSize:      DefaultMaxBatchSize,
 		MaxPageSize:       DefaultMaxPageSize,
@@ -58,107 +68,121 @@ func DefaultOptions() Options {
 		WatcherPollRate:   DefaultWatcherPollRate,
 		SubmitterPollRate: DefaultSubmitterPollRate,
 		TransactionExpiry: DefaultTransactionExpiry,
+		BootstrapAddrs:    DefaultBootstrapAddrs,
+		RPCs:              DefaultRPCs,
+		Gateways:          DefaultGateways,
+		Confirmations:     DefaultConfirmations,
 	}
 }
 
-// WithNetwork returns new options with the given network.
+// WithNetwork updates the network.
 func (opts Options) WithNetwork(network string) Options {
 	opts.Network = network
 	return opts
 }
 
-// WithKey returns new options with the given key.
-func (opts Options) WithKey(key *id.PrivKey) Options {
-	opts.Key = key
-	return opts
-}
-
-// WithDistPubKey returns new options with the given distributed public key.
+// WithDistPubKey updates the distributed public key.
 func (opts Options) WithDistPubKey(distPubKey *id.PubKey) Options {
 	opts.DistPubKey = distPubKey
 	return opts
 }
 
-// WithPort returns new options with the given port.
+// WithPort updates the port.
 func (opts Options) WithPort(port string) Options {
 	opts.Port = port
 	return opts
 }
 
-// WithProtocolAddr returns new options with the given protocol address.
-func (opts Options) WithProtocolAddr(protocolAddr string) Options {
-	opts.ProtocolAddr = protocolAddr
-	return opts
-}
-
-// WithCap returns new options with the given capacity.
+// WithCap updates the capacity.
 func (opts Options) WithCap(cap int) Options {
 	opts.Cap = cap
 	return opts
 }
 
-// WithMaxBatchSize returns new options with the given maximum batch sizee.
+// WithMaxBatchSize updates the maximum batch size when submitting
+// requests.
 func (opts Options) WithMaxBatchSize(maxBatchSize int) Options {
 	opts.MaxBatchSize = maxBatchSize
 	return opts
 }
 
-// WithMaxPageSize returns new options with the given maximum page size.
+// WithMaxPageSize updates the maximum page size when querying
+// transactions.
 func (opts Options) WithMaxPageSize(maxPageSize int) Options {
 	opts.MaxPageSize = maxPageSize
 	return opts
 }
 
-// WithServerTimeout returns new options with the given server timeout.
+// WithServerTimeout updates the server timeout.
 func (opts Options) WithServerTimeout(serverTimeout time.Duration) Options {
 	opts.ServerTimeout = serverTimeout
 	return opts
 }
 
-// WithClientTimeout returns new options with the given client timeout.
+// WithClientTimeout updates the client timeout.
 func (opts Options) WithClientTimeout(clientTimeout time.Duration) Options {
 	opts.ClientTimeout = clientTimeout
 	return opts
 }
 
-// WithTTL returns new options with the given time-to-live duration.
+// WithTTL updates the time-to-live duration.
 func (opts Options) WithTTL(ttl time.Duration) Options {
 	opts.TTL = ttl
 	return opts
 }
 
-// WithUpdaterPollRate returns new options with the given updater poll rate.
+// WithUpdaterPollRate updates the updater poll rate.
 func (opts Options) WithUpdaterPollRate(updaterPollRate time.Duration) Options {
 	opts.UpdaterPollRate = updaterPollRate
 	return opts
 }
 
-// WithConfirmerPollRate returns new options with the given confirmer poll rate.
+// WithConfirmerPollRate updates the confirmer poll rate.
 func (opts Options) WithConfirmerPollRate(confirmerPollRate time.Duration) Options {
 	opts.ConfirmerPollRate = confirmerPollRate
 	return opts
 }
 
-// WithWatcherPollRate returns new options with the given watcher poll rate.
+// WithWatcherPollRate updates the watcher poll rate.
 func (opts Options) WithWatcherPollRate(watcherPollRate time.Duration) Options {
 	opts.WatcherPollRate = watcherPollRate
 	return opts
 }
 
-// WithSubmitterPollRate returns new options with the given submitter poll rate.
+// WithSubmitterPollRate updates the submitter poll rate.
 func (opts Options) WithSubmitterPollRate(submitterPollRate time.Duration) Options {
 	opts.SubmitterPollRate = submitterPollRate
 	return opts
 }
 
-// WithTransactionExpiry returns new options with the given transaction expiry.
+// WithTransactionExpiry updates the transaction expiry.
 func (opts Options) WithTransactionExpiry(transactionExpiry time.Duration) Options {
 	opts.TransactionExpiry = transactionExpiry
 	return opts
 }
 
-// WithBootstrapAddrs returns new options with the given bootstrap addresses.
+// WithBootstrapAddrs makes an initial list of nodes known to the node. These
+// nodes will be used to bootstrap into the P2P network.
 func (opts Options) WithBootstrapAddrs(bootstrapAddrs []wire.Address) Options {
 	opts.BootstrapAddrs = bootstrapAddrs
+	return opts
+}
+
+// WithRPCs sets the RPC URLs for each chain.
+func (opts Options) WithRPCs(rpcs map[multichain.Chain]pack.String) Options {
+	opts.RPCs = rpcs
+	return opts
+}
+
+// WithGateways sets the gateway registry contract addresses for each host
+// chain.
+func (opts Options) WithGateways(gateways map[multichain.Chain]pack.String) Options {
+	opts.Gateways = gateways
+	return opts
+}
+
+// WithConfirmations sets the minimum required confirmations for each chain.
+func (opts Options) WithConfirmations(confs map[multichain.Chain]pack.U64) Options {
+	opts.Confirmations = confs
 	return opts
 }

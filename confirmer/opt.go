@@ -3,47 +3,35 @@ package confirmer
 import (
 	"time"
 
-	"github.com/renproject/lightnode"
-	"github.com/renproject/multichain"
 	"github.com/sirupsen/logrus"
 )
 
 // Enumerate default options.
 var (
-	DefaultMinConfirmations = map[multichain.Chain]uint64{}
-	DefaultPollInterval     = lightnode.DefaultConfirmerPollRate
-	DefaultExpiry           = lightnode.DefaultTransactionExpiry
+	DefaultPollInterval = 30 * time.Second
+	DefaultExpiry       = 14 * 24 * time.Hour
 )
 
 // Options to configure the precise behaviour of the confirmer.
 type Options struct {
-	Logger           logrus.FieldLogger
-	MinConfirmations map[multichain.Chain]uint64
-	PollInterval     time.Duration
-	Expiry           time.Duration
+	Logger       logrus.FieldLogger
+	PollInterval time.Duration
+	Expiry       time.Duration
 }
 
 // DefaultOptions returns new options with default configurations that should
 // work for the majority of use cases.
 func DefaultOptions() Options {
 	return Options{
-		Logger:           logrus.New(),
-		MinConfirmations: DefaultMinConfirmations,
-		PollInterval:     DefaultPollInterval,
-		Expiry:           DefaultExpiry,
+		Logger:       logrus.New(),
+		PollInterval: DefaultPollInterval,
+		Expiry:       DefaultExpiry,
 	}
 }
 
 // WithLogger returns new options with the given logger.
 func (opts Options) WithLogger(logger logrus.FieldLogger) Options {
 	opts.Logger = logger
-	return opts
-}
-
-// WithMinConfirmations returns new options with the given minimum
-// confirmations.
-func (opts Options) WithMinConfirmations(minConfirmations map[multichain.Chain]uint64) Options {
-	opts.MinConfirmations = minConfirmations
 	return opts
 }
 
