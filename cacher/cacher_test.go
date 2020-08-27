@@ -1,6 +1,6 @@
 package cacher_test
 
-/* import (
+import (
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -122,4 +122,4 @@ var _ = Describe("Cacher", func() {
 			}
 		})
 	})
-}) */
+})
