@@ -1,12 +1,12 @@
 package testutils
 
-/* import (
+import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
 
-	"github.com/renproject/darknode/abi"
+	"github.com/renproject/pack"
 )
 
 // CheckTableExistence checks the underlying `db` object if there exists a table
@@ -51,9 +51,9 @@ func NumOfDataEntries(db *sql.DB, name string) (int, error) {
 }
 
 // UpdateTxCreatedTime of given tx hash.
-func UpdateTxCreatedTime(db *sql.DB, name string, hash abi.B32, createdTime int64) error {
+func UpdateTxCreatedTime(db *sql.DB, name string, hash pack.Bytes32, createdTime int64) error {
 	txHash := hex.EncodeToString(hash[:])
 	script := fmt.Sprintf("UPDATE %v set created_time = %v where hash = $1;", name, createdTime)
 	_, err := db.Exec(script, txHash)
 	return err
-} */
+}

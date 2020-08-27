@@ -1,22 +1,23 @@
 package testutils
 
-/* import (
+import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
 	"net"
 	"net/http/httptest"
-	"strconv"
 	"strings"
+	"time"
 
-	"github.com/renproject/darknode/addr"
+	"github.com/renproject/aw/wire"
+	"github.com/renproject/id"
 	"github.com/renproject/lightnode/store"
 )
 
 type MockDarknode struct {
 	Server *httptest.Server
-	Me     addr.MultiAddress
+	Me     wire.Address
 	Store  store.MultiAddrStore
 }
 
@@ -32,25 +33,20 @@ func NewMockDarknode(server *httptest.Server, store store.MultiAddrStore) *MockD
 	if err != nil {
 		panic(err)
 	}
-	portInt, err := strconv.Atoi(port)
-	if err != nil {
+	addr := wire.NewUnsignedAddress(wire.TCP, fmt.Sprintf("%v:%v", host, port), uint64(time.Now().Unix()))
+	if err := store.Insert(addr); err != nil {
 		panic(err)
 	}
-	multiStr := fmt.Sprintf("/ip4/%v/tcp/%v/ren/%v", host, portInt-1, addr.FromPublicKey(key.PublicKey))
-	multi, err := addr.NewMultiAddressFromString(multiStr)
-	if err != nil {
-		panic(err)
-	}
-	if err := store.Insert(multi); err != nil {
+	if err := addr.Sign((*id.PrivKey)(key)); err != nil {
 		panic(err)
 	}
 	return &MockDarknode{
 		Server: server,
-		Me:     multi,
+		Me:     addr,
 		Store:  store,
 	}
 }
 
 func (dn *MockDarknode) Close() {
 	dn.Server.Close()
-} */
+}

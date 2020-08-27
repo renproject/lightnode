@@ -1,14 +1,12 @@
 package testutils
 
-/* import (
+import (
 	"encoding/json"
-	"fmt"
-	"math/big"
 	"math/rand"
+	"time"
 
-	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/darknode/testutil"
+	"github.com/renproject/darknode/tx/txutil"
 	"github.com/renproject/phi"
 )
 
@@ -91,51 +89,8 @@ func ValidRequest(method string) (id interface{}, params interface{}) {
 }
 
 func RandomSubmitTxParams() jsonrpc.ParamsSubmitTx {
-	contract := testutil.RandomMintMethod()
-	args := abi.Args{}
-	for _, formal := range abi.Intrinsics[contract].In {
-		arg := abi.Arg{
-			Name:  formal.Name,
-			Type:  formal.Type,
-			Value: RandomAbiValue(formal.Type),
-		}
-		args.Set(arg)
-	}
-	return jsonrpc.ParamsSubmitTx{Tx: abi.Tx{
-		Hash: testutil.RandomB32(),
-		To:   contract,
-		In:   args,
-	}}
-}
-
-func RandomAbiValue(t abi.Type) abi.Value {
-	switch t {
-	case abi.TypeB32:
-		return testutil.RandomB32()
-	case abi.TypeU64:
-		return abi.U64{Int: big.NewInt(rand.Int63())}
-	case abi.ExtTypeBtcCompatUTXO:
-		return testutil.RandomExtBtcCompatUTXO()
-	case abi.ExtTypeEthCompatAddress:
-		return testutil.RandomExtEthCompatAddress()
-	case abi.ExtTypeEthCompatPayload:
-		return RandomExtCompatPayload()
-	default:
-		panic(fmt.Sprintf("unknown type %v", t))
-	}
-}
-
-func RandomExtCompatPayload() abi.Value {
-	abiArg := make([]abi.B, rand.Intn(32))
-	for i := range abiArg {
-		abiArg[i] = testutil.RandomB()
-	}
-	return abi.ExtEthCompatPayload{
-		ABI:   testutil.RandomB(),
-		Value: testutil.RandomB(),
-		Fn:    testutil.RandomB(),
-	}
-
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return jsonrpc.ParamsSubmitTx{Tx: txutil.RandomTx(r)}
 }
 
 // ErrorResponse constructs a basic valid `jsonrpc.Response` that contains a
@@ -147,4 +102,4 @@ func ErrorResponse(id interface{}) jsonrpc.Response {
 		ID:      id,
 		Error:   &err,
 	}
-} */
+}

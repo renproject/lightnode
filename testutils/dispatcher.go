@@ -1,6 +1,6 @@
 package testutils
 
-/* import (
+import (
 	"fmt"
 
 	"github.com/renproject/darknode/jsonrpc"
@@ -28,4 +28,4 @@ func (dispatcher *MockDispatcher) Handle(_ phi.Task, message phi.Message) {
 	}
 
 	msg.Responder <- jsonrpc.Response{}
-} */
+}

@@ -1,6 +1,6 @@
 package testutils
 
-/* import (
+import (
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -10,8 +10,9 @@ package testutils
 	"time"
 
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/darknode/testutil"
+	"github.com/renproject/darknode/tx/txutil"
 	"github.com/renproject/lightnode/store"
+	"github.com/renproject/pack"
 )
 
 // ChanWriter is a io.Writer which writes all messages to an output channel.
@@ -193,18 +194,19 @@ func RandomRequest(method string) jsonrpc.Request {
 		Method:  method,
 		Params:  nil,
 	}
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	var params interface{}
 	switch method {
 	// Blocks
 	case jsonrpc.MethodQueryBlock:
-		height := testutil.RandomU64()
+		height := pack.U64(0).Generate(r, 1).Interface().(pack.U64)
 		params = jsonrpc.ParamsQueryBlock{
 			BlockHeight: &height,
 		}
 	case jsonrpc.MethodQueryBlocks:
-		height := testutil.RandomU64()
-		n := testutil.RandomU64()
+		height := pack.U64(0).Generate(r, 1).Interface().(pack.U64)
+		n := pack.U64(0).Generate(r, 1).Interface().(pack.U64)
 		params = jsonrpc.ParamsQueryBlocks{
 			BlockHeight: &height,
 			N:           &n,
@@ -213,11 +215,11 @@ func RandomRequest(method string) jsonrpc.Request {
 	// Transactions
 	case jsonrpc.MethodSubmitTx:
 		params = jsonrpc.ParamsSubmitTx{
-			Tx: testutil.RandomTransformTx().Tx,
+			Tx: txutil.RandomGoodTx(r),
 		}
 	case jsonrpc.MethodQueryTx:
 		params = jsonrpc.ParamsQueryTx{
-			TxHash: testutil.RandomB32(),
+			TxHash: pack.Bytes32{}.Generate(r, 1).Interface().(pack.Bytes32),
 		}
 
 	// Peers
@@ -252,4 +254,4 @@ func BatchRequest(size int) []jsonrpc.Request {
 		reqs[i] = RandomRequest(RandomMethod())
 	}
 	return reqs
-} */
+}
