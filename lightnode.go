@@ -23,6 +23,7 @@ import (
 	"github.com/renproject/lightnode/updater"
 	"github.com/renproject/lightnode/watcher"
 	"github.com/renproject/multichain"
+	"github.com/renproject/multichain/api/gas"
 	"github.com/renproject/multichain/chain/ethereum"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
@@ -81,11 +82,18 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	multiStore := store.New(table, options.BootstrapAddrs)
 
 	// Initialise the blockchain adapter.
-	ethCompatClients, ethCompatContracts := darknodeutil.SetupTxengineEthBindings(options.RPCs, options.Gateways)
-	utxoCompatClients, utxoTxBuilders, gasEstimators := darknodeutil.SetupTxengineUTXOBindings()
+	ethCompatClients, ethCompatContracts, accountTxBuilders, accountGasEstimators := darknodeutil.SetupTxengineAccountBindings(options.RPCs, options.Gateways)
+	utxoCompatClients, utxoTxBuilders, utxoGasEstimators := darknodeutil.SetupTxengineUTXOBindings()
+	gasEstimators := make(map[multichain.Chain]gas.Estimator, len(accountGasEstimators)+len(utxoGasEstimators))
+	for k, v := range accountGasEstimators {
+		gasEstimators[k] = v
+	}
+	for k, v := range utxoGasEstimators {
+		gasEstimators[k] = v
+	}
 	bindings := txenginebindings.New(
 		map[multichain.Chain]multichain.AccountClient{},
-		map[multichain.Chain]multichain.AccountTxBuilder{},
+		accountTxBuilders,
 		map[multichain.Chain]multichain.AddressEncodeDecoder{
 			multichain.Ethereum: ethereum.NewAddressEncodeDecoder(),
 		},

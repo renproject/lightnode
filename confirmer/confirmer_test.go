@@ -1,22 +1,22 @@
 package confirmer_test
 
-/* import (
+import (
 	"context"
 	"database/sql"
+	"math/rand"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/renproject/lightnode/confirmer"
 	. "github.com/renproject/lightnode/confirmer"
-	. "github.com/renproject/lightnode/testutils"
 
-	"github.com/renproject/darknode"
-	"github.com/renproject/darknode/abi"
-	"github.com/renproject/darknode/testutil"
+	"github.com/renproject/darknode/tx/txutil"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/testutils"
+	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
 )
 
@@ -26,17 +26,10 @@ var _ = Describe("Confirmer", func() {
 			// Initialise confirmer.
 			logger := logrus.New()
 
-			pollInterval := 2 * time.Second
-			opts := Options{
-				MinConfirmations: darknode.DefaultMinConfirmations(darknode.Devnet),
-				PollInterval:     pollInterval,
-				Expiry:           7 * 24 * time.Hour,
-			}
-
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			dispatcher := NewMockDispatcher()
+			dispatcher := testutils.NewMockDispatcher()
 			go dispatcher.Run(ctx)
 
 			sqlDB, err := sql.Open("sqlite3", "./test.db")
@@ -47,24 +40,34 @@ var _ = Describe("Confirmer", func() {
 			Expect(database.Init()).To(Succeed())
 
 			maxAttempts := 2
-			connPool := testutils.MockConnPool(logger, maxAttempts)
+			bindings := testutils.MockBindings(logger, maxAttempts)
 
-			confirmer := New(logger, opts, dispatcher, database, connPool)
+			pollInterval := 2 * time.Second
+			confirmer := New(
+				confirmer.DefaultOptions().
+					WithLogger(logger).
+					WithPollInterval(pollInterval).
+					WithExpiry(7*24*time.Hour),
+				dispatcher,
+				database,
+				bindings,
+			)
 			go confirmer.Run(ctx)
 
-			// Insert random txs into database.
-			hashes := make([]abi.B32, 100)
+			// Insert random transactions into the database.
+			hashes := make([]pack.Bytes32, 100)
+			r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 			for i := range hashes {
-				tx := testutil.RandomTransformedMintingTx(abi.IntrinsicBTC0Btc2Eth.Address)
-				Expect(database.InsertTx(tx, abi.B32{}, false)).To(Succeed())
+				transaction := txutil.RandomGoodTx(r)
+				Expect(database.InsertTx(transaction)).To(Succeed())
 
-				hashes[i] = tx.Hash
-				status, err := database.TxStatus(tx.Hash)
+				hashes[i] = transaction.Hash
+				status, err := database.TxStatus(transaction.Hash)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(status).To(Equal(db.TxStatusConfirming))
 			}
 
-			// Sleep and ensure the tx statuses have updated.
+			// Sleep and ensure the transaction statuses have updated.
 			time.Sleep(time.Duration(maxAttempts+1) * pollInterval)
 
 			for i := range hashes {
@@ -74,4 +77,4 @@ var _ = Describe("Confirmer", func() {
 			}
 		})
 	})
-}) */
+})

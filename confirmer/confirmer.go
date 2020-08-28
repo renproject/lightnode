@@ -157,13 +157,18 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 // burnTxConfirmed checks if a given burn transaction has received sufficient
 // confirmations.
 func (confirmer *Confirmer) burnTxConfirmed(ctx context.Context, transaction tx.Tx) bool {
+	burnChain, ok := transaction.Selector.BurnChain()
+	if !ok {
+		confirmer.options.Logger.Errorf("[confirmer] cannot get burn chain for tx=%v (%v)", transaction.Hash.String(), transaction.Selector.String())
+		return false
+	}
 	nonce, ok := transaction.Input.Get("nonce").(pack.Bytes32)
 	if !ok {
 		confirmer.options.Logger.Errorf("[confirmer] failed to get nonce for tx=%v", transaction.Hash.String())
 		return false
 	}
 
-	_, _, _, err := confirmer.bindings.AccountBurnInfo(ctx, transaction.Selector.Asset().OriginChain(), transaction.Selector.Asset(), nonce)
+	_, _, _, err := confirmer.bindings.AccountBurnInfo(ctx, burnChain, transaction.Selector.Asset(), nonce)
 	if err != nil {
 		confirmer.options.Logger.Errorf("[confirmer] cannot get burn info for tx=%v (%v): %v", transaction.Hash.String(), transaction.Selector.String(), err)
 		return false

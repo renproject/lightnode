@@ -1245,6 +1245,12 @@ github.com/renproject/aw v0.4.0-9 h1:O3rFYg4arz+kuu+qqn/+FYtWDhsstD/R8/+RkOTrOCE
 github.com/renproject/aw v0.4.0-9/go.mod h1:iuELPkEjsWV9dSyZ9TE5SKsTr+jv2I9naHDhsodH3Z0=
 github.com/renproject/darknode v0.5.3-0.20200825041556-5bb96bdf5105 h1:UZ9S/tqSL7V6THnvt4kRDXWmh2/serhF52djux2Z8/A=
 github.com/renproject/darknode v0.5.3-0.20200825041556-5bb96bdf5105/go.mod h1:6pgLsy/uNHEKbwkMNG/IZRWZwz6PsKT3dfSihBrDMAs=
+github.com/renproject/darknode v0.5.3-0.20200827054845-f58cf29b3b3d h1:bg4vYoJ4NF9FTWHTjcGgaPga+oNlORWk2j0SiwScg1k=
+github.com/renproject/darknode v0.5.3-0.20200827054845-f58cf29b3b3d/go.mod h1:6pgLsy/uNHEKbwkMNG/IZRWZwz6PsKT3dfSihBrDMAs=
+github.com/renproject/darknode v0.5.3-0.20200827060210-a730c04b0ad4 h1:4jwnvBtNAtsiw+mHQLCZisY94ZKeVRTUvhFVlpCcx9A=
+github.com/renproject/darknode v0.5.3-0.20200827060210-a730c04b0ad4/go.mod h1:6pgLsy/uNHEKbwkMNG/IZRWZwz6PsKT3dfSihBrDMAs=
+github.com/renproject/darknode v0.5.3-0.20200828055521-59848052844c h1:5CNZVhN43UTLGjw6paBxqOmxfyvGvHajSw6dpBwrJIo=
+github.com/renproject/darknode v0.5.3-0.20200828055521-59848052844c/go.mod h1:6pgLsy/uNHEKbwkMNG/IZRWZwz6PsKT3dfSihBrDMAs=
 github.com/renproject/id v0.4.2 h1:XseNDPPCJtsZjIWR7Qgf+zxy0Gt5xsLrfwpQxJt5wFQ=
 github.com/renproject/id v0.4.2/go.mod h1:bCzV4zZkyWetf0GvhJxMT9HQNnGUwzQpImtXOUXqq0k=
 github.com/renproject/kv v1.1.2 h1:P18yHdDVJTEZ9yeyx6o82ICY1m6f+VdtAt/ouZez+AU=
