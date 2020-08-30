@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/renproject/multichain"
+	"github.com/renproject/multichain/api/gas"
 	"github.com/renproject/multichain/api/utxo"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
@@ -37,22 +38,6 @@ func (b mockBindings) DecodeAddress(chain multichain.Chain, addr multichain.Addr
 	panic("unimplemented")
 }
 
-func (b mockBindings) Phash(chain multichain.Chain, payload pack.Bytes) pack.Bytes32 {
-	panic("unimplemented")
-}
-
-func (b mockBindings) Nhash(chain multichain.Chain, nonce pack.Bytes32, outpoint multichain.UTXOutpoint) pack.Bytes32 {
-	panic("unimplemented")
-}
-
-func (b mockBindings) Ghash(chain multichain.Chain, pHash pack.Bytes32, token, to pack.Bytes, nonce pack.Bytes32) pack.Bytes32 {
-	panic("unimplemented")
-}
-
-func (b mockBindings) Sighash(chain multichain.Chain, phash pack.Bytes32, amount pack.U256, token, to pack.Bytes, nhash pack.Bytes32) (pack.Bytes32, error) {
-	panic("unimplemented")
-}
-
 func (b mockBindings) AccountBurnInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, nonce pack.Bytes32) (amount pack.U256, recipient pack.String, payload pack.Bytes, err error) {
 	return pack.U256{}, "", nil, b.isConfirmed(nonce.String())
 }
@@ -61,7 +46,7 @@ func (b mockBindings) AccountLockInfo(ctx context.Context, chain multichain.Chai
 	panic("unimplemented")
 }
 
-func (b mockBindings) AccountBuildTx(chain multichain.Chain, asset multichain.Asset, from, to multichain.Address, value, nonce pack.U256, payload pack.Bytes) (multichain.AccountTx, error) {
+func (b mockBindings) AccountBuildTx(chain multichain.Chain, asset multichain.Asset, from, to multichain.Address, value, nonce, gasLimit, gasPrice pack.U256, payload pack.Bytes) (multichain.AccountTx, error) {
 	panic("unimplemented")
 }
 
@@ -81,15 +66,11 @@ func (b mockBindings) UTXOSubmitTx(ctx context.Context, chain multichain.Chain, 
 	panic("unimplemented")
 }
 
-func (b mockBindings) UTXOGatewayPubKeyScript(chain multichain.Chain, asset multichain.Asset, gpubkey pack.Bytes, ghash pack.Bytes32) (pack.Bytes, error) {
-	panic("unimplemented")
-}
-
-func (b mockBindings) UTXOGatewayScript(chain multichain.Chain, asset multichain.Asset, gpubkey pack.Bytes, ghash pack.Bytes32) (pack.Bytes, error) {
-	panic("unimplemented")
-}
-
 func (b mockBindings) GasFee(chain multichain.Chain, asset multichain.Asset, gasCost pack.U256) (gasFee pack.U256, err error) {
+	panic("unimplemented")
+}
+
+func (b mockBindings) GasLimit(chain multichain.Chain, asset multichain.Asset, txType gas.TxType) (gasLimit pack.U256, err error) {
 	panic("unimplemented")
 }
 
