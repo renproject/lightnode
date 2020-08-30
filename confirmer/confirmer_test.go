@@ -10,7 +10,6 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/lightnode/confirmer"
 	. "github.com/renproject/lightnode/confirmer"
 
 	"github.com/renproject/darknode/tx/txutil"
@@ -44,7 +43,7 @@ var _ = Describe("Confirmer", func() {
 
 			pollInterval := 2 * time.Second
 			confirmer := New(
-				confirmer.DefaultOptions().
+				DefaultOptions().
 					WithLogger(logger).
 					WithPollInterval(pollInterval).
 					WithExpiry(7*24*time.Hour),
