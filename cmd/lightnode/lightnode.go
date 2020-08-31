@@ -22,6 +22,8 @@ import (
 	"github.com/renproject/darknode"
 	"github.com/renproject/id"
 	"github.com/renproject/lightnode"
+	"github.com/renproject/multichain"
+	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
 )
 
@@ -30,51 +32,10 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	// Parse Lightnode options from environment variables.
-	name := os.Getenv("HEROKU_APP_NAME")
-	options := lightnode.DefaultOptions().
-		WithNetwork(parseNetwork(name)).
-		WithDistPubKey(parsePubKey())
-
-	if os.Getenv("PORT") != "" {
-		options = options.WithPort(os.Getenv("PORT"))
-	}
-	if os.Getenv("CAP") != "" {
-		options = options.WithCap(parseInt("CAP"))
-	}
-	if os.Getenv("MAX_BATCH_SIZE") != "" {
-		options = options.WithMaxBatchSize(parseInt("MAX_BATCH_SIZE"))
-	}
-	if os.Getenv("MAX_PAGE_SIZE") != "" {
-		options = options.WithMaxBatchSize(parseInt("MAX_PAGE_SIZE"))
-	}
-	if os.Getenv("SERVER_TIMEOUT") != "" {
-		options = options.WithServerTimeout(parseTime("SERVER_TIMEOUT"))
-	}
-	if os.Getenv("CLIENT_TIMEOUT") != "" {
-		options = options.WithClientTimeout(parseTime("CLIENT_TIMEOUT"))
-	}
-	if os.Getenv("TTL") != "" {
-		options = options.WithTTL(parseTime("TTL"))
-	}
-	if os.Getenv("UPDATER_POLL_RATE") != "" {
-		options = options.WithUpdaterPollRate(parseTime("UPDATER_POLL_RATE"))
-	}
-	if os.Getenv("CONFIRMER_POLL_RATE") != "" {
-		options = options.WithConfirmerPollRate(parseTime("CONFIRMER_POLL_RATE"))
-	}
-	if os.Getenv("WATCHER_POLL_RATE") != "" {
-		options = options.WithWatcherPollRate(parseTime("WATCHER_POLL_RATE"))
-	}
-	if os.Getenv("EXPIRY") != "" {
-		options = options.WithTransactionExpiry(parseTime("EXPIRY"))
-	}
-	if os.Getenv("ADDRESSES") != "" {
-		options = options.WithBootstrapAddrs(parseAddresses())
-	}
-	// TODO: WithRPCs, WithGateways, WithConfirmations
+	options := parseOptions()
 
 	// Initialise logger and attach Sentry hook.
-	logger := initLogger(name, options.Network)
+	logger := initLogger(os.Getenv("HEROKU_APP_NAME"), options.Network)
 
 	// Initialise the database.
 	driver, dbURL := os.Getenv("DATABASE_DRIVER"), os.Getenv("DATABASE_URL")
@@ -130,7 +91,85 @@ func initRedis() *redis.Client {
 	})
 }
 
-func parseNetwork(appName string) string {
+func parseOptions() lightnode.Options {
+	options := lightnode.DefaultOptions().
+		WithNetwork(parseNetwork("HEROKU_APP_NAME")).
+		WithDistPubKey(parsePubKey("PUB_KEY"))
+
+	// We only want to override the default options if the environment variable
+	// has been specified.
+	if os.Getenv("PORT") != "" {
+		options = options.WithPort(os.Getenv("PORT"))
+	}
+	if os.Getenv("CAP") != "" {
+		options = options.WithCap(parseInt("CAP"))
+	}
+	if os.Getenv("MAX_BATCH_SIZE") != "" {
+		options = options.WithMaxBatchSize(parseInt("MAX_BATCH_SIZE"))
+	}
+	if os.Getenv("MAX_PAGE_SIZE") != "" {
+		options = options.WithMaxBatchSize(parseInt("MAX_PAGE_SIZE"))
+	}
+	if os.Getenv("SERVER_TIMEOUT") != "" {
+		options = options.WithServerTimeout(parseTime("SERVER_TIMEOUT"))
+	}
+	if os.Getenv("CLIENT_TIMEOUT") != "" {
+		options = options.WithClientTimeout(parseTime("CLIENT_TIMEOUT"))
+	}
+	if os.Getenv("TTL") != "" {
+		options = options.WithTTL(parseTime("TTL"))
+	}
+	if os.Getenv("UPDATER_POLL_RATE") != "" {
+		options = options.WithUpdaterPollRate(parseTime("UPDATER_POLL_RATE"))
+	}
+	if os.Getenv("CONFIRMER_POLL_RATE") != "" {
+		options = options.WithConfirmerPollRate(parseTime("CONFIRMER_POLL_RATE"))
+	}
+	if os.Getenv("WATCHER_POLL_RATE") != "" {
+		options = options.WithWatcherPollRate(parseTime("WATCHER_POLL_RATE"))
+	}
+	if os.Getenv("EXPIRY") != "" {
+		options = options.WithTransactionExpiry(parseTime("EXPIRY"))
+	}
+	if os.Getenv("ADDRESSES") != "" {
+		options = options.WithBootstrapAddrs(parseAddresses("ADDRESSES"))
+	}
+
+	rpcs := map[multichain.Chain]pack.String{}
+	if os.Getenv("RPC_BITCOIN") != "" {
+		rpcs[multichain.Bitcoin] = pack.String(os.Getenv("RPC_BITCOIN"))
+	}
+	if os.Getenv("RPC_ETHEREUM") != "" {
+		rpcs[multichain.Bitcoin] = pack.String(os.Getenv("RPC_ETHEREUM"))
+	}
+	options = options.WithRPCs(rpcs)
+
+	gateways := map[multichain.Chain]pack.String{}
+	if os.Getenv("GATEWAY_BINANCE") != "" {
+		gateways[multichain.BinanceSmartChain] = pack.String(os.Getenv("GATEWAY_BINANCE"))
+	}
+	if os.Getenv("GATEWAY_ETHEREUM") != "" {
+		gateways[multichain.Ethereum] = pack.String(os.Getenv("GATEWAY_ETHEREUM"))
+	}
+	options = options.WithGateways(gateways)
+
+	confirmations := map[multichain.Chain]pack.U64{}
+	if os.Getenv("CONFIRMATIONS_BINANCE") != "" {
+		confirmations[multichain.BinanceSmartChain] = pack.U64(parseInt(os.Getenv("CONFIRMATIONS_BINANCE")))
+	}
+	if os.Getenv("CONFIRMATIONS_BITCOIN") != "" {
+		confirmations[multichain.Bitcoin] = pack.U64(parseInt(os.Getenv("CONFIRMATIONS_BITCOIN")))
+	}
+	if os.Getenv("CONFIRMATIONS_ETHEREUM") != "" {
+		confirmations[multichain.Ethereum] = pack.U64(parseInt(os.Getenv("CONFIRMATIONS_ETHEREUM")))
+	}
+	options = options.WithConfirmations(confirmations)
+
+	return options
+}
+
+func parseNetwork(name string) string {
+	appName := os.Getenv(name)
 	if strings.Contains(appName, "devnet") {
 		return darknode.Devnet
 	}
@@ -159,8 +198,8 @@ func parseTime(name string) time.Duration {
 	return time.Duration(duration) * time.Second
 }
 
-func parseAddresses() []wire.Address {
-	addrStrings := strings.Split(os.Getenv("ADDRESSES"), ",")
+func parseAddresses(name string) []wire.Address {
+	addrStrings := strings.Split(os.Getenv(name), ",")
 	addrs := make([]wire.Address, len(addrStrings))
 	for i := range addrs {
 		addr, err := wire.DecodeString(addrStrings[i])
@@ -172,8 +211,8 @@ func parseAddresses() []wire.Address {
 	return addrs
 }
 
-func parsePubKey() *id.PubKey {
-	pubKeyString := os.Getenv("PUB_KEY")
+func parsePubKey(name string) *id.PubKey {
+	pubKeyString := os.Getenv(name)
 	keyBytes, err := hex.DecodeString(pubKeyString)
 	if err != nil {
 		panic(fmt.Sprintf("invalid distributed public key %v: %v", pubKeyString, err))
