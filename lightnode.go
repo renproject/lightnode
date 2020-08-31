@@ -126,6 +126,9 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	for chain, contracts := range ethCompatContracts {
 		for asset, bindings := range contracts {
 			selector := tx.Selector(fmt.Sprintf("%v/from%v", asset, chain))
+			if watchers[chain] == nil {
+				watchers[chain] = map[multichain.Asset]watcher.Watcher{}
+			}
 			watchers[chain][asset] = watcher.NewWatcher(logger, selector, ethCompatClients[chain], bindings, resolver, client, options.WatcherPollRate)
 		}
 	}
