@@ -1,8 +1,8 @@
 package db_test
 
-/* import (
+import (
 	"database/sql"
-	"fmt"
+	"math/rand"
 	"os"
 	"testing/quick"
 	"time"
@@ -15,8 +15,9 @@ package db_test
 	. "github.com/renproject/lightnode/db"
 	. "github.com/renproject/lightnode/testutils"
 
-	"github.com/renproject/darknode/abi"
-	"github.com/renproject/darknode/testutil"
+	"github.com/renproject/darknode/tx"
+	"github.com/renproject/darknode/tx/txutil"
+	"github.com/renproject/pack"
 )
 
 const (
@@ -49,33 +50,27 @@ var _ = Describe("Lightnode db", func() {
 		return sqlDB
 	}
 
-	cleanup := func(db *sql.DB) {
-		shiftin := "DROP TABLE IF EXISTS shiftin;"
-		_, err := db.Exec(shiftin)
-		Expect(err).NotTo(HaveOccurred())
-
-		shiftout := "DROP TABLE IF EXISTS shiftout;"
-		_, err = db.Exec(shiftout)
-		Expect(err).NotTo(HaveOccurred())
-
+	close := func(db *sql.DB) {
 		Expect(db.Close()).Should(Succeed())
 	}
 
-	dropTables := func(db *sql.DB, names ...string) {
-		for _, name := range names {
-			script := fmt.Sprintf("DROP TABLE %v;", name)
-			_, err := db.Exec(script)
-			Expect(err).NotTo(HaveOccurred())
-		}
+	cleanUp := func(db *sql.DB) {
+		dropLockAndMint := "DROP TABLE IF EXISTS lock_and_mint;"
+		_, err := db.Exec(dropLockAndMint)
+		Expect(err).NotTo(HaveOccurred())
+
+		dropBurnAndRelease := "DROP TABLE IF EXISTS burn_and_release;"
+		_, err = db.Exec(dropBurnAndRelease)
+		Expect(err).NotTo(HaveOccurred())
+
+		dropBurnAndMint := "DROP TABLE IF EXISTS burn_and_mint;"
+		_, err = db.Exec(dropBurnAndMint)
+		Expect(err).NotTo(HaveOccurred())
 	}
 
-	untransform := func(tx abi.Tx) abi.Tx {
-		if abi.IsShiftIn(tx.To) {
-			tx.Autogen = nil
-		} else {
-			tx.In = abi.Args{tx.In.Get("ref")}
-		}
-		return tx
+	destroy := func(db *sql.DB) {
+		cleanUp(db)
+		close(db)
 	}
 
 	BeforeSuite(func() {
@@ -89,45 +84,48 @@ var _ = Describe("Lightnode db", func() {
 	for _, dbname := range testDBs {
 		dbname := dbname
 		Context(dbname, func() {
-			Context("when initializing the db", func() {
-				It("should create tables for both shiftIn and shiftOut if not exist", func() {
+			Context("when initialising the db", func() {
+				It("should create tables if they do not exist", func() {
 					sqlDB := init(dbname)
-					defer cleanup(sqlDB)
+					defer destroy(sqlDB)
 					db := New(sqlDB)
 
-					// table should not exist before creation
-					Expect(CheckTableExistence(dbname, "shift_in", sqlDB)).Should(HaveOccurred())
-					Expect(CheckTableExistence(dbname, "shift_out", sqlDB)).Should(HaveOccurred())
+					// Tables should not exist before creation.
+					Expect(CheckTableExistence(dbname, "lock_and_mint", sqlDB)).Should(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "burn_and_release", sqlDB)).Should(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "burn_and_mint", sqlDB)).Should(HaveOccurred())
 
-					// table should exist after creation
+					// Tables should exist after creation.
 					Expect(db.Init()).To(Succeed())
-					Expect(CheckTableExistence(dbname, "shift_in", sqlDB)).NotTo(HaveOccurred())
-					Expect(CheckTableExistence(dbname, "shift_out", sqlDB)).NotTo(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "lock_and_mint", sqlDB)).NotTo(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "burn_and_release", sqlDB)).NotTo(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "burn_and_mint", sqlDB)).NotTo(HaveOccurred())
 
-					// Multiple call of the creation function should not have any effect on existing table.
+					// Multiple calls of the creation function should not have
+					// any effect on the existing tables.
 					Expect(db.Init()).To(Succeed())
-					Expect(CheckTableExistence(dbname, "shift_in", sqlDB)).NotTo(HaveOccurred())
-					Expect(CheckTableExistence(dbname, "shift_out", sqlDB)).NotTo(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "lock_and_mint", sqlDB)).NotTo(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "burn_and_release", sqlDB)).NotTo(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "burn_and_mint", sqlDB)).NotTo(HaveOccurred())
 				})
 			})
 
 			Context("when interacting with db", func() {
 				It("should be able to read and write tx", func() {
 					sqlDB := init(dbname)
-					defer cleanup(sqlDB)
+					defer close(sqlDB)
 					db := New(sqlDB)
 
+					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
-						tx := testutil.RandomTransformedTx()
-						Expect(db.InsertTx(tx, abi.B32{}, true)).Should(Succeed())
-						_tx, err := db.Tx(tx.Hash, true)
+						defer cleanUp(sqlDB)
+						transaction := txutil.RandomGoodTx(r)
+						transaction.Output = nil
+						Expect(db.InsertTx(transaction)).Should(Succeed())
+						newTransaction, err := db.Tx(transaction.Hash)
 						Expect(err).NotTo(HaveOccurred())
-						Expect(tx).Should(Equal(_tx))
-						_tx, err = db.Tx(tx.Hash, false)
-						Expect(err).NotTo(HaveOccurred())
-						Expect(untransform(tx)).Should(Equal(_tx))
+						Expect(transaction).Should(Equal(newTransaction))
 						return true
 					}
 
@@ -138,18 +136,20 @@ var _ = Describe("Lightnode db", func() {
 			Context("when querying pending tx", func() {
 				It("should return all txs which are not confirmed", func() {
 					sqlDB := init(dbname)
-					defer cleanup(sqlDB)
+					defer close(sqlDB)
 					db := New(sqlDB)
 
+					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
+						defer cleanUp(sqlDB)
 
-						txs := map[abi.B32]abi.Tx{}
+						txs := map[pack.Bytes32]tx.Tx{}
 						for i := 0; i < 50; i++ {
-							tx := testutil.RandomTransformedTx()
-							txs[tx.Hash] = tx
-							Expect(db.InsertTx(tx, abi.B32{}, true)).To(Succeed())
+							transaction := txutil.RandomGoodTx(r)
+							transaction.Output = nil
+							txs[transaction.Hash] = transaction
+							Expect(db.InsertTx(transaction)).To(Succeed())
 						}
 
 						pendingTxs, err := db.PendingTxs(time.Hour)
@@ -158,11 +158,12 @@ var _ = Describe("Lightnode db", func() {
 						for _, tx := range pendingTxs {
 							originTx, ok := txs[tx.Hash]
 							Expect(ok).Should(BeTrue())
-							Expect(untransform(originTx)).Should(Equal(tx))
+							Expect(originTx).Should(Equal(tx))
 							delete(txs, tx.Hash)
 						}
 
-						return len(txs) == 0
+						Expect(txs).To(HaveLen(0))
+						return true
 					}
 
 					Expect(quick.Check(test, &quick.Config{MaxCount: 10})).NotTo(HaveOccurred())
@@ -170,91 +171,25 @@ var _ = Describe("Lightnode db", func() {
 
 				It("should not return txs which added more than 24 hours ago", func() {
 					sqlDB := init(dbname)
-					defer sqlDB.Close()
+					defer close(sqlDB)
 					db := New(sqlDB)
 
+					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
+						defer cleanUp(sqlDB)
 
 						for i := 0; i < 50; i++ {
-							tx := testutil.RandomTransformedTx()
-							Expect(db.InsertTx(tx, abi.B32{}, true)).To(Succeed())
-							Expect(UpdateTxCreatedTime(sqlDB, "shift_in", tx.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
-							Expect(UpdateTxCreatedTime(sqlDB, "shift_out", tx.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
+							transaction := txutil.RandomGoodTx(r)
+							Expect(db.InsertTx(transaction)).To(Succeed())
+							Expect(UpdateTxCreatedTime(sqlDB, "lock_and_mint", transaction.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
+							Expect(UpdateTxCreatedTime(sqlDB, "burn_and_release", transaction.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
+							Expect(UpdateTxCreatedTime(sqlDB, "burn_and_mint", transaction.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
 						}
 						pendingTxs, err := db.PendingTxs(time.Hour)
 						Expect(err).NotTo(HaveOccurred())
-						return len(pendingTxs) == 0
-					}
-
-					Expect(quick.Check(test, &quick.Config{MaxCount: 10})).NotTo(HaveOccurred())
-				})
-			})
-
-			Context("when querying unsubmitted txs", func() {
-				It("should only return confirmed txs with payload", func() {
-					sqlDB := init(dbname)
-					defer cleanup(sqlDB)
-					db := New(sqlDB)
-
-					test := func() bool {
-						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
-
-						txs := map[abi.B32]abi.Tx{}
-						for i := 0; i < 50; i++ {
-							tx := testutil.RandomTransformedMintingTx("")
-							Expect(db.InsertTx(tx, abi.B32{}, true)).To(Succeed())
-
-							p := tx.In.Get("p")
-							if !p.IsNil() {
-								txs[tx.Hash] = tx
-								Expect(db.UpdateStatus(tx.Hash, TxStatusConfirmed)).Should(Succeed())
-							}
-						}
-						unsubmitted, err := db.UnsubmittedTxs(time.Hour)
-						Expect(err).NotTo(HaveOccurred())
-						for _, hash := range unsubmitted {
-							_, ok := txs[hash]
-							Expect(ok).Should(BeTrue())
-							delete(txs, hash)
-						}
-
-						return len(txs) == 0
-					}
-
-					Expect(quick.Check(test, &quick.Config{MaxCount: 10})).NotTo(HaveOccurred())
-				})
-			})
-
-			Context("when querying shiftIns with given status", func() {
-				It("should only return txs with required status", func() {
-					sqlDB := init(dbname)
-					defer cleanup(sqlDB)
-					db := New(sqlDB)
-
-					test := func() bool {
-						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
-
-						txs := map[abi.B32]abi.Tx{}
-						for i := 0; i < 50; i++ {
-							tx := testutil.RandomTransformedMintingTx("")
-							Expect(db.InsertTx(tx, abi.B32{}, true)).To(Succeed())
-							txs[tx.Hash] = tx
-							Expect(db.UpdateStatus(tx.Hash, TxStatusConfirmed)).Should(Succeed())
-						}
-						shiftIns, err := db.ShiftIns(TxStatusConfirmed, time.Hour, "")
-						Expect(err).NotTo(HaveOccurred())
-						for _, tx := range shiftIns {
-							stored, ok := txs[tx.Hash]
-							Expect(ok).Should(BeTrue())
-							Expect(stored).Should(Equal(tx))
-							delete(txs, tx.Hash)
-						}
-
-						return len(txs) == 0
+						Expect(pendingTxs).To(HaveLen(0))
+						return true
 					}
 
 					Expect(quick.Check(test, &quick.Config{MaxCount: 10})).NotTo(HaveOccurred())
@@ -264,21 +199,22 @@ var _ = Describe("Lightnode db", func() {
 			Context("when updating tx status", func() {
 				It("should returned the latest status of the tx", func() {
 					sqlDB := init(dbname)
-					defer cleanup(sqlDB)
+					defer close(sqlDB)
 					db := New(sqlDB)
 
+					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
+						defer cleanUp(sqlDB)
 
-						txs := map[abi.B32]abi.Tx{}
+						txs := map[pack.Bytes32]tx.Tx{}
 						for i := 0; i < 50; i++ {
-							tx := testutil.RandomTransformedTx()
-							txs[tx.Hash] = tx
-							Expect(db.InsertTx(tx, abi.B32{}, true)).To(Succeed())
-							Expect(db.UpdateStatus(tx.Hash, TxStatusConfirmed)).To(Succeed())
+							transaction := txutil.RandomGoodTx(r)
+							txs[transaction.Hash] = transaction
+							Expect(db.InsertTx(transaction)).To(Succeed())
+							Expect(db.UpdateStatus(transaction.Hash, TxStatusConfirmed)).To(Succeed())
 
-							status, err := db.TxStatus(tx.Hash)
+							status, err := db.TxStatus(transaction.Hash)
 							Expect(err).NotTo(HaveOccurred())
 							Expect(status).Should(Equal(TxStatusConfirmed))
 						}
@@ -293,130 +229,43 @@ var _ = Describe("Lightnode db", func() {
 			Context("when pruning the db", func() {
 				It("should only prune data which is expired", func() {
 					sqlDB := init(dbname)
-					defer sqlDB.Close()
+					defer close(sqlDB)
 					db := New(sqlDB)
 
+					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
+						defer cleanUp(sqlDB)
 
-						shiftIn := testutil.RandomTransformedMintingTx("")
-						shiftOut := testutil.RandomTransformedBurningTx("")
-						Expect(db.InsertTx(shiftIn, abi.B32{}, true)).To(Succeed())
-						Expect(db.InsertTx(shiftOut, abi.B32{}, true)).To(Succeed())
+						transaction := txutil.RandomGoodTx(r)
+						Expect(db.InsertTx(transaction)).To(Succeed())
 
-						// Expect no data gets pruned when they are not expired
+						// Ensure no data gets pruned before it is expired.
 						Expect(db.Prune(5 * time.Second)).Should(Succeed())
-						numShiftIn, err := NumOfDataEntries(sqlDB, "shift_in")
+						numLockAndMint, err := NumOfDataEntries(sqlDB, "lock_and_mint")
 						Expect(err).NotTo(HaveOccurred())
-						Expect(numShiftIn).Should(Equal(1))
-						numShiftOut, err := NumOfDataEntries(sqlDB, "shift_out")
+						numBurnAndRelease, err := NumOfDataEntries(sqlDB, "burn_and_release")
 						Expect(err).NotTo(HaveOccurred())
-						Expect(numShiftOut).Should(Equal(1))
+						numBurnAndMint, err := NumOfDataEntries(sqlDB, "burn_and_mint")
+						Expect(err).NotTo(HaveOccurred())
+						Expect(numLockAndMint + numBurnAndRelease + numBurnAndMint).Should(Equal(1))
 
-						// Expect data gets prunes when they are expired
-						Expect(UpdateTxCreatedTime(sqlDB, "shift_in", shiftIn.Hash, time.Now().Unix()-5)).Should(Succeed())
-						Expect(UpdateTxCreatedTime(sqlDB, "shift_out", shiftOut.Hash, time.Now().Unix()-5)).Should(Succeed())
+						// Ensure data gets pruned once it has expired.
+						Expect(UpdateTxCreatedTime(sqlDB, "lock_and_mint", transaction.Hash, time.Now().Unix()-5)).Should(Succeed())
+						Expect(UpdateTxCreatedTime(sqlDB, "burn_and_release", transaction.Hash, time.Now().Unix()-5)).Should(Succeed())
+						Expect(UpdateTxCreatedTime(sqlDB, "burn_and_mint", transaction.Hash, time.Now().Unix()-5)).Should(Succeed())
 						Expect(db.Prune(time.Second)).Should(Succeed())
-						numShiftIn, err = NumOfDataEntries(sqlDB, "shift_in")
+						numLockAndMint, err = NumOfDataEntries(sqlDB, "lock_and_mint")
 						Expect(err).NotTo(HaveOccurred())
-						Expect(numShiftIn).Should(BeZero())
-						numShiftInAutogen, err := NumOfDataEntries(sqlDB, "shift_in_autogen")
+						Expect(numLockAndMint).Should(BeZero())
+						numBurnAndRelease, err = NumOfDataEntries(sqlDB, "burn_and_release")
 						Expect(err).NotTo(HaveOccurred())
-						Expect(numShiftInAutogen).Should(BeZero())
-						numShiftOut, err = NumOfDataEntries(sqlDB, "shift_out")
+						Expect(numBurnAndRelease).Should(BeZero())
+						numBurnAndMint, err = NumOfDataEntries(sqlDB, "burn_and_mint")
 						Expect(err).NotTo(HaveOccurred())
-						Expect(numShiftOut).Should(BeZero())
+						Expect(numBurnAndMint).Should(BeZero())
 
 						return true
-					}
-
-					Expect(quick.Check(test, &quick.Config{MaxCount: 10})).NotTo(HaveOccurred())
-				})
-			})
-
-			Context("when querying txs with a given tag", func() {
-				It("should return the correct txs", func() {
-					sqlDB := init(dbname)
-					defer cleanup(sqlDB)
-					db := New(sqlDB)
-
-					test := func(tag abi.B32) bool {
-						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
-
-						pageSize := 2
-						firstPage := map[abi.B32]abi.Tx{}
-						secondPage := map[abi.B32]abi.Tx{}
-						for i := 0; i < 2*pageSize; i++ {
-							tx := testutil.RandomTransformedMintingTx("")
-							Expect(db.InsertTx(tx, tag, true)).To(Succeed())
-
-							if i < pageSize {
-								firstPage[tx.Hash] = tx
-							} else {
-								secondPage[tx.Hash] = tx
-							}
-
-							// Sleep to ensure the timestamps are different.
-							time.Sleep(time.Second)
-						}
-
-						// Validate the first page.
-						matchingTxs, err := db.Txs(tag, 0, uint64(pageSize))
-						Expect(err).NotTo(HaveOccurred())
-						Expect(len(matchingTxs)).Should(Equal(pageSize))
-
-						for _, tx := range matchingTxs {
-							stored, ok := firstPage[tx.Hash]
-							Expect(ok).Should(BeTrue())
-							Expect(untransform(stored)).Should(Equal(tx))
-							delete(firstPage, tx.Hash)
-						}
-
-						Expect(len(firstPage)).To(Equal(0))
-
-						// Validate the second page.
-						matchingTxs, err = db.Txs(tag, 1, uint64(pageSize))
-						Expect(err).NotTo(HaveOccurred())
-						Expect(len(matchingTxs)).Should(Equal(pageSize))
-
-						for _, tx := range matchingTxs {
-							stored, ok := secondPage[tx.Hash]
-							Expect(ok).Should(BeTrue())
-							Expect(untransform(stored)).Should(Equal(tx))
-							delete(secondPage, tx.Hash)
-						}
-
-						Expect(len(secondPage)).To(Equal(0))
-
-						// Validate the third page.
-						matchingTxs, err = db.Txs(tag, 2, uint64(pageSize))
-						Expect(err).NotTo(HaveOccurred())
-						Expect(len(matchingTxs)).Should(Equal(0))
-
-						return true
-					}
-
-					Expect(quick.Check(test, &quick.Config{MaxCount: 3})).NotTo(HaveOccurred())
-				})
-			})
-
-			Context("when querying txs with a non-existent tag", func() {
-				It("should return no txs", func() {
-					sqlDB := init(dbname)
-					defer cleanup(sqlDB)
-					db := New(sqlDB)
-
-					test := func(tag abi.B32) bool {
-						Expect(db.Init()).Should(Succeed())
-						defer dropTables(sqlDB, "shift_in_autogen", "shift_in", "shift_out")
-
-						// Validate the third page.
-						matchingTxs, err := db.Txs(tag, 0, 10)
-						Expect(err).NotTo(HaveOccurred())
-
-						return len(matchingTxs) == 0
 					}
 
 					Expect(quick.Check(test, &quick.Config{MaxCount: 10})).NotTo(HaveOccurred())
@@ -424,4 +273,4 @@ var _ = Describe("Lightnode db", func() {
 			})
 		})
 	}
-}) */
+})

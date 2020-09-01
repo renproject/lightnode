@@ -1,6 +1,6 @@
 package updater_test
 
-/* import (
+import (
 	"context"
 	"net/http/httptest"
 	"time"
@@ -9,14 +9,14 @@ package updater_test
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/testutils"
 
-	"github.com/renproject/darknode/addr"
+	"github.com/renproject/aw/wire"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/updater"
 	"github.com/sirupsen/logrus"
 )
 
-func initUpdater(ctx context.Context, bootstrapAddrs addr.MultiAddresses, pollRate, timeout time.Duration) store.MultiAddrStore {
+func initUpdater(ctx context.Context, bootstrapAddrs []wire.Address, pollRate, timeout time.Duration) store.MultiAddrStore {
 	logger := logrus.New()
 	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), bootstrapAddrs)
 	for _, addr := range bootstrapAddrs {
@@ -46,7 +46,7 @@ var _ = Describe("Updater", func() {
 			defer cancel()
 
 			darknodes := initDarknodes(13)
-			multis := make([]addr.MultiAddress, 13)
+			multis := make([]wire.Address, 13)
 			for i := range multis {
 				multis[i] = darknodes[i].Me
 				defer darknodes[i].Close()
@@ -59,4 +59,4 @@ var _ = Describe("Updater", func() {
 			}, 5*time.Second).Should(Equal(13))
 		})
 	})
-}) */
+})

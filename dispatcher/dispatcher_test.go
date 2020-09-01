@@ -1,6 +1,6 @@
 package dispatcher_test
 
-/* import (
+import (
 	"context"
 	"net/http/httptest"
 	"net/url"
@@ -10,7 +10,7 @@ package dispatcher_test
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/testutils"
 
-	"github.com/renproject/darknode/addr"
+	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/dispatcher"
@@ -20,7 +20,7 @@ package dispatcher_test
 	"github.com/sirupsen/logrus"
 )
 
-func initDispatcher(ctx context.Context, bootstrapAddrs addr.MultiAddresses, timeout time.Duration) phi.Sender {
+func initDispatcher(ctx context.Context, bootstrapAddrs []wire.Address, timeout time.Duration) phi.Sender {
 	opts := phi.Options{Cap: 10}
 	logger := logrus.New()
 	table := kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses")
@@ -49,7 +49,7 @@ var _ = Describe("Dispatcher", func() {
 			defer cancel()
 
 			darknodes := initDarknodes(13)
-			multis := make([]addr.MultiAddress, 13)
+			multis := make([]wire.Address, 13)
 			for i := range multis {
 				multis[i] = darknodes[i].Me
 				defer darknodes[i].Close()
@@ -67,4 +67,4 @@ var _ = Describe("Dispatcher", func() {
 			}
 		})
 	})
-}) */
+})

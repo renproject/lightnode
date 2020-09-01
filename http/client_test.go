@@ -1,6 +1,6 @@
 package http_test
 
-/* import (
+import (
 	"context"
 	"net/http/httptest"
 	"testing/quick"
@@ -67,4 +67,4 @@ var _ = Describe("Client", func() {
 			Expect(err).Should(HaveOccurred())
 		})
 	})
-}) */
+})

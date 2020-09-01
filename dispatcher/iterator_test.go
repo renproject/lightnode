@@ -1,6 +1,6 @@
 package dispatcher_test
 
-/* import (
+import (
 	"context"
 	"encoding/json"
 	"math/rand"
@@ -24,9 +24,9 @@ var _ = Describe("iterator", func() {
 				responses := make(chan jsonrpc.Response, 13)
 				ctx, cancel := context.WithCancel(context.Background())
 
-				// Simulate piping Responses from darknodes to the channel
+				// Simulate piping responses from Darknodes to the channel.
 				rs := make([]jsonrpc.Response, 13)
-				index := rand.Intn(13) // index of darknode which returns a success response
+				index := rand.Intn(13) // Index of the Darknode which returns a successful response.
 				for i := 0; i < 13; i++ {
 					data, err := json.Marshal(i)
 					Expect(err).NotTo(HaveOccurred())
@@ -35,11 +35,11 @@ var _ = Describe("iterator", func() {
 					responses <- response
 				}
 
-				// Get the response selected by the Iterator
+				// Collect the response selected by the iterator.
 				res := iter.Collect(0.0, cancel, responses)
 				Expect(res).Should(Equal(rs[index]))
 
-				// Context should be canceled by the iterator
+				// Ensure the context is canceled by the iterator.
 				_, ok := <-ctx.Done()
 				Expect(ok).Should(BeFalse())
 				return len(responses) == (12 - index)
@@ -55,18 +55,18 @@ var _ = Describe("iterator", func() {
 				responses := make(chan jsonrpc.Response, 13)
 				ctx, cancel := context.WithCancel(context.Background())
 
-				// Simulate piping Responses from darknodes to the channel
+				// Simulate piping responses from Darknodes to the channel.
 				for i := 0; i < 13; i++ {
 					response := RandomResponse(false, nil)
 					responses <- response
 				}
 				close(responses)
 
-				// Get the response selected by the Iterator
+				// Collect the response selected by the iterator.
 				response := iter.Collect(0.0, cancel, responses)
 				Expect(response.Error).ShouldNot(BeNil())
 
-				// Context should be canceled by the iterator
+				// Ensure the context is canceled by the iterator.
 				_, ok := <-ctx.Done()
 				Expect(ok).Should(BeFalse())
 				return len(responses) == 0
@@ -83,7 +83,7 @@ var _ = Describe("iterator", func() {
 				_, cancel := context.WithCancel(context.Background())
 				close(responses)
 
-				// Get the response selected by the Iterator
+				// Collect the response selected by the iterator.
 				response := iter.Collect(0.0, cancel, responses)
 				return response.Error != nil
 			}
@@ -100,7 +100,7 @@ var _ = Describe("iterator", func() {
 				responses := make(chan jsonrpc.Response, 13)
 				ctx, cancel := context.WithCancel(context.Background())
 
-				// Simulate piping Responses from darknodes to the channel
+				// Simulate piping responses from Darknodes to the channel.
 				for i := 0; i < 13; i++ {
 					if i > 4 {
 						data, err := json.Marshal(0)
@@ -114,11 +114,11 @@ var _ = Describe("iterator", func() {
 				}
 				close(responses)
 
-				// Get the response selected by the Iterator
+				// Collect the response selected by the iterator.
 				res := iter.Collect(0.0, cancel, responses)
 				Expect(res.Error).Should(BeNil())
 
-				// Context should be canceled by the iterator
+				// Ensure the context is canceled by the iterator.
 				_, ok := <-ctx.Done()
 				Expect(ok).Should(BeFalse())
 				return len(responses) == 0
@@ -134,17 +134,17 @@ var _ = Describe("iterator", func() {
 				responses := make(chan jsonrpc.Response, 13)
 				ctx, cancel := context.WithCancel(context.Background())
 
-				// Simulate piping Responses from darknodes to the channel
+				// Simulate piping responses from Darknodes to the channel.
 				for i := 0; i < 13; i++ {
 					response := RandomResponse(false, nil)
 					responses <- response
 				}
 
-				// Get the response selected by the Iterator
+				// Collect the response selected by the iterator.
 				res := iter.Collect(0.0, cancel, responses)
 				Expect(res.Error).ShouldNot(BeNil())
 
-				// Context should be canceled by the iterator
+				// Ensure the context is canceled by the iterator.
 				_, ok := <-ctx.Done()
 				Expect(ok).Should(BeFalse())
 				return true
@@ -162,7 +162,7 @@ var _ = Describe("iterator", func() {
 
 				close(responses)
 
-				// Get the response selected by the Iterator
+				// Collect the response selected by the iterator.
 				response := iter.Collect(0.0, cancel, responses)
 				return response.Error != nil
 			}
@@ -170,4 +170,4 @@ var _ = Describe("iterator", func() {
 			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
 		})
 	})
-}) */
+})

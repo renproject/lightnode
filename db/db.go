@@ -78,11 +78,11 @@ func (db database) Init() error {
 	// Create the lock-and-mint table if it does not exist.
 	lockAndMint := `CREATE TABLE IF NOT EXISTS lock_and_mint (
 		hash          VARCHAR NOT NULL PRIMARY KEY,
-		status        INT,
-		created_time  INT,
+		status        SMALLINT,
+		created_time  BIGINT,
 		selector      VARCHAR(255),
 		utxo_hash     VARCHAR,
-		utxo_index    INT,
+		utxo_index    BIGINT,
 		value         VARCHAR(100),
 		pubkey_script VARCHAR,
 		payload       VARCHAR,
@@ -102,8 +102,8 @@ func (db database) Init() error {
 	// Create the burn-and-release table if not exist.
 	burnAndRelease := `CREATE TABLE IF NOT EXISTS burn_and_release (
 		hash         VARCHAR NOT NULL PRIMARY KEY,
-		status       INT,
-		created_time INT,
+		status       SMALLINT,
+		created_time BIGINT,
 		selector     VARCHAR(255),
 		amount       VARCHAR(100),
 		toAddr       VARCHAR,
@@ -114,8 +114,8 @@ func (db database) Init() error {
 	// Create the burn-and-mint table if not exist.
 	burnAndMint := `CREATE TABLE IF NOT EXISTS burn_and_mint (
 		hash         VARCHAR NOT NULL PRIMARY KEY,
-		status       INT,
-		created_time INT,
+		status       SMALLINT,
+		created_time BIGINT,
 		selector     VARCHAR(255), 
 		amount       VARCHAR(100),
 		payload      VARCHAR,

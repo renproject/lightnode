@@ -2,7 +2,6 @@ package testutils
 
 import (
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -51,9 +50,8 @@ func NumOfDataEntries(db *sql.DB, name string) (int, error) {
 }
 
 // UpdateTxCreatedTime of given tx hash.
-func UpdateTxCreatedTime(db *sql.DB, name string, hash pack.Bytes32, createdTime int64) error {
-	txHash := hex.EncodeToString(hash[:])
+func UpdateTxCreatedTime(db *sql.DB, name string, txHash pack.Bytes32, createdTime int64) error {
 	script := fmt.Sprintf("UPDATE %v set created_time = %v where hash = $1;", name, createdTime)
-	_, err := db.Exec(script, txHash)
+	_, err := db.Exec(script, txHash.String())
 	return err
 }
