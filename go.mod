@@ -25,10 +25,10 @@ require (
 	github.com/onsi/gomega v1.10.1
 	github.com/prometheus/tsdb v0.10.0 // indirect
 	github.com/renproject/aw v0.4.0-9
-	github.com/renproject/darknode v0.5.3-0.20200902114717-3dea0f79c6c3
+	github.com/renproject/darknode v0.5.3-0.20200904052945-d4f98c4c2a31
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
-	github.com/renproject/multichain v0.2.4
+	github.com/renproject/multichain v0.2.5
 	github.com/renproject/pack v0.2.3
 	github.com/renproject/phi v0.1.0
 	github.com/rjeczalik/notify v0.9.2 // indirect

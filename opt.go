@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"github.com/renproject/aw/wire"
+	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/id"
 	"github.com/renproject/lightnode/confirmer"
 	"github.com/renproject/multichain"
-	"github.com/renproject/pack"
 )
 
 // Enumerate default options.
@@ -24,14 +24,11 @@ var (
 	DefaultWatcherPollRate   = 15 * time.Second
 	DefaultTransactionExpiry = confirmer.DefaultExpiry
 	DefaultBootstrapAddrs    = []wire.Address{}
-	DefaultRPCs              = map[multichain.Chain]pack.String{}
-	DefaultGateways          = map[multichain.Chain]pack.String{}
-	DefaultConfirmations     = map[multichain.Chain]pack.U64{}
 )
 
 // Options to configure the precise behaviour of the Lightnode.
 type Options struct {
-	Network           string
+	Network           multichain.Network
 	DistPubKey        *id.PubKey
 	Port              string
 	Cap               int
@@ -45,9 +42,7 @@ type Options struct {
 	WatcherPollRate   time.Duration
 	TransactionExpiry time.Duration
 	BootstrapAddrs    []wire.Address
-	RPCs              map[multichain.Chain]pack.String
-	Gateways          map[multichain.Chain]pack.String
-	Confirmations     map[multichain.Chain]pack.U64
+	Chains            map[multichain.Chain]txenginebindings.ChainOptions
 }
 
 // DefaultOptions returns new options with default configurations that should
@@ -66,14 +61,11 @@ func DefaultOptions() Options {
 		WatcherPollRate:   DefaultWatcherPollRate,
 		TransactionExpiry: DefaultTransactionExpiry,
 		BootstrapAddrs:    DefaultBootstrapAddrs,
-		RPCs:              DefaultRPCs,
-		Gateways:          DefaultGateways,
-		Confirmations:     DefaultConfirmations,
 	}
 }
 
 // WithNetwork updates the network.
-func (opts Options) WithNetwork(network string) Options {
+func (opts Options) WithNetwork(network multichain.Network) Options {
 	opts.Network = network
 	return opts
 }
@@ -159,21 +151,8 @@ func (opts Options) WithBootstrapAddrs(bootstrapAddrs []wire.Address) Options {
 	return opts
 }
 
-// WithRPCs sets the RPC URLs for each chain.
-func (opts Options) WithRPCs(rpcs map[multichain.Chain]pack.String) Options {
-	opts.RPCs = rpcs
-	return opts
-}
-
-// WithGateways sets the gateway registry contract addresses for each host
-// chain.
-func (opts Options) WithGateways(gateways map[multichain.Chain]pack.String) Options {
-	opts.Gateways = gateways
-	return opts
-}
-
-// WithConfirmations sets the minimum required confirmations for each chain.
-func (opts Options) WithConfirmations(confs map[multichain.Chain]pack.U64) Options {
-	opts.Confirmations = confs
+// WithChains is used to specify the chain options for a the supported chains.
+func (opts Options) WithChains(chains map[multichain.Chain]txenginebindings.ChainOptions) Options {
+	opts.Chains = chains
 	return opts
 }

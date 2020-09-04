@@ -6,8 +6,6 @@ import (
 	"fmt"
 
 	"github.com/go-redis/redis/v7"
-	"github.com/renproject/darknode"
-	"github.com/renproject/darknode/darknodeutil"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/txengine"
@@ -23,8 +21,6 @@ import (
 	"github.com/renproject/lightnode/updater"
 	"github.com/renproject/lightnode/watcher"
 	"github.com/renproject/multichain"
-	"github.com/renproject/multichain/api/gas"
-	"github.com/renproject/multichain/chain/ethereum"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -48,7 +44,7 @@ type Lightnode struct {
 // New constructs a new Lightnode.
 func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB *sql.DB, client *redis.Client) Lightnode {
 	switch options.Network {
-	case darknode.Mainnet, darknode.Testnet, darknode.Devnet:
+	case multichain.NetworkMainnet, multichain.NetworkTestnet, multichain.NetworkLocalnet:
 	default:
 		panic("unknown network")
 	}
@@ -82,35 +78,41 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	multiStore := store.New(table, options.BootstrapAddrs)
 
 	// Initialise the blockchain adapter.
-	ethCompatClients, ethCompatContracts, accountTxBuilders, accountGasEstimators := darknodeutil.SetupTxengineAccountBindings(options.RPCs, options.Gateways)
-	utxoCompatClients, utxoTxBuilders, utxoGasEstimators := darknodeutil.SetupTxengineUTXOBindings()
-	gasEstimators := make(map[multichain.Chain]gas.Estimator, len(accountGasEstimators)+len(utxoGasEstimators))
-	for k, v := range accountGasEstimators {
-		gasEstimators[k] = v
+	bindingsOpts := txenginebindings.DefaultOptions().
+		WithNetwork(options.Network)
+	for chain, chainOpts := range options.Chains {
+		bindingsOpts = bindingsOpts.WithChainOptions(chain, chainOpts)
 	}
-	for k, v := range utxoGasEstimators {
-		gasEstimators[k] = v
+	bindings, err := txenginebindings.New(bindingsOpts)
+	if err != nil {
+		logger.Panicf("bad bindings: %v", err)
 	}
-	bindings := txenginebindings.New(
-		map[multichain.Chain]multichain.AccountClient{},
-		accountTxBuilders,
-		map[multichain.Chain]multichain.AddressEncodeDecoder{
-			multichain.Ethereum: ethereum.NewAddressEncodeDecoder(),
-		},
-		map[multichain.Chain]multichain.ContractCaller{},
-		gasEstimators,
-		utxoCompatClients,
-		utxoTxBuilders,
-		ethCompatClients,
-		ethCompatContracts,
-		options.Confirmations,
-	)
+
+	// ==== BEGIN GROSS HACK
+	//
+	// TODO: For now we use a custom set of bindings for the transaction
+	// verifier (with confirmations set to zero) as we want the initial
+	// verification to succeed even if the transaction has not received any
+	// confirmations.
+	//
+
+	for chain, chainOpts := range options.Chains {
+		chainOpts.Confirmations = 0
+		bindingsOpts = bindingsOpts.WithChainOptions(chain, chainOpts)
+	}
+	verifierBindings, err := txenginebindings.New(bindingsOpts)
+	if err != nil {
+		logger.Panicf("bad bindings: %v", err)
+	}
+
+	// ==== END GROSS HACK
+	//
 
 	updater := updater.New(logger, multiStore, options.UpdaterPollRate, options.ClientTimeout)
 	dispatcher := dispatcher.New(logger, options.ClientTimeout, multiStore, opts)
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
 	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
-	verifier := txpoolverifier.New(txengine.New(txengine.DefaultOptions(), nil, bindings))
+	verifier := txpoolverifier.New(txengine.New(txengine.DefaultOptions(), nil, verifierBindings))
 	resolver := resolver.New(logger, cacher, multiStore, verifier, db, serverOptions)
 	server := jsonrpc.NewServer(serverOptions, resolver)
 	confirmer := confirmer.New(
@@ -123,13 +125,15 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		bindings,
 	)
 	watchers := map[multichain.Chain]map[multichain.Asset]watcher.Watcher{}
-	for chain, contracts := range ethCompatContracts {
+	ethGateways := bindings.EthereumGateways()
+	ethClients := bindings.EthereumClients()
+	for chain, contracts := range ethGateways {
 		for asset, bindings := range contracts {
 			selector := tx.Selector(fmt.Sprintf("%v/from%v", asset, chain))
 			if watchers[chain] == nil {
 				watchers[chain] = map[multichain.Asset]watcher.Watcher{}
 			}
-			watchers[chain][asset] = watcher.NewWatcher(logger, selector, ethCompatClients[chain], bindings, resolver, client, options.WatcherPollRate)
+			watchers[chain][asset] = watcher.NewWatcher(logger, selector, ethClients[chain], bindings, resolver, client, options.WatcherPollRate)
 		}
 	}
 

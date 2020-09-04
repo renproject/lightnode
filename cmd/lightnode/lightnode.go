@@ -19,7 +19,7 @@ import (
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/aw/wire"
-	"github.com/renproject/darknode"
+	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/id"
 	"github.com/renproject/lightnode"
 	"github.com/renproject/multichain"
@@ -55,10 +55,10 @@ func main() {
 	node.Run(ctx)
 }
 
-func initLogger(name, network string) logrus.FieldLogger {
+func initLogger(name string, network multichain.Network) logrus.FieldLogger {
 	logger := logrus.New()
 	sentryURL := os.Getenv("SENTRY_URL")
-	if network != darknode.Devnet {
+	if network != multichain.NetworkLocalnet {
 		tags := map[string]string{
 			"name": name,
 		}
@@ -135,51 +135,41 @@ func parseOptions() lightnode.Options {
 		options = options.WithBootstrapAddrs(parseAddresses("ADDRESSES"))
 	}
 
-	rpcs := map[multichain.Chain]pack.String{}
+	chains := map[multichain.Chain]txenginebindings.ChainOptions{}
+	if os.Getenv("RPC_BINANCE") != "" {
+		chains[multichain.BinanceSmartChain] = txenginebindings.ChainOptions{
+			RPC:           pack.String(os.Getenv("RPC_BINANCE")),
+			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_BINANCE"))),
+			Protocol:      pack.String(os.Getenv("GATEWAY_BINANCE")),
+		}
+	}
 	if os.Getenv("RPC_BITCOIN") != "" {
-		rpcs[multichain.Bitcoin] = pack.String(os.Getenv("RPC_BITCOIN"))
+		chains[multichain.Bitcoin] = txenginebindings.ChainOptions{
+			RPC:           pack.String(os.Getenv("RPC_BITCOIN")),
+			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_BITCOIN"))),
+		}
 	}
 	if os.Getenv("RPC_ETHEREUM") != "" {
-		rpcs[multichain.Bitcoin] = pack.String(os.Getenv("RPC_ETHEREUM"))
+		chains[multichain.Ethereum] = txenginebindings.ChainOptions{
+			RPC:           pack.String(os.Getenv("RPC_ETHEREUM")),
+			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_ETHEREUM"))),
+			Protocol:      pack.String(os.Getenv("GATEWAY_ETHEREUM")),
+		}
 	}
-	options = options.WithRPCs(rpcs)
-
-	gateways := map[multichain.Chain]pack.String{}
-	if os.Getenv("GATEWAY_BINANCE") != "" {
-		gateways[multichain.BinanceSmartChain] = pack.String(os.Getenv("GATEWAY_BINANCE"))
-	}
-	if os.Getenv("GATEWAY_ETHEREUM") != "" {
-		gateways[multichain.Ethereum] = pack.String(os.Getenv("GATEWAY_ETHEREUM"))
-	}
-	options = options.WithGateways(gateways)
-
-	confirmations := map[multichain.Chain]pack.U64{}
-	if os.Getenv("CONFIRMATIONS_BINANCE") != "" {
-		confirmations[multichain.BinanceSmartChain] = pack.U64(parseInt(os.Getenv("CONFIRMATIONS_BINANCE")))
-	}
-	if os.Getenv("CONFIRMATIONS_BITCOIN") != "" {
-		confirmations[multichain.Bitcoin] = pack.U64(parseInt(os.Getenv("CONFIRMATIONS_BITCOIN")))
-	}
-	if os.Getenv("CONFIRMATIONS_ETHEREUM") != "" {
-		confirmations[multichain.Ethereum] = pack.U64(parseInt(os.Getenv("CONFIRMATIONS_ETHEREUM")))
-	}
-	options = options.WithConfirmations(confirmations)
+	options = options.WithChains(chains)
 
 	return options
 }
 
-func parseNetwork(name string) string {
+func parseNetwork(name string) multichain.Network {
 	appName := os.Getenv(name)
-	if strings.Contains(appName, "devnet") {
-		return darknode.Devnet
-	}
 	if strings.Contains(appName, "testnet") {
-		return darknode.Testnet
+		return multichain.NetworkTestnet
 	}
 	if strings.Contains(appName, "mainnet") {
-		return darknode.Mainnet
+		return multichain.NetworkMainnet
 	}
-	panic("unsupported network")
+	return multichain.NetworkLocalnet
 }
 
 func parseInt(name string) int {

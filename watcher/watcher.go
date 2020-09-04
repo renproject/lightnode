@@ -152,7 +152,9 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, err
 
 // burnToParams constructs params for a SubmitTx request with given ref.
 func (watcher Watcher) burnToParams(amount pack.U256, to pack.String, nonce pack.Bytes32) (jsonrpc.ParamsSubmitTx, error) {
-	input, err := pack.Encode(txengine.UTXOBurnAndReleaseInput{
+	// FIXME: For now we assume burn transactions are to be released on
+	// UTXO-based chains.
+	input, err := pack.Encode(txengine.InputBurnOnAccountAndReleaseOnUTXO{
 		Amount: amount,
 		To:     to,
 		Nonce:  nonce,

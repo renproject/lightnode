@@ -7,8 +7,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/renproject/darknode/txengine"
+	"github.com/renproject/id"
 	"github.com/renproject/multichain"
-	"github.com/renproject/multichain/api/gas"
 	"github.com/renproject/multichain/api/utxo"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
@@ -21,7 +22,7 @@ type mockBindings struct {
 	numAttemptsMu             *sync.Mutex
 }
 
-func MockBindings(logger logrus.FieldLogger, maxAttemptsUntilConfirmed int) *mockBindings {
+func MockBindings(logger logrus.FieldLogger, maxAttemptsUntilConfirmed int) txengine.Bindings {
 	return &mockBindings{
 		logger:                    logger,
 		maxAttemptsUntilConfirmed: maxAttemptsUntilConfirmed,
@@ -38,15 +39,19 @@ func (b mockBindings) DecodeAddress(chain multichain.Chain, addr multichain.Addr
 	panic("unimplemented")
 }
 
+func (b mockBindings) AddressFromPubKey(chain multichain.Chain, pubKey *id.PubKey) (multichain.Address, error) {
+	panic("unimplemented")
+}
+
 func (b mockBindings) AccountBurnInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, nonce pack.Bytes32) (amount pack.U256, recipient pack.String, payload pack.Bytes, err error) {
 	return pack.U256{}, "", nil, b.isConfirmed(nonce.String())
 }
 
-func (b mockBindings) AccountLockInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, nonce pack.Bytes32) (amount pack.U256, recipient pack.String, payload pack.Bytes, err error) {
+func (b mockBindings) AccountLockInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, txid pack.Bytes) (multichain.AccountTx, error) {
 	panic("unimplemented")
 }
 
-func (b mockBindings) AccountBuildTx(chain multichain.Chain, asset multichain.Asset, from, to multichain.Address, value, nonce, gasLimit, gasPrice pack.U256, payload pack.Bytes) (multichain.AccountTx, error) {
+func (b mockBindings) AccountBuildTx(chain multichain.Chain, asset multichain.Asset, from, to multichain.Address, value, nonce, gasCost pack.U256, payload pack.Bytes) (multichain.AccountTx, error) {
 	panic("unimplemented")
 }
 
@@ -58,7 +63,7 @@ func (b mockBindings) UTXOLockInfo(ctx context.Context, chain multichain.Chain, 
 	return utxo.Output{}, b.isConfirmed(outpoint.Hash.String())
 }
 
-func (b mockBindings) UTXOBuildTx(ctx context.Context, chain multichain.Chain, asset multichain.Asset, inputs []multichain.UTXOInput, recipients []multichain.UTXORecipient) (multichain.UTXOTx, error) {
+func (b mockBindings) UTXOBuildTx(chain multichain.Chain, asset multichain.Asset, inputs []multichain.UTXOInput, recipients []multichain.UTXORecipient) (multichain.UTXOTx, error) {
 	panic("unimplemented")
 }
 
@@ -67,10 +72,6 @@ func (b mockBindings) UTXOSubmitTx(ctx context.Context, chain multichain.Chain, 
 }
 
 func (b mockBindings) GasFee(chain multichain.Chain, asset multichain.Asset, gasCost pack.U256) (gasFee pack.U256, err error) {
-	panic("unimplemented")
-}
-
-func (b mockBindings) GasLimit(chain multichain.Chain, asset multichain.Asset, txType gas.TxType) (gasLimit pack.U256, err error) {
 	panic("unimplemented")
 }
 
