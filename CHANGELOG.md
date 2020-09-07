@@ -1,3 +1,8 @@
+## 0.1.12
+- Update transaction if Darknodes return a "done" status
+- Increase default unconfirmed transaction expiry to 14 days
+- Print the error message for invalid burn transactions
+
 ## 0.1.11
 - Update to Darknode v0.2.22 to set the minimum mint/burn amount
 

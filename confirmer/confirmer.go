@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/renproject/darknode/abi"
@@ -132,11 +133,12 @@ func (confirmer *Confirmer) confirm(ctx context.Context, tx abi.Tx) {
 		case <-ctx.Done():
 			return
 		case response := <-req.Responder:
-			if response.Error != nil {
+			if response.Error == nil {
+				confirmer.logger.Infof("✅ successfully submit tx = %v to darknodes", tx.Hash.String())
+			} else if response.Error != nil && !strings.Contains(response.Error.Message, "current status = done") {
 				confirmer.logger.Errorf("[confirmer] getting error back when submitting tx = %v: [%v] %v", tx.Hash.String(), response.Error.Code, response.Error.Message)
 				return
 			}
-			confirmer.logger.Infof("✅ successfully submit tx = %v to darknodes", tx.Hash.String())
 
 			if err := confirmer.database.UpdateStatus(tx.Hash, db.TxStatusConfirmed); err != nil {
 				confirmer.logger.Errorf("[confirmer] cannot confirm tx in the database: %v", err)

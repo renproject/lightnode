@@ -107,7 +107,7 @@ func (options *Options) SetZeroToDefault() {
 		options.SubmitterPollRate = 15 * time.Second
 	}
 	if options.Expiry == 0 {
-		options.Expiry = 7 * 24 * time.Hour
+		options.Expiry = 14 * 24 * time.Hour
 	}
 }
 
