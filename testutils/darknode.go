@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"net"
-	"net/http/httptest"
 	"strings"
 	"time"
 
@@ -16,20 +15,19 @@ import (
 )
 
 type MockDarknode struct {
-	Server *httptest.Server
-	Me     wire.Address
-	Store  store.MultiAddrStore
+	Me    wire.Address
+	Store store.MultiAddrStore
 }
 
-func NewMockDarknode(server *httptest.Server, store store.MultiAddrStore) *MockDarknode {
+func NewMockDarknode(serverURL string, store store.MultiAddrStore) *MockDarknode {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		panic(err)
 	}
-	if server.URL == "" {
+	if serverURL == "" {
 		panic("cannot parse an unstarted server to darknode")
 	}
-	host, port, err := net.SplitHostPort(strings.TrimPrefix(server.URL, "http://"))
+	host, port, err := net.SplitHostPort(strings.TrimPrefix(serverURL, "http://"))
 	if err != nil {
 		panic(err)
 	}
@@ -41,12 +39,7 @@ func NewMockDarknode(server *httptest.Server, store store.MultiAddrStore) *MockD
 		panic(err)
 	}
 	return &MockDarknode{
-		Server: server,
-		Me:     addr,
-		Store:  store,
+		Me:    addr,
+		Store: store,
 	}
-}
-
-func (dn *MockDarknode) Close() {
-	dn.Server.Close()
 }

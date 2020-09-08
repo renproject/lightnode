@@ -2,7 +2,7 @@ package dispatcher_test
 
 import (
 	"context"
-	"net/http/httptest"
+	"fmt"
 	"net/url"
 	"time"
 
@@ -12,6 +12,7 @@ import (
 
 	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/jsonrpc/jsonrpcresolver"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/dispatcher"
 	"github.com/renproject/lightnode/http"
@@ -32,12 +33,15 @@ func initDispatcher(ctx context.Context, bootstrapAddrs []wire.Address, timeout 
 	return dispatcher
 }
 
-func initDarknodes(n int) []*MockDarknode {
+func initDarknodes(ctx context.Context, n int) []*MockDarknode {
 	dns := make([]*MockDarknode, n)
 	store := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "multi"), nil)
 	for i := 0; i < n; i++ {
-		server := httptest.NewServer(SimpleHandler(true, nil))
-		dns[i] = NewMockDarknode(server, store)
+		server := jsonrpc.NewServer(jsonrpc.DefaultOptions(), jsonrpcresolver.OkResponder())
+		url := fmt.Sprintf("0.0.0.0:%v", 3333+i)
+		go server.Listen(ctx, url)
+
+		dns[i] = NewMockDarknode(url, store)
 	}
 	return dns
 }
@@ -48,11 +52,10 @@ var _ = Describe("Dispatcher", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			darknodes := initDarknodes(13)
+			darknodes := initDarknodes(ctx, 13)
 			multis := make([]wire.Address, 13)
 			for i := range multis {
 				multis[i] = darknodes[i].Me
-				defer darknodes[i].Close()
 			}
 			dispatcher := initDispatcher(ctx, multis, time.Second)
 
