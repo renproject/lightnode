@@ -2,6 +2,7 @@ package dispatcher_test
 
 import (
 	"context"
+	"log"
 	"net/http/httptest"
 	"net/url"
 	"time"
@@ -37,6 +38,7 @@ func initDarknodes(n int) []*MockDarknode {
 	store := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "multi"), nil)
 	for i := 0; i < n; i++ {
 		server := httptest.NewServer(SimpleHandler(true, nil))
+		log.Println(server.URL)
 		dns[i] = NewMockDarknode(server, store)
 	}
 	return dns
