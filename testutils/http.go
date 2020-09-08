@@ -11,7 +11,6 @@ import (
 
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx/txutil"
-	"github.com/renproject/lightnode/store"
 	"github.com/renproject/pack"
 )
 
@@ -33,44 +32,6 @@ func (cl ChanWriter) Write(p []byte) (n int, err error) {
 		return len(p), nil
 	case <-time.After(time.Second):
 		return 0, errors.New("timeout")
-	}
-}
-
-func RandomAddressHandler(store store.MultiAddrStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		addrs, err := store.RandomAddrs(5)
-		if err != nil {
-			panic(err)
-		}
-		addrsString := make([]string, len(addrs))
-		for i := range addrsString {
-			addrsString[i] = addrs[i].String()
-		}
-		queryRes := jsonrpc.ResponseQueryPeers{
-			Peers: addrsString,
-		}
-		response := jsonrpc.Response{
-			Version: "2.0",
-			ID:      0,
-			Result:  queryRes,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(response); err != nil {
-			panic(err)
-		}
-	}
-}
-
-// PanicHandler returns a simple `http.HandlerFunc` which panics.
-func PanicHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		panic("intentionally panic here")
-	}
-}
-
-// NilHandler don't do anything with the request which causing EOF error.
-func NilHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
 	}
 }
 

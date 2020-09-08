@@ -3,6 +3,7 @@ package updater_test
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -35,8 +36,27 @@ func initDarknodes(ctx context.Context, n int) []*MockDarknode {
 	dns := make([]*MockDarknode, n)
 	store := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
 	for i := 0; i < n; i++ {
-		server := jsonrpc.NewServer(jsonrpc.DefaultOptions(), jsonrpcresolver.OkResponder())
-		url := fmt.Sprintf("0.0.0.0:%v", 3333+i)
+		server := jsonrpc.NewServer(jsonrpc.DefaultOptions(), &jsonrpcresolver.Callbacks{
+			QueryPeersHandler: func(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryPeers, r *http.Request) jsonrpc.Response {
+				addrs, err := store.RandomAddrs(5)
+				if err != nil {
+					panic(err)
+				}
+				addrsString := make([]string, len(addrs))
+				for i := range addrsString {
+					addrsString[i] = addrs[i].String()
+				}
+				queryRes := jsonrpc.ResponseQueryPeers{
+					Peers: addrsString,
+				}
+				return jsonrpc.Response{
+					Version: "2.0",
+					ID:      0,
+					Result:  queryRes,
+				}
+			},
+		})
+		url := fmt.Sprintf("0.0.0.0:%v", 4444+i)
 		go server.Listen(ctx, url)
 
 		dns[i] = NewMockDarknode(url, store)
