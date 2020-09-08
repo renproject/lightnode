@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"time"
@@ -76,6 +77,8 @@ func NilHandler() http.HandlerFunc {
 
 func SimpleHandler(alwaysSuccess bool, requests chan jsonrpc.Request) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Println("handling request")
+
 		var request jsonrpc.Request
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			response := jsonrpc.Response{
