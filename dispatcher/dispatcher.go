@@ -70,17 +70,18 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 		phi.ParForAll(addrs, func(i int) {
 			addrParts := strings.Split(addrs[i].Value, ":")
 			if len(addrParts) != 2 {
-				dispatcher.logger.Errorf("[dispatcher] invalid address value=%v", addrs[i].Value)
+				dispatcher.logger.Errorf("[dispatcher] invalid address value=%v: %v", addrs[i].Value, err)
 				return
 			}
 			port, err := strconv.Atoi(addrParts[1])
 			if err != nil {
-				dispatcher.logger.Errorf("[dispatcher] invalid port=%v", addrParts[1])
+				dispatcher.logger.Errorf("[dispatcher] invalid port=%v: %v", addrParts[1], err)
 				return
 			}
 			addrString := fmt.Sprintf("http://%s:%v", addrParts[0], port+1)
 			params, err := json.Marshal(msg.Params)
 			if err != nil {
+				dispatcher.logger.Errorf("[dispatcher] invalid params=%v: %v", msg.Params, err)
 				return
 			}
 			req := jsonrpc.Request{
@@ -91,6 +92,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 			}
 			response, err := dispatcher.client.SendRequest(ctx, addrString, req, nil)
 			if err != nil {
+				dispatcher.logger.Errorf("[dispatcher] sending request: %v", err)
 				return
 			}
 			responses <- response

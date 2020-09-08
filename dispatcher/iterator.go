@@ -2,7 +2,6 @@ package dispatcher
 
 import (
 	"context"
-	"log"
 	"reflect"
 
 	"github.com/renproject/darknode/jsonrpc"
@@ -33,7 +32,6 @@ func (iter firstResponseIterator) Collect(id interface{}, cancel context.CancelF
 	defer cancel()
 
 	for response := range responses {
-		log.Println(response)
 		if response.Error == nil {
 			return response
 		} else {
