@@ -23,14 +23,14 @@ type Watcher struct {
 	logger       logrus.FieldLogger
 	selector     tx.Selector
 	ethClient    *ethclient.Client
-	ethBindings  *ethereumbindings.GatewayLogicV1
+	ethBindings  *ethereumbindings.MintGatewayLogicV1
 	resolver     *resolver.Resolver
 	cache        *redis.Client
 	pollInterval time.Duration
 }
 
 // NewWatcher returns a new Watcher.
-func NewWatcher(logger logrus.FieldLogger, selector tx.Selector, ethClient *ethclient.Client, ethBindings *ethereumbindings.GatewayLogicV1, resolver *resolver.Resolver, cache *redis.Client, pollInterval time.Duration) Watcher {
+func NewWatcher(logger logrus.FieldLogger, selector tx.Selector, ethClient *ethclient.Client, ethBindings *ethereumbindings.MintGatewayLogicV1, resolver *resolver.Resolver, cache *redis.Client, pollInterval time.Duration) Watcher {
 	return Watcher{
 		logger:       logger,
 		selector:     selector,
