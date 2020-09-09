@@ -149,6 +149,12 @@ func parseOptions() lightnode.Options {
 			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_BITCOIN"))),
 		}
 	}
+	if os.Getenv("RPC_DIGIBYTE") != "" {
+		chains[multichain.DigiByte] = txenginebindings.ChainOptions{
+			RPC:           pack.String(os.Getenv("RPC_DIGIBYTE")),
+			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_DIGIBYTE"))),
+		}
+	}
 	if os.Getenv("RPC_ETHEREUM") != "" {
 		chains[multichain.Ethereum] = txenginebindings.ChainOptions{
 			RPC:           pack.String(os.Getenv("RPC_ETHEREUM")),
