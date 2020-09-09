@@ -162,6 +162,12 @@ func parseOptions() lightnode.Options {
 			Protocol:      pack.String(os.Getenv("GATEWAY_ETHEREUM")),
 		}
 	}
+	if os.Getenv("RPC_ZCASH") != "" {
+		chains[multichain.Zcash] = txenginebindings.ChainOptions{
+			RPC:           pack.String(os.Getenv("RPC_ZCASH")),
+			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_ZCASH"))),
+		}
+	}
 	options = options.WithChains(chains)
 
 	return options
