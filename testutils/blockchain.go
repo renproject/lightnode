@@ -51,7 +51,7 @@ func (b mockBindings) AccountLockInfo(ctx context.Context, chain multichain.Chai
 	panic("unimplemented")
 }
 
-func (b mockBindings) AccountBuildTx(chain multichain.Chain, asset multichain.Asset, from, to multichain.Address, value, nonce, gasCost pack.U256, payload pack.Bytes) (multichain.AccountTx, error) {
+func (b mockBindings) AccountBuildTx(chain multichain.Chain, asset multichain.Asset, from, to multichain.Address, value, nonce, gasLimit, gasPrice pack.U256, payload pack.Bytes) (multichain.AccountTx, error) {
 	panic("unimplemented")
 }
 
@@ -71,7 +71,7 @@ func (b mockBindings) UTXOSubmitTx(ctx context.Context, chain multichain.Chain, 
 	panic("unimplemented")
 }
 
-func (b mockBindings) GasFee(chain multichain.Chain, asset multichain.Asset, gasCost pack.U256) (gasFee pack.U256, err error) {
+func (b mockBindings) GasPrice(chain multichain.Chain) (gasPrice pack.U256, err error) {
 	panic("unimplemented")
 }
 
