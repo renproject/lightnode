@@ -86,7 +86,6 @@ func (db database) Init() error {
 		pubkey_script VARCHAR,
 		payload       VARCHAR,
 		phash         VARCHAR,
-		token         VARCHAR,
 		toAddr        VARCHAR,
 		nonce         VARCHAR,
 		nhash         VARCHAR,
@@ -108,7 +107,6 @@ func (db database) Init() error {
 		amount        VARCHAR(100),
 		payload       VARCHAR,
 		phash         VARCHAR,
-		token         VARCHAR,
 		toAddr        VARCHAR,
 		nonce         VARCHAR,
 		nhash         VARCHAR,
@@ -145,27 +143,6 @@ func (db database) Init() error {
 		nonce        VARCHAR
 	);`
 	_, err = db.db.Exec(burnAccountReleaseAccount)
-	if err != nil {
-		return err
-	}
-
-	// Create the burn-and-mint (account -> account) table if not exist.
-	burnAccountMintAccount := `CREATE TABLE IF NOT EXISTS burn_account_mint_account (
-		hash         VARCHAR NOT NULL PRIMARY KEY,
-		status       SMALLINT,
-		created_time BIGINT,
-		selector     VARCHAR(255),
-		tx_id        VARCHAR,
-		amount       VARCHAR(100),
-		payload      VARCHAR,
-		phash        VARCHAR,
-		token        VARCHAR,
-		toAddr       VARCHAR,
-		nonce        VARCHAR,
-		nhash        VARCHAR,
-		gpubkey      VARCHAR
-	);`
-	_, err = db.db.Exec(burnAccountMintAccount)
 	return err
 }
 
@@ -190,8 +167,6 @@ func (db database) InsertTx(tx tx.Tx) error {
 			return db.insertBurnAccountReleaseUTXOTx(tx)
 		}
 		return db.insertBurnAccountReleaseAccountTx(tx)
-	case tx.Selector.IsBurnAndMint():
-		return db.insertBurnAccountMintAccountTx(tx)
 	default:
 		return fmt.Errorf("unexpected tx selector %v", tx.Selector.String())
 	}
@@ -215,22 +190,17 @@ func (db database) Tx(hash pack.Bytes32) (tx.Tx, error) {
 	if err != sql.ErrNoRows {
 		return transaction, err
 	}
-	transaction, err = db.burnAccountMintAccountTx(hash)
-	if err != sql.ErrNoRows {
-		return transaction, err
-	}
 	return tx.Tx{}, err
 }
 
 // Txs implements the DB interface.
 func (db database) Txs(offset, limit int) ([]tx.Tx, error) {
 	txs := make([]tx.Tx, 0, limit)
-	rows, err := db.db.Query(`SELECT tableName, hash, selector, tx_id, amount, utxo_hash, utxo_index, value, pubkey_script, payload, phash, token, toAddr, nonce, nhash, gpubkey, ghash FROM (
-		SELECT 'lock_utxo_mint_account' AS tableName, hash, created_time, selector, '' AS tx_id, '' AS amount, utxo_hash, utxo_index, value, pubkey_script, payload, phash, token, toAddr, nonce, nhash, gpubkey, ghash FROM lock_utxo_mint_account UNION
-		SELECT 'lock_account_mint_account' AS tableName, hash, created_time, selector, tx_id, amount, '' AS utxo_hash, '' AS utxo_index, '' AS value, '' AS pubkey_script, payload, phash, token, toAddr, nonce, nhash, gpubkey, ghash FROM lock_account_mint_account UNION
-		SELECT 'burn_account_release_utxo' AS tableName, hash, created_time, selector, '' AS tx_id, amount, '' AS utxo_hash, '' AS utxo_index, '' AS value, '' AS pubkey_script, '' AS payload, '' AS phash, '' AS token, toAddr, nonce, '' AS nhash, '' AS gpubkey, '' AS ghash FROM burn_account_release_utxo UNION
-		SELECT 'burn_account_release_account' AS tableName, hash, created_time, selector, '' AS tx_id, amount, '' AS utxo_hash, '' AS utxo_index, '' AS value, '' AS pubkey_script, '' AS payload, '' AS phash, '' AS token, toAddr, nonce, '' AS nhash, '' AS gpubkey, '' AS ghash FROM burn_account_release_account UNION
-		SELECT 'burn_account_mint_account' AS tableName, hash, created_time, selector, tx_id, amount, '' AS utxo_hash, '' AS utxo_index, '' AS value, '' AS pubkey_script, payload, phash, token, toAddr, nonce, nhash, gpubkey, '' AS ghash FROM burn_account_mint_account
+	rows, err := db.db.Query(`SELECT tableName, hash, selector, tx_id, amount, utxo_hash, utxo_index, value, pubkey_script, payload, phash, toAddr, nonce, nhash, gpubkey, ghash FROM (
+		SELECT 'lock_utxo_mint_account' AS tableName, hash, created_time, selector, '' AS tx_id, '' AS amount, utxo_hash, utxo_index, value, pubkey_script, payload, phash, toAddr, nonce, nhash, gpubkey, ghash FROM lock_utxo_mint_account UNION
+		SELECT 'lock_account_mint_account' AS tableName, hash, created_time, selector, tx_id, amount, '' AS utxo_hash, '' AS utxo_index, '' AS value, '' AS pubkey_script, payload, phash, toAddr, nonce, nhash, gpubkey, ghash FROM lock_account_mint_account UNION
+		SELECT 'burn_account_release_utxo' AS tableName, hash, created_time, selector, '' AS tx_id, amount, '' AS utxo_hash, '' AS utxo_index, '' AS value, '' AS pubkey_script, '' AS payload, '' AS phash, toAddr, nonce, '' AS nhash, '' AS gpubkey, '' AS ghash FROM burn_account_release_utxo UNION
+		SELECT 'burn_account_release_account' AS tableName, hash, created_time, selector, '' AS tx_id, amount, '' AS utxo_hash, '' AS utxo_index, '' AS value, '' AS pubkey_script, '' AS payload, '' AS phash, toAddr, nonce, '' AS nhash, '' AS gpubkey, '' AS ghash FROM burn_account_release_account
 	) AS shifts ORDER BY created_time ASC LIMIT $1 OFFSET $2;`, limit, offset)
 	if err != nil {
 		return nil, err
@@ -253,7 +223,7 @@ func (db database) PendingTxs(expiry time.Duration) ([]tx.Tx, error) {
 	txs := make([]tx.Tx, 0, 128)
 
 	// Get pending lock-and-mint (UTXO -> account) transactions from the database.
-	rows, err := db.db.Query(`SELECT hash, selector, utxo_hash, utxo_index, value, pubkey_script, payload, phash, token, toAddr, nonce, nhash, gpubkey, ghash FROM lock_utxo_mint_account
+	rows, err := db.db.Query(`SELECT hash, selector, utxo_hash, utxo_index, value, pubkey_script, payload, phash, toAddr, nonce, nhash, gpubkey, ghash FROM lock_utxo_mint_account
 		WHERE status = $1 AND $2 - created_time < $3;`, TxStatusConfirming, time.Now().Unix(), int64(expiry.Seconds()))
 	if err != nil {
 		return nil, err
@@ -272,7 +242,7 @@ func (db database) PendingTxs(expiry time.Duration) ([]tx.Tx, error) {
 	}
 
 	// Get pending lock-and-mint (account -> account) transactions from the database.
-	rows, err = db.db.Query(`SELECT hash, selector, tx_id, amount, payload, phash, token, toAddr, nonce, nhash, gpubkey FROM lock_account_mint_account
+	rows, err = db.db.Query(`SELECT hash, selector, tx_id, amount, payload, phash, toAddr, nonce, nhash, gpubkey FROM lock_account_mint_account
 		WHERE status = $1 AND $2 - created_time < $3;`, TxStatusConfirming, time.Now().Unix(), int64(expiry.Seconds()))
 	if err != nil {
 		return nil, err
@@ -321,22 +291,6 @@ func (db database) PendingTxs(expiry time.Duration) ([]tx.Tx, error) {
 		}
 		txs = append(txs, transaction)
 	}
-
-	// Get pending burn-and-mint (account -> account) transactions from the database.
-	rows, err = db.db.Query(`SELECT hash, selector, tx_id, amount, payload, phash, token, toAddr, nonce, nhash, gpubkey FROM burn_account_mint_account
-		WHERE status = $1 AND $2 - created_time < $3`, TxStatusConfirming, time.Now().Unix(), int64(expiry.Seconds()))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		transaction, err := rowToBurnAccountMintAccountTx(rows)
-		if err != nil {
-			return nil, err
-		}
-		txs = append(txs, transaction)
-	}
 	return txs, rows.Err()
 }
 
@@ -359,10 +313,6 @@ func (db database) TxStatus(txHash pack.Bytes32) (TxStatus, error) {
 	if err != sql.ErrNoRows {
 		return TxStatus(status), err
 	}
-	err = db.db.QueryRow(`SELECT status FROM burn_account_mint_account WHERE hash = $1;`, txHash.String()).Scan(&status)
-	if err != sql.ErrNoRows {
-		return TxStatus(status), err
-	}
 	return TxStatusNil, err
 }
 
@@ -381,10 +331,6 @@ func (db database) UpdateStatus(txHash pack.Bytes32, status TxStatus) error {
 		return err
 	}
 	_, err = db.db.Exec("UPDATE burn_account_release_account SET status = $1 WHERE hash = $2 AND status < $1;", status, txHash.String())
-	if err != nil {
-		return err
-	}
-	_, err = db.db.Exec("UPDATE burn_account_mint_account SET status = $1 WHERE hash = $2 AND status < $1;", status, txHash.String())
 	return err
 }
 
@@ -413,10 +359,6 @@ func (db database) Prune(expiry time.Duration) error {
 		return err
 	}
 	_, err = db.db.Exec("DELETE FROM burn_account_release_account WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
-	if err != nil {
-		return err
-	}
-	_, err = db.db.Exec("DELETE FROM burn_account_mint_account WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
 	return err
 }
 
@@ -453,10 +395,6 @@ func (db database) insertLockUTXOMintAccountTx(tx tx.Tx) error {
 	if !ok {
 		return fmt.Errorf("unexpected type for phash: expected pack.Bytes32, got %v", tx.Input.Get("phash").Type())
 	}
-	token, ok := tx.Input.Get("token").(pack.String)
-	if !ok {
-		return fmt.Errorf("unexpected type for token: expected pack.String, got %v", tx.Input.Get("token").Type())
-	}
 	to, ok := tx.Input.Get("to").(pack.String)
 	if !ok {
 		return fmt.Errorf("unexpected type for to: expected pack.String, got %v", tx.Input.Get("to").Type())
@@ -478,7 +416,7 @@ func (db database) insertLockUTXOMintAccountTx(tx tx.Tx) error {
 		return fmt.Errorf("unexpected type for ghash: expected pack.Bytes32, got %v", tx.Input.Get("ghash").Type())
 	}
 
-	script := `INSERT INTO lock_utxo_mint_account (hash, status, created_time, selector, utxo_hash, utxo_index, value, pubkey_script, payload, phash, token, toAddr, nonce, nhash, gpubkey, ghash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);`
+	script := `INSERT INTO lock_utxo_mint_account (hash, status, created_time, selector, utxo_hash, utxo_index, value, pubkey_script, payload, phash, toAddr, nonce, nhash, gpubkey, ghash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);`
 	_, err := db.db.Exec(script,
 		tx.Hash.String(),
 		TxStatusConfirming,
@@ -490,7 +428,6 @@ func (db database) insertLockUTXOMintAccountTx(tx tx.Tx) error {
 		pubKeyScript.String(),
 		payload.String(),
 		phash.String(),
-		token.String(),
 		to.String(),
 		nonce.String(),
 		nhash.String(),
@@ -518,10 +455,6 @@ func (db database) insertLockAccountMintAccountTx(tx tx.Tx) error {
 	if !ok {
 		return fmt.Errorf("unexpected type for phash: expected pack.Bytes32, got %v", tx.Input.Get("phash").Type())
 	}
-	token, ok := tx.Input.Get("token").(pack.String)
-	if !ok {
-		return fmt.Errorf("unexpected type for token: expected pack.String, got %v", tx.Input.Get("token").Type())
-	}
 	to, ok := tx.Input.Get("to").(pack.String)
 	if !ok {
 		return fmt.Errorf("unexpected type for to: expected pack.String, got %v", tx.Input.Get("to").Type())
@@ -539,7 +472,7 @@ func (db database) insertLockAccountMintAccountTx(tx tx.Tx) error {
 		return fmt.Errorf("unexpected type for gpubkey: expected pack.Bytes, got %v", tx.Input.Get("gpubkey").Type())
 	}
 
-	script := `INSERT INTO lock_account_mint_account (hash, status, created_time, selector, tx_id, amount, payload, phash, token, toAddr, nonce, nhash, gpubkey) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);`
+	script := `INSERT INTO lock_account_mint_account (hash, status, created_time, selector, tx_id, amount, payload, phash, toAddr, nonce, nhash, gpubkey) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`
 	_, err := db.db.Exec(script,
 		tx.Hash.String(),
 		TxStatusConfirming,
@@ -549,7 +482,6 @@ func (db database) insertLockAccountMintAccountTx(tx tx.Tx) error {
 		amount.String(),
 		payload.String(),
 		phash.String(),
-		token.String(),
 		to.String(),
 		nonce.String(),
 		nhash.String(),
@@ -615,72 +547,14 @@ func (db database) insertBurnAccountReleaseAccountTx(tx tx.Tx) error {
 	return err
 }
 
-func (db database) insertBurnAccountMintAccountTx(tx tx.Tx) error {
-	txID, ok := tx.Input.Get("txid").(pack.Bytes)
-	if !ok {
-		return fmt.Errorf("unexpected type for txid: expected pack.Bytes, got %v", tx.Input.Get("txid").Type())
-	}
-	amount, ok := tx.Input.Get("amount").(pack.U256)
-	if !ok {
-		return fmt.Errorf("unexpected type for amount: expected pack.U256, got %v", tx.Input.Get("amount").Type())
-	}
-	payload, ok := tx.Input.Get("payload").(pack.Bytes)
-	if !ok {
-		return fmt.Errorf("unexpected type for payload: expected pack.Bytes, got %v", tx.Input.Get("payload").Type())
-	}
-	phash, ok := tx.Input.Get("phash").(pack.Bytes32)
-	if !ok {
-		return fmt.Errorf("unexpected type for phash: expected pack.Bytes32, got %v", tx.Input.Get("phash").Type())
-	}
-	token, ok := tx.Input.Get("token").(pack.String)
-	if !ok {
-		return fmt.Errorf("unexpected type for token: expected pack.String, got %v", tx.Input.Get("token").Type())
-	}
-	to, ok := tx.Input.Get("to").(pack.String)
-	if !ok {
-		return fmt.Errorf("unexpected type for to: expected pack.String, got %v", tx.Input.Get("to").Type())
-	}
-	nonce, ok := tx.Input.Get("nonce").(pack.Bytes32)
-	if !ok {
-		return fmt.Errorf("unexpected type for nonce: expected pack.Bytes32, got %v", tx.Input.Get("nonce").Type())
-	}
-	nhash, ok := tx.Input.Get("nhash").(pack.Bytes32)
-	if !ok {
-		return fmt.Errorf("unexpected type for nhash: expected pack.Bytes32, got %v", tx.Input.Get("nhash").Type())
-	}
-	gpubkey, ok := tx.Input.Get("gpubkey").(pack.Bytes)
-	if !ok {
-		return fmt.Errorf("unexpected type for gpubkey: expected pack.Bytes, got %v", tx.Input.Get("gpubkey").Type())
-	}
-
-	script := `INSERT INTO burn_account_mint_account (hash, status, created_time, selector, tx_id, amount, payload, phash, token, toAddr, nonce, nhash, gpubkey) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);`
-	_, err := db.db.Exec(script,
-		tx.Hash.String(),
-		TxStatusConfirming,
-		time.Now().Unix(),
-		tx.Selector.String(),
-		txID.String(),
-		amount.String(),
-		payload.String(),
-		phash.String(),
-		token.String(),
-		to.String(),
-		nonce.String(),
-		nhash.String(),
-		gpubkey.String(),
-	)
-
-	return err
-}
-
 func (db database) lockUTXOMintAccountTx(txHash pack.Bytes32) (tx.Tx, error) {
-	script := "SELECT hash, selector, utxo_hash, utxo_index, value, pubkey_script, payload, phash, token, toAddr, nonce, nhash, gpubkey, ghash FROM lock_utxo_mint_account WHERE hash = $1"
+	script := "SELECT hash, selector, utxo_hash, utxo_index, value, pubkey_script, payload, phash, toAddr, nonce, nhash, gpubkey, ghash FROM lock_utxo_mint_account WHERE hash = $1"
 	row := db.db.QueryRow(script, txHash.String())
 	return rowToLockUTXOMintAccountTx(row)
 }
 
 func (db database) lockAccountMintAccountTx(txHash pack.Bytes32) (tx.Tx, error) {
-	script := "SELECT hash, selector, tx_id, amount, payload, phash, token, toAddr, nonce, nhash, gpubkey FROM lock_account_mint_account WHERE hash = $1"
+	script := "SELECT hash, selector, tx_id, amount, payload, phash, toAddr, nonce, nhash, gpubkey FROM lock_account_mint_account WHERE hash = $1"
 	row := db.db.QueryRow(script, txHash.String())
 	return rowToLockAccountMintAccountTx(row)
 }
@@ -697,46 +571,38 @@ func (db database) burnAccountReleaseAccountTx(txHash pack.Bytes32) (tx.Tx, erro
 	return rowToBurnAccountReleaseAccountTx(row)
 }
 
-func (db database) burnAccountMintAccountTx(txHash pack.Bytes32) (tx.Tx, error) {
-	script := "SELECT hash, selector, tx_id, amount, payload, phash, token, toAddr, nonce, nhash, gpubkey FROM burn_account_mint_account WHERE hash = $1"
-	row := db.db.QueryRow(script, txHash.String())
-	return rowToBurnAccountMintAccountTx(row)
-}
-
 func rowToTx(row Scannable) (tx.Tx, error) {
-	var tableName, hash, selector, txID, amount, utxoHash, value, pubKeyScript, payload, phash, token, to, nonce, nhash, gpubkey, ghash string
+	var tableName, hash, selector, txID, amount, utxoHash, value, pubKeyScript, payload, phash, to, nonce, nhash, gpubkey, ghash string
 	var utxoIndex int
-	if err := row.Scan(&tableName, &hash, &selector, &txID, &amount, &utxoHash, &utxoIndex, &value, &pubKeyScript, &payload, &phash, &token, &to, &nonce, &nhash, &gpubkey, &ghash); err != nil {
+	if err := row.Scan(&tableName, &hash, &selector, &txID, &amount, &utxoHash, &utxoIndex, &value, &pubKeyScript, &payload, &phash, &to, &nonce, &nhash, &gpubkey, &ghash); err != nil {
 		return tx.Tx{}, err
 	}
 
 	switch tableName {
 	case "lock_utxo_mint_account":
-		return lockUTXOMintAccountTx(hash, selector, utxoHash, utxoIndex, value, pubKeyScript, payload, phash, token, to, nonce, nhash, gpubkey, ghash)
+		return lockUTXOMintAccountTx(hash, selector, utxoHash, utxoIndex, value, pubKeyScript, payload, phash, to, nonce, nhash, gpubkey, ghash)
 	case "lock_account_mint_account":
-		return lockAccountMintAccountTx(hash, selector, txID, amount, payload, phash, token, to, nonce, nhash, gpubkey)
+		return lockAccountMintAccountTx(hash, selector, txID, amount, payload, phash, to, nonce, nhash, gpubkey)
 	case "burn_account_release_utxo":
 		return burnAccountReleaseUTXOTx(hash, selector, amount, to, nonce)
 	case "burn_account_release_account":
 		return burnAccountReleaseAccountTx(hash, selector, amount, to, nonce)
-	case "burn_account_mint_account":
-		return burnAccountMintAccountTx(hash, selector, txID, amount, payload, phash, token, to, nonce, nhash, gpubkey)
 	}
 
 	return tx.Tx{}, fmt.Errorf("invalid table name %v", tableName)
 }
 
 func rowToLockUTXOMintAccountTx(row Scannable) (tx.Tx, error) {
-	var hash, selector, utxoHash, value, pubKeyScript, payload, phash, token, to, nonce, nhash, gpubkey, ghash string
+	var hash, selector, utxoHash, value, pubKeyScript, payload, phash, to, nonce, nhash, gpubkey, ghash string
 	var utxoIndex int
-	if err := row.Scan(&hash, &selector, &utxoHash, &utxoIndex, &value, &pubKeyScript, &payload, &phash, &token, &to, &nonce, &nhash, &gpubkey, &ghash); err != nil {
+	if err := row.Scan(&hash, &selector, &utxoHash, &utxoIndex, &value, &pubKeyScript, &payload, &phash, &to, &nonce, &nhash, &gpubkey, &ghash); err != nil {
 		return tx.Tx{}, err
 	}
 
-	return lockUTXOMintAccountTx(hash, selector, utxoHash, utxoIndex, value, pubKeyScript, payload, phash, token, to, nonce, nhash, gpubkey, ghash)
+	return lockUTXOMintAccountTx(hash, selector, utxoHash, utxoIndex, value, pubKeyScript, payload, phash, to, nonce, nhash, gpubkey, ghash)
 }
 
-func lockUTXOMintAccountTx(hashStr, selector, utxoHashStr string, utxoIndex int, valueStr, pubKeyScriptStr, payloadStr, phashStr, token, to, nonceStr, nhashStr, gpubkeyStr, ghashStr string) (tx.Tx, error) {
+func lockUTXOMintAccountTx(hashStr, selector, utxoHashStr string, utxoIndex int, valueStr, pubKeyScriptStr, payloadStr, phashStr, to, nonceStr, nhashStr, gpubkeyStr, ghashStr string) (tx.Tx, error) {
 	utxoHash, err := decodeBytes(utxoHashStr)
 	if err != nil {
 		return tx.Tx{}, fmt.Errorf("decoding utxo hash %v: %v", utxoHashStr, err)
@@ -785,7 +651,6 @@ func lockUTXOMintAccountTx(hashStr, selector, utxoHashStr string, utxoIndex int,
 			},
 			Payload: payload,
 			Phash:   phash,
-			Token:   pack.String(token),
 			To:      pack.String(to),
 			Nonce:   nonce,
 			Nhash:   nhash,
@@ -800,15 +665,15 @@ func lockUTXOMintAccountTx(hashStr, selector, utxoHashStr string, utxoIndex int,
 }
 
 func rowToLockAccountMintAccountTx(row Scannable) (tx.Tx, error) {
-	var hash, selector, txID, amount, payload, phash, token, to, nonce, nhash, gpubkey string
-	if err := row.Scan(&hash, &selector, &txID, &amount, &payload, &phash, &token, &to, &nonce, &nhash, &gpubkey); err != nil {
+	var hash, selector, txID, amount, payload, phash, to, nonce, nhash, gpubkey string
+	if err := row.Scan(&hash, &selector, &txID, &amount, &payload, &phash, &to, &nonce, &nhash, &gpubkey); err != nil {
 		return tx.Tx{}, err
 	}
 
-	return lockAccountMintAccountTx(hash, selector, txID, amount, payload, phash, token, to, nonce, nhash, gpubkey)
+	return lockAccountMintAccountTx(hash, selector, txID, amount, payload, phash, to, nonce, nhash, gpubkey)
 }
 
-func lockAccountMintAccountTx(hashStr, selector, txIDStr, amountStr, payloadStr, phashStr, token, to, nonceStr, nhashStr, gpubkeyStr string) (tx.Tx, error) {
+func lockAccountMintAccountTx(hashStr, selector, txIDStr, amountStr, payloadStr, phashStr, to, nonceStr, nhashStr, gpubkeyStr string) (tx.Tx, error) {
 	txID, err := decodeBytes(txIDStr)
 	if err != nil {
 		return tx.Tx{}, fmt.Errorf("decoding tx ID %v: %v", txIDStr, err)
@@ -843,7 +708,6 @@ func lockAccountMintAccountTx(hashStr, selector, txIDStr, amountStr, payloadStr,
 			Amount:  amount,
 			Payload: payload,
 			Phash:   phash,
-			Token:   pack.String(token),
 			To:      pack.String(to),
 			Nonce:   nonce,
 			Nhash:   nhash,
@@ -908,62 +772,6 @@ func burnAccountReleaseAccountTx(hash, selector, amountStr, to, nonceStr string)
 			Amount: amount,
 			To:     pack.String(to),
 			Nonce:  nonce,
-		},
-	)
-	if err != nil {
-		return tx.Tx{}, err
-	}
-	return tx.NewTx(tx.Selector(selector), pack.Typed(input.(pack.Struct)))
-}
-
-func rowToBurnAccountMintAccountTx(row Scannable) (tx.Tx, error) {
-	var hash, selector, txID, amount, payload, phash, token, to, nonce, nhash, gpubkey string
-	if err := row.Scan(&hash, &selector, &txID, &amount, &payload, &phash, &token, &to, &nonce, &nhash, &gpubkey); err != nil {
-		return tx.Tx{}, err
-	}
-	return burnAccountMintAccountTx(hash, selector, txID, amount, payload, phash, token, to, nonce, nhash, gpubkey)
-}
-
-func burnAccountMintAccountTx(hashStr, selector, txIDStr, amountStr, payloadStr, phashStr, token, to, nonceStr, nhashStr, gpubkeyStr string) (tx.Tx, error) {
-	txID, err := decodeBytes(txIDStr)
-	if err != nil {
-		return tx.Tx{}, fmt.Errorf("decoding tx ID %v: %v", txIDStr, err)
-	}
-	amount, err := decodeU256(amountStr)
-	if err != nil {
-		return tx.Tx{}, fmt.Errorf("decoding amount %v: %v", amountStr, err)
-	}
-	payload, err := decodeBytes(payloadStr)
-	if err != nil {
-		return tx.Tx{}, fmt.Errorf("decoding payload %v: %v", payloadStr, err)
-	}
-	phash, err := decodeBytes32(phashStr)
-	if err != nil {
-		return tx.Tx{}, fmt.Errorf("decoding phash %v: %v", phashStr, err)
-	}
-	nonce, err := decodeBytes32(nonceStr)
-	if err != nil {
-		return tx.Tx{}, fmt.Errorf("decoding nonce %v: %v", nonceStr, err)
-	}
-	nhash, err := decodeBytes32(nhashStr)
-	if err != nil {
-		return tx.Tx{}, fmt.Errorf("decoding nhash %v: %v", nhashStr, err)
-	}
-	gpubkey, err := decodeBytes(gpubkeyStr)
-	if err != nil {
-		return tx.Tx{}, fmt.Errorf("decoding gpubkey %v: %v", gpubkeyStr, err)
-	}
-	input, err := pack.Encode(
-		txengine.InputBurnOnAccountAndMintOnAccount{
-			Txid:    txID,
-			Amount:  amount,
-			Payload: payload,
-			Phash:   phash,
-			Token:   pack.String(token),
-			To:      pack.String(to),
-			Nonce:   nonce,
-			Nhash:   nhash,
-			Gpubkey: gpubkey,
 		},
 	)
 	if err != nil {
