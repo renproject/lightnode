@@ -155,11 +155,23 @@ func parseOptions() lightnode.Options {
 			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_DIGIBYTE"))),
 		}
 	}
+	if os.Getenv("RPC_DOGECOIN") != "" {
+		chains[multichain.DigiByte] = txenginebindings.ChainOptions{
+			RPC:           pack.String(os.Getenv("RPC_DOGECOIN")),
+			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_DOGECOIN"))),
+		}
+	}
 	if os.Getenv("RPC_ETHEREUM") != "" {
 		chains[multichain.Ethereum] = txenginebindings.ChainOptions{
 			RPC:           pack.String(os.Getenv("RPC_ETHEREUM")),
 			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_ETHEREUM"))),
 			Protocol:      pack.String(os.Getenv("GATEWAY_ETHEREUM")),
+		}
+	}
+	if os.Getenv("RPC_FILECOIN") != "" {
+		chains[multichain.DigiByte] = txenginebindings.ChainOptions{
+			RPC:           pack.String(os.Getenv("RPC_FILECOIN")),
+			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_FILECOIN"))),
 		}
 	}
 	if os.Getenv("RPC_ZCASH") != "" {
