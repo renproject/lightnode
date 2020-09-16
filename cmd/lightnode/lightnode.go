@@ -172,6 +172,9 @@ func parseOptions() lightnode.Options {
 		chains[multichain.DigiByte] = txenginebindings.ChainOptions{
 			RPC:           pack.String(os.Getenv("RPC_FILECOIN")),
 			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_FILECOIN"))),
+			Extras: map[pack.String]pack.String{
+				"authToken": pack.String(os.Getenv("EXTRAS_FILECOIN_AUTH")),
+			},
 		}
 	}
 	if os.Getenv("RPC_ZCASH") != "" {
