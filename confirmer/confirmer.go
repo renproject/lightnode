@@ -164,7 +164,6 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 			confirmer.options.Logger.Errorf("[confirmer] cannot get output for account tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
 			return false
 		}
-		return false
 	default:
 		return false
 	}
