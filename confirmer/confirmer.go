@@ -148,14 +148,22 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 			confirmer.options.Logger.Errorf("[confirmer] failed to decode input for tx=%v: %v", transaction.Hash.String(), err)
 			return false
 		}
-		utxo, err := confirmer.bindings.UTXOLockInfo(ctx, lockChain, transaction.Selector.Asset(), input.Output.Outpoint)
+		_, err := confirmer.bindings.UTXOLockInfo(ctx, lockChain, transaction.Selector.Asset(), input.Output.Outpoint)
 		if err != nil {
-			confirmer.options.Logger.Errorf("[confirmer] cannot get output for btc tx=%v (%v): %v", utxo.Outpoint.Hash.String(), transaction.Selector.String(), err)
+			confirmer.options.Logger.Errorf("[confirmer] cannot get output for utxo tx=%v (%v): %v", input.Output.Outpoint.Hash.String(), transaction.Selector.String(), err)
 			return false
 		}
 	case lockChain.IsAccountBased():
-		// FIXME: Confirmation checking for locking on account based chains is
-		// unsupported.
+		input := txengine.InputLockOnAccountAndMintOnAccount{}
+		if err := pack.Decode(&input, transaction.Input); err != nil {
+			confirmer.options.Logger.Errorf("[confirmer] failed to decode input for tx=%v: %v", transaction.Hash.String(), err)
+			return false
+		}
+		_, err := confirmer.bindings.AccountLockInfo(ctx, lockChain, transaction.Selector.Asset(), input.Txid)
+		if err != nil {
+			confirmer.options.Logger.Errorf("[confirmer] cannot get output for account tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
+			return false
+		}
 		return false
 	default:
 		return false
