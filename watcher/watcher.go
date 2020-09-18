@@ -13,6 +13,7 @@ import (
 	"github.com/renproject/darknode/txengine"
 	"github.com/renproject/darknode/txengine/txenginebindings/ethereumbindings"
 	"github.com/renproject/lightnode/resolver"
+	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
 )
@@ -152,13 +153,26 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, err
 
 // burnToParams constructs params for a SubmitTx request with given ref.
 func (watcher Watcher) burnToParams(amount pack.U256, to pack.String, nonce pack.Bytes32) (jsonrpc.ParamsSubmitTx, error) {
-	// FIXME: For now we assume burn transactions are to be released on
-	// UTXO-based chains.
-	input, err := pack.Encode(txengine.InputBurnOnAccountAndReleaseOnUTXO{
-		Amount: amount,
-		To:     to,
-		Nonce:  nonce,
-	})
+	burnChain, ok := watcher.selector.BurnChain()
+	if !ok {
+
+	}
+	var input pack.Value
+	var err error
+	switch burnChain.ChainType() {
+	case multichain.ChainTypeUTXOBased:
+		input, err = pack.Encode(txengine.InputBurnOnAccountAndReleaseOnUTXO{
+			Amount: amount,
+			To:     to,
+			Nonce:  nonce,
+		})
+	case multichain.ChainTypeAccountBased:
+		input, err = pack.Encode(txengine.InputBurnOnAccountAndReleaseOnAccount{
+			Amount: amount,
+			To:     to,
+			Nonce:  nonce,
+		})
+	}
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
