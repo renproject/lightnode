@@ -27,7 +27,7 @@ require (
 	github.com/pierrec/xxHash v0.1.5 // indirect
 	github.com/prometheus/tsdb v0.10.0 // indirect
 	github.com/renproject/aw v0.4.0-9
-	github.com/renproject/darknode v0.5.3-0.20200916071445-d196542ac590
+	github.com/renproject/darknode v0.5.3-0.20200918070337-74df8570503e
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/multichain v0.2.8-0.20200916021910-91ea4fc0ab1a
