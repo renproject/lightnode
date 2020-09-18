@@ -459,9 +459,9 @@ func (db database) insertLockAccountMintAccountTx(tx tx.Tx) error {
 	if !ok {
 		return fmt.Errorf("unexpected type for to: expected pack.String, got %v", tx.Input.Get("to").Type())
 	}
-	nonce, ok := tx.Input.Get("nonce").(pack.Bytes32)
+	nonce, ok := tx.Input.Get("nonce").(pack.U256)
 	if !ok {
-		return fmt.Errorf("unexpected type for nonce: expected pack.Bytes32, got %v", tx.Input.Get("nonce").Type())
+		return fmt.Errorf("unexpected type for nonce: expected pack.U256, got %v", tx.Input.Get("nonce").Type())
 	}
 	nhash, ok := tx.Input.Get("nhash").(pack.Bytes32)
 	if !ok {
