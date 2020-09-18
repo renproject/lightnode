@@ -533,7 +533,7 @@ func (db database) insertBurnAccountReleaseAccountTx(tx tx.Tx) error {
 		return fmt.Errorf("unexpected type for nonce: expected pack.Bytes32, got %v", tx.Input.Get("nonce").Type())
 	}
 
-	script := `INSERT INTO burn_account_release_utxo (hash, status, created_time, selector, amount, toAddr, nonce) VALUES ($1, $2, $3, $4, $5, $6, $7);`
+	script := `INSERT INTO burn_account_release_account (hash, status, created_time, selector, amount, toAddr, nonce) VALUES ($1, $2, $3, $4, $5, $6, $7);`
 	_, err := db.db.Exec(script,
 		tx.Hash.String(),
 		TxStatusConfirming,
