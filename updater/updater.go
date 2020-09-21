@@ -23,7 +23,7 @@ import (
 type Updater struct {
 	bootstrap  addr.MultiAddresses
 	logger     logrus.FieldLogger
-	multiStore store.MultiAddrStore
+	multiStore store.AddressStore
 	client     http.Client
 	pollRate   time.Duration
 }
@@ -32,7 +32,7 @@ type Updater struct {
 // empty, then the constructed `Updater` will be useless since it will not know
 // any darknodes to query. Therefore the given store must contain some number
 // of bootstrap addresses.
-func New(logger logrus.FieldLogger, multiStore store.MultiAddrStore, pollRate, timeout time.Duration) Updater {
+func New(logger logrus.FieldLogger, multiStore store.AddressStore, pollRate, timeout time.Duration) Updater {
 	return Updater{
 		logger:     logger,
 		multiStore: multiStore,
@@ -67,9 +67,9 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		updater.logger.Errorf("cannot marshal query peers params: %v", err)
 		return
 	}
-	addrs, err := updater.multiStore.BootstrapAll()
+	addrs, err := updater.multiStore.CycleThroughAddresses(100)
 	if err != nil {
-		updater.logger.Errorf("cannot get query addresses: %v", err)
+		updater.logger.Errorf("cannot read address from multiAddress store: %v", err)
 		return
 	}
 
@@ -90,7 +90,7 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		if err != nil {
 			updater.logger.Warnf("[updater] cannot connect to node %v: %v", multi.String(), err)
 			if !updater.isBootstrap(multi) {
-				if err := updater.multiStore.Delete(multi); err != nil {
+				if err := updater.multiStore.Delete(multi.ID().String()); err != nil {
 					updater.logger.Warnf("[updater] cannot delete multi address from db : %v", err)
 				}
 			}

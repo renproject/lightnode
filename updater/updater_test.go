@@ -10,15 +10,14 @@ import (
 	. "github.com/renproject/lightnode/testutils"
 
 	"github.com/renproject/darknode/addr"
-	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/updater"
 	"github.com/sirupsen/logrus"
 )
 
-func initUpdater(ctx context.Context, bootstrapAddrs addr.MultiAddresses, pollRate, timeout time.Duration) store.MultiAddrStore {
+func initUpdater(ctx context.Context, bootstrapAddrs addr.MultiAddresses, pollRate, timeout time.Duration) store.AddressStore {
 	logger := logrus.New()
-	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), bootstrapAddrs)
+	multiStore := NewStore(bootstrapAddrs)
 	for _, addr := range bootstrapAddrs {
 		multiStore.Insert(addr)
 	}
@@ -31,7 +30,7 @@ func initUpdater(ctx context.Context, bootstrapAddrs addr.MultiAddresses, pollRa
 
 func initDarknodes(n int) []*MockDarknode {
 	dns := make([]*MockDarknode, n)
-	store := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
+	store := NewStore(nil)
 	for i := 0; i < n; i++ {
 		server := httptest.NewServer(RandomAddressHandler(store))
 		dns[i] = NewMockDarknode(server, store)

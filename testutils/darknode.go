@@ -17,10 +17,10 @@ import (
 type MockDarknode struct {
 	Server *httptest.Server
 	Me     addr.MultiAddress
-	Store  store.MultiAddrStore
+	Store  store.AddressStore
 }
 
-func NewMockDarknode(server *httptest.Server, store store.MultiAddrStore) *MockDarknode {
+func NewMockDarknode(server *httptest.Server, store store.AddressStore) *MockDarknode {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		panic(err)

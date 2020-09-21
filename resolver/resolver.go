@@ -20,13 +20,13 @@ import (
 type Resolver struct {
 	logger            logrus.FieldLogger
 	txCheckerRequests chan lhttp.RequestWithResponder
-	multiStore        store.MultiAddrStore
+	multiStore        store.AddressStore
 	cacher            phi.Task
 	db                db.DB
 	serverOptions     jsonrpc.Options
 }
 
-func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, key ecdsa.PublicKey, bc transform.Blockchain, db db.DB, serverOptions jsonrpc.Options) *Resolver {
+func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.AddressStore, key ecdsa.PublicKey, bc transform.Blockchain, db db.DB, serverOptions jsonrpc.Options) *Resolver {
 	requests := make(chan lhttp.RequestWithResponder, 128)
 	txChecker := newTxChecker(logger, requests, key, bc, db)
 	go txChecker.Run()
@@ -122,7 +122,7 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 		query = r.URL.Query()
 		darknodeID := query.Get("id")
 		if darknodeID != "" {
-			if _, err := resolver.multiStore.Get(darknodeID); err != nil {
+			if _, err := resolver.multiStore.Address(darknodeID); err != nil {
 				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("unknown darknode id %s", darknodeID), nil)
 				return jsonrpc.NewResponse(id, nil, &jsonErr)
 			}
