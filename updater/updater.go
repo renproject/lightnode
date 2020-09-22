@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/renproject/darknode/addr"
@@ -67,13 +68,16 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		updater.logger.Errorf("cannot marshal query peers params: %v", err)
 		return
 	}
-	addrs, err := updater.multiStore.CycleThroughAddresses(100)
+
+	addrs, err := updater.multiStore.CycleThroughAddresses(50)
 	if err != nil {
 		updater.logger.Errorf("cannot read address from multiAddress store: %v", err)
 		return
 	}
 
 	// Collect all peers connected to Bootstrap nodes.
+	mu := new(sync.Mutex)
+	newAddrs := map[string]addr.MultiAddress{}
 	phi.ParForAll(addrs, func(i int) {
 		multi := addrs[i]
 
@@ -108,18 +112,21 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 			updater.logger.Warnf("[updater] cannot unmarshal queryPeers result from %v: %v", multi.String(), err)
 			return
 		}
+		mu.Lock()
+		defer mu.Unlock()
 		for _, peer := range resp.Peers {
 			multiAddr, err := addr.NewMultiAddressFromString(peer)
 			if err != nil {
-				updater.logger.Errorf("[updater] failed to decode multi-address: %v", err)
 				continue
 			}
-			if err := updater.multiStore.Insert(multiAddr); err != nil {
-				updater.logger.Errorf("[updater] failed to add multi-address to store: %v", err)
-				return
-			}
+			newAddrs[multiAddr.ID().String()] = multiAddr
 		}
 	})
+
+	addresses := make([]addr.MultiAddress, 0, len(newAddrs))
+	for _, peer := range newAddrs {
+		addresses = append(addresses, peer)
+	}
 
 	// Print how many nodes we have connected to.
 	size, err := updater.multiStore.Size()

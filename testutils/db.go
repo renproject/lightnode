@@ -86,6 +86,15 @@ func (multiStore *MultiAddrStore) Insert(addr addr.MultiAddress) error {
 	return multiStore.store.Insert(addr.ID().String(), addr.String())
 }
 
+func (multiStore *MultiAddrStore) InsertAddresses(addrs addr.MultiAddresses) error {
+	for _, addr := range addrs {
+		if err := multiStore.store.Insert(addr.ID().String(), addr.String()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (multiStore *MultiAddrStore) Address(id string) (addr.MultiAddress, error) {
 	var multiAddrString string
 	if err := multiStore.store.Get(id, &multiAddrString); err != nil {

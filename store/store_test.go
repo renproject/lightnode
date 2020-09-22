@@ -159,6 +159,22 @@ var _ = Describe("MultiAddrStore", func() {
 					}
 				})
 
+				It("should be able to batch insert", func() {
+					db := init(dbname)
+					defer cleanup(db)
+
+					store, err := New(db, nil)
+					Expect(err).ShouldNot(HaveOccurred())
+
+					addrs := RandomAddressesWithoutDuplicates(1000, nil)
+					Expect(err).ShouldNot(HaveOccurred())
+					Expect(store.InsertAddresses(addrs)).Should(Succeed())
+
+					size, err := store.Size()
+					Expect(err).ShouldNot(HaveOccurred())
+					Expect(size).Should(Equal(50))
+				})
+
 				It("should return the size of the db", func() {
 					db := init(dbname)
 					defer cleanup(db)

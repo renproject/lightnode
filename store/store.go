@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"strings"
 
 	"github.com/renproject/darknode/addr"
 )
@@ -16,6 +17,9 @@ type AddressStore interface {
 
 	// Upsert the MultiAddress if exists, otherwise insert it into the store.
 	Insert(addr addr.MultiAddress) error
+
+	// Insert a list of MultiAddress in batch
+	InsertAddresses(addrs addr.MultiAddresses) error
 
 	// Address returns the MultiAddress of the given id.
 	Address(id string) (addr.MultiAddress, error)
@@ -82,6 +86,22 @@ func (s *store) Insert(addr addr.MultiAddress) error {
 	}
 	query := `INSERT INTO addresses (renID, address) VALUES ($1, $2) ON CONFLICT (renID) DO UPDATE SET address=$2;`
 	_, err = s.db.Exec(query, addr.ID().String(), string(data))
+	return err
+}
+
+func (s *store) InsertAddresses(addrs addr.MultiAddresses) error {
+	// According to https://stackoverflow.com/questions/12486436/how-do-i-batch-sql-statements-with-package-database-sql/25192138#25192138
+	values := make([]string, len(addrs))
+	for i, addr := range addrs {
+		data, err := addr.MarshalJSON()
+		if err != nil {
+			return err
+		}
+		values[i] = fmt.Sprintf("('%v', '%v')", addr.ID().String(), string(data))
+	}
+
+	query := fmt.Sprintf(`INSERT INTO addresses (renID, address) VALUES %v ON CONFLICT (renID) DO UPDATE SET address=excluded.address;`, strings.Join(values, ","))
+	_, err := s.db.Exec(query)
 	return err
 }
 
