@@ -15,7 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func initUpdater(ctx context.Context, bootstrapAddrs addr.MultiAddresses, pollRate, timeout time.Duration) store.AddressStore {
+func initUpdater(ctx context.Context, bootstrapAddrs addr.MultiAddresses, pollRate, timeout time.Duration) store.MultiAddrStore {
 	logger := logrus.New()
 	multiStore := NewStore(bootstrapAddrs)
 	for _, addr := range bootstrapAddrs {

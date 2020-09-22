@@ -12,8 +12,8 @@ import (
 
 const TableNameAddresses = "addresses"
 
-// AddressStore stores darknode MultiAddresses.
-type AddressStore interface {
+// MultiAddrStore stores darknode MultiAddresses.
+type MultiAddrStore interface {
 
 	// Upsert the MultiAddress if exists, otherwise insert it into the store.
 	Insert(addr addr.MultiAddress) error
@@ -50,7 +50,7 @@ type store struct {
 	db             *sql.DB
 }
 
-func New(db *sql.DB, bootstrapAddrs addr.MultiAddresses) (AddressStore, error) {
+func New(db *sql.DB, bootstrapAddrs addr.MultiAddresses) (MultiAddrStore, error) {
 
 	// Create the addresses table if not exist.
 	query := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (

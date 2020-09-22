@@ -20,13 +20,13 @@ import (
 type Resolver struct {
 	logger            logrus.FieldLogger
 	txCheckerRequests chan lhttp.RequestWithResponder
-	multiStore        store.AddressStore
+	multiStore        store.MultiAddrStore
 	cacher            phi.Task
 	db                db.DB
 	serverOptions     jsonrpc.Options
 }
 
-func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.AddressStore, key ecdsa.PublicKey, bc transform.Blockchain, db db.DB, serverOptions jsonrpc.Options) *Resolver {
+func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, key ecdsa.PublicKey, bc transform.Blockchain, db db.DB, serverOptions jsonrpc.Options) *Resolver {
 	requests := make(chan lhttp.RequestWithResponder, 128)
 	txChecker := newTxChecker(logger, requests, key, bc, db)
 	go txChecker.Run()

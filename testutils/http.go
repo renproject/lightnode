@@ -35,7 +35,7 @@ func (cl ChanWriter) Write(p []byte) (n int, err error) {
 	}
 }
 
-func RandomAddressHandler(store store.AddressStore) http.HandlerFunc {
+func RandomAddressHandler(store store.MultiAddrStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		addrs, err := store.RandomAddresses(5, false)
 		if err != nil {

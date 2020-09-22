@@ -23,11 +23,11 @@ import (
 type Dispatcher struct {
 	logger     logrus.FieldLogger
 	client     http.Client
-	multiStore store.AddressStore
+	multiStore store.MultiAddrStore
 }
 
 // New constructs a new `Dispatcher`.
-func New(logger logrus.FieldLogger, timeout time.Duration, multiStore store.AddressStore, opts phi.Options) phi.Task {
+func New(logger logrus.FieldLogger, timeout time.Duration, multiStore store.MultiAddrStore, opts phi.Options) phi.Task {
 	return phi.New(
 		&Dispatcher{
 			logger:     logger,

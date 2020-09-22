@@ -24,7 +24,7 @@ import (
 type Updater struct {
 	bootstrap  addr.MultiAddresses
 	logger     logrus.FieldLogger
-	multiStore store.AddressStore
+	multiStore store.MultiAddrStore
 	client     http.Client
 	pollRate   time.Duration
 }
@@ -33,7 +33,7 @@ type Updater struct {
 // empty, then the constructed `Updater` will be useless since it will not know
 // any darknodes to query. Therefore the given store must contain some number
 // of bootstrap addresses.
-func New(logger logrus.FieldLogger, multiStore store.AddressStore, pollRate, timeout time.Duration) Updater {
+func New(logger logrus.FieldLogger, multiStore store.MultiAddrStore, pollRate, timeout time.Duration) Updater {
 	return Updater{
 		logger:     logger,
 		multiStore: multiStore,
