@@ -166,7 +166,7 @@ var _ = Describe("MultiAddrStore", func() {
 					store, err := New(db, nil)
 					Expect(err).ShouldNot(HaveOccurred())
 
-					addrs := RandomAddressesWithoutDuplicates(1000, nil)
+					addrs := RandomAddressesWithoutDuplicates(50, nil)
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(store.InsertAddresses(addrs)).Should(Succeed())
 

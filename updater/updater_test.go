@@ -18,9 +18,6 @@ import (
 func initUpdater(ctx context.Context, bootstrapAddrs addr.MultiAddresses, pollRate, timeout time.Duration) store.MultiAddrStore {
 	logger := logrus.New()
 	multiStore := NewStore(bootstrapAddrs)
-	for _, addr := range bootstrapAddrs {
-		multiStore.Insert(addr)
-	}
 	updater := updater.New(logger, multiStore, pollRate, timeout)
 
 	go updater.Run(ctx)
@@ -40,7 +37,7 @@ func initDarknodes(n int) []*MockDarknode {
 
 var _ = Describe("Updater", func() {
 	Context("When running", func() {
-		It("Should periodically query the darknodes", func() {
+		It("should periodically query the darknodes", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 

@@ -75,7 +75,7 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		return
 	}
 
-	// Collect all peers connected to Bootstrap nodes.
+	// Ping all the selected nodes and collect results.
 	mu := new(sync.Mutex)
 	newAddrs := map[string]addr.MultiAddress{}
 	phi.ParForAll(addrs, func(i int) {
@@ -123,9 +123,14 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		}
 	})
 
+	// Update store with new addresses
 	addresses := make([]addr.MultiAddress, 0, len(newAddrs))
 	for _, peer := range newAddrs {
 		addresses = append(addresses, peer)
+	}
+	if err := updater.multiStore.InsertAddresses(addresses); err != nil {
+		updater.logger.Errorf("cannot update new addresses: %v", err)
+		return
 	}
 
 	// Print how many nodes we have connected to.

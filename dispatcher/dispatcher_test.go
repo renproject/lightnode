@@ -21,7 +21,7 @@ import (
 func initDispatcher(ctx context.Context, bootstrapAddrs addr.MultiAddresses, timeout time.Duration) phi.Sender {
 	opts := phi.Options{Cap: 10}
 	logger := logrus.New()
-	multiStore := NewStore(nil)
+	multiStore := NewStore(bootstrapAddrs)
 	dispatcher := dispatcher.New(logger, timeout, multiStore, opts)
 
 	go dispatcher.Run(ctx)
