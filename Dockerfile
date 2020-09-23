@@ -17,8 +17,9 @@ RUN go mod download
 COPY . .
 
 # Download Filecoin dependencies
+RUN apt-get autoclean
 RUN apt-get update
-RUN apt-get install -y jq
+RUN apt-get install -y apt-utils jq
 RUN apt-get install -y ocl-icd-opencl-dev
 RUN git submodule add https://github.com/filecoin-project/filecoin-ffi.git extern/filecoin-ffi
 WORKDIR /lightnode/extern/filecoin-ffi
