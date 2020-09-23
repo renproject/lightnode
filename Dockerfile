@@ -19,9 +19,9 @@ COPY . .
 # Download Filecoin dependencies
 RUN apt-get autoclean
 RUN apt-get update
-RUN apt-get install -y apt-utils jq
+RUN apt-get install -y jq
 RUN apt-get install -y ocl-icd-opencl-dev
-RUN git submodule add https://github.com/filecoin-project/filecoin-ffi.git extern/filecoin-ffi
+RUN git submodule add --force https://github.com/filecoin-project/filecoin-ffi.git extern/filecoin-ffi
 WORKDIR /lightnode/extern/filecoin-ffi
 RUN git checkout 777a6fbf4446b1112adfd4fa5dd88e0c88974122
 RUN make
@@ -30,3 +30,4 @@ RUN go mod edit -replace=github.com/filecoin-project/filecoin-ffi=./extern/filec
 
 # Build the code inside the container.
 RUN go build ./cmd/lightnode
+CMD ./lightnode
