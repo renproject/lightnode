@@ -31,13 +31,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt install ocl-icd-opencl-dev
-          cd lightnode
-          git submodule add https://github.com/filecoin-project/filecoin-ffi.git extern/filecoin-ffi
-          cd extern/filecoin-ffi
+          git submodule add https://github.com/filecoin-project/filecoin-ffi.git .extern/filecoin-ffi
+          cd .extern/filecoin-ffi
           git checkout 777a6fbf4446b1112adfd4fa5dd88e0c88974122
           make
           cd ../..
-          go mod edit -replace=github.com/filecoin-project/filecoin-ffi=./extern/filecoin-ffi
+          go mod edit -replace=github.com/filecoin-project/filecoin-ffi=./.extern/filecoin-ffi
       - name: Get dependencies
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
