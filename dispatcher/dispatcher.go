@@ -93,7 +93,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 
 // multiAddrs returns the multi-address for the given Darknode ID.
 func (dispatcher *Dispatcher) multiAddr(darknodeID string) (addr.MultiAddresses, error) {
-	multi, err := dispatcher.multiStore.Get(darknodeID)
+	multi, err := dispatcher.multiStore.Address(darknodeID)
 	if err != nil {
 		return nil, err
 	}
@@ -105,13 +105,13 @@ func (dispatcher *Dispatcher) multiAddr(darknodeID string) (addr.MultiAddresses,
 func (dispatcher *Dispatcher) multiAddrs(method string) (addr.MultiAddresses, error) {
 	switch method {
 	case jsonrpc.MethodSubmitTx:
-		return dispatcher.multiStore.RandomBootstrapAddrs(3)
+		return dispatcher.multiStore.RandomAddresses(3, true)
 	case jsonrpc.MethodQueryTx:
-		return dispatcher.multiStore.BootstrapAll()
+		return dispatcher.multiStore.BootstrapAddresses(), nil
 	case jsonrpc.MethodQueryStat:
-		return dispatcher.multiStore.RandomAddrs(3)
+		return dispatcher.multiStore.RandomAddresses(3, false)
 	default:
-		return dispatcher.multiStore.RandomBootstrapAddrs(5)
+		return dispatcher.multiStore.RandomAddresses(5, true)
 	}
 }
 

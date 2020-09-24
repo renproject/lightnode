@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/renproject/darknode/addr"
@@ -67,13 +68,16 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		updater.logger.Errorf("cannot marshal query peers params: %v", err)
 		return
 	}
-	addrs, err := updater.multiStore.BootstrapAll()
+
+	addrs, err := updater.multiStore.CycleThroughAddresses(50)
 	if err != nil {
-		updater.logger.Errorf("cannot get query addresses: %v", err)
+		updater.logger.Errorf("cannot read address from multiAddress store: %v", err)
 		return
 	}
 
-	// Collect all peers connected to Bootstrap nodes.
+	// Ping all the selected nodes and collect results.
+	mu := new(sync.Mutex)
+	newAddrs := map[string]addr.MultiAddress{}
 	phi.ParForAll(addrs, func(i int) {
 		multi := addrs[i]
 
@@ -90,7 +94,7 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		if err != nil {
 			updater.logger.Warnf("[updater] cannot connect to node %v: %v", multi.String(), err)
 			if !updater.isBootstrap(multi) {
-				if err := updater.multiStore.Delete(multi); err != nil {
+				if err := updater.multiStore.Delete(multi.ID().String()); err != nil {
 					updater.logger.Warnf("[updater] cannot delete multi address from db : %v", err)
 				}
 			}
@@ -108,18 +112,26 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 			updater.logger.Warnf("[updater] cannot unmarshal queryPeers result from %v: %v", multi.String(), err)
 			return
 		}
+		mu.Lock()
+		defer mu.Unlock()
 		for _, peer := range resp.Peers {
 			multiAddr, err := addr.NewMultiAddressFromString(peer)
 			if err != nil {
-				updater.logger.Errorf("[updater] failed to decode multi-address: %v", err)
 				continue
 			}
-			if err := updater.multiStore.Insert(multiAddr); err != nil {
-				updater.logger.Errorf("[updater] failed to add multi-address to store: %v", err)
-				return
-			}
+			newAddrs[multiAddr.ID().String()] = multiAddr
 		}
 	})
+
+	// Update store with new addresses
+	addresses := make([]addr.MultiAddress, 0, len(newAddrs))
+	for _, peer := range newAddrs {
+		addresses = append(addresses, peer)
+	}
+	if err := updater.multiStore.InsertAddresses(addresses); err != nil {
+		updater.logger.Errorf("cannot update new addresses: %v", err)
+		return
+	}
 
 	// Print how many nodes we have connected to.
 	size, err := updater.multiStore.Size()

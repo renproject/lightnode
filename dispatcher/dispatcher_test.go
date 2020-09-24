@@ -12,10 +12,8 @@ import (
 
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/dispatcher"
 	"github.com/renproject/lightnode/http"
-	"github.com/renproject/lightnode/store"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -23,8 +21,7 @@ import (
 func initDispatcher(ctx context.Context, bootstrapAddrs addr.MultiAddresses, timeout time.Duration) phi.Sender {
 	opts := phi.Options{Cap: 10}
 	logger := logrus.New()
-	table := kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses")
-	multiStore := store.New(table, bootstrapAddrs)
+	multiStore := NewStore(bootstrapAddrs)
 	dispatcher := dispatcher.New(logger, timeout, multiStore, opts)
 
 	go dispatcher.Run(ctx)
@@ -34,7 +31,7 @@ func initDispatcher(ctx context.Context, bootstrapAddrs addr.MultiAddresses, tim
 
 func initDarknodes(n int) []*MockDarknode {
 	dns := make([]*MockDarknode, n)
-	store := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "multi"), nil)
+	store := NewStore(nil)
 	for i := 0; i < n; i++ {
 		server := httptest.NewServer(SimpleHandler(true, nil))
 		dns[i] = NewMockDarknode(server, store)
