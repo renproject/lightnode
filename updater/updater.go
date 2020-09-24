@@ -23,7 +23,6 @@ import (
 // darknodes to a store. This store is shared by the `Dispatcher`, which needs
 // to know about the darknodes in the network.
 type Updater struct {
-	bootstraps []wire.Address
 	logger     logrus.FieldLogger
 	multiStore store.MultiAddrStore
 	client     http.Client
@@ -101,11 +100,6 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		response, err := updater.client.SendRequest(queryCtx, addrString, request, nil)
 		if err != nil {
 			updater.logger.Warnf("[updater] cannot connect to node %v: %v", multi.String(), err)
-			if !updater.isBootstrap(multi) {
-				if err := updater.multiStore.Delete(multi); err != nil {
-					updater.logger.Warnf("[updater] cannot delete multi address from db : %v", err)
-				}
-			}
 			return
 		}
 
@@ -140,14 +134,4 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		return
 	}
 	updater.logger.Infof("connected to %v nodes", size)
-}
-
-func (updater Updater) isBootstrap(addr wire.Address) bool {
-	for i := range updater.bootstraps {
-		if updater.bootstraps[i].Value == addr.Value {
-			return true
-		}
-	}
-
-	return false
 }
