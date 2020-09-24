@@ -13,7 +13,7 @@ import (
 	"github.com/renproject/pack"
 )
 
-type TxStatus int8
+type TxStatus tx.Status
 
 const (
 	TxStatusNil TxStatus = iota
