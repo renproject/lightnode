@@ -158,7 +158,7 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	// Initialise the multi-address store.
 	multiStore, err := store.New(sqlDB, options.BootstrapAddrs)
 	if err != nil {
-		logger.Panicf("fail to initialize multiAddress store, err = %v", err)
+		logger.Panicf("failed to initialise multi-address store: %v", err)
 	}
 
 	// Initialise the blockchain adapter.

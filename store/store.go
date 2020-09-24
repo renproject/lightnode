@@ -15,7 +15,7 @@ const TableNameAddresses = "addresses"
 // MultiAddrStore stores darknode MultiAddresses.
 type MultiAddrStore interface {
 
-	// Upsert the MultiAddress if exists, otherwise insert it into the store.
+	// Insert the MultiAddress if it does not exist, otherwise update it.
 	Insert(addr addr.MultiAddress) error
 
 	// Insert a list of MultiAddress in batch
