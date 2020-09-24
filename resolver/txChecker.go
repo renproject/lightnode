@@ -2,116 +2,77 @@ package resolver
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"database/sql"
 	"runtime"
 	"sync"
 	"time"
 
-	"github.com/renproject/darknode/abi"
-	"github.com/renproject/darknode/consensus/txcheck/transform"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/tx"
+	"github.com/renproject/darknode/txpool"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
 
-// A txChecker reads submitTx requests from a channel and validate the details
-// of the tx. It will store the tx if it's valid.
-type txChecker struct {
-	mu        *sync.Mutex
-	logger    logrus.FieldLogger
-	requests  <-chan http.RequestWithResponder
-	disPubkey ecdsa.PublicKey
-	bc        transform.Blockchain
-	db        db.DB
+// A txchecker reads SubmitTx requests from a channel and validates the details
+// of the transaction. It will store the transaction if it is valid.
+type txchecker struct {
+	logger   logrus.FieldLogger
+	requests <-chan http.RequestWithResponder
+	verifier txpool.Verifier
+	db       db.DB
+	mu       *sync.Mutex
 }
 
-// newTxChecker returns a new txChecker.
-func newTxChecker(logger logrus.FieldLogger, requests <-chan http.RequestWithResponder, key ecdsa.PublicKey, bc transform.Blockchain, db db.DB) txChecker {
-	return txChecker{
-		mu:        new(sync.Mutex),
-		logger:    logger,
-		requests:  requests,
-		disPubkey: key,
-		bc:        bc,
-		db:        db,
+// newTxChecker returns a new txchecker.
+func newTxChecker(logger logrus.FieldLogger, requests <-chan http.RequestWithResponder, verifier txpool.Verifier, db db.DB) txchecker {
+	return txchecker{
+		logger:   logger,
+		requests: requests,
+		verifier: verifier,
+		db:       db,
+		mu:       new(sync.Mutex),
 	}
 }
 
-// Run starts the txChecker until the requests channel is closed.
-func (tc *txChecker) Run() {
+// Run starts the txchecker until the requests channel is closed.
+func (tc *txchecker) Run() {
 	workers := 2 * runtime.NumCPU()
 	phi.ForAll(workers, func(_ int) {
 		for req := range tc.requests {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+
 			params := req.Params.(jsonrpc.ParamsSubmitTx)
-			tx, err := tc.verify(params)
+			err := tc.verifier.VerifyTx(ctx, &params.Tx)
+			cancel()
 			if err != nil {
 				req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, err)
 				continue
 			}
 
-			var tag abi.B32
-			if params.Tags != nil && len(*params.Tags) > 0 {
-				tag = (*params.Tags)[0]
-			}
-
 			// Check if the transaction is a duplicate.
-			gaas := req.Query.Get("gaas")
-			tx, err = tc.checkDuplicate(tx, tag, gaas)
-			if err != nil {
-				tc.logger.Errorf("[txChecker] cannot check tx duplication: %v", err)
+			if err := tc.checkDuplicate(params.Tx); err != nil {
+				tc.logger.Errorf("[txchecker] cannot check tx duplication: %v", err)
 				req.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
 				continue
 			}
 
 			// Write the response to the responder channel.
-			response := jsonrpc.ResponseSubmitTx{
-				Tx: tx,
-			}
+			response := jsonrpc.ResponseSubmitTx{}
 			req.Responder <- jsonrpc.NewResponse(req.ID, response, nil)
 		}
 	})
 }
 
-func (tc *txChecker) verify(params jsonrpc.ParamsSubmitTx) (abi.Tx, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	// Verify the parameters.
-	if err := transform.ValidateTxParams(params.Tx); err != nil {
-		return abi.Tx{}, err
-	}
-
-	// Validate the phash and calculate other hashes.
-	tx, err := transform.PHash(params.Tx)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	tx = transform.GHash(tx)
-	tx = transform.NHash(tx)
-	tx = transform.TxHash(tx)
-
-	// Validate the utxo or shiftOut event.
-	if abi.IsShiftIn(tx.To) {
-		tx, err = transform.ValidateUtxo(ctx, tc.bc, tx, 0, tc.disPubkey)
-		if err != nil {
-			return abi.Tx{}, err
-		}
-		return transform.Sighash(tx), nil
-	} else {
-		return transform.AddShiftOutDetails(ctx, tx, tc.bc, 0)
-	}
-}
-
-func (tc *txChecker) checkDuplicate(tx abi.Tx, tag abi.B32, gaas string) (abi.Tx, error) {
+func (tc *txchecker) checkDuplicate(transaction tx.Tx) error {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
-	stored, err := tc.db.Tx(tx.Hash, false)
+	_, err := tc.db.Tx(transaction.Hash)
 	if err == sql.ErrNoRows {
-		return tx, tc.db.InsertTx(tx, tag, gaas != "")
+		return tc.db.InsertTx(transaction)
 	}
-	return stored, err
+	return err
 }

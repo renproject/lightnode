@@ -6,51 +6,40 @@ import (
 	"crypto/rand"
 	"fmt"
 	"net"
-	"net/http/httptest"
-	"strconv"
 	"strings"
+	"time"
 
-	"github.com/renproject/darknode/addr"
+	"github.com/renproject/aw/wire"
+	"github.com/renproject/id"
 	"github.com/renproject/lightnode/store"
 )
 
 type MockDarknode struct {
-	Server *httptest.Server
-	Me     addr.MultiAddress
-	Store  store.MultiAddrStore
+	Me    wire.Address
+	Store store.MultiAddrStore
 }
 
-func NewMockDarknode(server *httptest.Server, store store.MultiAddrStore) *MockDarknode {
+func NewMockDarknode(serverURL string, store store.MultiAddrStore) *MockDarknode {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		panic(err)
 	}
-	if server.URL == "" {
+	if serverURL == "" {
 		panic("cannot parse an unstarted server to darknode")
 	}
-	host, port, err := net.SplitHostPort(strings.TrimPrefix(server.URL, "http://"))
+	host, port, err := net.SplitHostPort(strings.TrimPrefix(serverURL, "http://"))
 	if err != nil {
 		panic(err)
 	}
-	portInt, err := strconv.Atoi(port)
-	if err != nil {
+	addr := wire.NewUnsignedAddress(wire.TCP, fmt.Sprintf("%v:%v", host, port), uint64(time.Now().Unix()))
+	if err := store.Insert(addr); err != nil {
 		panic(err)
 	}
-	multiStr := fmt.Sprintf("/ip4/%v/tcp/%v/ren/%v", host, portInt-1, addr.FromPublicKey(key.PublicKey))
-	multi, err := addr.NewMultiAddressFromString(multiStr)
-	if err != nil {
-		panic(err)
-	}
-	if err := store.Insert(multi); err != nil {
+	if err := addr.Sign((*id.PrivKey)(key)); err != nil {
 		panic(err)
 	}
 	return &MockDarknode{
-		Server: server,
-		Me:     multi,
-		Store:  store,
+		Me:    addr,
+		Store: store,
 	}
-}
-
-func (dn *MockDarknode) Close() {
-	dn.Server.Close()
 }

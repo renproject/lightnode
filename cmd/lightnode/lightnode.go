@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
@@ -19,9 +18,12 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/go-redis/redis/v7"
-	"github.com/renproject/darknode"
-	"github.com/renproject/darknode/addr"
+	"github.com/renproject/aw/wire"
+	"github.com/renproject/darknode/txengine/txenginebindings"
+	"github.com/renproject/id"
 	"github.com/renproject/lightnode"
+	"github.com/renproject/multichain"
+	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
 )
 
@@ -30,25 +32,10 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	// Parse Lightnode options from environment variables.
-	name := os.Getenv("HEROKU_APP_NAME")
-	options := lightnode.Options{
-		Network:           parseNetwork(name),
-		Key:               parsePriKey(),
-		DisPubkey:         parsePubKey(),
-		Port:              os.Getenv("PORT"),
-		ProtocolAddr:      os.Getenv("PROTOCOL_ADDRESS"),
-		Cap:               parseInt("CAP"),
-		MaxBatchSize:      parseInt("MAX_BATCH_SIZE"),
-		ServerTimeout:     parseTime("SERVER_TIMEOUT"),
-		ClientTimeout:     parseTime("CLIENT_TIMEOUT"),
-		TTL:               parseTime("TTL"),
-		UpdaterPollRate:   parseTime("UPDATER_POLL_RATE"),
-		ConfirmerPollRate: parseTime("CONFIRMER_POLL_RATE"),
-		BootstrapAddrs:    parseAddresses(),
-	}
+	options := parseOptions()
 
 	// Initialise logger and attach Sentry hook.
-	logger := initLogger(options.Network)
+	logger := initLogger(os.Getenv("HEROKU_APP_NAME"), options.Network)
 
 	// Initialise the database.
 	driver, dbURL := os.Getenv("DATABASE_DRIVER"), os.Getenv("DATABASE_URL")
@@ -64,15 +51,14 @@ func main() {
 
 	// Run Lightnode.
 	ctx := context.Background()
-	node := lightnode.New(ctx, options, logger, sqlDB, client)
+	node := lightnode.New(options, ctx, logger, sqlDB, client)
 	node.Run(ctx)
 }
 
-func initLogger(network darknode.Network) logrus.FieldLogger {
+func initLogger(name string, network multichain.Network) logrus.FieldLogger {
 	logger := logrus.New()
 	sentryURL := os.Getenv("SENTRY_URL")
-	name := os.Getenv("HEROKU_APP_NAME")
-	if network != darknode.Devnet {
+	if network != multichain.NetworkLocalnet {
 		tags := map[string]string{
 			"name": name,
 		}
@@ -105,23 +91,112 @@ func initRedis() *redis.Client {
 	})
 }
 
-func parseNetwork(appName string) darknode.Network {
-	if strings.Contains(appName, "devnet") {
-		return darknode.Devnet
+func parseOptions() lightnode.Options {
+	options := lightnode.DefaultOptions().
+		WithNetwork(parseNetwork("HEROKU_APP_NAME")).
+		WithDistPubKey(parsePubKey("PUB_KEY"))
+
+	// We only want to override the default options if the environment variable
+	// has been specified.
+	if os.Getenv("PORT") != "" {
+		options = options.WithPort(os.Getenv("PORT"))
 	}
+	if os.Getenv("CAP") != "" {
+		options = options.WithCap(parseInt("CAP"))
+	}
+	if os.Getenv("MAX_BATCH_SIZE") != "" {
+		options = options.WithMaxBatchSize(parseInt("MAX_BATCH_SIZE"))
+	}
+	if os.Getenv("MAX_PAGE_SIZE") != "" {
+		options = options.WithMaxBatchSize(parseInt("MAX_PAGE_SIZE"))
+	}
+	if os.Getenv("SERVER_TIMEOUT") != "" {
+		options = options.WithServerTimeout(parseTime("SERVER_TIMEOUT"))
+	}
+	if os.Getenv("CLIENT_TIMEOUT") != "" {
+		options = options.WithClientTimeout(parseTime("CLIENT_TIMEOUT"))
+	}
+	if os.Getenv("TTL") != "" {
+		options = options.WithTTL(parseTime("TTL"))
+	}
+	if os.Getenv("UPDATER_POLL_RATE") != "" {
+		options = options.WithUpdaterPollRate(parseTime("UPDATER_POLL_RATE"))
+	}
+	if os.Getenv("CONFIRMER_POLL_RATE") != "" {
+		options = options.WithConfirmerPollRate(parseTime("CONFIRMER_POLL_RATE"))
+	}
+	if os.Getenv("WATCHER_POLL_RATE") != "" {
+		options = options.WithWatcherPollRate(parseTime("WATCHER_POLL_RATE"))
+	}
+	if os.Getenv("EXPIRY") != "" {
+		options = options.WithTransactionExpiry(parseTime("EXPIRY"))
+	}
+	if os.Getenv("ADDRESSES") != "" {
+		options = options.WithBootstrapAddrs(parseAddresses("ADDRESSES"))
+	}
+
+	chains := map[multichain.Chain]txenginebindings.ChainOptions{}
+	if os.Getenv("RPC_BINANCE") != "" {
+		chains[multichain.BinanceSmartChain] = txenginebindings.ChainOptions{
+			RPC:           pack.String(os.Getenv("RPC_BINANCE")),
+			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_BINANCE"))),
+			Protocol:      pack.String(os.Getenv("GATEWAY_BINANCE")),
+		}
+	}
+	if os.Getenv("RPC_BITCOIN") != "" {
+		chains[multichain.Bitcoin] = txenginebindings.ChainOptions{
+			RPC:           pack.String(os.Getenv("RPC_BITCOIN")),
+			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_BITCOIN"))),
+		}
+	}
+	if os.Getenv("RPC_DIGIBYTE") != "" {
+		chains[multichain.DigiByte] = txenginebindings.ChainOptions{
+			RPC:           pack.String(os.Getenv("RPC_DIGIBYTE")),
+			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_DIGIBYTE"))),
+		}
+	}
+	if os.Getenv("RPC_DOGECOIN") != "" {
+		chains[multichain.Dogecoin] = txenginebindings.ChainOptions{
+			RPC:           pack.String(os.Getenv("RPC_DOGECOIN")),
+			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_DOGECOIN"))),
+		}
+	}
+	if os.Getenv("RPC_ETHEREUM") != "" {
+		chains[multichain.Ethereum] = txenginebindings.ChainOptions{
+			RPC:           pack.String(os.Getenv("RPC_ETHEREUM")),
+			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_ETHEREUM"))),
+			Protocol:      pack.String(os.Getenv("GATEWAY_ETHEREUM")),
+		}
+	}
+	if os.Getenv("RPC_FILECOIN") != "" {
+		chains[multichain.Filecoin] = txenginebindings.ChainOptions{
+			RPC:           pack.String(os.Getenv("RPC_FILECOIN")),
+			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_FILECOIN"))),
+			Extras: map[pack.String]pack.String{
+				"authToken": pack.String(os.Getenv("EXTRAS_FILECOIN_AUTH")),
+			},
+		}
+	}
+	if os.Getenv("RPC_ZCASH") != "" {
+		chains[multichain.Zcash] = txenginebindings.ChainOptions{
+			RPC:           pack.String(os.Getenv("RPC_ZCASH")),
+			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_ZCASH"))),
+		}
+	}
+	options = options.WithChains(chains)
+
+	return options
+}
+
+func parseNetwork(name string) multichain.Network {
+	appName := os.Getenv(name)
 	if strings.Contains(appName, "testnet") {
-		return darknode.Testnet
-	}
-	if strings.Contains(appName, "chaosnet") {
-		return darknode.Chaosnet
-	}
-	if strings.Contains(appName, "localnet") {
-		return darknode.Localnet
+		return multichain.NetworkTestnet
 	}
 	if strings.Contains(appName, "mainnet") {
-		return darknode.Mainnet
+		return multichain.NetworkMainnet
 	}
-	panic("unsupported network")
+	return multichain.NetworkLocalnet
 }
 
 func parseInt(name string) int {
@@ -140,39 +215,28 @@ func parseTime(name string) time.Duration {
 	return time.Duration(duration) * time.Second
 }
 
-func parseAddresses() addr.MultiAddresses {
-	addrs := strings.Split(os.Getenv("ADDRESSES"), ",")
-	multis := make([]addr.MultiAddress, len(addrs))
-	for i := range multis {
-		multi, err := addr.NewMultiAddressFromString(addrs[i])
+func parseAddresses(name string) []wire.Address {
+	addrStrings := strings.Split(os.Getenv(name), ",")
+	addrs := make([]wire.Address, len(addrStrings))
+	for i := range addrs {
+		addr, err := wire.DecodeString(addrStrings[i])
 		if err != nil {
-			panic(fmt.Sprintf("invalid bootstrap address : fail to parse from string `%v`", addrs[i]))
+			panic(fmt.Sprintf("invalid bootstrap address %v: %v", addrStrings[i], err))
 		}
-		multis[i] = multi
+		addrs[i] = addr
 	}
-	return multis
+	return addrs
 }
 
-func parsePriKey() *ecdsa.PrivateKey {
-	keyBytes, err := hex.DecodeString(os.Getenv("PRI_KEY"))
+func parsePubKey(name string) *id.PubKey {
+	pubKeyString := os.Getenv(name)
+	keyBytes, err := hex.DecodeString(pubKeyString)
 	if err != nil {
-		panic(fmt.Sprintf("invalid private key string from the env variable, err = %v", err))
-	}
-	key, err := crypto.ToECDSA(keyBytes)
-	if err != nil {
-		panic(fmt.Sprintf("invalid private key for lightnode account, err = %v", err))
-	}
-	return key
-}
-
-func parsePubKey() *ecdsa.PublicKey {
-	keyBytes, err := hex.DecodeString(os.Getenv("PUB_KEY"))
-	if err != nil {
-		panic(fmt.Sprintf("invalid public key string from the env variable, err = %v", err))
+		panic(fmt.Sprintf("invalid distributed public key %v: %v", pubKeyString, err))
 	}
 	key, err := crypto.DecompressPubkey(keyBytes)
 	if err != nil {
-		panic(fmt.Sprintf("invalid distribute public key, err = %v", err))
+		panic(fmt.Sprintf("invalid distributed public key %v: %v", pubKeyString, err))
 	}
-	return key
+	return (*id.PubKey)(key)
 }

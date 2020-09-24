@@ -9,46 +9,32 @@ import (
 	"strings"
 	"time"
 
-	"github.com/renproject/darknode/abi"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/tx"
+	"github.com/renproject/darknode/txengine"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
-	"github.com/renproject/mercury/types/btctypes"
+	"github.com/renproject/pack"
 	"github.com/renproject/phi"
-	"github.com/sirupsen/logrus"
 )
-
-type ConnPool interface {
-	Utxo(ctx context.Context, addr abi.Address, hash abi.B32, vout abi.U32) (btctypes.UTXO, error)
-	EventConfirmations(ctx context.Context, addr abi.Address, ref uint64) (uint64, error)
-}
-
-// Options for initialising a confirmer.
-type Options struct {
-	MinConfirmations map[abi.Address]uint64
-	PollInterval     time.Duration
-	Expiry           time.Duration
-}
 
 // Confirmer handles requests that have been validated. It checks if requests
 // have reached sufficient confirmations and stores those that have not to be
 // checked later.
 type Confirmer struct {
-	logger     logrus.FieldLogger
 	options    Options
 	dispatcher phi.Sender
 	database   db.DB
-	bc         ConnPool
+	bindings   txengine.Bindings
 }
 
 // New returns a new Confirmer.
-func New(logger logrus.FieldLogger, options Options, dispatcher phi.Sender, db db.DB, bc ConnPool) Confirmer {
+func New(options Options, dispatcher phi.Sender, db db.DB, bindings txengine.Bindings) Confirmer {
 	return Confirmer{
-		logger:     logger,
 		options:    options,
 		dispatcher: dispatcher,
 		database:   db,
-		bc:         bc,
+		bindings:   bindings,
 	}
 }
 
@@ -94,21 +80,21 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 
 	txs, err := confirmer.database.PendingTxs(24 * time.Hour)
 	if err != nil {
-		confirmer.logger.Errorf("[confirmer] failed to read pending txs from database: %v", err)
+		confirmer.options.Logger.Errorf("[confirmer] failed to read pending txs from database: %v", err)
 		return
 	}
 
 	phi.ParForAll(txs, func(i int) {
 		tx := txs[i]
 		var confirmed bool
-		if abi.IsShiftIn(tx.To) {
-			confirmed = confirmer.shiftInTxConfirmed(ctx, tx)
+		if tx.Selector.IsLockAndMint() {
+			confirmed = confirmer.lockTxConfirmed(ctx, tx)
 		} else {
-			confirmed = confirmer.shiftOutTxConfirmed(ctx, tx)
+			confirmed = confirmer.burnTxConfirmed(ctx, tx)
 		}
 
 		if confirmed {
-			confirmer.logger.Infof("tx=%v has reached sufficient confirmations", tx.Hash.String())
+			confirmer.options.Logger.Infof("tx=%v has reached sufficient confirmations", tx.Hash.String())
 			confirmer.confirm(ctx, tx)
 		}
 	})
@@ -116,15 +102,15 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 
 // confirm sends the transaction to the dispatcher and marks it as confirmed if
 // it receives a non-error response from the Darknodes.
-func (confirmer *Confirmer) confirm(ctx context.Context, tx abi.Tx) {
-	request, err := submitTxRequest(tx)
+func (confirmer *Confirmer) confirm(ctx context.Context, transaction tx.Tx) {
+	request, err := submitTxRequest(transaction)
 	if err != nil {
-		confirmer.logger.Errorf("[confirmer] cannot construct json request for transaction: %v", err)
+		confirmer.options.Logger.Errorf("[confirmer] cannot construct json request for transaction: %v", err)
 		return
 	}
 	req := http.NewRequestWithResponder(ctx, request.ID, request.Method, request.Params, url.Values{})
 	if ok := confirmer.dispatcher.Send(req); !ok {
-		confirmer.logger.Errorf("[confirmer] cannot send message to dispatcher, too much back pressure")
+		confirmer.options.Logger.Errorf("[confirmer] cannot send message to dispatcher: too much back pressure")
 		return
 	}
 
@@ -133,57 +119,91 @@ func (confirmer *Confirmer) confirm(ctx context.Context, tx abi.Tx) {
 		case <-ctx.Done():
 			return
 		case response := <-req.Responder:
-			if response.Error == nil {
-				confirmer.logger.Infof("✅ successfully submit tx = %v to darknodes", tx.Hash.String())
-			} else if response.Error != nil && !strings.Contains(response.Error.Message, "current status = done") {
-				confirmer.logger.Errorf("[confirmer] getting error back when submitting tx = %v: [%v] %v", tx.Hash.String(), response.Error.Code, response.Error.Message)
+			if response.Error == nil || strings.Contains(response.Error.Message, "current status = done") {
+				confirmer.options.Logger.Infof("✅ successfully submitted tx=%v to darknodes", transaction.Hash.String())
+			} else {
+				confirmer.options.Logger.Errorf("[confirmer] getting error back when submitting tx=%v: [%v] %v", transaction.Hash.String(), response.Error.Code, response.Error.Message)
 				return
 			}
 
-			if err := confirmer.database.UpdateStatus(tx.Hash, db.TxStatusConfirmed); err != nil {
-				confirmer.logger.Errorf("[confirmer] cannot confirm tx in the database: %v", err)
+			if err := confirmer.database.UpdateStatus(transaction.Hash, db.TxStatusConfirmed); err != nil {
+				confirmer.options.Logger.Errorf("[confirmer] cannot update transaction status: %v", err)
 			}
 		}
 	}()
 }
 
-// shiftInTxConfirmed checks if a given shift in transaction has received
-// sufficient confirmations.
-func (confirmer *Confirmer) shiftInTxConfirmed(ctx context.Context, tx abi.Tx) bool {
-	utxoVal := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
-	utxo, err := confirmer.bc.Utxo(ctx, tx.To, utxoVal.TxHash, utxoVal.VOut)
-	if err != nil {
-		confirmer.logger.Errorf("[confirmer] cannot get confirmation for tx=%v (%v): %v", utxoVal.TxHash.String(), tx.To, err)
+// lockTxConfirmed checks if a given lock transaction has received sufficient
+// confirmations.
+func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.Tx) bool {
+	lockChain, ok := transaction.Selector.LockChain()
+	if !ok {
+		confirmer.options.Logger.Errorf("[confirmer] cannot get lock chain for tx=%v (%v)", transaction.Hash.String(), transaction.Selector.String())
 		return false
 	}
-
-	return utxo.Confirmations() >= confirmer.options.MinConfirmations[tx.To]
+	switch {
+	case lockChain.IsUTXOBased():
+		input := txengine.InputLockOnUTXOAndMintOnAccount{}
+		if err := pack.Decode(&input, transaction.Input); err != nil {
+			confirmer.options.Logger.Errorf("[confirmer] failed to decode input for tx=%v: %v", transaction.Hash.String(), err)
+			return false
+		}
+		_, err := confirmer.bindings.UTXOLockInfo(ctx, lockChain, transaction.Selector.Asset(), input.Output.Outpoint)
+		if err != nil {
+			confirmer.options.Logger.Errorf("[confirmer] cannot get output for utxo tx=%v (%v): %v", input.Output.Outpoint.Hash.String(), transaction.Selector.String(), err)
+			return false
+		}
+	case lockChain.IsAccountBased():
+		input := txengine.InputLockOnAccountAndMintOnAccount{}
+		if err := pack.Decode(&input, transaction.Input); err != nil {
+			confirmer.options.Logger.Errorf("[confirmer] failed to decode input for tx=%v: %v", transaction.Hash.String(), err)
+			return false
+		}
+		_, err := confirmer.bindings.AccountLockInfo(ctx, lockChain, transaction.Selector.Asset(), input.Txid)
+		if err != nil {
+			confirmer.options.Logger.Errorf("[confirmer] cannot get output for account tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
+			return false
+		}
+	default:
+		return false
+	}
+	return true
 }
 
-// shiftOutTxConfirmed checks if a given shift out transaction has received
-// sufficient confirmations.
-func (confirmer *Confirmer) shiftOutTxConfirmed(ctx context.Context, tx abi.Tx) bool {
-	ref := tx.In.Get("ref").Value.(abi.U64)
-
-	confirmations, err := confirmer.bc.EventConfirmations(ctx, tx.To, ref.Int.Uint64())
-	if err != nil {
-		confirmer.logger.Errorf("[confirmer] cannot get confirmation for ethereum event (%v): %v", tx.To, err)
+// burnTxConfirmed checks if a given burn transaction has received sufficient
+// confirmations.
+func (confirmer *Confirmer) burnTxConfirmed(ctx context.Context, transaction tx.Tx) bool {
+	burnChain, ok := transaction.Selector.BurnChain()
+	if !ok {
+		confirmer.options.Logger.Errorf("[confirmer] cannot get burn chain for tx=%v (%v)", transaction.Hash.String(), transaction.Selector.String())
 		return false
 	}
-	minCon := confirmer.options.MinConfirmations[tx.To]
-	return confirmations >= minCon
+	nonce, ok := transaction.Input.Get("nonce").(pack.Bytes32)
+	if !ok {
+		confirmer.options.Logger.Errorf("[confirmer] failed to get nonce for tx=%v", transaction.Hash.String())
+		return false
+	}
+
+	_, _, _, err := confirmer.bindings.AccountBurnInfo(ctx, burnChain, transaction.Selector.Asset(), nonce)
+	if err != nil {
+		confirmer.options.Logger.Errorf("[confirmer] cannot get burn info for tx=%v (%v): %v", transaction.Hash.String(), transaction.Selector.String(), err)
+		return false
+	}
+	return true
 }
 
 // prune removes any expired transactions from the database.
 func (confirmer *Confirmer) prune() {
 	if err := confirmer.database.Prune(confirmer.options.Expiry); err != nil {
-		confirmer.logger.Errorf("[confirmer] cannot prune database: %v", err)
+		confirmer.options.Logger.Errorf("[confirmer] cannot prune database: %v", err)
 	}
 }
 
 // submitTxRequest converts a transaction to a `jsonrpc.Request`.
-func submitTxRequest(tx abi.Tx) (jsonrpc.Request, error) {
-	data, err := json.Marshal(jsonrpc.ParamsSubmitTx{Tx: tx})
+func submitTxRequest(transaction tx.Tx) (jsonrpc.Request, error) {
+	data, err := json.Marshal(jsonrpc.ParamsSubmitTx{
+		Tx: transaction,
+	})
 	if err != nil {
 		return jsonrpc.Request{}, fmt.Errorf("failed to marshal tx: %v", err)
 	}

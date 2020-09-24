@@ -1,1 +1,1 @@
-package watcher
+package watcher_test
