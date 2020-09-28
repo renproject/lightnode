@@ -27,11 +27,11 @@ require (
 	github.com/pierrec/xxHash v0.1.5 // indirect
 	github.com/prometheus/tsdb v0.10.0 // indirect
 	github.com/renproject/aw v0.4.0-9
-	github.com/renproject/darknode v0.5.3-0.20200918070337-74df8570503e
+	github.com/renproject/darknode v0.5.3-0.20200927234247-ff2e27c43fbc
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
-	github.com/renproject/multichain v0.2.8-0.20200916021910-91ea4fc0ab1a
-	github.com/renproject/pack v0.2.3
+	github.com/renproject/multichain v0.2.8-0.20200925032440-5124db1cabf0
+	github.com/renproject/pack v0.2.5
 	github.com/renproject/phi v0.1.0
 	github.com/rjeczalik/notify v0.9.2 // indirect
 	github.com/sirupsen/logrus v1.6.0

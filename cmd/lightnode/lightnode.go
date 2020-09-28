@@ -177,6 +177,12 @@ func parseOptions() lightnode.Options {
 			},
 		}
 	}
+	if os.Getenv("RPC_TERRA") != "" {
+		chains[multichain.Terra] = txenginebindings.ChainOptions{
+			RPC:           pack.String(os.Getenv("RPC_TERRA")),
+			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_TERRA"))),
+		}
+	}
 	if os.Getenv("RPC_ZCASH") != "" {
 		chains[multichain.Zcash] = txenginebindings.ChainOptions{
 			RPC:           pack.String(os.Getenv("RPC_ZCASH")),
