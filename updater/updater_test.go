@@ -10,7 +10,6 @@ import (
 	. "github.com/renproject/lightnode/testutils"
 
 	"github.com/renproject/darknode/addr"
-	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/updater"
 	"github.com/sirupsen/logrus"
@@ -18,10 +17,7 @@ import (
 
 func initUpdater(ctx context.Context, bootstrapAddrs addr.MultiAddresses, pollRate, timeout time.Duration) store.MultiAddrStore {
 	logger := logrus.New()
-	multiStore := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), bootstrapAddrs)
-	for _, addr := range bootstrapAddrs {
-		multiStore.Insert(addr)
-	}
+	multiStore := NewStore(bootstrapAddrs)
 	updater := updater.New(logger, multiStore, pollRate, timeout)
 
 	go updater.Run(ctx)
@@ -31,7 +27,7 @@ func initUpdater(ctx context.Context, bootstrapAddrs addr.MultiAddresses, pollRa
 
 func initDarknodes(n int) []*MockDarknode {
 	dns := make([]*MockDarknode, n)
-	store := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
+	store := NewStore(nil)
 	for i := 0; i < n; i++ {
 		server := httptest.NewServer(RandomAddressHandler(store))
 		dns[i] = NewMockDarknode(server, store)
@@ -41,7 +37,7 @@ func initDarknodes(n int) []*MockDarknode {
 
 var _ = Describe("Updater", func() {
 	Context("When running", func() {
-		It("Should periodically query the darknodes", func() {
+		It("should periodically query the darknodes", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 

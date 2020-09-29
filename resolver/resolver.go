@@ -122,7 +122,7 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 		query = r.URL.Query()
 		darknodeID := query.Get("id")
 		if darknodeID != "" {
-			if _, err := resolver.multiStore.Get(darknodeID); err != nil {
+			if _, err := resolver.multiStore.Address(darknodeID); err != nil {
 				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidParams, fmt.Sprintf("unknown darknode id %s", darknodeID), nil)
 				return jsonrpc.NewResponse(id, nil, &jsonErr)
 			}

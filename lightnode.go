@@ -156,8 +156,10 @@ func New(ctx context.Context, options Options, logger logrus.FieldLogger, sqlDB 
 	}
 
 	// Initialise the multi-address store.
-	table := kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses")
-	multiStore := store.New(table, options.BootstrapAddrs)
+	multiStore, err := store.New(sqlDB, options.BootstrapAddrs)
+	if err != nil {
+		logger.Panicf("failed to initialise multi-address store: %v", err)
+	}
 
 	// Initialise the blockchain adapter.
 	protocolAddr := common.HexToAddress(options.ProtocolAddr)

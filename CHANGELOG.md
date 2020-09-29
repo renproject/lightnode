@@ -1,3 +1,8 @@
+## 0.1.13
+- Update to Darknode v0.2.24 (add recover mechanism in the rpc server)
+- Use persistent storage (database) for MultiAddress store. 
+- Improve p2p boostrap logic.  
+
 ## 0.1.12
 - Update transaction if Darknodes return a "done" status
 - Increase default unconfirmed transaction expiry to 14 days
