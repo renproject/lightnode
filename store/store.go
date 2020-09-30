@@ -90,6 +90,10 @@ func (s *store) Insert(addr addr.MultiAddress) error {
 }
 
 func (s *store) InsertAddresses(addrs addr.MultiAddresses) error {
+	if len(addrs) == 0 {
+		return nil
+	}
+
 	// According to https://stackoverflow.com/questions/12486436/how-do-i-batch-sql-statements-with-package-database-sql/25192138#25192138
 	values := make([]string, len(addrs))
 	for i, addr := range addrs {
