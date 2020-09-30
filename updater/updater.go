@@ -93,11 +93,6 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		response, err := updater.client.SendRequest(queryCtx, address, request, nil)
 		if err != nil {
 			updater.logger.Warnf("[updater] cannot connect to node %v: %v", multi.String(), err)
-			if !updater.isBootstrap(multi) {
-				if err := updater.multiStore.Delete(multi.ID().String()); err != nil {
-					updater.logger.Warnf("[updater] cannot delete multi address from db : %v", err)
-				}
-			}
 			return
 		}
 

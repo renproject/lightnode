@@ -175,6 +175,15 @@ var _ = Describe("MultiAddrStore", func() {
 					Expect(size).Should(Equal(50))
 				})
 
+				It("should be able to batch insert when giving a nil address list", func() {
+					db := init(dbname)
+					defer cleanup(db)
+
+					store, err := New(db, nil)
+					Expect(err).ShouldNot(HaveOccurred())
+					Expect(store.InsertAddresses(nil)).Should(Succeed())
+				})
+
 				It("should return the size of the db", func() {
 					db := init(dbname)
 					defer cleanup(db)
