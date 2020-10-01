@@ -5,6 +5,7 @@ go 1.13
 require (
 	github.com/allegro/bigcache v1.2.1 // indirect
 	github.com/aristanetworks/goarista v0.0.0-20200310212843-2da4c1f5881b // indirect
+	github.com/btcsuite/btcd v0.21.0-beta
 	github.com/certifi/gocertifi v0.0.0-20190905060710-a5e0173ced67 // indirect
 	github.com/cespare/cp v1.1.1 // indirect
 	github.com/deckarep/golang-set v1.7.1 // indirect
@@ -27,10 +28,10 @@ require (
 	github.com/pierrec/xxHash v0.1.5 // indirect
 	github.com/prometheus/tsdb v0.10.0 // indirect
 	github.com/renproject/aw v0.4.0-9
-	github.com/renproject/darknode v0.5.3-0.20200927234247-ff2e27c43fbc
+	github.com/renproject/darknode v0.5.3-0.20201001044422-e7b680305ffe
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
-	github.com/renproject/multichain v0.2.8-0.20200925032440-5124db1cabf0
+	github.com/renproject/multichain v0.2.8-0.20200929114230-302423f836e7
 	github.com/renproject/pack v0.2.5
 	github.com/renproject/phi v0.1.0
 	github.com/rjeczalik/notify v0.9.2 // indirect
