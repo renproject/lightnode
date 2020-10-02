@@ -79,7 +79,7 @@ func (db database) Init() error {
 		created_time       BIGINT,
 		selector           VARCHAR(255),
 		txid               VARCHAR,
-		txindex            INTEGER,
+		txindex            BIGINT,
 		amount             VARCHAR(100),
 		payload            VARCHAR,
 		phash              VARCHAR,
