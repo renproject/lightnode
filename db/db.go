@@ -159,7 +159,7 @@ func (db database) InsertTx(tx tx.Tx) error {
 
 // Tx implements the DB interface.
 func (db database) Tx(txHash pack.Bytes32) (tx.Tx, error) {
-	script := "SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash FROM ttxs WHERE hash = $1"
+	script := "SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash FROM txs WHERE hash = $1"
 	row := db.db.QueryRow(script, txHash.String())
 	return rowToTx(row)
 }
