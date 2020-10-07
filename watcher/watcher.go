@@ -112,7 +112,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		// Send the burn transaction to the resolver.
 		params, err := watcher.burnToParams(iter.Event.Raw.TxHash.Bytes(), pack.NewU256FromU64(pack.NewU64(amount)), pack.String(to), nonceBytes, watcher.gpubkey)
 		if err != nil {
-			watcher.logger.Fatalf("[watcher] cannot get params from burn transaction: %v", err)
+			watcher.logger.Errorf("[watcher] cannot get params from burn transaction (to=%v, amount=%v, nonce=%v): %v", to, amount, nonce, err)
 			return
 		}
 		response := watcher.resolver.SubmitTx(ctx, 0, &params, nil)
