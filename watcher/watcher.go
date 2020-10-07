@@ -2,19 +2,18 @@ package watcher
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"time"
 
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/txengine"
 	"github.com/renproject/darknode/txengine/txenginebindings/ethereumbindings"
+	"github.com/renproject/id"
 	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
@@ -36,18 +35,8 @@ type Watcher struct {
 }
 
 // NewWatcher returns a new Watcher.
-func NewWatcher(logger logrus.FieldLogger, selector tx.Selector, bindings txengine.Bindings, ethClient *ethclient.Client, ethBindings *ethereumbindings.MintGatewayLogicV1, resolver *resolver.Resolver, cache *redis.Client, pollInterval time.Duration) Watcher {
-	// TODO: This should be customisable based on the network.
-	pubKeyStr := "024c27e5610c701d857ff13464ea1592cf6e651bc6fde143f7d032b3298e7397e6"
-	pubKeyBytes, err := hex.DecodeString(pubKeyStr)
-	if err != nil {
-		panic(fmt.Sprintf("decoding public key: %v", err))
-	}
-	pubKey, err := crypto.DecompressPubkey(pubKeyBytes)
-	if err != nil {
-		panic(fmt.Sprintf("decompressing public key: %v", err))
-	}
-	gpubkey := (*btcec.PublicKey)(pubKey).SerializeCompressed()
+func NewWatcher(logger logrus.FieldLogger, selector tx.Selector, bindings txengine.Bindings, ethClient *ethclient.Client, ethBindings *ethereumbindings.MintGatewayLogicV1, resolver *resolver.Resolver, cache *redis.Client, distPubKey *id.PubKey, pollInterval time.Duration) Watcher {
+	gpubkey := (*btcec.PublicKey)(distPubKey).SerializeCompressed()
 	return Watcher{
 		logger:       logger,
 		gpubkey:      gpubkey,
