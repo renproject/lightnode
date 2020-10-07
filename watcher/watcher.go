@@ -112,19 +112,13 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		// Send the burn transaction to the resolver.
 		params, err := watcher.burnToParams(iter.Event.Raw.TxHash.Bytes(), pack.NewU256FromU64(pack.NewU64(amount)), pack.String(to), nonceBytes, watcher.gpubkey)
 		if err != nil {
-			watcher.logger.Errorf("[watcher] cannot get params from burn transaction: %v", err)
-			if err := watcher.cache.Set(watcher.key(), iter.Event.Raw.BlockNumber, 0).Err(); err != nil {
-				watcher.logger.Errorf("[watcher] error setting last checked block number in redis: %v", err)
-			}
+			watcher.logger.Fatalf("[watcher] cannot get params from burn transaction: %v", err)
 			return
 		}
 		response := watcher.resolver.SubmitTx(ctx, 0, &params, nil)
 		if response.Error != nil {
-			watcher.logger.Errorf("[watcher] invalid burn transaction: %v", response.Error.Message)
-			if err := watcher.cache.Set(watcher.key(), iter.Event.Raw.BlockNumber, 0).Err(); err != nil {
-				watcher.logger.Errorf("[watcher] error setting last checked block number in redis: %v", err)
-			}
-			return
+			watcher.logger.Errorf("[watcher] invalid burn transaction %v: %v", params, response.Error.Message)
+			continue
 		}
 	}
 	if err := iter.Error(); err != nil {
