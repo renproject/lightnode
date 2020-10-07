@@ -15,6 +15,45 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type mockAccountTx struct {
+}
+
+func (tx mockAccountTx) Hash() pack.Bytes {
+	return pack.Bytes{}
+}
+
+func (tx mockAccountTx) From() multichain.Address {
+	return ""
+}
+
+func (tx mockAccountTx) To() multichain.Address {
+	return ""
+}
+
+func (tx mockAccountTx) Value() pack.U256 {
+	return pack.NewU256([32]byte{})
+}
+
+func (tx mockAccountTx) Nonce() pack.U256 {
+	return pack.NewU256([32]byte{})
+}
+
+func (tx mockAccountTx) Payload() multichain.ContractCallData {
+	return []byte{}
+}
+
+func (tx mockAccountTx) Sighashes() ([]pack.Bytes32, error) {
+	return []pack.Bytes32{}, nil
+}
+
+func (tx mockAccountTx) Sign(signatures []pack.Bytes65, pubKey pack.Bytes) error {
+	return nil
+}
+
+func (tx mockAccountTx) Serialize() (pack.Bytes, error) {
+	return pack.Bytes{}, nil
+}
+
 type mockBindings struct {
 	logger                    logrus.FieldLogger
 	maxAttemptsUntilConfirmed int
@@ -48,10 +87,10 @@ func (b mockBindings) AccountBurnInfo(ctx context.Context, chain multichain.Chai
 }
 
 func (b mockBindings) AccountLockInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, txid pack.Bytes) (multichain.AccountTx, error) {
-	panic("unimplemented")
+	return mockAccountTx{}, nil
 }
 
-func (b mockBindings) AccountBuildTx(chain multichain.Chain, asset multichain.Asset, from, to multichain.Address, value, nonce, gasLimit, gasPrice pack.U256, payload pack.Bytes) (multichain.AccountTx, error) {
+func (b mockBindings) AccountBuildTx(ctx context.Context, chain multichain.Chain, asset multichain.Asset, from, to multichain.Address, value, nonce, gasLimit, gasPrice pack.U256, payload pack.Bytes) (multichain.AccountTx, error) {
 	panic("unimplemented")
 }
 

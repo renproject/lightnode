@@ -14,6 +14,7 @@ import (
 	"github.com/renproject/darknode/txengine"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
+	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 	"github.com/renproject/phi"
 )
@@ -87,9 +88,10 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 	phi.ParForAll(txs, func(i int) {
 		tx := txs[i]
 		var confirmed bool
-		if tx.Selector.IsLockAndMint() {
+		switch {
+		case tx.Selector.IsLock():
 			confirmed = confirmer.lockTxConfirmed(ctx, tx)
-		} else {
+		case tx.Selector.IsBurn():
 			confirmed = confirmer.burnTxConfirmed(ctx, tx)
 		}
 
@@ -136,25 +138,24 @@ func (confirmer *Confirmer) confirm(ctx context.Context, transaction tx.Tx) {
 // lockTxConfirmed checks if a given lock transaction has received sufficient
 // confirmations.
 func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.Tx) bool {
-	lockChain, ok := transaction.Selector.LockChain()
-	if !ok {
-		confirmer.options.Logger.Errorf("[confirmer] cannot get lock chain for tx=%v (%v)", transaction.Hash.String(), transaction.Selector.String())
-		return false
-	}
+	lockChain := transaction.Selector.Source()
 	switch {
 	case lockChain.IsUTXOBased():
-		input := txengine.InputLockOnUTXOAndMintOnAccount{}
+		input := txengine.Input{}
 		if err := pack.Decode(&input, transaction.Input); err != nil {
 			confirmer.options.Logger.Errorf("[confirmer] failed to decode input for tx=%v: %v", transaction.Hash.String(), err)
 			return false
 		}
-		_, err := confirmer.bindings.UTXOLockInfo(ctx, lockChain, transaction.Selector.Asset(), input.Output.Outpoint)
+		_, err := confirmer.bindings.UTXOLockInfo(ctx, lockChain, transaction.Selector.Asset(), multichain.UTXOutpoint{
+			Hash:  input.Txid,
+			Index: input.Txindex,
+		})
 		if err != nil {
-			confirmer.options.Logger.Errorf("[confirmer] cannot get output for utxo tx=%v (%v): %v", input.Output.Outpoint.Hash.String(), transaction.Selector.String(), err)
+			confirmer.options.Logger.Errorf("[confirmer] cannot get output for utxo tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
 			return false
 		}
 	case lockChain.IsAccountBased():
-		input := txengine.InputLockOnAccountAndMintOnAccount{}
+		input := txengine.Input{}
 		if err := pack.Decode(&input, transaction.Input); err != nil {
 			confirmer.options.Logger.Errorf("[confirmer] failed to decode input for tx=%v: %v", transaction.Hash.String(), err)
 			return false
@@ -173,11 +174,7 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 // burnTxConfirmed checks if a given burn transaction has received sufficient
 // confirmations.
 func (confirmer *Confirmer) burnTxConfirmed(ctx context.Context, transaction tx.Tx) bool {
-	burnChain, ok := transaction.Selector.BurnChain()
-	if !ok {
-		confirmer.options.Logger.Errorf("[confirmer] cannot get burn chain for tx=%v (%v)", transaction.Hash.String(), transaction.Selector.String())
-		return false
-	}
+	burnChain := transaction.Selector.Source()
 	nonce, ok := transaction.Input.Get("nonce").(pack.Bytes32)
 	if !ok {
 		confirmer.options.Logger.Errorf("[confirmer] failed to get nonce for tx=%v", transaction.Hash.String())

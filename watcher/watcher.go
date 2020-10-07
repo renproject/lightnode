@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/btcsuite/btcd/btcec"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/go-redis/redis/v7"
@@ -12,6 +13,7 @@ import (
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/txengine"
 	"github.com/renproject/darknode/txengine/txenginebindings/ethereumbindings"
+	"github.com/renproject/id"
 	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
@@ -22,7 +24,9 @@ import (
 // then forwarded to the cacher.
 type Watcher struct {
 	logger       logrus.FieldLogger
+	gpubkey      pack.Bytes
 	selector     tx.Selector
+	bindings     txengine.Bindings
 	ethClient    *ethclient.Client
 	ethBindings  *ethereumbindings.MintGatewayLogicV1
 	resolver     *resolver.Resolver
@@ -31,10 +35,13 @@ type Watcher struct {
 }
 
 // NewWatcher returns a new Watcher.
-func NewWatcher(logger logrus.FieldLogger, selector tx.Selector, ethClient *ethclient.Client, ethBindings *ethereumbindings.MintGatewayLogicV1, resolver *resolver.Resolver, cache *redis.Client, pollInterval time.Duration) Watcher {
+func NewWatcher(logger logrus.FieldLogger, selector tx.Selector, bindings txengine.Bindings, ethClient *ethclient.Client, ethBindings *ethereumbindings.MintGatewayLogicV1, resolver *resolver.Resolver, cache *redis.Client, distPubKey *id.PubKey, pollInterval time.Duration) Watcher {
+	gpubkey := (*btcec.PublicKey)(distPubKey).SerializeCompressed()
 	return Watcher{
 		logger:       logger,
+		gpubkey:      gpubkey,
 		selector:     selector,
+		bindings:     bindings,
 		ethClient:    ethClient,
 		ethBindings:  ethBindings,
 		resolver:     resolver,
@@ -103,13 +110,15 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
 
 		// Send the burn transaction to the resolver.
-		params, err := watcher.burnToParams(pack.NewU256FromU64(pack.NewU64(amount)), pack.String(to), nonceBytes)
+		params, err := watcher.burnToParams(iter.Event.Raw.TxHash.Bytes(), pack.NewU256FromU64(pack.NewU64(amount)), pack.String(to), nonceBytes, watcher.gpubkey)
 		if err != nil {
-			watcher.logger.Infof("[watcher] cannot get params from burn transaction: %v", err)
+			watcher.logger.Errorf("[watcher] cannot get params from burn transaction (to=%v, amount=%v, nonce=%v): %v", to, amount, nonce, err)
+			continue
 		}
 		response := watcher.resolver.SubmitTx(ctx, 0, &params, nil)
 		if response.Error != nil {
-			watcher.logger.Infof("[watcher] invalid burn transaction: %v", response.Error.Message)
+			watcher.logger.Errorf("[watcher] invalid burn transaction %v: %v", params, response.Error.Message)
+			continue
 		}
 	}
 	if err := iter.Error(); err != nil {
@@ -152,27 +161,30 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, err
 }
 
 // burnToParams constructs params for a SubmitTx request with given ref.
-func (watcher Watcher) burnToParams(amount pack.U256, to pack.String, nonce pack.Bytes32) (jsonrpc.ParamsSubmitTx, error) {
-	burnChain, ok := watcher.selector.BurnChain()
-	if !ok {
+func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, to pack.String, nonce pack.Bytes32, gpubkey pack.Bytes) (jsonrpc.ParamsSubmitTx, error) {
+	burnChain := watcher.selector.Destination()
+	toBytes, err := watcher.bindings.DecodeAddress(burnChain, multichain.Address(to))
+	if err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
 
-	}
-	var input pack.Value
-	var err error
-	switch burnChain.ChainType() {
-	case multichain.ChainTypeUTXOBased:
-		input, err = pack.Encode(txengine.InputBurnOnAccountAndReleaseOnUTXO{
-			Amount: amount,
-			To:     to,
-			Nonce:  nonce,
-		})
-	case multichain.ChainTypeAccountBased:
-		input, err = pack.Encode(txengine.InputBurnOnAccountAndReleaseOnAccount{
-			Amount: amount,
-			To:     to,
-			Nonce:  nonce,
-		})
-	}
+	txindex := pack.U32(0)
+	payload := pack.Bytes{}
+	phash := txengine.Phash(payload)
+	nhash := txengine.Nhash(nonce, txid, txindex)
+	ghash := txengine.Ghash(watcher.selector, phash, toBytes, nonce)
+	input, err := pack.Encode(txengine.Input{
+		Txid:    txid,
+		Txindex: txindex,
+		Amount:  amount,
+		Payload: payload,
+		Phash:   phash,
+		To:      to,
+		Nonce:   nonce,
+		Nhash:   nhash,
+		Gpubkey: gpubkey,
+		Ghash:   ghash,
+	})
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}

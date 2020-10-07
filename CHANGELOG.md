@@ -1,3 +1,10 @@
+## 0.2.1
+- Darknode transaction input compatibility updates
+- Integrate Terra
+
+## 0.2.0
+- Darknode v0.3.0 compatibility
+
 ## 0.1.12
 - Update transaction if Darknodes return a "done" status
 - Increase default unconfirmed transaction expiry to 14 days

@@ -55,24 +55,8 @@ var _ = Describe("Lightnode db", func() {
 	}
 
 	cleanUp := func(db *sql.DB) {
-		dropLockUTXOMintAccount := "DROP TABLE IF EXISTS lock_utxo_mint_account;"
-		_, err := db.Exec(dropLockUTXOMintAccount)
-		Expect(err).NotTo(HaveOccurred())
-
-		dropLockAccountMintAccount := "DROP TABLE IF EXISTS lock_account_mint_account;"
-		_, err = db.Exec(dropLockAccountMintAccount)
-		Expect(err).NotTo(HaveOccurred())
-
-		dropBurnAccountReleaseUTXO := "DROP TABLE IF EXISTS burn_account_release_utxo;"
-		_, err = db.Exec(dropBurnAccountReleaseUTXO)
-		Expect(err).NotTo(HaveOccurred())
-
-		dropBurnAccountReleaseAccount := "DROP TABLE IF EXISTS burn_account_release_account;"
-		_, err = db.Exec(dropBurnAccountReleaseAccount)
-		Expect(err).NotTo(HaveOccurred())
-
-		dropBurnAccountMintAccount := "DROP TABLE IF EXISTS burn_account_mint_account;"
-		_, err = db.Exec(dropBurnAccountMintAccount)
+		dropTxs := "DROP TABLE IF EXISTS txs;"
+		_, err := db.Exec(dropTxs)
 		Expect(err).NotTo(HaveOccurred())
 	}
 
@@ -99,25 +83,16 @@ var _ = Describe("Lightnode db", func() {
 					db := New(sqlDB)
 
 					// Tables should not exist before creation.
-					Expect(CheckTableExistence(dbname, "lock_utxo_mint_account", sqlDB)).Should(HaveOccurred())
-					Expect(CheckTableExistence(dbname, "lock_account_mint_account", sqlDB)).Should(HaveOccurred())
-					Expect(CheckTableExistence(dbname, "burn_account_release_utxo", sqlDB)).Should(HaveOccurred())
-					Expect(CheckTableExistence(dbname, "burn_account_release_account", sqlDB)).Should(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "txs", sqlDB)).Should(HaveOccurred())
 
 					// Tables should exist after creation.
 					Expect(db.Init()).To(Succeed())
-					Expect(CheckTableExistence(dbname, "lock_utxo_mint_account", sqlDB)).NotTo(HaveOccurred())
-					Expect(CheckTableExistence(dbname, "lock_account_mint_account", sqlDB)).NotTo(HaveOccurred())
-					Expect(CheckTableExistence(dbname, "burn_account_release_utxo", sqlDB)).NotTo(HaveOccurred())
-					Expect(CheckTableExistence(dbname, "burn_account_release_account", sqlDB)).NotTo(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "txs", sqlDB)).NotTo(HaveOccurred())
 
 					// Multiple calls of the creation function should not have
 					// any effect on the existing tables.
 					Expect(db.Init()).To(Succeed())
-					Expect(CheckTableExistence(dbname, "lock_utxo_mint_account", sqlDB)).NotTo(HaveOccurred())
-					Expect(CheckTableExistence(dbname, "lock_account_mint_account", sqlDB)).NotTo(HaveOccurred())
-					Expect(CheckTableExistence(dbname, "burn_account_release_utxo", sqlDB)).NotTo(HaveOccurred())
-					Expect(CheckTableExistence(dbname, "burn_account_release_account", sqlDB)).NotTo(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "txs", sqlDB)).NotTo(HaveOccurred())
 				})
 			})
 
@@ -193,10 +168,7 @@ var _ = Describe("Lightnode db", func() {
 						for i := 0; i < 50; i++ {
 							transaction := txutil.RandomGoodTx(r)
 							Expect(db.InsertTx(transaction)).To(Succeed())
-							Expect(UpdateTxCreatedTime(sqlDB, "lock_utxo_mint_account", transaction.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
-							Expect(UpdateTxCreatedTime(sqlDB, "lock_account_mint_account", transaction.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
-							Expect(UpdateTxCreatedTime(sqlDB, "burn_account_release_utxo", transaction.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
-							Expect(UpdateTxCreatedTime(sqlDB, "burn_account_release_account", transaction.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
+							Expect(UpdateTxCreatedTime(sqlDB, "txs", transaction.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
 						}
 						pendingTxs, err := db.PendingTxs(time.Hour)
 						Expect(err).NotTo(HaveOccurred())
@@ -254,34 +226,16 @@ var _ = Describe("Lightnode db", func() {
 
 						// Ensure no data gets pruned before it is expired.
 						Expect(db.Prune(5 * time.Second)).Should(Succeed())
-						numLockUTXOMintAccount, err := NumOfDataEntries(sqlDB, "lock_utxo_mint_account")
+						numTxs, err := NumOfDataEntries(sqlDB, "txs")
 						Expect(err).NotTo(HaveOccurred())
-						numLockAccountMintAccount, err := NumOfDataEntries(sqlDB, "lock_account_mint_account")
-						Expect(err).NotTo(HaveOccurred())
-						numBurnAccountReleaseUTXO, err := NumOfDataEntries(sqlDB, "burn_account_release_utxo")
-						Expect(err).NotTo(HaveOccurred())
-						numBurnAccountReleaseAccount, err := NumOfDataEntries(sqlDB, "burn_account_release_account")
-						Expect(err).NotTo(HaveOccurred())
-						Expect(numLockUTXOMintAccount + numLockAccountMintAccount + numBurnAccountReleaseUTXO + numBurnAccountReleaseAccount).Should(Equal(1))
+						Expect(numTxs).Should(Equal(1))
 
 						// Ensure data gets pruned once it has expired.
-						Expect(UpdateTxCreatedTime(sqlDB, "lock_utxo_mint_account", transaction.Hash, time.Now().Unix()-5)).Should(Succeed())
-						Expect(UpdateTxCreatedTime(sqlDB, "lock_account_mint_account", transaction.Hash, time.Now().Unix()-5)).Should(Succeed())
-						Expect(UpdateTxCreatedTime(sqlDB, "burn_account_release_utxo", transaction.Hash, time.Now().Unix()-5)).Should(Succeed())
-						Expect(UpdateTxCreatedTime(sqlDB, "burn_account_release_account", transaction.Hash, time.Now().Unix()-5)).Should(Succeed())
+						Expect(UpdateTxCreatedTime(sqlDB, "txs", transaction.Hash, time.Now().Unix()-5)).Should(Succeed())
 						Expect(db.Prune(time.Second)).Should(Succeed())
-						numLockUTXOMintAccount, err = NumOfDataEntries(sqlDB, "lock_utxo_mint_account")
+						numTxs, err = NumOfDataEntries(sqlDB, "txs")
 						Expect(err).NotTo(HaveOccurred())
-						Expect(numLockUTXOMintAccount).Should(BeZero())
-						numLockAccountMintAccount, err = NumOfDataEntries(sqlDB, "lock_account_mint_account")
-						Expect(err).NotTo(HaveOccurred())
-						Expect(numLockAccountMintAccount).Should(BeZero())
-						numBurnAccountReleaseUTXO, err = NumOfDataEntries(sqlDB, "burn_account_release_utxo")
-						Expect(err).NotTo(HaveOccurred())
-						Expect(numBurnAccountReleaseUTXO).Should(BeZero())
-						numBurnAccountReleaseAccount, err = NumOfDataEntries(sqlDB, "burn_account_release_account")
-						Expect(err).NotTo(HaveOccurred())
-						Expect(numBurnAccountReleaseAccount).Should(BeZero())
+						Expect(numTxs).Should(BeZero())
 
 						return true
 					}
