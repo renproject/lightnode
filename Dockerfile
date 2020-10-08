@@ -14,7 +14,7 @@ RUN apt-get install -y jq
 RUN apt-get install -y ocl-icd-opencl-dev
 RUN git clone https://github.com/filecoin-project/filecoin-ffi.git /extern/filecoin-ffi
 WORKDIR /extern/filecoin-ffi
-RUN git checkout 777a6fbf4446b1112adfd4fa5dd88e0c88974122
+RUN git checkout a62d00da59d1b0fb35f3a4ae854efa9441af892d
 RUN make
 
 # Download dependencies.

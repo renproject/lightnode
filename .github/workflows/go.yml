@@ -21,7 +21,7 @@ jobs:
           go-version: "^1.14.0"
       - name: Configure git for private modules
         env:
-            TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: git config --global url."https://tok-kkk:${TOKEN}@github.com".insteadOf "https://github.com"
       - name: Caching modules
         uses: actions/cache@v1
@@ -33,7 +33,7 @@ jobs:
           sudo apt install ocl-icd-opencl-dev
           git submodule add https://github.com/filecoin-project/filecoin-ffi.git .extern/filecoin-ffi
           cd .extern/filecoin-ffi
-          git checkout 777a6fbf4446b1112adfd4fa5dd88e0c88974122
+          git checkout a62d00da59d1b0fb35f3a4ae854efa9441af892d
           make
           cd ../..
           go mod edit -replace=github.com/filecoin-project/filecoin-ffi=./.extern/filecoin-ffi
@@ -50,7 +50,7 @@ jobs:
           golint ./...
       - name: Run tests and report test coverage
         env:
-            COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
           cd $GITHUB_WORKSPACE
