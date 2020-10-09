@@ -90,7 +90,7 @@ func (b mockBindings) AccountLockInfo(ctx context.Context, chain multichain.Chai
 	return mockAccountTx{}, nil
 }
 
-func (b mockBindings) AccountBuildTx(ctx context.Context, chain multichain.Chain, asset multichain.Asset, from, to multichain.Address, value, nonce, gasLimit, gasPrice pack.U256, payload pack.Bytes) (multichain.AccountTx, error) {
+func (b mockBindings) AccountBuildTx(ctx context.Context, chain multichain.Chain, asset multichain.Asset, from, to multichain.Address, value, nonce, gasLimit, gasPrice, gasPremium pack.U256, payload pack.Bytes) (multichain.AccountTx, error) {
 	panic("unimplemented")
 }
 
@@ -110,7 +110,7 @@ func (b mockBindings) UTXOSubmitTx(ctx context.Context, chain multichain.Chain, 
 	panic("unimplemented")
 }
 
-func (b mockBindings) GasPrice(chain multichain.Chain) (gasPrice pack.U256, err error) {
+func (b mockBindings) GasPrice(chain multichain.Chain) (pack.U256, pack.U256, error) {
 	panic("unimplemented")
 }
 
