@@ -268,7 +268,7 @@ func rowToTx(row Scannable) (tx.Tx, error) {
 		return tx.Tx{}, fmt.Errorf("decoding ghash %v: %v", ghashStr, err)
 	}
 	input, err := pack.Encode(
-		txengine.Input{
+		txengine.CrossChainInput{
 			Txid:    txID,
 			Txindex: pack.U32(txindex),
 			Amount:  amount,
