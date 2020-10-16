@@ -23,7 +23,7 @@ require (
 	github.com/onsi/gomega v1.10.1
 	github.com/prometheus/tsdb v0.10.0 // indirect
 	github.com/renproject/aw v0.4.0-9
-	github.com/renproject/darknode v0.5.3-0.20201014123043-aa147b115bb2
+	github.com/renproject/darknode v0.5.3-0.20201015234009-51b8aae7253d
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/multichain v0.2.9-0.20201014122441-110fc39a9ddc
