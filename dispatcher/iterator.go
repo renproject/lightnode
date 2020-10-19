@@ -42,7 +42,7 @@ func (iter firstResponseIterator) Collect(id interface{}, cancel context.CancelF
 
 	// Failed to get a valid response from any of the nodes (rare).
 	if most == nil {
-		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "network is down", nil)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "unable to query the network", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	}
 
@@ -77,7 +77,7 @@ func (iter majorityResponseIterator) Collect(id interface{}, cancel context.Canc
 
 	// Failed to get a valid response from any of the nodes (rare).
 	if most == nil {
-		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "network is down", nil)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "unable to query the network", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	}
 
