@@ -1,4 +1,4 @@
-FROM multichain:latest
+FROM renbot/multichain:latest
 
 # Use GitHub personal access token to fetch dependencies.
 ARG GITHUB_TOKEN
