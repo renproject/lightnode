@@ -1,4 +1,5 @@
 ## 0.2.2
+- Build Dockerfile using Multichain base image
 - Fix confirmations are not correctly parsed from ENV
 - Improve error message 
 

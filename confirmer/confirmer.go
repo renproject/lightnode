@@ -141,7 +141,7 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 	lockChain := transaction.Selector.Source()
 	switch {
 	case lockChain.IsUTXOBased():
-		input := txengine.Input{}
+		input := txengine.CrossChainInput{}
 		if err := pack.Decode(&input, transaction.Input); err != nil {
 			confirmer.options.Logger.Errorf("[confirmer] failed to decode input for tx=%v: %v", transaction.Hash.String(), err)
 			return false
@@ -155,7 +155,7 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 			return false
 		}
 	case lockChain.IsAccountBased():
-		input := txengine.Input{}
+		input := txengine.CrossChainInput{}
 		if err := pack.Decode(&input, transaction.Input); err != nil {
 			confirmer.options.Logger.Errorf("[confirmer] failed to decode input for tx=%v: %v", transaction.Hash.String(), err)
 			return false
