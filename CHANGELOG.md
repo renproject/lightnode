@@ -1,3 +1,6 @@
+## 0.2.2
+- Build Dockerfile using Multichain base image
+
 ## 0.2.1
 - Darknode transaction input compatibility updates
 - Integrate Terra
