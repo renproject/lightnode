@@ -139,39 +139,39 @@ func parseOptions() lightnode.Options {
 	if os.Getenv("RPC_BINANCE") != "" {
 		chains[multichain.BinanceSmartChain] = txenginebindings.ChainOptions{
 			RPC:           pack.String(os.Getenv("RPC_BINANCE")),
-			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_BINANCE"))),
+			Confirmations: pack.U64(parseInt("CONFIRMATIONS_BINANCE")),
 			Protocol:      pack.String(os.Getenv("GATEWAY_BINANCE")),
 		}
 	}
 	if os.Getenv("RPC_BITCOIN") != "" {
 		chains[multichain.Bitcoin] = txenginebindings.ChainOptions{
 			RPC:           pack.String(os.Getenv("RPC_BITCOIN")),
-			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_BITCOIN"))),
+			Confirmations: pack.U64(parseInt("CONFIRMATIONS_BITCOIN")),
 		}
 	}
 	if os.Getenv("RPC_DIGIBYTE") != "" {
 		chains[multichain.DigiByte] = txenginebindings.ChainOptions{
 			RPC:           pack.String(os.Getenv("RPC_DIGIBYTE")),
-			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_DIGIBYTE"))),
+			Confirmations: pack.U64(parseInt("CONFIRMATIONS_DIGIBYTE")),
 		}
 	}
 	if os.Getenv("RPC_DOGECOIN") != "" {
 		chains[multichain.Dogecoin] = txenginebindings.ChainOptions{
 			RPC:           pack.String(os.Getenv("RPC_DOGECOIN")),
-			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_DOGECOIN"))),
+			Confirmations: pack.U64(parseInt("CONFIRMATIONS_DOGECOIN")),
 		}
 	}
 	if os.Getenv("RPC_ETHEREUM") != "" {
 		chains[multichain.Ethereum] = txenginebindings.ChainOptions{
 			RPC:           pack.String(os.Getenv("RPC_ETHEREUM")),
-			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_ETHEREUM"))),
+			Confirmations: pack.U64(parseInt("CONFIRMATIONS_ETHEREUM")),
 			Protocol:      pack.String(os.Getenv("GATEWAY_ETHEREUM")),
 		}
 	}
 	if os.Getenv("RPC_FILECOIN") != "" {
 		chains[multichain.Filecoin] = txenginebindings.ChainOptions{
 			RPC:           pack.String(os.Getenv("RPC_FILECOIN")),
-			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_FILECOIN"))),
+			Confirmations: pack.U64(parseInt("CONFIRMATIONS_FILECOIN")),
 			Extras: map[pack.String]pack.String{
 				"authToken": pack.String(os.Getenv("EXTRAS_FILECOIN_AUTH")),
 			},

@@ -1,5 +1,7 @@
 ## 0.2.2
 - Build Dockerfile using Multichain base image
+- Fix confirmations are not correctly parsed from ENV
+- Improve error message 
 
 ## 0.2.1
 - Darknode transaction input compatibility updates
