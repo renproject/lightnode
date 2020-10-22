@@ -173,7 +173,7 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, to pack.S
 	phash := txengine.Phash(payload)
 	nhash := txengine.Nhash(nonce, txid, txindex)
 	ghash := txengine.Ghash(watcher.selector, phash, toBytes, nonce)
-	input, err := pack.Encode(txengine.Input{
+	input, err := pack.Encode(txengine.CrossChainInput{
 		Txid:    txid,
 		Txindex: txindex,
 		Amount:  amount,
