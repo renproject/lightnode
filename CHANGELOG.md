@@ -1,7 +1,8 @@
 ## 0.2.2
+- Update to Multichain v0.2.12
 - Build Dockerfile using Multichain base image
-- Fix confirmations are not correctly parsed from ENV
-- Improve error message 
+- Fix parsing of confirmations from environment variables
+- Improve error messages
 
 ## 0.2.1
 - Darknode transaction input compatibility updates
