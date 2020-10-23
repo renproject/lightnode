@@ -19,6 +19,7 @@ import (
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/aw/wire"
+	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/id"
 	"github.com/renproject/lightnode"
@@ -134,6 +135,9 @@ func parseOptions() lightnode.Options {
 	if os.Getenv("ADDRESSES") != "" {
 		options = options.WithBootstrapAddrs(parseAddresses("ADDRESSES"))
 	}
+	if os.Getenv("WHITELIST") != "" {
+		options = options.WithWhitelist(parseWhitelist("WHITELIST"))
+	}
 
 	chains := map[multichain.Chain]txenginebindings.ChainOptions{}
 	if os.Getenv("RPC_BINANCE") != "" {
@@ -245,4 +249,13 @@ func parsePubKey(name string) *id.PubKey {
 		panic(fmt.Sprintf("invalid distributed public key %v: %v", pubKeyString, err))
 	}
 	return (*id.PubKey)(key)
+}
+
+func parseWhitelist(name string) []tx.Selector {
+	whitelistStrings := strings.Split(os.Getenv(name), ",")
+	whitelist := make([]tx.Selector, len(whitelistStrings))
+	for i := range whitelist {
+		whitelist[i] = tx.Selector(whitelistStrings[i])
+	}
+	return whitelist
 }
