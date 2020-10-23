@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/renproject/aw/wire"
+	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/id"
 	"github.com/renproject/lightnode/confirmer"
@@ -43,6 +44,7 @@ type Options struct {
 	TransactionExpiry time.Duration
 	BootstrapAddrs    []wire.Address
 	Chains            map[multichain.Chain]txenginebindings.ChainOptions
+	Whitelist         []tx.Selector
 }
 
 // DefaultOptions returns new options with default configurations that should
@@ -154,5 +156,11 @@ func (opts Options) WithBootstrapAddrs(bootstrapAddrs []wire.Address) Options {
 // WithChains is used to specify the chain options for a the supported chains.
 func (opts Options) WithChains(chains map[multichain.Chain]txenginebindings.ChainOptions) Options {
 	opts.Chains = chains
+	return opts
+}
+
+// WithWhitelist is used to whitelist certain selectors inside the Darknode.
+func (opts Options) WithWhitelist(whitelist []tx.Selector) Options {
+	opts.Whitelist = whitelist
 	return opts
 }

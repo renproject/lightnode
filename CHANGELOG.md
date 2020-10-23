@@ -1,5 +1,6 @@
 ## 0.2.3
 - Update to Multichain v0.2.14
+- Add support for whitelisting selectors
 
 ## 0.2.2
 - Update to Multichain v0.2.12
