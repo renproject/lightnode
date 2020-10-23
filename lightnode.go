@@ -112,7 +112,17 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	dispatcher := dispatcher.New(logger, options.ClientTimeout, multiStore, opts)
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
 	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
-	verifier := txpoolverifier.New(txengine.New(txengine.DefaultOptions(), nil, verifierBindings))
+	whitelist := make(map[tx.Selector]bool, len(options.Whitelist))
+	for i := range options.Whitelist {
+		whitelist[options.Whitelist[i]] = true
+	}
+	engine := txengine.New(
+		txengine.DefaultOptions().
+			WithWhitelist(whitelist),
+		nil,
+		verifierBindings,
+	)
+	verifier := txpoolverifier.New(engine)
 	resolver := resolver.New(logger, cacher, multiStore, verifier, db, serverOptions)
 	server := jsonrpc.NewServer(serverOptions, resolver)
 	confirmer := confirmer.New(
