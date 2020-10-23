@@ -1,3 +1,6 @@
+## 0.2.3
+- Update to Multichain v0.2.14
+
 ## 0.2.2
 - Update to Multichain v0.2.12
 - Build Dockerfile using Multichain base image

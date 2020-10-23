@@ -26,7 +26,7 @@ require (
 	github.com/renproject/darknode v0.5.3-0.20201021022324-b5c50afc7b2e
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
-	github.com/renproject/multichain v0.2.12
+	github.com/renproject/multichain v0.2.14
 	github.com/renproject/pack v0.2.5
 	github.com/renproject/phi v0.1.0
 	github.com/rjeczalik/notify v0.9.2 // indirect
