@@ -1,5 +1,6 @@
 ## 0.2.4
 - Fix overriding confirmations
+- Update Darknode/Multichain dependencies
 
 ## 0.2.3
 - Update to Multichain v0.2.14
