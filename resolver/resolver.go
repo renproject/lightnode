@@ -75,6 +75,14 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryFees, *params, req, false)
 }
 
+func (resolver *Resolver) QueryConfig(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryConfig, req *http.Request) jsonrpc.Response {
+	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryConfig, *params, req, false)
+}
+
+func (resolver *Resolver) QueryState(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryState, req *http.Request) jsonrpc.Response {
+	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryState, *params, req, false)
+}
+
 func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryTxs, req *http.Request) jsonrpc.Response {
 	var offset int
 	if params.Offset == nil {
