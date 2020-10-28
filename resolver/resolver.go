@@ -81,7 +81,9 @@ func (resolver *Resolver) QueryStat(ctx context.Context, id interface{}, params 
 
 func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryFees, req *http.Request) jsonrpc.Response {
 	response := resolver.handleMessage(ctx, id, jsonrpc.MethodQueryFees, *params, req, false)
-
+	if response.Error != nil{
+		return response
+	}
 	// Manually override the mint fee in the result, as it has changed in the
 	// contracts.
 	resBytes, err := json.Marshal(response.Result)
