@@ -96,11 +96,13 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	// confirmations.
 	//
 
+	verifierBindingsOpts := txenginebindings.DefaultOptions().
+		WithNetwork(options.Network)
 	for chain, chainOpts := range options.Chains {
 		chainOpts.Confirmations = 0
-		bindingsOpts = bindingsOpts.WithChainOptions(chain, chainOpts)
+		verifierBindingsOpts = verifierBindingsOpts.WithChainOptions(chain, chainOpts)
 	}
-	verifierBindings, err := txenginebindings.New(bindingsOpts)
+	verifierBindings, err := txenginebindings.New(verifierBindingsOpts)
 	if err != nil {
 		logger.Panicf("bad bindings: %v", err)
 	}
