@@ -3,7 +3,9 @@ package resolver
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 	"net/url"
 
@@ -78,7 +80,26 @@ func (resolver *Resolver) QueryStat(ctx context.Context, id interface{}, params 
 }
 
 func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryFees, req *http.Request) jsonrpc.Response {
-	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryFees, *params, req, false)
+	response := resolver.handleMessage(ctx, id, jsonrpc.MethodQueryFees, *params, req, false)
+
+	// Manually override the mint fee in the result, as it has changed in the
+	// contracts.
+	resBytes, err := json.Marshal(response.Result)
+	if err != nil {
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, fmt.Sprintf("marshaling result: %v", err), nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+	var res jsonrpc.ResponseQueryFees
+	if err := json.Unmarshal(resBytes, &res); err != nil {
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, fmt.Sprintf("unmarshaling result: %v", err), nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+	res.BCH.Ethereum.Mint = abi.U64{Int: big.NewInt(20)}
+	res.BTC.Ethereum.Mint = abi.U64{Int: big.NewInt(20)}
+	res.ZEC.Ethereum.Mint = abi.U64{Int: big.NewInt(20)}
+	response.Result = res
+
+	return response
 }
 
 func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryTxs, req *http.Request) jsonrpc.Response {
