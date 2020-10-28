@@ -1,3 +1,6 @@
+## 0.2.4
+- Fix overriding confirmations
+
 ## 0.2.3
 - Update to Multichain v0.2.14
 - Add support for whitelisting selectors
