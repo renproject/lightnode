@@ -1,3 +1,7 @@
+## 0.1.14
+- Fix an issue when trying to insert a nil address list to storage. 
+- Update mint fees in JSON-RPC response
+
 ## 0.1.13
 - Update to Darknode v0.2.24 (add recover mechanism in the rpc server)
 - Use persistent storage (database) for MultiAddress store. 
