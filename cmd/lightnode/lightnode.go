@@ -206,6 +206,9 @@ func parseOptions() lightnode.Options {
 
 func parseNetwork(name string) multichain.Network {
 	appName := os.Getenv(name)
+	if strings.Contains(appName, "devnet") {
+		return multichain.NetworkDevnet
+	}
 	if strings.Contains(appName, "testnet") {
 		return multichain.NetworkTestnet
 	}
