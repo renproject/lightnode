@@ -67,6 +67,14 @@ func (resolver *MockResolver) QueryTxs(ctx context.Context, id interface{}, para
 	return jsonrpc.NewResponse(id, jsonrpc.ResponseQueryTxs{Txs: make([]tx.Tx, 0)}, nil)
 }
 
+func (resolver *MockResolver) QueryConfig(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryConfig, req *http.Request) jsonrpc.Response {
+	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryConfig, *params, req, false)
+}
+
+func (resolver *MockResolver) QueryState(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryState, req *http.Request) jsonrpc.Response {
+	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryState, *params, req, false)
+}
+
 func (resolver *MockResolver) handleMessage(ctx context.Context, id interface{}, method string, params interface{}, r *http.Request, isSubmitTx bool) jsonrpc.Response {
 	return jsonrpc.Response{
 		Version: "",
