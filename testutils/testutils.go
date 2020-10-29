@@ -82,6 +82,10 @@ func ValidRequest(method string) (id interface{}, params interface{}) {
 		params = jsonrpc.ParamsQueryStat{}
 	case jsonrpc.MethodQueryFees:
 		params = jsonrpc.ParamsQueryFees{}
+	case jsonrpc.MethodQueryConfig:
+		params = jsonrpc.ParamsQueryConfig{}
+	case jsonrpc.MethodQueryState:
+		params = jsonrpc.ParamsQueryState{}
 	default:
 		panic("invalid method")
 	}
