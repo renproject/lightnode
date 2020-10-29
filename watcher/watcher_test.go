@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis"
-	"github.com/elliotchance/redismock/v7"
 	"github.com/go-redis/redis/v7"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -24,7 +23,7 @@ import (
 )
 
 var _ = Describe("Watcher", func() {
-	init := func(ctx context.Context, interval time.Duration) (Watcher, *redis.Client, *redismock.ClientMock) {
+	init := func(ctx context.Context, interval time.Duration) (Watcher, *redis.Client) {
 		mr, err := miniredis.Run()
 		if err != nil {
 			panic(err)
@@ -35,8 +34,6 @@ var _ = Describe("Watcher", func() {
 		})
 
 		logger := logrus.New()
-
-		mockClient := redismock.NewNiceMock(client)
 
 		selector := tx.Selector("BTCfromBitcoin")
 
@@ -68,25 +65,30 @@ var _ = Describe("Watcher", func() {
 		gateways := bindings.EthereumGateways()
 		btcGateway := gateways[multichain.Ethereum][multichain.BTC]
 
-		watcher := NewWatcher(logger, selector, bindings, ethClient, btcGateway, mockResolver, mockClient, pubk, interval)
+		watcher := NewWatcher(logger, selector, bindings, ethClient, btcGateway, mockResolver, client, pubk, interval)
 
 		go watcher.Run(ctx)
 
-		return watcher, client, mockClient
+		return watcher, client
 	}
 
 	Context("when watching", func() {
 		It("should initialize successfully and check for cached block height", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			_, redisClient, redisMock := init(ctx, time.Second)
+			_, redisClient := init(ctx, time.Second)
 			defer redisClient.Close()
-			redisMock.Mock.On("Get", "BTCfromBitcoin_lastCheckedBlock").Return(redis.NewStringCmd(1))
 
-			Eventually(func() int {
-				size := len(redisMock.Mock.Calls)
-				return size
-			}, 10*time.Second).Should(Equal(10))
+			Eventually(func() uint64 {
+				lastBlock, err := redisClient.Get("BTCfromBitcoin_lastCheckedBlock").Uint64()
+				// Cache hasn't been set yet, and that's OK
+				if err == redis.Nil {
+					err = nil
+					lastBlock = 0
+				}
+				Expect(err).ShouldNot(HaveOccurred())
+				return lastBlock
+			}, 10*time.Second).ShouldNot(Equal(uint64(0)))
 		})
 	})
 

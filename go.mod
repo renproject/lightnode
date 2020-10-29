@@ -11,14 +11,12 @@ require (
 	github.com/cespare/cp v1.1.1 // indirect
 	github.com/deckarep/golang-set v1.7.1 // indirect
 	github.com/dgryski/go-farm v0.0.0-20191112170834-c2139c5d712b // indirect
-	github.com/elliotchance/redismock v1.5.3
-	github.com/elliotchance/redismock/v7 v7.0.1
 	github.com/ethereum/go-ethereum v1.9.20
 	github.com/evalphobia/logrus_sentry v0.8.2
 	github.com/fjl/memsize v0.0.0-20190710130421-bcb5799ab5e5 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
-	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/go-redis/redis/v7 v7.2.0
+	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/google/go-cmp v0.4.0
 	github.com/karalabe/usb v0.0.0-20191104083709-911d15fe12a9 // indirect
 	github.com/lib/pq v1.7.0
