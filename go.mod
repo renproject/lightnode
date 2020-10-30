@@ -12,7 +12,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.11.0
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.8.1
-	github.com/renproject/darknode v0.5.3-0.20200914034724-3a991bcfae58
+	github.com/renproject/darknode v0.5.3-0.20201029225201-7f22467baa70
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/mercury v0.3.15
 	github.com/renproject/phi v0.1.0
