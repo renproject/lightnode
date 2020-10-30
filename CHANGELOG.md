@@ -1,3 +1,6 @@
+## 0.1.15
+- Update to use latest Darknode (increase underlying blockchain fee)
+
 ## 0.1.14
 - Fix an issue when trying to insert a nil address list to storage. 
 - Update mint fees in JSON-RPC response
