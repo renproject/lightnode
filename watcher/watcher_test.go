@@ -4,21 +4,19 @@ import (
 	"context"
 	"time"
 
-	"github.com/alicebob/miniredis"
-	"github.com/go-redis/redis/v7"
-
 	_ "github.com/mattn/go-sqlite3"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/id"
-	"github.com/renproject/lightnode/testutils"
 	. "github.com/renproject/lightnode/watcher"
-	"github.com/renproject/multichain"
-	"github.com/renproject/pack"
 
+	"github.com/alicebob/miniredis"
+	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/txengine/txenginebindings"
+	"github.com/renproject/id"
+	"github.com/renproject/lightnode/testutils"
+	"github.com/renproject/multichain"
+	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
 )
 
