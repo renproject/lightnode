@@ -44,7 +44,7 @@ type Lightnode struct {
 // New constructs a new Lightnode.
 func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB *sql.DB, client *redis.Client) Lightnode {
 	switch options.Network {
-	case multichain.NetworkMainnet, multichain.NetworkTestnet, multichain.NetworkLocalnet:
+	case multichain.NetworkMainnet, multichain.NetworkTestnet, multichain.NetworkDevnet, multichain.NetworkLocalnet:
 	default:
 		panic("unknown network")
 	}
