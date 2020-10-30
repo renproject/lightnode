@@ -11,10 +11,10 @@ import (
 
 	"github.com/alicebob/miniredis"
 	"github.com/go-redis/redis/v7"
+	"github.com/renproject/darknode/jsonrpc/jsonrpcresolver"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/id"
-	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
@@ -54,7 +54,7 @@ var _ = Describe("Watcher", func() {
 			logger.Panicf("bad bindings: %v", err)
 		}
 
-		mockResolver := testutils.NewMockResolver(logger)
+		mockResolver := jsonrpcresolver.OkResponder()
 		pubk := id.NewPrivKey().PubKey()
 
 		ethClients := bindings.EthereumClients()
