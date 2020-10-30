@@ -2,6 +2,7 @@
 - Fix overriding confirmations
 - Update Darknode/Multichain dependencies
 - Fix function parsing the network
+- Add support for Devnet
 
 ## 0.2.3
 - Update to Multichain v0.2.14
