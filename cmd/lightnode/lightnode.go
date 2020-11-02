@@ -55,8 +55,12 @@ func main() {
 
 	ctx := context.Background()
 
-	// Pull some of the exposed config from a bootstrap node
-	conf := fetchConfig(ctx, addrToUrl(options.BootstrapAddrs[0], logger), logger, time.Minute)
+	// Fetch and apply the first successfull exposed config from bootstrap nodes
+	conf, err := getConfigFromBootstrap(ctx, logger, options.BootstrapAddrs)
+	if err != nil {
+		logger.Fatalf("failed to fetch config from any bootstrap node")
+	}
+
 	options.Whitelist = conf.Whitelist
 
 	for chain, chainOpt := range options.Chains {
@@ -68,26 +72,40 @@ func main() {
 	node.Run(ctx)
 }
 
+func getConfigFromBootstrap(ctx context.Context, logger logrus.FieldLogger, addrs []wire.Address) (jsonrpc.ResponseQueryConfig, error) {
+	for i, addr := range addrs {
+		conf, err := fetchConfig(ctx, addrToUrl(addr, logger), logger, time.Minute)
+		if i == len(addrs)-1 && err != nil {
+			return conf, err
+		}
+
+		if err == nil {
+			return conf, nil
+		}
+	}
+	return jsonrpc.ResponseQueryConfig{}, fmt.Errorf("Could not load config from darknodes")
+}
+
 func addrToUrl(addr wire.Address, logger logrus.FieldLogger) string {
-	addrParts := strings.Split(addr.String(), ":")
+	addrParts := strings.Split(addr.Value, ":")
 	if len(addrParts) != 2 {
-		logger.Errorf("[updater] invalid address value=%v", addr.Value)
+		logger.Errorf("[config] invalid address value=%v", addr.Value)
 		return ""
 	}
 	port, err := strconv.Atoi(addrParts[1])
 	if err != nil {
-		logger.Errorf("[updater] invalid port=%v", addr)
+		logger.Errorf("[config] invalid port=%v", addr)
 		return ""
 	}
 	return fmt.Sprintf("http://%s:%v", addrParts[0], port+1)
 }
 
-func fetchConfig(ctx context.Context, url string, logger logrus.FieldLogger, timeout time.Duration) jsonrpc.ResponseQueryConfig {
+func fetchConfig(ctx context.Context, url string, logger logrus.FieldLogger, timeout time.Duration) (jsonrpc.ResponseQueryConfig, error) {
 	var resp jsonrpc.ResponseQueryConfig
 	params, err := json.Marshal(jsonrpc.ParamsQueryConfig{})
 	if err != nil {
 		logger.Errorf("[config] cannot marshal query peers params: %v", err)
-		return resp
+		return resp, err
 	}
 	client := http.NewClient(timeout)
 
@@ -99,19 +117,23 @@ func fetchConfig(ctx context.Context, url string, logger logrus.FieldLogger, tim
 	}
 
 	response, err := client.SendRequest(ctx, url, request, nil)
+	if err != nil {
+		logger.Errorf("[config] error calling queryConfig: %v", err)
+		return resp, err
+	}
 
 	raw, err := json.Marshal(response.Result)
 	if err != nil {
 		logger.Errorf("[config] error marshaling queryConfig result: %v", err)
-		return resp
+		return resp, err
 	}
 
 	if err := json.Unmarshal(raw, &resp); err != nil {
 		logger.Warnf("[config] cannot unmarshal queryConfig result from %v: %v", url, err)
-		return resp
+		return resp, err
 	}
 
-	return resp
+	return resp, nil
 }
 
 func initLogger(name string, network multichain.Network) logrus.FieldLogger {
