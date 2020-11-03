@@ -16,15 +16,17 @@ type MultiAddrStore struct {
 
 // New constructs a new `MultiAddrStore`.
 func New(store db.Table, bootstrapAddrs []wire.Address) MultiAddrStore {
-	for _, addr := range bootstrapAddrs {
-		if err := store.Insert(addr.Value, addr.String()); err != nil {
-			panic(fmt.Sprintf("[MultiAddrStore] cannot initialize the store with bootstrap nodes addresses"))
-		}
-	}
-	return MultiAddrStore{
+	multiStore := MultiAddrStore{
 		store:          store,
 		bootstrapAddrs: bootstrapAddrs,
 	}
+
+	for _, addr := range bootstrapAddrs {
+		if err := multiStore.Insert(addr); err != nil {
+			panic(fmt.Sprintf("[MultiAddrStore] cannot initialize the store with bootstrap nodes addresses"))
+		}
+	}
+	return multiStore
 }
 
 // Get retrieves a multi-address from the store.
@@ -38,12 +40,21 @@ func (multiStore *MultiAddrStore) Get(id string) (wire.Address, error) {
 
 // Insert puts the given multi-address into the store.
 func (multiStore *MultiAddrStore) Insert(addr wire.Address) error {
-	return multiStore.store.Insert(addr.Value, addr.String())
+	signatory, err := addr.Signatory()
+	if err != nil {
+		return err
+	}
+
+	return multiStore.store.Insert(signatory.String(), addr.String())
 }
 
 // Delete removes the given multi-address from the store.
 func (multiStore *MultiAddrStore) Delete(addr wire.Address) error {
-	return multiStore.store.Delete(addr.Value)
+	signatory, err := addr.Signatory()
+	if err != nil {
+		return err
+	}
+	return multiStore.store.Delete(signatory.String())
 }
 
 // Size returns the number of entries in the store.
