@@ -65,6 +65,7 @@ func main() {
 
 	for chain, chainOpt := range options.Chains {
 		chainOpt.Confirmations = conf.Confirmations[chain]
+		options.Chains[chain] = chainOpt
 	}
 
 	// Run Lightnode.
