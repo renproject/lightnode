@@ -14,7 +14,6 @@ import (
 	"github.com/renproject/darknode/txengine"
 	"github.com/renproject/darknode/txengine/txenginebindings/ethereumbindings"
 	"github.com/renproject/id"
-	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
@@ -29,13 +28,13 @@ type Watcher struct {
 	bindings     txengine.Bindings
 	ethClient    *ethclient.Client
 	ethBindings  *ethereumbindings.MintGatewayLogicV1
-	resolver     *resolver.Resolver
-	cache        *redis.Client
+	resolver     jsonrpc.Resolver
+	cache        redis.Cmdable
 	pollInterval time.Duration
 }
 
 // NewWatcher returns a new Watcher.
-func NewWatcher(logger logrus.FieldLogger, selector tx.Selector, bindings txengine.Bindings, ethClient *ethclient.Client, ethBindings *ethereumbindings.MintGatewayLogicV1, resolver *resolver.Resolver, cache *redis.Client, distPubKey *id.PubKey, pollInterval time.Duration) Watcher {
+func NewWatcher(logger logrus.FieldLogger, selector tx.Selector, bindings txengine.Bindings, ethClient *ethclient.Client, ethBindings *ethereumbindings.MintGatewayLogicV1, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey, pollInterval time.Duration) Watcher {
 	gpubkey := (*btcec.PublicKey)(distPubKey).SerializeCompressed()
 	return Watcher{
 		logger:       logger,

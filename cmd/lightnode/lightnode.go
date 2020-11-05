@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/url"
@@ -19,10 +20,12 @@ import (
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/aw/wire"
+	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/id"
 	"github.com/renproject/lightnode"
+	"github.com/renproject/lightnode/http"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
@@ -50,10 +53,88 @@ func main() {
 	client := initRedis()
 	defer client.Close()
 
-	// Run Lightnode.
 	ctx := context.Background()
+
+	// Fetch and apply the first successfull exposed config from bootstrap nodes
+	conf, err := getConfigFromBootstrap(ctx, logger, options.BootstrapAddrs)
+	if err != nil {
+		logger.Fatalf("failed to fetch config from any bootstrap node")
+	}
+
+	options.Whitelist = conf.Whitelist
+
+	for chain, chainOpt := range options.Chains {
+		chainOpt.Confirmations = conf.Confirmations[chain]
+		options.Chains[chain] = chainOpt
+	}
+
+	// Run Lightnode.
 	node := lightnode.New(options, ctx, logger, sqlDB, client)
 	node.Run(ctx)
+}
+
+func getConfigFromBootstrap(ctx context.Context, logger logrus.FieldLogger, addrs []wire.Address) (jsonrpc.ResponseQueryConfig, error) {
+	for i, addr := range addrs {
+		conf, err := fetchConfig(ctx, addrToUrl(addr, logger), logger, time.Minute)
+		if i == len(addrs)-1 && err != nil {
+			return conf, err
+		}
+
+		if err == nil {
+			return conf, nil
+		}
+	}
+	return jsonrpc.ResponseQueryConfig{}, fmt.Errorf("Could not load config from darknodes")
+}
+
+func addrToUrl(addr wire.Address, logger logrus.FieldLogger) string {
+	addrParts := strings.Split(addr.Value, ":")
+	if len(addrParts) != 2 {
+		logger.Errorf("[config] invalid address value=%v", addr.Value)
+		return ""
+	}
+	port, err := strconv.Atoi(addrParts[1])
+	if err != nil {
+		logger.Errorf("[config] invalid port=%v", addr)
+		return ""
+	}
+	return fmt.Sprintf("http://%s:%v", addrParts[0], port+1)
+}
+
+func fetchConfig(ctx context.Context, url string, logger logrus.FieldLogger, timeout time.Duration) (jsonrpc.ResponseQueryConfig, error) {
+	var resp jsonrpc.ResponseQueryConfig
+	params, err := json.Marshal(jsonrpc.ParamsQueryConfig{})
+	if err != nil {
+		logger.Errorf("[config] cannot marshal query peers params: %v", err)
+		return resp, err
+	}
+	client := http.NewClient(timeout)
+
+	request := jsonrpc.Request{
+		Version: "2.0",
+		ID:      rand.Int31(),
+		Method:  jsonrpc.MethodQueryConfig,
+		Params:  params,
+	}
+
+	response, err := client.SendRequest(ctx, url, request, nil)
+	if err != nil {
+		logger.Errorf("[config] error calling queryConfig: %v", err)
+		return resp, err
+	}
+
+	raw, err := json.Marshal(response.Result)
+	if err != nil {
+		logger.Errorf("[config] error marshaling queryConfig result: %v", err)
+		return resp, err
+	}
+
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		logger.Warnf("[config] cannot unmarshal queryConfig result from %v: %v", url, err)
+		return resp, err
+	}
+
+	return resp, nil
 }
 
 func initLogger(name string, network multichain.Network) logrus.FieldLogger {
@@ -135,53 +216,43 @@ func parseOptions() lightnode.Options {
 	if os.Getenv("ADDRESSES") != "" {
 		options = options.WithBootstrapAddrs(parseAddresses("ADDRESSES"))
 	}
-	if os.Getenv("WHITELIST") != "" {
-		options = options.WithWhitelist(parseWhitelist("WHITELIST"))
-	}
 
 	chains := map[multichain.Chain]txenginebindings.ChainOptions{}
 	if os.Getenv("RPC_BINANCE") != "" {
 		chains[multichain.BinanceSmartChain] = txenginebindings.ChainOptions{
-			RPC:           pack.String(os.Getenv("RPC_BINANCE")),
-			Confirmations: pack.U64(parseInt("CONFIRMATIONS_BINANCE")),
-			Protocol:      pack.String(os.Getenv("GATEWAY_BINANCE")),
+			RPC:      pack.String(os.Getenv("RPC_BINANCE")),
+			Protocol: pack.String(os.Getenv("GATEWAY_BINANCE")),
 		}
 	}
 	if os.Getenv("RPC_BITCOIN") != "" {
 		chains[multichain.Bitcoin] = txenginebindings.ChainOptions{
-			RPC:           pack.String(os.Getenv("RPC_BITCOIN")),
-			Confirmations: pack.U64(parseInt("CONFIRMATIONS_BITCOIN")),
+			RPC: pack.String(os.Getenv("RPC_BITCOIN")),
 		}
 	}
 	if os.Getenv("RPC_BITCOIN_CASH") != "" {
 		chains[multichain.BitcoinCash] = txenginebindings.ChainOptions{
-			RPC:           pack.String(os.Getenv("RPC_BITCOIN_CASH")),
-			Confirmations: pack.U64(parseInt("CONFIRMATIONS_BITCOIN_CASH")),
+			RPC: pack.String(os.Getenv("RPC_BITCOIN_CASH")),
 		}
 	}
 	if os.Getenv("RPC_DIGIBYTE") != "" {
 		chains[multichain.DigiByte] = txenginebindings.ChainOptions{
-			RPC:           pack.String(os.Getenv("RPC_DIGIBYTE")),
-			Confirmations: pack.U64(parseInt("CONFIRMATIONS_DIGIBYTE")),
+			RPC: pack.String(os.Getenv("RPC_DIGIBYTE")),
 		}
 	}
 	if os.Getenv("RPC_DOGECOIN") != "" {
 		chains[multichain.Dogecoin] = txenginebindings.ChainOptions{
-			RPC:           pack.String(os.Getenv("RPC_DOGECOIN")),
-			Confirmations: pack.U64(parseInt("CONFIRMATIONS_DOGECOIN")),
+			RPC: pack.String(os.Getenv("RPC_DOGECOIN")),
 		}
 	}
 	if os.Getenv("RPC_ETHEREUM") != "" {
 		chains[multichain.Ethereum] = txenginebindings.ChainOptions{
-			RPC:           pack.String(os.Getenv("RPC_ETHEREUM")),
-			Confirmations: pack.U64(parseInt("CONFIRMATIONS_ETHEREUM")),
-			Protocol:      pack.String(os.Getenv("GATEWAY_ETHEREUM")),
+			RPC:      pack.String(os.Getenv("RPC_ETHEREUM")),
+			Protocol: pack.String(os.Getenv("GATEWAY_ETHEREUM")),
 		}
 	}
 	if os.Getenv("RPC_FILECOIN") != "" {
 		chains[multichain.Filecoin] = txenginebindings.ChainOptions{
-			RPC:           pack.String(os.Getenv("RPC_FILECOIN")),
-			Confirmations: pack.U64(parseInt("CONFIRMATIONS_FILECOIN")),
+			RPC: pack.String(os.Getenv("RPC_FILECOIN")),
 			Extras: map[pack.String]pack.String{
 				"authToken": pack.String(os.Getenv("EXTRAS_FILECOIN_AUTH")),
 			},
@@ -189,14 +260,12 @@ func parseOptions() lightnode.Options {
 	}
 	if os.Getenv("RPC_TERRA") != "" {
 		chains[multichain.Terra] = txenginebindings.ChainOptions{
-			RPC:           pack.String(os.Getenv("RPC_TERRA")),
-			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_TERRA"))),
+			RPC: pack.String(os.Getenv("RPC_TERRA")),
 		}
 	}
 	if os.Getenv("RPC_ZCASH") != "" {
 		chains[multichain.Zcash] = txenginebindings.ChainOptions{
-			RPC:           pack.String(os.Getenv("RPC_ZCASH")),
-			Confirmations: pack.U64(parseInt(os.Getenv("CONFIRMATIONS_ZCASH"))),
+			RPC: pack.String(os.Getenv("RPC_ZCASH")),
 		}
 	}
 	options = options.WithChains(chains)
