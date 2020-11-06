@@ -149,7 +149,7 @@ var _ = Describe("Resolver", func() {
 		resolver := init(ctx)
 		defer cleanup()
 
-		urlI, err := url.Parse("http://localhost/?id=localhost")
+		urlI, err := url.Parse("http://localhost/?id=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
 		Expect(err).ShouldNot(HaveOccurred())
 		params := jsonrpc.ParamsQueryConfig{}
 		req := http.Request{

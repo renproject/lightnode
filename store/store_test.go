@@ -113,5 +113,26 @@ var _ = Describe("Store", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(len(addrs)).To(Equal(randomSize))
 		})
+
+		It("should fetch the correct multiaddr for a given signatory", func() {
+			r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+			expectedSize := rand.Intn(100) + 1
+			addrs := make([]wire.Address, expectedSize)
+			for i := 0; i < expectedSize; i++ {
+				addrs[i] = randomAddress(r)
+			}
+			addrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses"), nil)
+
+			for i := 0; i < expectedSize; i++ {
+				Expect(addrStore.Insert(addrs[i])).ShouldNot(HaveOccurred())
+				signatory, err := addrs[i].Signatory()
+				Expect(err).ShouldNot(HaveOccurred())
+				fetchedAddr, err := addrStore.Get(signatory.String())
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(fetchedAddr).To(Equal(addrs[i]))
+
+			}
+			Expect(len(addrs)).To(Equal(expectedSize))
+		})
 	})
 })
