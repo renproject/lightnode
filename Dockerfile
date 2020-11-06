@@ -6,7 +6,6 @@ RUN git config --global url."https://${GITHUB_TOKEN}:x-oauth-basic@github.com/".
 
 # Mark private repositories
 ENV GOPRIVATE=github.com/renproject/darknode
-ENV GOPROXY=https://proxy.golang.org
 
 # Download dependencies.
 WORKDIR /lightnode
