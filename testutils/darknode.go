@@ -32,12 +32,14 @@ func NewMockDarknode(serverURL string, store store.MultiAddrStore) *MockDarknode
 		panic(err)
 	}
 	addr := wire.NewUnsignedAddress(wire.TCP, fmt.Sprintf("%v:%v", host, port), uint64(time.Now().Unix()))
-	if err := store.Insert(addr); err != nil {
-		panic(err)
-	}
+
 	if err := addr.Sign((*id.PrivKey)(key)); err != nil {
 		panic(err)
 	}
+	if err := store.Insert(addr); err != nil {
+		panic(err)
+	}
+
 	return &MockDarknode{
 		Me:    addr,
 		Store: store,
