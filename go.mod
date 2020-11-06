@@ -18,6 +18,7 @@ require (
 	github.com/go-redis/redis/v7 v7.2.0
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/google/go-cmp v0.5.0
+	github.com/ipld/go-ipld-prime v0.5.1-0.20200828233916-988837377a7f
 	github.com/karalabe/usb v0.0.0-20191104083709-911d15fe12a9 // indirect
 	github.com/lib/pq v1.7.0
 	github.com/mattn/go-sqlite3 v1.11.0

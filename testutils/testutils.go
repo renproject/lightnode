@@ -7,6 +7,8 @@ import (
 
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx/txutil"
+	"github.com/renproject/multichain"
+	"github.com/renproject/pack"
 	"github.com/renproject/phi"
 )
 
@@ -105,5 +107,17 @@ func ErrorResponse(id interface{}) jsonrpc.Response {
 		Version: "2.0",
 		ID:      id,
 		Error:   &err,
+	}
+}
+
+func MockQueryStateResponse() jsonrpc.ResponseQueryState {
+	bitcoinState := pack.NewStruct(
+		"pubKey", pack.String("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"),
+	)
+
+	return jsonrpc.ResponseQueryState{
+		State: map[multichain.Chain]pack.Struct{
+			multichain.Bitcoin: bitcoinState,
+		},
 	}
 }

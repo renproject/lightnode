@@ -2,15 +2,19 @@ package resolver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/txpool"
+	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/lightnode/db"
 	lhttp "github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
+	"github.com/renproject/multichain"
+	"github.com/renproject/pack"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -64,7 +68,47 @@ func (resolver *Resolver) QueryNumPeers(ctx context.Context, id interface{}, par
 }
 
 func (resolver *Resolver) QueryShards(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryShards, req *http.Request) jsonrpc.Response {
-	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryShards, *params, req, false)
+	// This is required for compatibility with renjs v1
+
+	reqWithResponder := lhttp.NewRequestWithResponder(ctx, id, jsonrpc.MethodQueryState, params, nil)
+	if ok := resolver.cacher.Send(reqWithResponder); !ok {
+		resolver.logger.Error("failed to send request to cacher, too much back pressure")
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "too much back pressure", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	select {
+	case <-ctx.Done():
+		resolver.logger.Error("timeout when waiting for response: %v", ctx.Err())
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "request timed out", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	case response := <-reqWithResponder.Responder:
+		raw, err := json.Marshal(response.Result)
+		if err != nil {
+			resolver.logger.Errorf("[resolver] error marshaling queryState result: %v", err)
+		}
+		var resp map[string]interface{}
+		if err := json.Unmarshal(raw, &resp); err != nil {
+			resolver.logger.Warnf("[resolver] cannot unmarshal queryState result from %v", err)
+		}
+
+		state := jsonrpc.ResponseQueryState{
+			State: map[multichain.Chain]pack.Struct{
+				multichain.Bitcoin: pack.NewStruct(
+					"pubKey",
+					pack.String(resp["state"].(map[string]interface{})["Bitcoin"].(map[string]interface{})["pubKey"].(string))),
+			},
+		}
+		shards, err := v0.ShardsFromState(state)
+
+		if err != nil {
+			resolver.logger.Error("failed to cast to QueryShards")
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatability conversion", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
+
+		return jsonrpc.NewResponse(id, shards, nil)
+	}
 }
 
 func (resolver *Resolver) QueryStat(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryStat, req *http.Request) jsonrpc.Response {

@@ -59,7 +59,7 @@ var _ = Describe("Resolver", func() {
 
 		verifier := txpoolverifier.New(txengineutil.NewMockTxEngine(output))
 
-		cacher := testutils.NewMockDispatcher()
+		cacher := testutils.NewMockCacher()
 		go cacher.Run(ctx)
 
 		resolver := New(logger, cacher, multiaddrStore, verifier, database, jsonrpc.Options{})
