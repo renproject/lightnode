@@ -1,8 +1,14 @@
+## 0.2.5
+- Add support for Devnet
+- Update Darknode dependency
+- Use `ren_queryConfig` RPC to load selector whitelist and confirmations
+- Add unit tests for resolver
+- Use Darknode signatory for query parameter
+
 ## 0.2.4
 - Fix overriding confirmations
 - Update Darknode/Multichain dependencies
 - Fix function parsing the network
-- Add support for Devnet
 
 ## 0.2.3
 - Update to Multichain v0.2.14
