@@ -1,4 +1,7 @@
 ## 0.1.15
+- Increase mint fees
+
+## 0.1.15
 - Update to use latest Darknode (increase underlying blockchain fee)
 
 ## 0.1.14
