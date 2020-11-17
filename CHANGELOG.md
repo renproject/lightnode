@@ -1,3 +1,7 @@
+## 0.2.6
+- Fix building using Dockerfile
+- Add debug logs for watcher
+
 ## 0.2.5
 - Add support for Devnet
 - Update Darknode dependency
