@@ -11,11 +11,11 @@ ENV GOPRIVATE=github.com/renproject/darknode
 WORKDIR /lightnode
 COPY go.mod .
 COPY go.sum .
+RUN go mod edit -replace=github.com/filecoin-project/filecoin-ffi=$(go env GOPATH)/src/github.com/filecoin-project/filecoin-ffi
 RUN go mod download
 
 # Copy the code into the container.
 COPY . .
-RUN go mod edit -replace=github.com/filecoin-project/filecoin-ffi=$(go env GOPATH)/src/github.com/filecoin-project/filecoin-ffi
 
 # Build the code inside the container.
 RUN go build ./cmd/lightnode
