@@ -99,7 +99,7 @@ func (resolver *Resolver) QueryShards(ctx context.Context, id interface{}, param
 					pack.String(resp["state"].(map[string]interface{})["Bitcoin"].(map[string]interface{})["pubKey"].(string))),
 			},
 		}
-		shards, err := v0.ShardsFromState(state)
+		shards, err := v0.ShardsResponseFromState(state)
 
 		if err != nil {
 			resolver.logger.Error("failed to cast to QueryShards")

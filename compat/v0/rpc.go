@@ -20,7 +20,7 @@ type Gateway struct {
 	PubKey string   `json:"pubKey"`
 }
 
-type Shard struct {
+type CompatShard struct {
 	DarknodesRootHash string    `json:"darknodesRootHash"`
 	Gateways          []Gateway `json:"gateways"`
 	GatewaysRootHash  string    `json:"gatewaysRootHash"`
@@ -30,5 +30,9 @@ type Shard struct {
 
 // ResponseQueryShards defines the response of the MethodQueryShards.
 type ResponseQueryShards struct {
-	Shards []Shard `json:"shards"`
+	Shards []CompatShard `json:"shards"`
+}
+
+type ParamsSubmitTx struct {
+	Tx Tx `json:"tx"`
 }
