@@ -1,3 +1,6 @@
+## 0.2.6
+- Fix dockerfile issues with filecoin-ffi submodule
+
 ## 0.2.5
 - Add support for Devnet
 - Update Darknode dependency
