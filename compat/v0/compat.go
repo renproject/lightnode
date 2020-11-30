@@ -1,11 +1,17 @@
 package v0
 
 import (
+	"context"
+	"crypto/ecdsa"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/txengine"
+	"github.com/renproject/darknode/txengine/txenginebindings"
+	"github.com/renproject/id"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 )
@@ -57,58 +63,121 @@ func ShardsResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQuerySha
 	return resp, nil
 }
 
-func V1TxParamsFromTx(transaction ParamsSubmitTx) (jsonrpc.ParamsSubmitTx, error) {
+func V1QueryTxFromQueryTx(ctx context.Context, queryTx ParamsQueryTx, store redis.Cmdable) (jsonrpc.ParamsQueryTx, error) {
+	query := jsonrpc.ParamsQueryTx{}
+	hash, err := store.Get(queryTx.TxHash.String()).Bytes()
+	if err != nil {
+		return query, err
+	}
+	txhash := [32]byte{}
+	copy(txhash[:], hash)
+	query.TxHash = txhash
+	return query, nil
+}
+
+func V1TxParamsFromTx(ctx context.Context, transaction ParamsSubmitTx, bindings *txenginebindings.Bindings, pubkey *id.PubKey, store redis.Cmdable) (jsonrpc.ParamsSubmitTx, error) {
 	utxo := transaction.Tx.In.Get("utxo").Value.(ExtBtcCompatUTXO)
 	i := utxo.VOut.Int.Uint64()
 	txindex := pack.NewU32(uint32(i))
 
-	payload := transaction.Tx.In.Get("p").Value.(ExtEthCompatPayload)
+	txidB, err := utxo.TxHash.MarshalBinary()
 
-	// TODO: determine selector for given contract address
+	// reverse the txhash bytes
+	txl := len(txidB)
+	for i := 0; i < txl/2; i++ {
+		txidB[i], txidB[txl-1-i] = txidB[txl-1-i], txidB[i]
+	}
+
+	txid := pack.NewBytes(txidB)
+
+	payload := pack.NewBytes(transaction.Tx.In.Get("p").Value.(ExtEthCompatPayload).Value[:])
+
 	token := transaction.Tx.In.Get("token").Value.(ExtEthCompatAddress)
-	sel := tx.Selector("BTC/toEthereum")
-	switch token.String() {
-	case "0A9ADD98C076448CBcFAcf5E457DA12ddbEF4A8f":
-		sel = tx.Selector("BTC/toEthereum")
-	}
+	asset, err := bindings.AssetFromTokenAddress(multichain.Ethereum, multichain.Address(token.String()))
+	sel := tx.Selector(asset + "/toEthereum")
 
-	bytes, err := payload.MarshalBinary()
-	if err != nil {
-		return jsonrpc.ParamsSubmitTx{}, fmt.Errorf("Failed to marshal payload binary: %v", err)
-	}
-	phash := txengine.Phash(pack.NewBytes(bytes))
+	phash := txengine.Phash(payload)
 
-	to := transaction.Tx.In.Get("to").Value.(ExtEthCompatAddress).String()
+	to := pack.String(transaction.Tx.In.Get("to").Value.(ExtEthCompatAddress).String())
 
 	nonce, err := transaction.Tx.In.Get("n").Value.(B32).MarshalBinary()
 	var c [32]byte
 	copy(c[:32], nonce)
 	nonceP := pack.NewBytes32(c)
 
-	ghash := txengine.Ghash(sel, phash, []byte(to), nonceP)
+	minter, err := bindings.DecodeAddress(sel.Destination(), multichain.Address(to))
 
-	// TODO: fetch public key for given asset/contract
-	// TODO: figure out how to deserialize utxo from pack, so that we can get
-	//     txid and txindex
-	txidB, err := utxo.TxHash.MarshalBinary()
-	txid := pack.NewBytes(txidB)
+	ghash, err := txengine.V0Ghash(token[:], phash, minter, nonceP)
 
-	nhash := txengine.Nhash(nonceP, txid, txindex)
+	nhash, err := txengine.V0Nhash(nonceP, txidB, txindex)
+
+	// lets call the btc rpc endpoint because that's needed to get the correct amount
+	out, err := bindings.UTXOLockInfo(ctx, multichain.Bitcoin, multichain.BTC, multichain.UTXOutpoint{
+		Hash:  txid,
+		Index: txindex,
+	})
+
+	pubkbytes := crypto.CompressPubkey((*ecdsa.PublicKey)(pubkey))
+	if err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
+
 	v1Transaction := jsonrpc.ParamsSubmitTx{
 		Tx: tx.Tx{
-			Hash:     phash,
-			Version:  tx.Version1,
+			Version:  tx.Version0,
 			Selector: sel,
-			Input:    []pack.StructField{},
-			Output:   []pack.StructField{},
+			Input: []pack.StructField{
+				{
+					Name:  "phash",
+					Value: phash,
+				},
+				{
+					Name:  "ghash",
+					Value: ghash,
+				},
+				{
+					Name:  "nhash",
+					Value: nhash,
+				},
+				{
+					Name:  "nonce",
+					Value: nonceP,
+				},
+				{
+					Name:  "txid",
+					Value: txid,
+				},
+				{
+					Name:  "txindex",
+					Value: txindex,
+				},
+				{
+					Name:  "payload",
+					Value: payload,
+				},
+				{
+					Name:  "gpubkey",
+					Value: pack.NewBytes(pubkbytes),
+				},
+				{
+					Name:  "amount",
+					Value: out.Value,
+				},
+				{
+					Name:  "to",
+					Value: to,
+				},
+			},
 		},
 	}
-	v1Transaction.Tx.Input.Set("phash", phash)
-	v1Transaction.Tx.Input.Set("ghash", ghash)
-	v1Transaction.Tx.Input.Set("nhash", nhash)
-	v1Transaction.Tx.Input.Set("txid", txid)
-	v1Transaction.Tx.Input.Set("txindex", txindex)
-	v1Transaction.Tx.Input.Set("gpubkey", pack.String("will_be_replaced"))
+
+	h, err := tx.NewTxHash(tx.Version0, sel, v1Transaction.Tx.Input)
+	v1Transaction.Tx.Hash = h
+	// persist v0 hash for later query-lookup
+	err = store.Set(transaction.Tx.Hash.String(), h.Bytes(), 0).Err()
+	if err != nil {
+		return v1Transaction, err
+	}
 
 	return v1Transaction, nil
 }

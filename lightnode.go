@@ -126,7 +126,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	)
 	verifier := txpoolverifier.New(engine)
 	resolverI := resolver.New(logger, cacher, multiStore, verifier, db, serverOptions)
-	server := jsonrpc.NewServer(serverOptions, resolverI, &resolver.LightnodeValidator{})
+	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewVerifier(verifierBindings, options.DistPubKey, client, db))
 	confirmer := confirmer.New(
 		confirmer.DefaultOptions().
 			WithLogger(logger).

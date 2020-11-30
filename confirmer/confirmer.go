@@ -151,8 +151,21 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 			Index: input.Txindex,
 		})
 		if err != nil {
-			confirmer.options.Logger.Errorf("[confirmer] cannot get output for utxo tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
-			return false
+			// try the reversed txid
+			txidB := input.Txid[:]
+			txl := len(input.Txid[:])
+			for i := 0; i < txl/2; i++ {
+				txidB[i], txidB[txl-1-i] = txidB[txl-1-i], txidB[i]
+			}
+
+			_, err := confirmer.bindings.UTXOLockInfo(ctx, lockChain, transaction.Selector.Asset(), multichain.UTXOutpoint{
+				Hash:  pack.Bytes(txidB),
+				Index: input.Txindex,
+			})
+			if err != nil {
+				confirmer.options.Logger.Errorf("[confirmer] cannot get output for utxo tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
+				return false
+			}
 		}
 	case lockChain.IsAccountBased():
 		input := txengine.CrossChainInput{}

@@ -36,3 +36,7 @@ type ResponseQueryShards struct {
 type ParamsSubmitTx struct {
 	Tx Tx `json:"tx"`
 }
+
+type ParamsQueryTx struct {
+	TxHash B32 `json:"txHash"`
+}
