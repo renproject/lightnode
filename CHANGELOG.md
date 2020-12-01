@@ -1,5 +1,6 @@
 ## 0.2.6
 - Fix building using Dockerfile
+- Make watcher more rebust to issues with underlying blockchain nodes
 - Add debug logs for watcher
 
 ## 0.2.5
