@@ -1,6 +1,6 @@
 ## 0.2.6
 - Fix Dockerfile issues with filecoin-ffi submodule
-- Make watcher more rebust to issues with underlying blockchain nodes
+- Make watcher more robust to issues with underlying blockchain nodes
 - Add debug logs for watcher
 
 ## 0.2.5
