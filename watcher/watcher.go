@@ -83,6 +83,19 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		return
 	}
 
+	if cur <= last {
+		// Make sure we do not process old events. This could occur if there is
+		// an issue with the underlying blockchain node, for example if it needs
+		// to resync.
+		//
+		// Processing old events is generally not an issue as the Lightnode will
+		// drop transactions if it detects they have already been handled by the
+		// Darknode, however in the case the transaction backlog builds up
+		// substantially, it can cause the Lightnode to be rate limited by the
+		// Darknode upon dispatching requests.
+		return
+	}
+
 	// Filter for all burn events in this range of blocks.
 	iter, err := watcher.ethBindings.FilterLogBurn(
 		&bind.FilterOpts{
