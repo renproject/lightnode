@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -47,14 +48,15 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 		// so that we can perform compat
 		var params v0.ParamsQueryTx
 		if err := json.Unmarshal(req.Params, &params); err == nil {
-			castParams, err := v0.V1QueryTxFromQueryTx(ctx, params, validator.store)
+			castParams := v0.V1QueryTxFromQueryTx(params)
+
+			raw, err := json.Marshal(castParams)
 			if err != nil {
 				return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
 					Code:    jsonrpc.ErrorCodeInvalidParams,
 					Message: fmt.Sprintf("invalid params: %v", err),
 				})
 			}
-			raw, err := json.Marshal(castParams)
 			req.Params = raw
 		}
 
@@ -71,23 +73,34 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 		}
 		var params v0.ParamsSubmitTx
 		if err := json.Unmarshal(req.Params, &params); err == nil {
+			// lookup by utxo because we don't have a renvm hash in the submission
+			utxo := params.Tx.In.Get("utxo").Value.(v0.ExtBtcCompatUTXO)
+			txid := utxo.TxHash.String()
+
 			// Check if we have seen this tx before, and skip casting if so
-			v1Hash, err := validator.store.Get(params.Tx.Hash.String()).Bytes()
+			v1HashS, err := validator.store.Get(txid).Result()
+			v1Hash, err := base64.RawURLEncoding.DecodeString(v1HashS)
+
 			v1Hash32 := [32]byte{}
 			copy(v1Hash32[:], v1Hash)
 			castParams := jsonrpc.ParamsSubmitTx{}
 			if err == nil {
 				restoredtx, err := validator.db.Tx(v1Hash32)
+				fmt.Printf("\n\n\nrestoredtx %v\n\n\n", restoredtx)
 				// If there was an error restoring, we will do the usual casting
 				// because the transaction may be valid and persistence just failed for some reason.
 				// If we have a result we can skip the casting by setting the transaction
 				if err == nil {
 					castParams.Tx = restoredtx
 				}
+			} else {
+				fmt.Printf("\n\n\nerr %v\n\n\n", err)
+				fmt.Printf("\n\n\nv1HashS %v\n\n\n", v1HashS)
 			}
 
 			// If we didn't restore a previous transaction, continue with the cast
-			if castParams.Tx.Hash != v1Hash32 {
+			if castParams.Tx.Hash != v1Hash32 || v1Hash32 == [32]byte{} {
+				fmt.Printf("\n\n\ncasting tx %v\n\n\n", castParams.Tx.Hash)
 				castParams, err = v0.V1TxParamsFromTx(ctx, params, validator.bindings, validator.pubkey, validator.store)
 				if err != nil {
 					return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{

@@ -1,12 +1,10 @@
 package cacher
 
 import (
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/darknode/tx"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
@@ -68,38 +66,63 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 	switch msg.Method {
 	case jsonrpc.MethodSubmitTx:
 	case jsonrpc.MethodQueryTx:
-		params := msg.Params.(jsonrpc.ParamsQueryTx)
+		// moved this logic to the resolver
+		// params := msg.Params.(jsonrpc.ParamsQueryTx)
+		// v0tx := false
+		// // check if tx is v0 or v1 due to its presence in the mapping store
+		// hash, err := cacher.store.Get(params.TxHash.String()).Bytes()
+		// txhash := [32]byte{}
+		// copy(txhash[:], hash)
+		// if err == nil && hash != nil {
+		// 	params.TxHash = txhash
+		// 	v0tx = true
+		// }
 
-		// Retrieve transaction status from the database.
-		status, err := cacher.db.TxStatus(params.TxHash)
-		if err != nil {
-			// Send the request to the Darknodes if we do not have it in our
-			// database.
-			if err == sql.ErrNoRows {
-				break
-			}
-			cacher.logger.Errorf("[cacher] cannot get tx status from db: %v", err)
-			msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
-			return
-		}
+		// // Retrieve transaction status from the database.
+		// status, err := cacher.db.TxStatus(params.TxHash)
+		// if err != nil {
+		// 	// Send the request to the Darknodes if we do not have it in our
+		// 	// database.
+		// 	if err == sql.ErrNoRows {
+		// 		break
+		// 	}
+		// 	cacher.logger.Errorf("[cacher] cannot get tx status from db: %v", err)
+		// 	msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
+		// 	return
+		// }
 
-		// If the transaction has not reached sufficient confirmations (i.e. the
-		// Darknodes do not yet know about the transaction), respond with a
-		// custom confirming status.
-		if status != db.TxStatusConfirmed {
-			transaction, err := cacher.db.Tx(params.TxHash)
-			if err == nil {
-				msg.Responder <- jsonrpc.Response{
-					Version: "2.0",
-					ID:      msg.ID,
-					Result: jsonrpc.ResponseQueryTx{
-						Tx:       transaction,
-						TxStatus: tx.StatusConfirming,
-					},
-				}
-				return
-			}
-		}
+		// // If the transaction has not reached sufficient confirmations (i.e. the
+		// // Darknodes do not yet know about the transaction), respond with a
+		// // custom confirming status.
+		// if status != db.TxStatusConfirmed {
+		// 	transaction, err := cacher.db.Tx(params.TxHash)
+		// 	if err == nil {
+		// 		if v0tx {
+		// 			v0tx, err := v0.V0TxFromV1(transaction, txhash)
+		// 			if err != nil {
+
+		// 			}
+		// 			msg.Responder <- jsonrpc.Response{
+		// 				Version: "2.0",
+		// 				ID:      msg.ID,
+		// 				Result: v0.ResponseQueryTx{
+		// 					Tx:       v0tx,
+		// 					TxStatus: tx.StatusConfirming.String(),
+		// 				},
+		// 			}
+		// 		} else {
+		// 			msg.Responder <- jsonrpc.Response{
+		// 				Version: "2.0",
+		// 				ID:      msg.ID,
+		// 				Result: jsonrpc.ResponseQueryTx{
+		// 					Tx:       transaction,
+		// 					TxStatus: tx.StatusConfirming,
+		// 				},
+		// 			}
+		// 		}
+		// 		return
+		// 	}
+		// }
 	default:
 		darknodeID := msg.Query.Get("id")
 		response, cached := cacher.get(reqID, darknodeID)

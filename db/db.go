@@ -224,7 +224,14 @@ func (db database) TxStatus(txHash pack.Bytes32) (TxStatus, error) {
 
 // UpdateStatus implements the DB interface.
 func (db database) UpdateStatus(txHash pack.Bytes32, status TxStatus) error {
-	_, err := db.db.Exec("UPDATE txs SET status = $1 WHERE hash = $2 AND status < $1;", status, txHash.String())
+	r, err := db.db.Exec("UPDATE txs SET status = $1 WHERE hash = $2 AND status < $1;", status, txHash.String())
+	updated, err := r.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if updated != 1 {
+		return fmt.Errorf("failed to update tx %s status correctly - updated %v txs", txHash, updated)
+	}
 	return err
 }
 
@@ -290,15 +297,29 @@ func rowToTx(row Scannable) (tx.Tx, error) {
 	if err != nil {
 		return tx.Tx{}, err
 	}
-	transaction := tx.Tx{
-		Version:  tx.Version(version),
-		Selector: tx.Selector(selector),
-		Input:    pack.Typed(input.(pack.Struct)),
-	}
-	v1hash, err := tx.NewTxHash(tx.Version0, transaction.Selector, transaction.Input)
-	transaction.Hash = v1hash
 
-	return transaction, err
+	if version == tx.Version0.String() {
+		transaction := tx.Tx{
+			Version:  tx.Version(version),
+			Selector: tx.Selector(selector),
+			Input:    pack.Typed(input.(pack.Struct)),
+		}
+		v1hash, err := tx.NewTxHash(tx.Version0, transaction.Selector, transaction.Input)
+		fmt.Printf("\n\n\nv1hash := %s", v1hash)
+		// if err != nil {
+		// 	// failed to create tx hash
+		// }
+		// Hash has to match what's in the db, otherwise we can't index by it
+		// hashbytes, err := base64.RawURLEncoding.DecodeString(hash)
+		// hash32 := [32]byte{}
+		// copy(hash32[:], hashbytes)
+		hash32, err := decodeBytes32(hash)
+		transaction.Hash = hash32
+
+		return transaction, err
+	} else {
+		return tx.NewTx(tx.Selector(selector), pack.Typed(input.(pack.Struct)))
+	}
 }
 
 func decodeStruct(name, value string) (pack.Struct, error) {

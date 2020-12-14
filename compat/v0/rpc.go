@@ -40,3 +40,8 @@ type ParamsSubmitTx struct {
 type ParamsQueryTx struct {
 	TxHash B32 `json:"txHash"`
 }
+
+type ResponseQueryTx struct {
+	Tx       Tx     `json:"tx"`
+	TxStatus string `json:"txStatus"`
+}
