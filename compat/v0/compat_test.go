@@ -2,17 +2,22 @@ package v0_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
+	"fmt"
+
+	_ "github.com/mattn/go-sqlite3"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	"github.com/alicebob/miniredis"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/go-redis/redis/v7"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-
 	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
+	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
@@ -37,7 +42,14 @@ var _ = Describe("Compat V0", func() {
 		})
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		params := testutils.MockParamSubmitTxVo()
+		params := testutils.MockParamSubmitTxV0()
+
+		utxo := params.Tx.In.Get("utxo").Value.(v0.ExtBtcCompatUTXO)
+		vout := utxo.VOut.Int.String()
+		btcTxHash := utxo.TxHash
+		key := fmt.Sprintf("amount_%s_%s", btcTxHash, vout)
+		fmt.Println(key)
+		client.Set(key, 200000, 0)
 
 		bindingsOpts := txenginebindings.DefaultOptions().
 			WithNetwork("testnet")
@@ -62,22 +74,27 @@ var _ = Describe("Compat V0", func() {
 		pubkey, err := crypto.DecompressPubkey(pubkeyB)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, (*id.PubKey)(pubkey), client)
+		sqlDB, err := sql.Open("sqlite3", "./test.db")
+		database := db.New(sqlDB)
+		store := v0.NewCompatStore(database, client)
+
+		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, (*id.PubKey)(pubkey), store)
 		Expect(err).ShouldNot(HaveOccurred())
 		// Check that redis mapped the hashes correctly
 		hash := v1.Tx.Hash.String()
+		// btc txhash mapping
 		keys, err := client.Keys("*").Result()
+
+		// should have a key for the utxo
+		keys, err = client.Keys(utxo.TxHash.String() + "_" + utxo.VOut.Int.String()).Result()
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(len(keys)).Should(Equal(1))
+
+		storedHash, err := client.Get(keys[0]).Result()
 		Expect(err).ShouldNot(HaveOccurred())
 
-		//Expect(keys[0]).Should(Equal("/6B+uY79GyznFcupz8VR918f+utk8wI/zAnsYI3OPnI="))
-		Expect(keys[0]).Should(Equal("fC8FhISFgwCkDCw5SumejYhdXZAavG/2ucX+kGyOifE="))
-		storedHash, err := client.Get(keys[0]).Bytes()
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(storedHash).Should(Equal(v1.Tx.Hash.String()))
 
-		storedHash32 := [32]byte{}
-		copy(storedHash32[:], storedHash)
-		Expect(pack.Bytes32(storedHash32)).Should(Equal(v1.Tx.Hash))
-
-		Expect(hash).Should(Equal("SJyIgJBmSrfeMbwRW1rPvav90R632Ie79AtJ5Io4INc"))
+		Expect(hash).Should(Equal("J7-sw5tPd_HzC8IPbsjEq_cqUjG_1pRgEp0gjC-kiL8"))
 	})
 })

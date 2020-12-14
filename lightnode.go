@@ -13,6 +13,7 @@ import (
 	"github.com/renproject/darknode/txpool/txpoolverifier"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/cacher"
+	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/lightnode/confirmer"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/dispatcher"
@@ -125,8 +126,9 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		verifierBindings,
 	)
 	verifier := txpoolverifier.New(engine)
-	resolverI := resolver.New(logger, cacher, multiStore, verifier, db, serverOptions, client, bindings)
-	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewVerifier(verifierBindings, options.DistPubKey, client, db))
+	compatStore := v0.NewCompatStore(db, client)
+	resolverI := resolver.New(logger, cacher, multiStore, verifier, db, serverOptions, compatStore, bindings)
+	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewVerifier(verifierBindings, options.DistPubKey, compatStore))
 	confirmer := confirmer.New(
 		confirmer.DefaultOptions().
 			WithLogger(logger).
