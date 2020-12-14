@@ -87,7 +87,8 @@ func (db database) Init() error {
 		nonce              VARCHAR,
 		nhash              VARCHAR,
 		gpubkey            VARCHAR,
-		ghash              VARCHAR
+		ghash              VARCHAR,
+                version            VARCHAR
 	);`
 	_, err := db.db.Exec(script)
 	return err
@@ -136,7 +137,7 @@ func (db database) InsertTx(tx tx.Tx) error {
 		return fmt.Errorf("unexpected type for ghash: expected pack.Bytes32, got %v", tx.Input.Get("ghash").Type())
 	}
 
-	script := `INSERT INTO txs (hash, status, created_time, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);`
+	script := `INSERT INTO txs (hash, status, created_time, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);`
 	_, err := db.db.Exec(script,
 		tx.Hash.String(),
 		TxStatusConfirming,
@@ -152,6 +153,7 @@ func (db database) InsertTx(tx tx.Tx) error {
 		nhash.String(),
 		gpubkey.String(),
 		ghash.String(),
+		tx.Version.String(),
 	)
 
 	return err
@@ -159,15 +161,19 @@ func (db database) InsertTx(tx tx.Tx) error {
 
 // Tx implements the DB interface.
 func (db database) Tx(txHash pack.Bytes32) (tx.Tx, error) {
-	script := "SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash FROM txs WHERE hash = $1"
+	script := "SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs WHERE hash = $1"
 	row := db.db.QueryRow(script, txHash.String())
+	err := row.Err()
+	if err != nil {
+		return tx.Tx{}, err
+	}
 	return rowToTx(row)
 }
 
 // Txs implements the DB interface.
 func (db database) Txs(offset, limit int) ([]tx.Tx, error) {
 	txs := make([]tx.Tx, 0, limit)
-	rows, err := db.db.Query(`SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash FROM txs ORDER BY created_time ASC LIMIT $1 OFFSET $2;`, limit, offset)
+	rows, err := db.db.Query(`SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs ORDER BY created_time ASC LIMIT $1 OFFSET $2;`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +195,7 @@ func (db database) PendingTxs(expiry time.Duration) ([]tx.Tx, error) {
 	txs := make([]tx.Tx, 0, 128)
 
 	// Get pending transactions from the database.
-	rows, err := db.db.Query(`SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash FROM txs
+	rows, err := db.db.Query(`SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs
 		WHERE status = $1 AND $2 - created_time < $3;`, TxStatusConfirming, time.Now().Unix(), int64(expiry.Seconds()))
 	if err != nil {
 		return nil, err
@@ -218,7 +224,14 @@ func (db database) TxStatus(txHash pack.Bytes32) (TxStatus, error) {
 
 // UpdateStatus implements the DB interface.
 func (db database) UpdateStatus(txHash pack.Bytes32, status TxStatus) error {
-	_, err := db.db.Exec("UPDATE txs SET status = $1 WHERE hash = $2 AND status < $1;", status, txHash.String())
+	r, err := db.db.Exec("UPDATE txs SET status = $1 WHERE hash = $2 AND status < $1;", status, txHash.String())
+	updated, err := r.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if updated != 1 {
+		return fmt.Errorf("failed to update tx %s status correctly - updated %v txs", txHash, updated)
+	}
 	return err
 }
 
@@ -229,9 +242,9 @@ func (db database) Prune(expiry time.Duration) error {
 }
 
 func rowToTx(row Scannable) (tx.Tx, error) {
-	var hash, selector, txidStr, amountStr, payloadStr, phashStr, toStr, nonceStr, nhashStr, gpubkeyStr, ghashStr string
+	var hash, selector, txidStr, amountStr, payloadStr, phashStr, toStr, nonceStr, nhashStr, gpubkeyStr, ghashStr, version string
 	var txindex int
-	if err := row.Scan(&hash, &selector, &txidStr, &txindex, &amountStr, &payloadStr, &phashStr, &toStr, &nonceStr, &nhashStr, &gpubkeyStr, &ghashStr); err != nil {
+	if err := row.Scan(&hash, &selector, &txidStr, &txindex, &amountStr, &payloadStr, &phashStr, &toStr, &nonceStr, &nhashStr, &gpubkeyStr, &ghashStr, &version); err != nil {
 		return tx.Tx{}, err
 	}
 
@@ -284,7 +297,29 @@ func rowToTx(row Scannable) (tx.Tx, error) {
 	if err != nil {
 		return tx.Tx{}, err
 	}
-	return tx.NewTx(tx.Selector(selector), pack.Typed(input.(pack.Struct)))
+
+	if version == tx.Version0.String() {
+		transaction := tx.Tx{
+			Version:  tx.Version(version),
+			Selector: tx.Selector(selector),
+			Input:    pack.Typed(input.(pack.Struct)),
+		}
+		v1hash, err := tx.NewTxHash(tx.Version0, transaction.Selector, transaction.Input)
+		fmt.Printf("\n\n\nv1hash := %s", v1hash)
+		// if err != nil {
+		// 	// failed to create tx hash
+		// }
+		// Hash has to match what's in the db, otherwise we can't index by it
+		// hashbytes, err := base64.RawURLEncoding.DecodeString(hash)
+		// hash32 := [32]byte{}
+		// copy(hash32[:], hashbytes)
+		hash32, err := decodeBytes32(hash)
+		transaction.Hash = hash32
+
+		return transaction, err
+	} else {
+		return tx.NewTx(tx.Selector(selector), pack.Typed(input.(pack.Struct)))
+	}
 }
 
 func decodeStruct(name, value string) (pack.Struct, error) {

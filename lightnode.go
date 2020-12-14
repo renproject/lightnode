@@ -125,8 +125,8 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		verifierBindings,
 	)
 	verifier := txpoolverifier.New(engine)
-	resolver := resolver.New(logger, cacher, multiStore, verifier, db, serverOptions)
-	server := jsonrpc.NewServer(serverOptions, resolver)
+	resolverI := resolver.New(logger, cacher, multiStore, verifier, db, serverOptions, client, bindings)
+	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewVerifier(verifierBindings, options.DistPubKey, client, db))
 	confirmer := confirmer.New(
 		confirmer.DefaultOptions().
 			WithLogger(logger).
@@ -145,7 +145,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 			if watchers[chain] == nil {
 				watchers[chain] = map[multichain.Asset]watcher.Watcher{}
 			}
-			watchers[chain][asset] = watcher.NewWatcher(logger, selector, verifierBindings, ethClients[chain], bindings, resolver, client, options.DistPubKey, options.WatcherPollRate)
+			watchers[chain][asset] = watcher.NewWatcher(logger, selector, verifierBindings, ethClients[chain], bindings, resolverI, client, options.DistPubKey, options.WatcherPollRate)
 		}
 	}
 

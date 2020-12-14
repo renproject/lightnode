@@ -2,11 +2,15 @@ package testutils
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"time"
 
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx/txutil"
+	v0 "github.com/renproject/lightnode/compat/v0"
+	"github.com/renproject/multichain"
+	"github.com/renproject/pack"
 	"github.com/renproject/phi"
 )
 
@@ -106,4 +110,29 @@ func ErrorResponse(id interface{}) jsonrpc.Response {
 		ID:      id,
 		Error:   &err,
 	}
+}
+
+func MockQueryStateResponse() jsonrpc.ResponseQueryState {
+	bitcoinState := pack.NewStruct(
+		"pubKey", pack.String("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"),
+	)
+
+	return jsonrpc.ResponseQueryState{
+		State: map[multichain.Chain]pack.Struct{
+			multichain.Bitcoin: bitcoinState,
+		},
+	}
+}
+
+func MockParamSubmitTxVo() v0.ParamsSubmitTx {
+	// jsonStr := `{"tx":{"to":"BTC0Btc2Eth","in":[{"name":"p","type":"ext_ethCompatPayload","value":{"abi":"W3siY29uc3RhbnQiOmZhbHNlLCJpbnB1dHMiOlt7InR5cGUiOiJzdHJpbmciLCJuYW1lIjoiX3N5bWJvbCJ9LHsidHlwZSI6ImFkZHJlc3MiLCJuYW1lIjoiX2FkZHJlc3MifSx7Im5hbWUiOiJfYW1vdW50IiwidHlwZSI6InVpbnQyNTYifSx7Im5hbWUiOiJfbkhhc2giLCJ0eXBlIjoiYnl0ZXMzMiJ9LHsibmFtZSI6Il9zaWciLCJ0eXBlIjoiYnl0ZXMifV0sIm91dHB1dHMiOltdLCJwYXlhYmxlIjp0cnVlLCJzdGF0ZU11dGFiaWxpdHkiOiJwYXlhYmxlIiwidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6Im1pbnQifV0=","value":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAADqiy/w1/VGr66uF3EwZzY1fe+kNAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADQlRDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","fn":"bWludA=="}},{"name":"token","type":"ext_ethCompatAddress","value":"0A9ADD98C076448CBcFAcf5E457DA12ddbEF4A8f"},{"name":"to","type":"ext_ethCompatAddress","value":"7DDFA2e5435027f6e13Ca8Db2f32ebd5551158Bb"},{"name":"n","type":"b32","value":"UL02xN5g613wuVxDCRDN0ynj5IVUyY0ehBgecccHLzw="},{"name":"utxo","type":"ext_btcCompatUTXO","value":{"txHash":"7AuVKdtoEOEpvhkUecFvt39ggsk/QYr0talTTGSPB4A=","vOut":"0"}}]},"tags":[]}`
+	jsonStr := `{"tx":{"to":"BTC0Btc2Eth","in":[{"name":"p","type":"ext_ethCompatPayload","value":{"abi":"W3siY29uc3RhbnQiOmZhbHNlLCJpbnB1dHMiOlt7InR5cGUiOiJzdHJpbmciLCJuYW1lIjoiX3N5bWJvbCJ9LHsidHlwZSI6ImFkZHJlc3MiLCJuYW1lIjoiX2FkZHJlc3MifSx7Im5hbWUiOiJfYW1vdW50IiwidHlwZSI6InVpbnQyNTYifSx7Im5hbWUiOiJfbkhhc2giLCJ0eXBlIjoiYnl0ZXMzMiJ9LHsibmFtZSI6Il9zaWciLCJ0eXBlIjoiYnl0ZXMifV0sIm91dHB1dHMiOltdLCJwYXlhYmxlIjp0cnVlLCJzdGF0ZU11dGFiaWxpdHkiOiJwYXlhYmxlIiwidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6Im1pbnQifV0=","value":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAACJGOCpLdxrU70fzhypE84q/owC0gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADQlRDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","fn":"bWludA=="}},{"name":"token","type":"ext_ethCompatAddress","value":"0A9ADD98C076448CBcFAcf5E457DA12ddbEF4A8f"},{"name":"to","type":"ext_ethCompatAddress","value":"7DDFA2e5435027f6e13Ca8Db2f32ebd5551158Bb"},{"name":"n","type":"b32","value":"9XnGLCgI5MjA1y7/3JagAD6XJy9v6DhfFMdVitbA4m4="},{"name":"utxo","type":"ext_btcCompatUTXO","value":{"txHash":"06HQtSGSItb9R+kin2SCUhmJyCC1oALUe206azSbtUA=","vOut":"0"}}]},"tags":[]}`
+
+	var params v0.ParamsSubmitTx
+	err := json.Unmarshal([]byte(jsonStr), &params)
+	if err != nil {
+		fmt.Printf("Failed to unmarshal params %v", jsonStr)
+	}
+	fmt.Printf("%v", params)
+	return params
 }
