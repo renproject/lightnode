@@ -217,7 +217,6 @@ func submitTxRequest(transaction tx.Tx) (jsonrpc.Request, error) {
 	if err != nil {
 		return jsonrpc.Request{}, fmt.Errorf("failed to marshal tx: %v", err)
 	}
-	fmt.Printf("\n\nw txjson: \n\n %s", data)
 
 	return jsonrpc.Request{
 		Version: "2.0",

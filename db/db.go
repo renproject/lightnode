@@ -88,7 +88,7 @@ func (db database) Init() error {
 		nhash              VARCHAR,
 		gpubkey            VARCHAR,
 		ghash              VARCHAR,
-                version            VARCHAR
+		version            VARCHAR
 	);`
 	_, err := db.db.Exec(script)
 	return err
