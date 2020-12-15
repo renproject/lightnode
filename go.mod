@@ -17,7 +17,7 @@ require (
 	github.com/onsi/ginkgo v1.14.0
 	github.com/onsi/gomega v1.10.1
 	github.com/renproject/aw v0.4.0-9
-	github.com/renproject/darknode v0.5.3-0.20201105235245-6c826ec308fa
+	github.com/renproject/darknode v0.5.3-0.20201206235011-850658104778
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/mercury v0.3.16
@@ -37,5 +37,3 @@ replace github.com/CosmWasm/go-cosmwasm => github.com/terra-project/go-cosmwasm 
 replace github.com/keybase/go-keychain => github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4
 
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
-
-replace github.com/renproject/darknode => ../darknode

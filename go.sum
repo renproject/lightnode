@@ -1504,12 +1504,16 @@ github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 h1:OdAsTTz6O
 github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/renproject/aw v0.4.0-9 h1:O3rFYg4arz+kuu+qqn/+FYtWDhsstD/R8/+RkOTrOCE=
 github.com/renproject/aw v0.4.0-9/go.mod h1:iuELPkEjsWV9dSyZ9TE5SKsTr+jv2I9naHDhsodH3Z0=
+github.com/renproject/darknode v0.5.3-0.20201105235245-6c826ec308fa/go.mod h1:GFR/Ko25V7yuZb8hw9/MXuC/69HEKjomuJpNOfl26WU=
+github.com/renproject/darknode v0.5.3-0.20201206235011-850658104778 h1:9K8g797R/KJYMSEQvw42GQyHd1+bRZpVJ1QpcfPgjok=
+github.com/renproject/darknode v0.5.3-0.20201206235011-850658104778/go.mod h1:YlZ5o9TbO4cPlBJbsSK4NyFxdCYp65EDy0hChZRVh/c=
 github.com/renproject/id v0.4.2 h1:XseNDPPCJtsZjIWR7Qgf+zxy0Gt5xsLrfwpQxJt5wFQ=
 github.com/renproject/id v0.4.2/go.mod h1:bCzV4zZkyWetf0GvhJxMT9HQNnGUwzQpImtXOUXqq0k=
 github.com/renproject/kv v1.1.2 h1:P18yHdDVJTEZ9yeyx6o82ICY1m6f+VdtAt/ouZez+AU=
 github.com/renproject/kv v1.1.2/go.mod h1:78bvdAtYiYxCoT9ihVhl8qdmjl7s9fST/FkRLnZ6rXY=
 github.com/renproject/mercury v0.3.16 h1:vbD0DJOJK+ETIwMRDjfEOdUoPzYPWkaIiq/adqe/k7M=
 github.com/renproject/mercury v0.3.16/go.mod h1:+1iE/uf04pXGSk0lNTdGjs4w+MUyKs4R3o3xK2Bko3Y=
+github.com/renproject/multichain v0.2.16/go.mod h1:Ooie8BYJ5d+pg+299ZCb7i+9s2oBtVfeHLalZb4NXUo=
 github.com/renproject/multichain v0.2.19 h1:3j3gRW1HsqW/2sHBkuhllhUOmkOuovBKTHZ79+a4Nok=
 github.com/renproject/multichain v0.2.19/go.mod h1:HexRygMyMZAnXUTiHT6egxJaC4XWnMFBgBBMU0vCw5g=
 github.com/renproject/pack v0.2.5 h1:BNfam8PCb5qJuIX36IqOkcRgaZLOZsM1lZZSakbOxb4=
