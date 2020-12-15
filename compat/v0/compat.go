@@ -7,10 +7,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
-	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/txengine"
@@ -22,6 +20,7 @@ import (
 )
 
 // Takes a QueryState rpc response and converts it into a QueryShards rpc response
+// It can be a standalone function as it has no dependencies
 func ShardsResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQueryShards, error) {
 	bitcoinPubkey, ok := state.State[multichain.Bitcoin].Get("pubKey").(pack.String)
 	if !ok {
@@ -68,7 +67,7 @@ func ShardsResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQuerySha
 	return resp, nil
 }
 
-func V0TxFromV1(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx, error) {
+func TxFromV1Tx(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 	tx := Tx{}
 
 	phash := t.Input.Get("phash").(pack.Bytes32)
@@ -123,6 +122,7 @@ func V0TxFromV1(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 	})
 
 	// can't really re-create this correctly
+	// pray it's OK
 	payload := t.Input.Get("payload").(pack.Bytes)
 	tx.In.Set(Arg{
 		Name: "p",
@@ -146,6 +146,7 @@ func V0TxFromV1(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 	if err != nil {
 		return tx, err
 	}
+
 	tx.In.Set(Arg{
 		Name:  "to",
 		Type:  "ext_ethCompatAddress",
@@ -168,27 +169,6 @@ func V0TxFromV1(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 		Value: U256{Int: inamount.Int()},
 	})
 
-	// sighash
-	// const encoded = rawEncode(
-	//     [
-	//         "bytes32",
-	//         "uint256",
-	//         v2 ? "bytes32" : "address",
-	//         "address",
-	//         "bytes32",
-	//     ],
-	//     [pHash, amount, Ox(tokenIdentifier), Ox(to), nonceHash],
-	// const digest = keccak256(encoded);
-
-	// sighashE :=
-	//
-	// ethargs := ethabi.Arguments{
-	// 	{Type: b32},
-	// 	{Type: addr},
-	// 	{Type: addr},
-	// 	{Type: b32},
-	// }
-	//
 	sighash := [32]byte{}
 	sender, err := ethereum.NewAddressFromHex(toAddr.String())
 	tokenEthAddr, err := ethereum.NewAddressFromHex(tokenAddr.String())
@@ -247,95 +227,6 @@ func V0TxFromV1(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 	tx.Hash = hash
 
 	return tx, nil
-	// Expected
-	/*
-		{
-		    "result": {
-		        "txStatus": "confirming",
-		        "tx": {
-		            "autogen": [
-		                {
-		                    "value": "2zIFnPelBHr9RPNUkQlz4E0U3UYbzJ4nQ1xIw2L7yYg=",
-		                    "type": "b32",
-		                    "name": "phash"
-		                },
-		                {
-		                    "value": "DEvQxAbrNQf/YxXDcgP/4Wd0AGNYa28eBDg6vFdC88I=",
-		                    "type": "b32",
-		                    "name": "ghash"
-		                },
-		                {
-		                    "value": "VkKkSMRg/63q/ebb62HTMrEqdJuDWcSKx0LNGr+75+o=",
-		                    "type": "b32",
-		                    "name": "nhash"
-		                },
-		                {
-		                    "value": "KxSqdrBA5fE14G1xB2G07zycRmQstj4/FavcCd+34po=",
-		                    "type": "b32",
-		                    "name": "sighash"
-		                },
-		                {
-		                    "value": "100000",
-		                    "type": "u256",
-		                    "name": "amount"
-		                },
-		                {
-		                    "value": {
-		                        "ghash": "DEvQxAbrNQf/YxXDcgP/4Wd0AGNYa28eBDg6vFdC88I=",
-		                        "amount": "200000",
-		                        "scriptPubKey": "qRQFNngOJ3Dswbp9/JKCwaAqr5qhhIc=",
-		                        "vOut": "0",
-		                        "txHash": "1cuYQphEKlNQaeo7f5iZ5bWUp66nBII+KLJIXoy7YxY="
-		                    },
-		                    "type": "ext_btcCompatUTXO",
-		                    "name": "utxo"
-		                }
-		            ],
-		            "in": [
-		                {
-		                    "value": {
-		                        "fn": "bWludA==",
-		                        "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAACJGOCpLdxrU70fzhypE84q/owC0gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADQlRDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-		                        "abi": "W3siY29uc3RhbnQiOmZhbHNlLCJpbnB1dHMiOlt7InR5cGUiOiJzdHJpbmciLCJuYW1lIjoiX3N5bWJvbCJ9LHsidHlwZSI6ImFkZHJlc3MiLCJuYW1lIjoiX2FkZHJlc3MifSx7Im5hbWUiOiJfYW1vdW50IiwidHlwZSI6InVpbnQyNTYifSx7Im5hbWUiOiJfbkhhc2giLCJ0eXBlIjoiYnl0ZXMzMiJ9LHsibmFtZSI6Il9zaWciLCJ0eXBlIjoiYnl0ZXMifV0sIm91dHB1dHMiOltdLCJwYXlhYmxlIjp0cnVlLCJzdGF0ZU11dGFiaWxpdHkiOiJwYXlhYmxlIiwidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6Im1pbnQifV0="
-		                    },
-		                    "type": "ext_ethCompatPayload",
-		                    "name": "p"
-		                },
-		                {
-		                    "value": "0a9add98c076448cbcfacf5e457da12ddbef4a8f",
-		                    "type": "ext_ethCompatAddress",
-		                    "name": "token"
-		                },
-		                {
-		                    "value": "7ddfa2e5435027f6e13ca8db2f32ebd5551158bb",
-		                    "type": "ext_ethCompatAddress",
-		                    "name": "to"
-		                },
-		                {
-		                    "value": "xi4j4cWhkCy6OeLbZL7Po52gJTfE01U2cb1782EqTMo=",
-		                    "type": "b32",
-		                    "name": "n"
-		                },
-		                {
-		                    "value": {
-		                        "ghash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-		                        "amount": "0",
-		                        "vOut": "0",
-		                        "txHash": "1cuYQphEKlNQaeo7f5iZ5bWUp66nBII+KLJIXoy7YxY="
-		                    },
-		                    "type": "ext_btcCompatUTXO",
-		                    "name": "utxo"
-		                }
-		            ],
-		            "to": "BTC0Btc2Eth",
-		            "hash": "u2Rt4Yx6kP4fnLkhm9oPJLzWH78oYutzygknoTMIMj0="
-		        }
-		    },
-		    "id": 1,
-		    "jsonrpc": "2.0"
-			}
-	*/
-
 }
 
 // Don't lookup v1 txhash, just cast
@@ -348,17 +239,30 @@ func V1QueryTxFromQueryTx(queryTx ParamsQueryTx) jsonrpc.ParamsQueryTx {
 	return query
 }
 
-func V1TxParamsFromTx(ctx context.Context, transaction ParamsSubmitTx, bindings *txenginebindings.Bindings, pubkey *id.PubKey, store redis.Cmdable) (jsonrpc.ParamsSubmitTx, error) {
-	utxo := transaction.Tx.In.Get("utxo").Value.(ExtBtcCompatUTXO)
+// Will attempt to check if we have already constructed the parameters previously,
+// otherwise will construct a v1 tx using v0 parameters, and persist a mapping
+// so that a v0 queryTX can find them
+func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txenginebindings.Bindings, pubkey *id.PubKey, store CompatStore) (jsonrpc.ParamsSubmitTx, error) {
+	v1tx, err := store.GetV1TxFromTx(params.Tx)
+	if err == nil {
+		// We have persisted this tx before, so let's use it
+		return jsonrpc.ParamsSubmitTx{
+			Tx: v1tx,
+		}, err
+	}
+	if err != nil && err != ErrNotFound {
+		// If there are errors with persistence, we won't be able to handle the tx
+		// at a later state, so return an error early on
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
+
+	utxo := params.Tx.In.Get("utxo").Value.(ExtBtcCompatUTXO)
 	i := utxo.VOut.Int.Uint64()
 	txindex := pack.NewU32(uint32(i))
 
 	txidB, err := utxo.TxHash.MarshalBinary()
 
-	// deposit `${toBase64(fromHex(transaction.txHash))}_${transaction.vOut}`;
 	v0DepositId := base64.StdEncoding.EncodeToString(txidB) + "_" + utxo.VOut.Int.String()
-
-	// V0 deposit id in renjs = 06HQtSGSItb9R+kin2SCUhmJyCC1oALUe206azSbtUA=_0
 
 	// reverse the txhash bytes
 	txl := len(txidB)
@@ -368,9 +272,9 @@ func V1TxParamsFromTx(ctx context.Context, transaction ParamsSubmitTx, bindings 
 
 	txid := pack.NewBytes(txidB)
 
-	payload := pack.NewBytes(transaction.Tx.In.Get("p").Value.(ExtEthCompatPayload).Value[:])
+	payload := pack.NewBytes(params.Tx.In.Get("p").Value.(ExtEthCompatPayload).Value[:])
 
-	token := transaction.Tx.In.Get("token").Value.(ExtEthCompatAddress)
+	token := params.Tx.In.Get("token").Value.(ExtEthCompatAddress)
 	/// We only accept BTC/toEthereum / fromEthereum txs for compat
 	/// We can't use the bindings, because the token addresses won't match
 	// asset, err := bindings.AssetFromTokenAddress(multichain.Ethereum, multichain.Address(token.String()))
@@ -382,9 +286,9 @@ func V1TxParamsFromTx(ctx context.Context, transaction ParamsSubmitTx, bindings 
 
 	phash := txengine.Phash(payload)
 
-	to := pack.String(transaction.Tx.In.Get("to").Value.(ExtEthCompatAddress).String())
+	to := pack.String(params.Tx.In.Get("to").Value.(ExtEthCompatAddress).String())
 
-	nonce, err := transaction.Tx.In.Get("n").Value.(B32).MarshalBinary()
+	nonce, err := params.Tx.In.Get("n").Value.(B32).MarshalBinary()
 	var c [32]byte
 	copy(c[:32], nonce)
 	nonceP := pack.NewBytes32(c)
@@ -395,21 +299,30 @@ func V1TxParamsFromTx(ctx context.Context, transaction ParamsSubmitTx, bindings 
 
 	nhash, err := txengine.V0Nhash(nonceP, txidB, txindex)
 
-	// lets call the btc rpc endpoint because that's needed to get the correct amount
-	out, err := bindings.UTXOLockInfo(ctx, multichain.Bitcoin, multichain.BTC, multichain.UTXOutpoint{
-		Hash:  txid,
-		Index: txindex,
-	})
+	// check if we've seen this amount before
+	// also a cheeky workaround to enable testability
+	amount, err := store.GetAmountFromUTXO(utxo)
+	if err == ErrNotFound {
+		// lets call the btc rpc endpoint because that's needed to get the correct amount
+		out, err := bindings.UTXOLockInfo(ctx, multichain.Bitcoin, multichain.BTC, multichain.UTXOutpoint{
+			Hash:  txid,
+			Index: txindex,
+		})
+		if err != nil {
+			return jsonrpc.ParamsSubmitTx{}, err
+		}
+		amount = out.Value.Int().Int64()
 
-	pubkbytes := crypto.CompressPubkey((*ecdsa.PublicKey)(pubkey))
-	if err != nil {
+	} else if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
+
+	pubkbytes := crypto.CompressPubkey((*ecdsa.PublicKey)(pubkey))
 
 	input, err := pack.Encode(txengine.CrossChainInput{
 		Txid:    txid,
 		Txindex: txindex,
-		Amount:  out.Value,
+		Amount:  pack.NewU256FromUint64(uint64(amount)),
 		Payload: payload,
 		Phash:   phash,
 		To:      to,
@@ -434,23 +347,10 @@ func V1TxParamsFromTx(ctx context.Context, transaction ParamsSubmitTx, bindings 
 	)
 	v0HashB32 := [32]byte{}
 	copy(v0HashB32[:], v0HashB)
-	transaction.Tx.Hash = v0HashB32
+	params.Tx.Hash = v0HashB32
 
 	v1Transaction.Tx.Hash = h
-	fmt.Printf("\n\n\nsubmitting hash %s\n\n\n", h)
-
-	// deposit `${toBase64(fromHex(transaction.txHash))}_${transaction.vOut}`;
-	// const message = `txHash_${selector}_${encodedID}_${deposit}`;
-
-	// persist v0 hash for later query-lookup
-	err = store.Set(transaction.Tx.Hash.String(), h.String(), 0).Err()
-	if err != nil {
-		return v1Transaction, err
-	}
-
-	// Also allow for lookup by btc utxo; as we don't have the v0 hash at submission
-	// Expire these because it's only useful during submission, not querying
-	err = store.Set(utxo.TxHash.String(), h.String(), time.Duration(time.Hour*24*7)).Err()
+	err = store.PersistTxMappings(params.Tx, v1Transaction.Tx)
 	if err != nil {
 		return v1Transaction, err
 	}

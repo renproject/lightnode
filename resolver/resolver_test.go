@@ -9,15 +9,20 @@ import (
 	"os"
 	"time"
 
+	"github.com/alicebob/miniredis"
+	"github.com/go-redis/redis/v7"
 	_ "github.com/mattn/go-sqlite3"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	v0 "github.com/renproject/lightnode/compat/v0"
 	. "github.com/renproject/lightnode/resolver"
+	"github.com/renproject/multichain"
 
 	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx/txutil"
+	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/darknode/txengine/txengineutil"
 	"github.com/renproject/darknode/txpool/txpoolverifier"
 	"github.com/renproject/kv"
@@ -50,6 +55,15 @@ var _ = Describe("Resolver", func() {
 		database := db.New(sqlDB)
 		Expect(database.Init()).Should(Succeed())
 
+		mr, err := miniredis.Run()
+		if err != nil {
+			panic(err)
+		}
+
+		client := redis.NewClient(&redis.Options{
+			Addr: mr.Addr(),
+		})
+
 		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 
 		output := pack.NewTyped(
@@ -59,10 +73,31 @@ var _ = Describe("Resolver", func() {
 
 		verifier := txpoolverifier.New(txengineutil.NewMockTxEngine(output))
 
+		bindingsOpts := txenginebindings.DefaultOptions().
+			WithNetwork("localnet")
+
+		bindingsOpts.WithChainOptions(multichain.Bitcoin, txenginebindings.ChainOptions{
+			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
+			Confirmations: pack.U64(0),
+		})
+
+		bindingsOpts.WithChainOptions(multichain.Ethereum, txenginebindings.ChainOptions{
+			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
+			Confirmations: pack.U64(0),
+			Protocol:      pack.String("0x1CAD87e16b56815d6a0b4Cd91A6639eae86Fc53A"),
+		})
+
+		bindings, err := txenginebindings.New(bindingsOpts)
+		if err != nil {
+			logger.Panicf("bad bindings: %v", err)
+		}
+
 		cacher := testutils.NewMockCacher()
 		go cacher.Run(ctx)
 
-		resolver := New(logger, cacher, multiaddrStore, verifier, database, jsonrpc.Options{})
+		compatStore := v0.NewCompatStore(database, client)
+
+		resolver := New(logger, cacher, multiaddrStore, verifier, database, jsonrpc.Options{}, compatStore, bindings)
 
 		return resolver
 	}
