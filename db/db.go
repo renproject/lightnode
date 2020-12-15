@@ -299,20 +299,13 @@ func rowToTx(row Scannable) (tx.Tx, error) {
 	}
 
 	if version == tx.Version0.String() {
+		// we have to construct the tx manually because tx.NewTx
+		// only produces v1 txes
 		transaction := tx.Tx{
 			Version:  tx.Version(version),
 			Selector: tx.Selector(selector),
 			Input:    pack.Typed(input.(pack.Struct)),
 		}
-		v1hash, err := tx.NewTxHash(tx.Version0, transaction.Selector, transaction.Input)
-		fmt.Printf("\n\n\nv1hash := %s", v1hash)
-		// if err != nil {
-		// 	// failed to create tx hash
-		// }
-		// Hash has to match what's in the db, otherwise we can't index by it
-		// hashbytes, err := base64.RawURLEncoding.DecodeString(hash)
-		// hash32 := [32]byte{}
-		// copy(hash32[:], hashbytes)
 		hash32, err := decodeBytes32(hash)
 		transaction.Hash = hash32
 
