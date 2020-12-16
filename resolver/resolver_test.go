@@ -107,29 +107,33 @@ var _ = Describe("Resolver", func() {
 	}
 
 	It("should handle all known methods", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		resolver := init(ctx)
 		defer cleanup()
 		offset := pack.NewU32(1)
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
 		responses := []jsonrpc.Response{
-			resolver.QueryTx(ctx, nil, &jsonrpc.ParamsQueryTx{}, nil),
-			resolver.QueryTxs(ctx, nil, &jsonrpc.ParamsQueryTxs{}, nil),
-			resolver.QueryTxs(ctx, nil, &jsonrpc.ParamsQueryTxs{
+			resolver.QueryTx(innerCtx, nil, &jsonrpc.ParamsQueryTx{}, nil),
+			resolver.QueryTxs(innerCtx, nil, &jsonrpc.ParamsQueryTxs{}, nil),
+			resolver.QueryTxs(innerCtx, nil, &jsonrpc.ParamsQueryTxs{
 				TxStatus: 0,
 				Offset:   &offset,
 				Limit:    &offset,
 			}, nil),
-			resolver.QueryBlock(ctx, nil, &jsonrpc.ParamsQueryBlock{}, nil),
-			resolver.QueryBlocks(ctx, nil, &jsonrpc.ParamsQueryBlocks{}, nil),
-			resolver.QueryPeers(ctx, nil, &jsonrpc.ParamsQueryPeers{}, nil),
-			resolver.QueryNumPeers(ctx, nil, &jsonrpc.ParamsQueryNumPeers{}, nil),
-			resolver.QueryShards(ctx, nil, &jsonrpc.ParamsQueryShards{}, nil),
-			resolver.QueryStat(ctx, nil, &jsonrpc.ParamsQueryStat{}, nil),
-			resolver.QueryFees(ctx, nil, &jsonrpc.ParamsQueryFees{}, nil),
-			resolver.QueryConfig(ctx, nil, &jsonrpc.ParamsQueryConfig{}, nil),
-			resolver.QueryState(ctx, nil, &jsonrpc.ParamsQueryState{}, nil),
+			resolver.QueryBlock(innerCtx, nil, &jsonrpc.ParamsQueryBlock{}, nil),
+			resolver.QueryBlocks(innerCtx, nil, &jsonrpc.ParamsQueryBlocks{}, nil),
+			resolver.QueryPeers(innerCtx, nil, &jsonrpc.ParamsQueryPeers{}, nil),
+			resolver.QueryNumPeers(innerCtx, nil, &jsonrpc.ParamsQueryNumPeers{}, nil),
+			resolver.QueryShards(innerCtx, nil, &jsonrpc.ParamsQueryShards{}, nil),
+			resolver.QueryStat(innerCtx, nil, &jsonrpc.ParamsQueryStat{}, nil),
+			resolver.QueryFees(innerCtx, nil, &jsonrpc.ParamsQueryFees{}, nil),
+			resolver.QueryConfig(innerCtx, nil, &jsonrpc.ParamsQueryConfig{}, nil),
+			resolver.QueryState(innerCtx, nil, &jsonrpc.ParamsQueryState{}, nil),
 		}
 
 		// Validate responses.
@@ -140,7 +144,7 @@ var _ = Describe("Resolver", func() {
 	})
 
 	It("should handle a request witout a specified ID", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		resolver := init(ctx)
@@ -154,12 +158,15 @@ var _ = Describe("Resolver", func() {
 			URL:    urlI,
 		}
 
-		resp := resolver.QueryConfig(ctx, "", &params, &req)
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		resp := resolver.QueryConfig(innerCtx, "", &params, &req)
 		Expect(resp).Should(BeZero())
 	})
 
 	It("should fail when querying an unknown node", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		resolver := init(ctx)
@@ -173,12 +180,15 @@ var _ = Describe("Resolver", func() {
 			URL:    urlI,
 		}
 
-		resp := resolver.QueryConfig(ctx, "", &params, &req)
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		resp := resolver.QueryConfig(innerCtx, "", &params, &req)
 		Expect(resp.Error.Message).Should(ContainSubstring("unknown darknode"))
 	})
 
 	It("should succeed when querying a known node", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		resolver := init(ctx)
@@ -192,12 +202,15 @@ var _ = Describe("Resolver", func() {
 			URL:    urlI,
 		}
 
-		resp := resolver.QueryConfig(ctx, "", &params, &req)
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		resp := resolver.QueryConfig(innerCtx, "", &params, &req)
 		Expect(resp.Error).Should(BeZero())
 	})
 
 	It("should submit txs", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		resolver := init(ctx)
@@ -209,7 +222,10 @@ var _ = Describe("Resolver", func() {
 			Tx: txutil.RandomGoodTx(r),
 		}
 
-		resp := resolver.SubmitTx(ctx, nil, &params, nil)
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		resp := resolver.SubmitTx(innerCtx, nil, &params, nil)
 
 		Expect(resp.Error).Should(BeZero())
 	})
