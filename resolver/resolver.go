@@ -259,7 +259,6 @@ func (resolver *Resolver) QueryState(ctx context.Context, id interface{}, params
 }
 
 func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryTxs, req *http.Request) jsonrpc.Response {
-	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryTxs, *params, req, false)
 	var offset int
 	if params.Offset == nil {
 		// If the offset is nil, set it to 0.
