@@ -1,6 +1,6 @@
 module github.com/renproject/lightnode
 
-go 1.13
+go 1.15
 
 require (
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
