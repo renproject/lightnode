@@ -260,30 +260,30 @@ func (resolver *Resolver) QueryState(ctx context.Context, id interface{}, params
 
 func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryTxs, req *http.Request) jsonrpc.Response {
 	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryTxs, *params, req, false)
-	// var offset int
-	// if params.Offset == nil {
-	// 	// If the offset is nil, set it to 0.
-	// 	offset = 0
-	// } else {
-	// 	offset = int(*params.Offset)
-	// }
+	var offset int
+	if params.Offset == nil {
+		// If the offset is nil, set it to 0.
+		offset = 0
+	} else {
+		offset = int(*params.Offset)
+	}
 
-	// var limit int
-	// if params.Limit == nil {
-	// 	// If the limit is nil, set it to 8.
-	// 	limit = 8
-	// } else {
-	// 	limit = int(*params.Limit)
-	// }
+	var limit int
+	if params.Limit == nil {
+		// If the limit is nil, set it to 8.
+		limit = 8
+	} else {
+		limit = int(*params.Limit)
+	}
 
-	// // Fetch the matching transactions from the database.
-	// txs, err := resolver.db.Txs(offset, limit)
-	// if err != nil {
-	// 	jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, fmt.Sprintf("failed to fetch txs: %v", err), nil)
-	// 	return jsonrpc.NewResponse(id, nil, &jsonErr)
-	// }
+	// Fetch the matching transactions from the database.
+	txs, err := resolver.db.Txs(offset, limit)
+	if err != nil {
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, fmt.Sprintf("failed to fetch txs: %v", err), nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
 
-	// return jsonrpc.NewResponse(id, jsonrpc.ResponseQueryTxs{Txs: txs}, nil)
+	return jsonrpc.NewResponse(id, jsonrpc.ResponseQueryTxs{Txs: txs}, nil)
 }
 
 func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, method string, params interface{}, r *http.Request, isCompat bool) jsonrpc.Response {

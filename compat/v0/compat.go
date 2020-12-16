@@ -122,7 +122,6 @@ func TxFromV1Tx(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 	})
 
 	// can't really re-create this correctly
-	// pray it's OK
 	payload := t.Input.Get("payload").(pack.Bytes)
 	tx.In.Set(Arg{
 		Name: "p",
