@@ -82,6 +82,14 @@ func (b mockBindings) AddressFromPubKey(chain multichain.Chain, pubKey *id.PubKe
 	panic("unimplemented")
 }
 
+func (b mockBindings) TokenAddressFromAsset(hostChain multichain.Chain, asset multichain.Asset) (multichain.RawAddress, error) {
+	panic("unimplemented")
+}
+
+func (b mockBindings) AssetFromTokenAddress(hostChain multichain.Chain, address multichain.Address) (multichain.Asset, error) {
+	panic("unimplemented")
+}
+
 func (b mockBindings) AccountBurnInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, nonce pack.Bytes32) (amount pack.U256, recipient pack.String, payload pack.Bytes, err error) {
 	return pack.U256{}, "", nil, b.isConfirmed(nonce.String())
 }
