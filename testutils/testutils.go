@@ -133,6 +133,5 @@ func MockParamSubmitTxV0() v0.ParamsSubmitTx {
 	if err != nil {
 		fmt.Printf("Failed to unmarshal params %v", jsonStr)
 	}
-	fmt.Printf("%v", params)
 	return params
 }

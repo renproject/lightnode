@@ -20,7 +20,7 @@ type LightnodeValidator struct {
 	store    v0.CompatStore
 }
 
-func NewVerifier(bindings *txenginebindings.Bindings, pubkey *id.PubKey, store v0.CompatStore) *LightnodeValidator {
+func NewValidator(bindings *txenginebindings.Bindings, pubkey *id.PubKey, store v0.CompatStore) *LightnodeValidator {
 	return &LightnodeValidator{
 		bindings: bindings,
 		pubkey:   pubkey,
@@ -41,6 +41,9 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 			// if it's v1, continue as normal
 			break
 		}
+		// It might still be a v1 query, if there are no clashing base64url characters
+		// But, it doesn't matter as we check in the resolver, where we take the query as v1 by default
+		// any only override it if we find a mapping.
 
 		// Check if the params deserialize to v0 queryTx
 		// so that we can perform compat

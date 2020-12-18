@@ -48,7 +48,6 @@ var _ = Describe("Compat V0", func() {
 		vout := utxo.VOut.Int.String()
 		btcTxHash := utxo.TxHash
 		key := fmt.Sprintf("amount_%s_%s", btcTxHash, vout)
-		fmt.Println(key)
 		client.Set(key, 200000, 0)
 
 		bindingsOpts := txenginebindings.DefaultOptions().
