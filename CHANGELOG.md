@@ -1,4 +1,10 @@
+## 0.3.0
+
+- Add compatibility with v0 txs
+- Update multichain dependency
+
 ## 0.2.5
+
 - Add support for Devnet
 - Update Darknode dependency
 - Use `ren_queryConfig` RPC to load selector whitelist and confirmations
@@ -6,36 +12,44 @@
 - Use Darknode signatory for query parameter
 
 ## 0.2.4
+
 - Fix overriding confirmations
 - Update Darknode/Multichain dependencies
 - Fix function parsing the network
 
 ## 0.2.3
+
 - Update to Multichain v0.2.14
 - Add support for whitelisting selectors
 
 ## 0.2.2
+
 - Update to Multichain v0.2.12
 - Build Dockerfile using Multichain base image
 - Fix parsing of confirmations from environment variables
 - Improve error messages
 
 ## 0.2.1
+
 - Darknode transaction input compatibility updates
 - Integrate Terra
 
 ## 0.2.0
+
 - Darknode v0.3.0 compatibility
 
 ## 0.1.12
+
 - Update transaction if Darknodes return a "done" status
 - Increase default unconfirmed transaction expiry to 14 days
 - Print the error message for invalid burn transactions
 
 ## 0.1.11
+
 - Update to Darknode v0.2.22 to set the minimum mint/burn amount
 
 ## 0.1.10
+
 - Improve P2P logic to reduce connection times for new Darknodes
 - Update to Darknode v0.2.17
 
