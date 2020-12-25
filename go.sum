@@ -1516,6 +1516,8 @@ github.com/renproject/mercury v0.3.16/go.mod h1:+1iE/uf04pXGSk0lNTdGjs4w+MUyKs4R
 github.com/renproject/multichain v0.2.16/go.mod h1:Ooie8BYJ5d+pg+299ZCb7i+9s2oBtVfeHLalZb4NXUo=
 github.com/renproject/multichain v0.2.19 h1:3j3gRW1HsqW/2sHBkuhllhUOmkOuovBKTHZ79+a4Nok=
 github.com/renproject/multichain v0.2.19/go.mod h1:HexRygMyMZAnXUTiHT6egxJaC4XWnMFBgBBMU0vCw5g=
+github.com/renproject/multichain v0.2.21 h1:Sd/MdBvr3IZPm9W8XdmbZo0X0K6CAsM8l8TCGFIoAy0=
+github.com/renproject/multichain v0.2.21/go.mod h1:HexRygMyMZAnXUTiHT6egxJaC4XWnMFBgBBMU0vCw5g=
 github.com/renproject/pack v0.2.5 h1:BNfam8PCb5qJuIX36IqOkcRgaZLOZsM1lZZSakbOxb4=
 github.com/renproject/pack v0.2.5/go.mod h1:pzX3Hc04RoPft89LaZJVp0xgngVGi90V7GvyC3mOGg4=
 github.com/renproject/phi v0.1.0 h1:ZOn7QeDribk/uV46OhQWcTLxyuLg7P+xR1Hfl5cOQuI=

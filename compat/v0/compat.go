@@ -242,6 +242,15 @@ func V1QueryTxFromQueryTx(queryTx ParamsQueryTx) jsonrpc.ParamsQueryTx {
 // otherwise will construct a v1 tx using v0 parameters, and persist a mapping
 // so that a v0 queryTX can find them
 func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txenginebindings.Bindings, pubkey *id.PubKey, store CompatStore) (jsonrpc.ParamsSubmitTx, error) {
+	// It's a burn tx, we don't need to process it
+	// as it should be picked up from the watcher
+	// We also don't have the required information to re-create
+	// a burn tx, so we cannot replicate the behavior exactly
+	if params.Tx.In.Get("utxo").Value == nil {
+		// The empty params will cause the resolver to return an empty response
+		return jsonrpc.ParamsSubmitTx{}, nil
+	}
+
 	v1tx, err := store.GetV1TxFromTx(params.Tx)
 	if err == nil {
 		// We have persisted this tx before, so let's use it
@@ -276,12 +285,12 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 	token := params.Tx.In.Get("token").Value.(ExtEthCompatAddress)
 	/// We only accept BTC/toEthereum / fromEthereum txs for compat
 	/// We can't use the bindings, because the token addresses won't match
-	// asset, err := bindings.AssetFromTokenAddress(multichain.Ethereum, multichain.Address(token.String()))
-	// if err != nil {
-	// 	return jsonrpc.ParamsSubmitTx{}, err
-	// }
-	// sel := tx.Selector(asset + "/toEthereum")
-	sel := tx.Selector("BTC/toEthereum")
+	asset, err := bindings.AssetFromTokenAddress(multichain.Ethereum, multichain.Address(token.String()))
+	if err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
+	sel := tx.Selector(asset + "/toEthereum")
+	// sel := tx.Selector("BTC/toEthereum")
 
 	phash := txengine.Phash(payload)
 

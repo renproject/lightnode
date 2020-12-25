@@ -60,6 +60,15 @@ func (resolver *Resolver) QueryBlocks(ctx context.Context, id interface{}, param
 }
 
 func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *jsonrpc.ParamsSubmitTx, req *http.Request) jsonrpc.Response {
+	// When a v0 burn tx gets submitted via RPC, we ignore it
+	// It gets converted into an empty tx in the compat layer
+	// and then we return an empty success response
+	// It will be handled correctly when the watcher detects the burn event
+	emptyParams := jsonrpc.ParamsSubmitTx{}
+	if params.Tx.Hash == emptyParams.Tx.Hash {
+		return jsonrpc.NewResponse(id, jsonrpc.ResponseSubmitTx{}, nil)
+	}
+
 	return resolver.handleMessage(ctx, id, jsonrpc.MethodSubmitTx, *params, req, true)
 }
 
