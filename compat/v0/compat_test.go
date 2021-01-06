@@ -115,9 +115,16 @@ var _ = Describe("Compat V0", func() {
 		storedHash, err := client.Get(keys[0]).Result()
 		Expect(err).ShouldNot(HaveOccurred())
 
-		Expect(storedHash).Should(Equal(v1.Tx.Hash.String()))
+		Expect(storedHash).Should(Equal(hash))
 
-		Expect(hash).Should(Equal("J7-sw5tPd_HzC8IPbsjEq_cqUjG_1pRgEp0gjC-kiL8"))
+		// btc txhash mapping
+		keys, err = client.Keys("*").Result()
+
+		// v0 hash should have a mapping in the store
+		Expect(keys).Should(ContainElement("npiRyatJm8KSgbwA/EqdvFclMjfsnfrVY2HkjhElEDk="))
+
+		// v1 hash should be correct
+		Expect(hash).Should(Equal("YlkYzfTTCcptfS4bYdxnrXXNMv-C_6Y1UzWwi_wOrGI"))
 	})
 
 	It("should convert a v0 BCH ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
@@ -140,10 +147,8 @@ var _ = Describe("Compat V0", func() {
 		// btc txhash mapping
 		keys, err = client.Keys("*").Result()
 
-		// v0 hash should match
+		// v0 hash should have a mapping in the store
 		Expect(keys).Should(ContainElement("pEXm6Sae81WZxvzyqS8VAoLBAK3Df5r6FENl5BegewI="))
-
-		Expect(storedHash).Should(Equal(v1.Tx.Hash.String()))
 
 		// Check that redis mapped the hashes correctly
 		hash := v1.Tx.Hash.String()

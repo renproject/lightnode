@@ -45,3 +45,7 @@ type ResponseQueryTx struct {
 	Tx       Tx     `json:"tx"`
 	TxStatus string `json:"txStatus"`
 }
+
+type ResponseSubmitTx struct {
+	Tx Tx `json:"tx"`
+}

@@ -209,8 +209,12 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, to pack.S
 
 	// Map the v0 burn txhash to v1 txhash so that it is still
 	// queryable
-	v0Hash := v0.TxHash(watcher.selector, ghash, txid, txindex)
+	v0Hash := v0.BurnTxHash(watcher.selector, pack.NewU256(nonce))
 	watcher.cache.Set(v0Hash.String(), transaction.Hash.String(), 0)
+
+	// Map the selector + burn ref to the v0 hash so that we can return something
+	// to ren-js v1
+	watcher.cache.Set(fmt.Sprintf("%s_%v", watcher.selector, pack.NewU256(nonce).String()), v0Hash.String(), 0)
 
 	return jsonrpc.ParamsSubmitTx{Tx: transaction}, nil
 }

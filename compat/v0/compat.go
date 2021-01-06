@@ -141,6 +141,12 @@ func TxFromV1Tx(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 		Value: B32(nonce),
 	})
 
+	// rest of compat won't work beyond this point, so return early
+	// in theory burns only need to check the status anyhow
+	if t.Selector.IsBurn() || t.Selector.IsRelease() {
+		return tx, nil
+	}
+
 	to := t.Input.Get("to").(pack.String)
 	toAddr, err := ExtEthCompatAddressFromHex(to.String())
 	if err != nil {
@@ -247,8 +253,21 @@ func ToFromV1Selector(sel tx.Selector) string {
 	return fmt.Sprintf("%s0%s2%s", sel.Asset(), source, dest)
 }
 
-// V0 TxHash from params avaialble in V1
-func TxHash(sel tx.Selector, ghash pack.Bytes32, txid pack.Bytes, txindex pack.U32) B32 {
+// V0 BurnTxHash from params avaialble in V1
+func BurnTxHash(sel tx.Selector, ref pack.U256) B32 {
+	to := ToFromV1Selector(sel)
+	txidString := fmt.Sprintf("txHash_%s_%s",
+		to,
+		ref)
+
+	v0HashB := crypto.Keccak256([]byte(txidString))
+	v0HashB32 := [32]byte{}
+	copy(v0HashB32[:], v0HashB)
+	return v0HashB32
+}
+
+// V0 MintTxHash from params avaialble in V1
+func MintTxHash(sel tx.Selector, ghash pack.Bytes32, txid pack.Bytes, txindex pack.U32) B32 {
 	// copy passed txid so that it doesn't modify the passed value...
 	// v1 txid is reversed, so un-reverse it
 	txl := len(txid)
@@ -276,11 +295,16 @@ func TxHash(sel tx.Selector, ghash pack.Bytes32, txid pack.Bytes, txindex pack.U
 func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txenginebindings.Bindings, pubkey *id.PubKey, store CompatStore) (jsonrpc.ParamsSubmitTx, error) {
 	// It's a burn tx, we don't need to process it
 	// as it should be picked up from the watcher
-	// We also don't have the required information to re-create
-	// a burn tx, so we cannot replicate the behavior exactly
+	// We pass the ref along for lookup in order to pull
+	// the correct txhash from redis
 	if params.Tx.In.Get("utxo").Value == nil {
-		// The empty params will cause the resolver to return an empty response
-		return jsonrpc.ParamsSubmitTx{}, nil
+		refTx := params.Tx.In.Get("ref").Value.(U64).Int
+		selString := fmt.Sprintf("%s/fromEthereum", params.Tx.To[0:3])
+
+		return jsonrpc.ParamsSubmitTx{Tx: tx.Tx{
+			Selector: tx.Selector(selString),
+			Input:    pack.NewTyped("ref", pack.NewU64(refTx.Uint64())),
+		}}, nil
 	}
 
 	v1tx, err := store.GetV1TxFromTx(params.Tx)
@@ -384,7 +408,7 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 		return v1Transaction, err
 	}
 
-	params.Tx.Hash = TxHash(sel, ghash, txidB, txindex)
+	params.Tx.Hash = MintTxHash(sel, ghash, txidB, txindex)
 
 	err = store.PersistTxMappings(params.Tx, v1Transaction.Tx)
 	if err != nil {

@@ -66,7 +66,14 @@ func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *
 	// It will be handled correctly when the watcher detects the burn event
 	emptyParams := jsonrpc.ParamsSubmitTx{}
 	if params.Tx.Hash == emptyParams.Tx.Hash {
-		return jsonrpc.NewResponse(id, jsonrpc.ResponseSubmitTx{}, nil)
+		ref := params.Tx.Input.Get("ref").(pack.U64)
+		hash, err := resolver.compatStore.GetV0BurnTxHashFromRef(params.Tx.Selector, ref.Uint64())
+		if err != nil {
+			resolver.logger.Errorf("[responder] cannot get v0-v1 tx mapping from store: %v", err)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to read tx mapping from store", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
+		return jsonrpc.NewResponse(id, v0.ResponseSubmitTx{Tx: v0.Tx{Hash: hash}}, nil)
 	}
 
 	return resolver.handleMessage(ctx, id, jsonrpc.MethodSubmitTx, *params, req, true)

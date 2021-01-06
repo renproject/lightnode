@@ -95,15 +95,9 @@ var _ = Describe("Resolver", func() {
 		})
 
 		bindingsOpts.WithChainOptions(multichain.Ethereum, txenginebindings.ChainOptions{
-			// In order to test compat, we use the previous protocol/testnet network
-			// TODO: upgrade to v0.3 network
-			RPC:           pack.String("https://kovan.infura.io/v3/fa2051f87efb4c48ba36d607a271da49"),
+			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
 			Confirmations: pack.U64(0),
-			Protocol:      pack.String("0x557e211EC5fc9a6737d2C6b7a1aDe3e0C11A8D5D"),
-			// This is the new lightnode setup
-			// RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
-			// Confirmations: pack.U64(0),
-			// Protocol:      pack.String("0x1CAD87e16b56815d6a0b4Cd91A6639eae86Fc53A"),
+			Protocol:      pack.String("0xcF9F36668ad5b28B336B248a67268AFcF1ECbdbF"),
 		})
 
 		bindings, err := txenginebindings.New(bindingsOpts)
@@ -186,7 +180,7 @@ var _ = Describe("Resolver", func() {
 
 		// It's a bit of a pain to make this robustly calculatable, so lets use the mock
 		// v0 tx's v0 hash directly
-		v0HashBytes, err := base64.StdEncoding.DecodeString("fC8FhISFgwCkDCw5SumejYhdXZAavG/2ucX+kGyOifE=")
+		v0HashBytes, err := base64.StdEncoding.DecodeString("npiRyatJm8KSgbwA/EqdvFclMjfsnfrVY2HkjhElEDk=")
 		Expect(err).ShouldNot(HaveOccurred())
 		v0Hash := [32]byte{}
 		copy(v0Hash[:], v0HashBytes[:])
