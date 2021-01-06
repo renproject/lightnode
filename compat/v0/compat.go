@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/darknode/jsonrpc"
@@ -238,6 +239,37 @@ func V1QueryTxFromQueryTx(queryTx ParamsQueryTx) jsonrpc.ParamsQueryTx {
 	return query
 }
 
+// The "to" field in the v0 tx is the equivalent of a selector
+// here we convert the v1 selector into the v0 format
+func ToFromV1Selector(sel tx.Selector) string {
+	source := strings.Title(strings.ToLower(string(sel.Source().NativeAsset())))
+	dest := strings.Title(strings.ToLower(string(sel.Destination().NativeAsset())))
+	return fmt.Sprintf("%s0%s2%s", sel.Asset(), source, dest)
+}
+
+// V0 TxHash from params avaialble in V1
+func TxHash(sel tx.Selector, ghash pack.Bytes32, txid pack.Bytes, txindex pack.U32) B32 {
+	// copy passed txid so that it doesn't modify the passed value...
+	// v1 txid is reversed, so un-reverse it
+	txl := len(txid)
+	txidC := []byte{}
+	for i := 1; i <= txl; i++ {
+		txidC = append(txidC, txid[txl-i])
+	}
+	v0DepositId := fmt.Sprintf("%s_%s", base64.StdEncoding.EncodeToString(txidC), txindex)
+
+	to := ToFromV1Selector(sel)
+	txidString := fmt.Sprintf("txHash_%s_%s_%s",
+		to,
+		base64.StdEncoding.EncodeToString(ghash[:]),
+		v0DepositId)
+
+	v0HashB := crypto.Keccak256([]byte(txidString))
+	v0HashB32 := [32]byte{}
+	copy(v0HashB32[:], v0HashB)
+	return v0HashB32
+}
+
 // Will attempt to check if we have already constructed the parameters previously,
 // otherwise will construct a v1 tx using v0 parameters, and persist a mapping
 // so that a v0 queryTX can find them
@@ -270,8 +302,6 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 
 	txidB, err := utxo.TxHash.MarshalBinary()
 
-	v0DepositId := base64.StdEncoding.EncodeToString(txidB) + "_" + utxo.VOut.Int.String()
-
 	// reverse the txhash bytes
 	txl := len(txidB)
 	for i := 0; i < txl/2; i++ {
@@ -285,7 +315,7 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 	token := params.Tx.In.Get("token").Value.(ExtEthCompatAddress)
 	/// We only accept BTC/toEthereum / fromEthereum txs for compat
 	/// We can't use the bindings, because the token addresses won't match
-	asset, err := bindings.AssetFromTokenAddress(multichain.Ethereum, multichain.Address(token.String()))
+	asset, err := bindings.AssetFromTokenAddress(multichain.Ethereum, multichain.Address(strings.ToUpper("0x"+token.String())))
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
@@ -312,7 +342,7 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 	amount, err := store.GetAmountFromUTXO(utxo)
 	if err == ErrNotFound {
 		// lets call the btc rpc endpoint because that's needed to get the correct amount
-		out, err := bindings.UTXOLockInfo(ctx, multichain.Bitcoin, multichain.BTC, multichain.UTXOutpoint{
+		out, err := bindings.UTXOLockInfo(ctx, sel.Source(), sel.Asset(), multichain.UTXOutpoint{
 			Hash:  txid,
 			Index: txindex,
 		})
@@ -349,15 +379,13 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 	}
 
 	h, err := tx.NewTxHash(tx.Version0, sel, v1Transaction.Tx.Input)
-	v0HashB := crypto.Keccak256([]byte("txHash_BTC0Btc2Eth_" +
-		base64.StdEncoding.EncodeToString(ghash[:]) + "_" +
-		v0DepositId),
-	)
-	v0HashB32 := [32]byte{}
-	copy(v0HashB32[:], v0HashB)
-	params.Tx.Hash = v0HashB32
-
 	v1Transaction.Tx.Hash = h
+	if err != nil {
+		return v1Transaction, err
+	}
+
+	params.Tx.Hash = TxHash(sel, ghash, txidB, txindex)
+
 	err = store.PersistTxMappings(params.Tx, v1Transaction.Tx)
 	if err != nil {
 		return v1Transaction, err

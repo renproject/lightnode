@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"os"
 
 	_ "github.com/mattn/go-sqlite3"
 
@@ -24,14 +25,7 @@ import (
 )
 
 var _ = Describe("Compat V0", func() {
-	It("should convert a QueryState response into a QueryShards response", func() {
-
-		shardsResponse, err := v0.ShardsResponseFromState(testutils.MockQueryStateResponse())
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(shardsResponse.Shards[0].Gateways[0].PubKey).Should(Equal("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"))
-	})
-
-	It("should convert a v0 ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
+	init := func(params v0.ParamsSubmitTx) (v0.Store, redis.Cmdable, *txenginebindings.Bindings, *id.PubKey) {
 		mr, err := miniredis.Run()
 		if err != nil {
 			panic(err)
@@ -40,14 +34,13 @@ var _ = Describe("Compat V0", func() {
 		client := redis.NewClient(&redis.Options{
 			Addr: mr.Addr(),
 		})
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		params := testutils.MockParamSubmitTxV0()
 
+		// Cache a lookup value for the utxo so that
+		// we don't have to rely on external explorers
 		utxo := params.Tx.In.Get("utxo").Value.(v0.ExtBtcCompatUTXO)
 		vout := utxo.VOut.Int.String()
-		btcTxHash := utxo.TxHash
-		key := fmt.Sprintf("amount_%s_%s", btcTxHash, vout)
+		txHash := utxo.TxHash
+		key := fmt.Sprintf("amount_%s_%s", txHash, vout)
 		client.Set(key, 200000, 0)
 
 		bindingsOpts := txenginebindings.DefaultOptions().
@@ -58,10 +51,15 @@ var _ = Describe("Compat V0", func() {
 			Confirmations: pack.U64(0),
 		})
 
-		bindingsOpts.WithChainOptions(multichain.Ethereum, txenginebindings.ChainOptions{
-			RPC:           pack.String("https://kovan.infura.io/v3/fa2051f87efb4c48ba36d607a271da49"),
+		bindingsOpts.WithChainOptions(multichain.BitcoinCash, txenginebindings.ChainOptions{
+			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoincashd"),
 			Confirmations: pack.U64(0),
-			Protocol:      pack.String("0x557e211EC5fc9a6737d2C6b7a1aDe3e0C11A8D5D"),
+		})
+
+		bindingsOpts.WithChainOptions(multichain.Ethereum, txenginebindings.ChainOptions{
+			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
+			Confirmations: pack.U64(0),
+			Protocol:      pack.String("0xcF9F36668ad5b28B336B248a67268AFcF1ECbdbF"),
 		})
 
 		bindings, err := txenginebindings.New(bindingsOpts)
@@ -77,7 +75,31 @@ var _ = Describe("Compat V0", func() {
 		database := db.New(sqlDB)
 		store := v0.NewCompatStore(database, client)
 
-		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, (*id.PubKey)(pubkey), store)
+		return store, client, bindings, (*id.PubKey)(pubkey)
+	}
+
+	BeforeSuite(func() {
+		os.Remove("./test.db")
+	})
+
+	AfterSuite(func() {
+		os.Remove("./test.db")
+	})
+
+	It("should convert a QueryState response into a QueryShards response", func() {
+
+		shardsResponse, err := v0.ShardsResponseFromState(testutils.MockQueryStateResponse())
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(shardsResponse.Shards[0].Gateways[0].PubKey).Should(Equal("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"))
+	})
+
+	It("should convert a v0 BTC ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
+		params := testutils.MockParamSubmitTxV0BTC()
+		store, client, bindings, pubkey := init(params)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
 		Expect(err).ShouldNot(HaveOccurred())
 		// Check that redis mapped the hashes correctly
 		hash := v1.Tx.Hash.String()
@@ -85,6 +107,7 @@ var _ = Describe("Compat V0", func() {
 		keys, err := client.Keys("*").Result()
 
 		// should have a key for the utxo
+		utxo := params.Tx.In.Get("utxo").Value.(v0.ExtBtcCompatUTXO)
 		keys, err = client.Keys(utxo.TxHash.String() + "_" + utxo.VOut.Int.String()).Result()
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(len(keys)).Should(Equal(1))
@@ -95,5 +118,36 @@ var _ = Describe("Compat V0", func() {
 		Expect(storedHash).Should(Equal(v1.Tx.Hash.String()))
 
 		Expect(hash).Should(Equal("J7-sw5tPd_HzC8IPbsjEq_cqUjG_1pRgEp0gjC-kiL8"))
+	})
+
+	It("should convert a v0 BCH ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
+		params := testutils.MockParamSubmitTxV0BCH()
+		store, client, bindings, pubkey := init(params)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
+		Expect(err).ShouldNot(HaveOccurred())
+		// should have a key for the utxo
+		utxo := params.Tx.In.Get("utxo").Value.(v0.ExtBtcCompatUTXO)
+		keys, err := client.Keys(utxo.TxHash.String() + "_" + utxo.VOut.Int.String()).Result()
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(len(keys)).Should(Equal(1))
+
+		storedHash, err := client.Get(keys[0]).Result()
+		Expect(err).ShouldNot(HaveOccurred())
+
+		// btc txhash mapping
+		keys, err = client.Keys("*").Result()
+
+		// v0 hash should match
+		Expect(keys).Should(ContainElement("pEXm6Sae81WZxvzyqS8VAoLBAK3Df5r6FENl5BegewI="))
+
+		Expect(storedHash).Should(Equal(v1.Tx.Hash.String()))
+
+		// Check that redis mapped the hashes correctly
+		hash := v1.Tx.Hash.String()
+		Expect(hash).Should(Equal(storedHash))
+
 	})
 })

@@ -128,7 +128,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	verifier := txpoolverifier.New(engine)
 	compatStore := v0.NewCompatStore(db, client)
 	resolverI := resolver.New(logger, cacher, multiStore, verifier, db, serverOptions, compatStore, bindings)
-	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewValidator(verifierBindings, options.DistPubKey, compatStore))
+	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewValidator(verifierBindings, options.DistPubKey, compatStore, logger))
 	confirmer := confirmer.New(
 		confirmer.DefaultOptions().
 			WithLogger(logger).

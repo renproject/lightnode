@@ -70,7 +70,7 @@ var _ = Describe("Resolver", func() {
 		})
 		// Hack to ensure that the mock tx can be cast
 		// prevents needing to use the bindings to find the utxo
-		params := testutils.MockParamSubmitTxV0()
+		params := testutils.MockParamSubmitTxV0BTC()
 		utxo := params.Tx.In.Get("utxo").Value.(v0.ExtBtcCompatUTXO)
 		vout := utxo.VOut.Int.String()
 		btcTxHash := utxo.TxHash
@@ -95,9 +95,15 @@ var _ = Describe("Resolver", func() {
 		})
 
 		bindingsOpts.WithChainOptions(multichain.Ethereum, txenginebindings.ChainOptions{
-			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
+			// In order to test compat, we use the previous protocol/testnet network
+			// TODO: upgrade to v0.3 network
+			RPC:           pack.String("https://kovan.infura.io/v3/fa2051f87efb4c48ba36d607a271da49"),
 			Confirmations: pack.U64(0),
-			Protocol:      pack.String("0x1CAD87e16b56815d6a0b4Cd91A6639eae86Fc53A"),
+			Protocol:      pack.String("0x557e211EC5fc9a6737d2C6b7a1aDe3e0C11A8D5D"),
+			// This is the new lightnode setup
+			// RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
+			// Confirmations: pack.U64(0),
+			// Protocol:      pack.String("0x1CAD87e16b56815d6a0b4Cd91A6639eae86Fc53A"),
 		})
 
 		bindings, err := txenginebindings.New(bindingsOpts)
@@ -116,7 +122,7 @@ var _ = Describe("Resolver", func() {
 		pubkey, err := crypto.DecompressPubkey(pubkeyB)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		validator := NewValidator(bindings, (*id.PubKey)(pubkey), compatStore)
+		validator := NewValidator(bindings, (*id.PubKey)(pubkey), compatStore, logger)
 		resolver := New(logger, cacher, multiaddrStore, verifier, database, jsonrpc.Options{}, compatStore, bindings)
 
 		return resolver, validator
@@ -174,7 +180,7 @@ var _ = Describe("Resolver", func() {
 		defer innerCancel()
 
 		// Submit tx to ensure that it can be queried against
-		params := testutils.MockParamSubmitTxV0()
+		params := testutils.MockParamSubmitTxV0BTC()
 		paramsJSON, err := json.Marshal(params)
 		Expect(err).ShouldNot(HaveOccurred())
 

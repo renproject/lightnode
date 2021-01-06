@@ -14,6 +14,7 @@ import (
 	"github.com/renproject/darknode/txengine"
 	"github.com/renproject/darknode/txengine/txenginebindings/ethereumbindings"
 	"github.com/renproject/id"
+	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
@@ -191,5 +192,11 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, to pack.S
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
+
+	// Map the v0 burn txhash to v1 txhash so that it is still
+	// queryable
+	v0Hash := v0.TxHash(watcher.selector, ghash, txid, txindex)
+	watcher.cache.Set(v0Hash.String(), transaction.Hash.String(), 0)
+
 	return jsonrpc.ParamsSubmitTx{Tx: transaction}, nil
 }

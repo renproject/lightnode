@@ -1,6 +1,7 @@
 package v0
 
 import (
+	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"time"
@@ -108,7 +109,13 @@ func (store Store) GetV1TxFromUTXO(utxo ExtBtcCompatUTXO) (tx.Tx, error) {
 	if err != nil {
 		return tx.Tx{}, err
 	}
-	return store.db.Tx(hash)
+
+	tx, err := store.db.Tx(hash)
+	if err == sql.ErrNoRows {
+		err = ErrNotFound
+	}
+
+	return tx, err
 }
 
 func (store Store) PersistTxMappings(v0tx Tx, v1tx tx.Tx) error {
