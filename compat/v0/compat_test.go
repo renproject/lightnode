@@ -56,6 +56,11 @@ var _ = Describe("Compat V0", func() {
 			Confirmations: pack.U64(0),
 		})
 
+		bindingsOpts.WithChainOptions(multichain.Zcash, txenginebindings.ChainOptions{
+			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/zcashd"),
+			Confirmations: pack.U64(0),
+		})
+
 		bindingsOpts.WithChainOptions(multichain.Ethereum, txenginebindings.ChainOptions{
 			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
 			Confirmations: pack.U64(0),
@@ -125,6 +130,40 @@ var _ = Describe("Compat V0", func() {
 
 		// v1 hash should be correct
 		Expect(hash).Should(Equal("YlkYzfTTCcptfS4bYdxnrXXNMv-C_6Y1UzWwi_wOrGI"))
+	})
+
+	It("should convert a v0 ZEC ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
+		params := testutils.MockParamSubmitTxV0ZEC()
+		store, client, bindings, pubkey := init(params)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
+		Expect(err).ShouldNot(HaveOccurred())
+		// Check that redis mapped the hashes correctly
+		hash := v1.Tx.Hash.String()
+		// btc txhash mapping
+		keys, err := client.Keys("*").Result()
+
+		// should have a key for the utxo
+		utxo := params.Tx.In.Get("utxo").Value.(v0.ExtBtcCompatUTXO)
+		keys, err = client.Keys(utxo.TxHash.String() + "_" + utxo.VOut.Int.String()).Result()
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(len(keys)).Should(Equal(1))
+
+		storedHash, err := client.Get(keys[0]).Result()
+		Expect(err).ShouldNot(HaveOccurred())
+
+		Expect(storedHash).Should(Equal(hash))
+
+		// btc txhash mapping
+		keys, err = client.Keys("*").Result()
+
+		// v0 hash should have a mapping in the store
+		Expect(keys).Should(ContainElement("Q1E14yjJGkz6Oe5VPIK3vX/A7q93qKF6Hof6DGQ/yW4="))
+
+		// v1 hash should be correct
+		Expect(hash).Should(Equal("y4ol_nr7P9IXsW59AiAkIuUW5ytMKkwcEVihNZlPvJQ"))
 	})
 
 	It("should convert a v0 BCH ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
