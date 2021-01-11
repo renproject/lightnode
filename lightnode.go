@@ -13,6 +13,7 @@ import (
 	"github.com/renproject/darknode/txpool/txpoolverifier"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/cacher"
+	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/lightnode/confirmer"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/dispatcher"
@@ -125,8 +126,9 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		verifierBindings,
 	)
 	verifier := txpoolverifier.New(engine)
-	resolver := resolver.New(logger, cacher, multiStore, verifier, db, serverOptions)
-	server := jsonrpc.NewServer(serverOptions, resolver)
+	compatStore := v0.NewCompatStore(db, client)
+	resolverI := resolver.New(logger, cacher, multiStore, verifier, db, serverOptions, compatStore, bindings)
+	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewValidator(verifierBindings, options.DistPubKey, compatStore))
 	confirmer := confirmer.New(
 		confirmer.DefaultOptions().
 			WithLogger(logger).
@@ -145,7 +147,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 			if watchers[chain] == nil {
 				watchers[chain] = map[multichain.Asset]watcher.Watcher{}
 			}
-			watchers[chain][asset] = watcher.NewWatcher(logger, selector, verifierBindings, ethClients[chain], bindings, resolver, client, options.DistPubKey, options.WatcherPollRate)
+			watchers[chain][asset] = watcher.NewWatcher(logger, selector, verifierBindings, ethClients[chain], bindings, resolverI, client, options.DistPubKey, options.WatcherPollRate)
 		}
 	}
 

@@ -55,7 +55,7 @@ func initDarknodes(ctx context.Context, n int) []*MockDarknode {
 					Result:  queryRes,
 				}
 			},
-		})
+		}, jsonrpc.NewValidator())
 		url := fmt.Sprintf("0.0.0.0:%v", 4444+i)
 		go server.Listen(ctx, url)
 

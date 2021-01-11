@@ -10,6 +10,7 @@ import (
 	"github.com/renproject/darknode/txengine"
 	"github.com/renproject/id"
 	"github.com/renproject/multichain"
+	"github.com/renproject/multichain/api/address"
 	"github.com/renproject/multichain/api/utxo"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
@@ -68,6 +69,14 @@ func MockBindings(logger logrus.FieldLogger, maxAttemptsUntilConfirmed int) txen
 		numAttempts:               make(map[string]int),
 		numAttemptsMu:             new(sync.Mutex),
 	}
+}
+
+func (b mockBindings) AssetFromTokenAddress(chain multichain.Chain, addr multichain.Address) (multichain.Asset, error) {
+	panic("unimplemented")
+}
+
+func (b mockBindings) TokenAddressFromAsset(chain multichain.Chain, addr multichain.Asset) (address.RawAddress, error) {
+	panic("unimplemented")
 }
 
 func (b mockBindings) EncodeAddress(chain multichain.Chain, rawAddr multichain.RawAddress) (multichain.Address, error) {

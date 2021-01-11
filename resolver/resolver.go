@@ -2,15 +2,22 @@ package resolver
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/tx"
+	"github.com/renproject/darknode/txengine"
 	"github.com/renproject/darknode/txpool"
+	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/lightnode/db"
 	lhttp "github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
+	"github.com/renproject/multichain"
+	"github.com/renproject/pack"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -22,9 +29,12 @@ type Resolver struct {
 	cacher            phi.Task
 	db                db.DB
 	serverOptions     jsonrpc.Options
+	compatStore       v0.CompatStore
+	bindings          txengine.Bindings
 }
 
-func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, verifier txpool.Verifier, db db.DB, serverOptions jsonrpc.Options) *Resolver {
+func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, verifier txpool.Verifier, db db.DB,
+	serverOptions jsonrpc.Options, compatStore v0.CompatStore, bindings txengine.Bindings) *Resolver {
 	requests := make(chan lhttp.RequestWithResponder, 128)
 	txChecker := newTxChecker(logger, requests, verifier, db)
 	go txChecker.Run()
@@ -36,6 +46,8 @@ func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrS
 		cacher:            cacher,
 		db:                db,
 		serverOptions:     serverOptions,
+		compatStore:       compatStore,
+		bindings:          bindings,
 	}
 }
 
@@ -51,8 +63,131 @@ func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *
 	return resolver.handleMessage(ctx, id, jsonrpc.MethodSubmitTx, *params, req, true)
 }
 
+// QueryTx either returns a locally cached result for confirming txs,
+// or forwards and caches the request to the darknodes
+// It will also detect if a tx is a v1 or v0 tx, and cast the response
+// accordingly
 func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryTx, req *http.Request) jsonrpc.Response {
-	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryTx, *params, req, false)
+	v0tx := false
+
+	v0txhash := [32]byte{}
+	copy(v0txhash[:], params.TxHash[:])
+
+	// check if tx is v0 or v1 due to its presence in the mapping store
+	// We have to encode as non-url safe because that's the format v0 uses
+	txhash, err := resolver.compatStore.GetV1HashFromHash(v0txhash)
+	if err != v0.ErrNotFound {
+
+		if err != nil {
+			resolver.logger.Errorf("[responder] cannot get v0-v1 tx mapping from store: %v", err)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to read tx mapping from store", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
+
+		resolver.logger.Debugf("[responder] found v0 tx mapping - v1: %s", txhash)
+		params.TxHash = txhash
+		v0tx = true
+	}
+
+	// Retrieve transaction status from the database.
+	status, err := resolver.db.TxStatus(params.TxHash)
+	if err != nil {
+		// Send the request to the Darknodes if we do not have it in our
+		// database.
+		if err != sql.ErrNoRows {
+			resolver.logger.Errorf("[responder] cannot get tx status from db: %v", err)
+			// some error handling
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to read tx from db", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
+	}
+
+	// If the transaction has not reached sufficient confirmations (i.e. the
+	// Darknodes do not yet know about the transaction), respond with a
+	// custom confirming status.
+	if status != db.TxStatusConfirmed {
+		transaction, err := resolver.db.Tx(params.TxHash)
+		if err == nil {
+			if v0tx {
+				// we need to respond with the v0txhash to keep renjs consistent
+				v0tx, err := v0.TxFromV1Tx(transaction, v0txhash, false, resolver.bindings)
+				if err != nil {
+
+				}
+				return jsonrpc.NewResponse(
+					id,
+					v0.ResponseQueryTx{
+						Tx:       v0tx,
+						TxStatus: tx.StatusConfirming.String(),
+					},
+					nil,
+				)
+			} else {
+				return jsonrpc.NewResponse(
+					id,
+					jsonrpc.ResponseQueryTx{
+						Tx:       transaction,
+						TxStatus: tx.StatusConfirming,
+					},
+					nil,
+				)
+			}
+		}
+	}
+	query := url.Values{}
+	if req != nil {
+		query = req.URL.Query()
+	}
+
+	reqWithResponder := lhttp.NewRequestWithResponder(ctx, id, jsonrpc.MethodQueryTx, params, query)
+	if ok := resolver.cacher.Send(reqWithResponder); !ok {
+		resolver.logger.Error("failed to send request to cacher, too much back pressure")
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "too much back pressure", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	select {
+	case <-ctx.Done():
+		resolver.logger.Error("timeout when waiting for response: %v", ctx.Err())
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "request timed out", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+
+	case res := <-reqWithResponder.Responder:
+		if v0tx {
+			raw, err := json.Marshal(res.Result)
+			if err != nil {
+				resolver.logger.Errorf("[resolver] error marshaling queryTx result: %v", err)
+				return res
+			}
+
+			if raw == nil {
+				resolver.logger.Warnf("[resolver] empty response for hash %s", params.TxHash)
+				return res
+			}
+
+			var resp jsonrpc.ResponseQueryTx
+			if err := json.Unmarshal(raw, &resp); err != nil {
+				resolver.logger.Warnf("[resolver] cannot unmarshal queryState result from %v", err)
+				return res
+			}
+
+			if resp.Tx.Hash != params.TxHash {
+				resolver.logger.Warnf("[resolver] darknode query response (%s) does not match lightnode hash request (%s)", resp.Tx.Hash, params.TxHash)
+				return res
+			}
+
+			v0tx, err := v0.TxFromV1Tx(resp.Tx, v0txhash, true, resolver.bindings)
+			if err != nil {
+				resolver.logger.Errorf("[resolver] error casting tx from v1 to v0: %v", err)
+				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to cast v1 to v0 tx", nil)
+				return jsonrpc.NewResponse(id, nil, &jsonErr)
+			}
+
+			return jsonrpc.NewResponse(id, v0.ResponseQueryTx{Tx: v0tx, TxStatus: resp.TxStatus.String()}, nil)
+		} else {
+			return res
+		}
+	}
 }
 
 func (resolver *Resolver) QueryPeers(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryPeers, req *http.Request) jsonrpc.Response {
@@ -64,7 +199,47 @@ func (resolver *Resolver) QueryNumPeers(ctx context.Context, id interface{}, par
 }
 
 func (resolver *Resolver) QueryShards(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryShards, req *http.Request) jsonrpc.Response {
-	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryShards, *params, req, false)
+	// This is required for compatibility with renjs v1
+
+	reqWithResponder := lhttp.NewRequestWithResponder(ctx, id, jsonrpc.MethodQueryState, params, nil)
+	if ok := resolver.cacher.Send(reqWithResponder); !ok {
+		resolver.logger.Error("failed to send request to cacher, too much back pressure")
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "too much back pressure", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	select {
+	case <-ctx.Done():
+		resolver.logger.Error("timeout when waiting for response: %v", ctx.Err())
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "request timed out", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	case response := <-reqWithResponder.Responder:
+		raw, err := json.Marshal(response.Result)
+		if err != nil {
+			resolver.logger.Errorf("[resolver] error marshaling queryState result: %v", err)
+		}
+		var resp map[string]interface{}
+		if err := json.Unmarshal(raw, &resp); err != nil {
+			resolver.logger.Warnf("[resolver] cannot unmarshal queryState result from %v", err)
+		}
+
+		state := jsonrpc.ResponseQueryState{
+			State: map[multichain.Chain]pack.Struct{
+				multichain.Bitcoin: pack.NewStruct(
+					"pubKey",
+					pack.String(resp["state"].(map[string]interface{})["Bitcoin"].(map[string]interface{})["pubKey"].(string))),
+			},
+		}
+		shards, err := v0.ShardsResponseFromState(state)
+
+		if err != nil {
+			resolver.logger.Error("failed to cast to QueryShards")
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatability conversion", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
+
+		return jsonrpc.NewResponse(id, shards, nil)
+	}
 }
 
 func (resolver *Resolver) QueryStat(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryStat, req *http.Request) jsonrpc.Response {
@@ -110,7 +285,7 @@ func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *
 	return jsonrpc.NewResponse(id, jsonrpc.ResponseQueryTxs{Txs: txs}, nil)
 }
 
-func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, method string, params interface{}, r *http.Request, isSubmitTx bool) jsonrpc.Response {
+func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, method string, params interface{}, r *http.Request, isCompat bool) jsonrpc.Response {
 	query := url.Values{}
 	if r != nil {
 		query = r.URL.Query()
@@ -124,7 +299,7 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 	}
 
 	reqWithResponder := lhttp.NewRequestWithResponder(ctx, id, method, params, query)
-	if isSubmitTx {
+	if method == jsonrpc.MethodSubmitTx {
 		resolver.txCheckerRequests <- reqWithResponder
 	} else {
 		if ok := resolver.cacher.Send(reqWithResponder); !ok {

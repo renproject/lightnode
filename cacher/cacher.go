@@ -1,12 +1,10 @@
 package cacher
 
 import (
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/darknode/tx"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
@@ -67,39 +65,11 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 
 	switch msg.Method {
 	case jsonrpc.MethodSubmitTx:
-	case jsonrpc.MethodQueryTx:
-		params := msg.Params.(jsonrpc.ParamsQueryTx)
-
-		// Retrieve transaction status from the database.
-		status, err := cacher.db.TxStatus(params.TxHash)
-		if err != nil {
-			// Send the request to the Darknodes if we do not have it in our
-			// database.
-			if err == sql.ErrNoRows {
-				break
-			}
-			cacher.logger.Errorf("[cacher] cannot get tx status from db: %v", err)
-			msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
-			return
-		}
-
-		// If the transaction has not reached sufficient confirmations (i.e. the
-		// Darknodes do not yet know about the transaction), respond with a
-		// custom confirming status.
-		if status != db.TxStatusConfirmed {
-			transaction, err := cacher.db.Tx(params.TxHash)
-			if err == nil {
-				msg.Responder <- jsonrpc.Response{
-					Version: "2.0",
-					ID:      msg.ID,
-					Result: jsonrpc.ResponseQueryTx{
-						Tx:       transaction,
-						TxStatus: tx.StatusConfirming,
-					},
-				}
-				return
-			}
-		}
+	// case jsonrpc.MethodQueryTx:
+	// We used to perform custom logic here to determine whether a
+	// tx should be fetched from the db or requested from the darknode.
+	// This logic has been moved to the resolver for compatability reasons
+	// The cacher will only be called when the darknode itself is queried
 	default:
 		darknodeID := msg.Query.Get("id")
 		response, cached := cacher.get(reqID, darknodeID)

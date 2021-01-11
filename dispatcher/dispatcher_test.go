@@ -37,7 +37,7 @@ func initDarknodes(ctx context.Context, n int) []*MockDarknode {
 	dns := make([]*MockDarknode, n)
 	store := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "multi"), nil)
 	for i := 0; i < n; i++ {
-		server := jsonrpc.NewServer(jsonrpc.DefaultOptions(), jsonrpcresolver.OkResponder())
+		server := jsonrpc.NewServer(jsonrpc.DefaultOptions(), jsonrpcresolver.OkResponder(), jsonrpc.NewValidator())
 		url := fmt.Sprintf("0.0.0.0:%v", 3333+i)
 		go server.Listen(ctx, url)
 
@@ -59,7 +59,7 @@ var _ = Describe("Dispatcher", func() {
 			}
 			dispatcher := initDispatcher(ctx, multis, time.Second)
 
-			for method, _ := range jsonrpc.RPCs {
+			for method := range jsonrpc.RPCs {
 				id, params := ValidRequest(method)
 				req := http.NewRequestWithResponder(ctx, id, method, params, url.Values{})
 				Expect(dispatcher.Send(req)).To(BeTrue())
