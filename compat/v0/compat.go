@@ -20,7 +20,7 @@ import (
 	"github.com/renproject/pack"
 )
 
-// Takes a QueryState rpc response and converts it into a QueryShards rpc response
+// ShardsResponseFromState takes a QueryState rpc response and converts it into a QueryShards rpc response
 // It can be a standalone function as it has no dependencies
 func ShardsResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQueryShards, error) {
 	bitcoinPubkey, ok := state.State[multichain.Bitcoin].Get("pubKey").(pack.String)
@@ -68,6 +68,7 @@ func ShardsResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQuerySha
 	return resp, nil
 }
 
+// TxFromV1Tx takes a V1 Tx and converts it to a V0 Tx
 func TxFromV1Tx(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 	tx := Tx{}
 
@@ -104,7 +105,6 @@ func TxFromV1Tx(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 	btcTxHash := t.Input.Get("txid").(pack.Bytes)
 	btcTxHash32 := [32]byte{}
 	copy(btcTxHash32[:], btcTxHash)
-	//reverse it
 	utxo.TxHash = B32(btcTxHash32)
 
 	btcTxIndex := t.Input.Get("txindex").(pack.U32)
@@ -160,7 +160,14 @@ func TxFromV1Tx(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 	})
 
 	tokenAddrRaw, err := bindings.TokenAddressFromAsset(multichain.Ethereum, multichain.BTC)
+	if err != nil {
+		return tx, err
+	}
+
 	tokenAddr, err := ExtEthCompatAddressFromHex(hex.EncodeToString(tokenAddrRaw))
+	if err != nil {
+		return tx, err
+	}
 
 	tx.In.Set(Arg{
 		Name:  "token",
@@ -177,7 +184,14 @@ func TxFromV1Tx(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 
 	sighash := [32]byte{}
 	sender, err := ethereum.NewAddressFromHex(toAddr.String())
+	if err != nil {
+		return tx, err
+	}
+
 	tokenEthAddr, err := ethereum.NewAddressFromHex(tokenAddr.String())
+	if err != nil {
+		return tx, err
+	}
 
 	copy(sighash[:], crypto.Keccak256(ethereum.Encode(
 		phash,
@@ -235,7 +249,8 @@ func TxFromV1Tx(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 	return tx, nil
 }
 
-// Don't lookup v1 txhash, just cast
+// V1QueryTxFromQueryTx casts a v0 ParamsQueryTx to a v1 ParamsQueryTx
+// by encoding the txhash in the appropriate manner
 func V1QueryTxFromQueryTx(queryTx ParamsQueryTx) jsonrpc.ParamsQueryTx {
 	query := jsonrpc.ParamsQueryTx{}
 	hash := queryTx.TxHash[:]
@@ -245,6 +260,7 @@ func V1QueryTxFromQueryTx(queryTx ParamsQueryTx) jsonrpc.ParamsQueryTx {
 	return query
 }
 
+// ToFromV1Selector creates the "to" field in the v0 tx
 // The "to" field in the v0 tx is the equivalent of a selector
 // here we convert the v1 selector into the v0 format
 func ToFromV1Selector(sel tx.Selector) string {
@@ -253,7 +269,7 @@ func ToFromV1Selector(sel tx.Selector) string {
 	return fmt.Sprintf("%s0%s2%s", sel.Asset(), source, dest)
 }
 
-// V0 BurnTxHash from params avaialble in V1
+// BurnTxHash creates V0 BurnTxHash from params available in V1
 func BurnTxHash(sel tx.Selector, ref pack.U256) B32 {
 	to := ToFromV1Selector(sel)
 	txidString := fmt.Sprintf("txHash_%s_%s",
@@ -266,7 +282,7 @@ func BurnTxHash(sel tx.Selector, ref pack.U256) B32 {
 	return v0HashB32
 }
 
-// V0 MintTxHash from params avaialble in V1
+// MintTxHash creates V0 MintTxHash from params avaialble in V1
 func MintTxHash(sel tx.Selector, ghash pack.Bytes32, txid pack.Bytes, txindex pack.U32) B32 {
 	// copy passed txid so that it doesn't modify the passed value...
 	// v1 txid is reversed, so un-reverse it
@@ -275,13 +291,13 @@ func MintTxHash(sel tx.Selector, ghash pack.Bytes32, txid pack.Bytes, txindex pa
 	for i := 1; i <= txl; i++ {
 		txidC = append(txidC, txid[txl-i])
 	}
-	v0DepositId := fmt.Sprintf("%s_%s", base64.StdEncoding.EncodeToString(txidC), txindex)
+	v0DepositID := fmt.Sprintf("%s_%s", base64.StdEncoding.EncodeToString(txidC), txindex)
 
 	to := ToFromV1Selector(sel)
 	txidString := fmt.Sprintf("txHash_%s_%s_%s",
 		to,
 		base64.StdEncoding.EncodeToString(ghash[:]),
-		v0DepositId)
+		v0DepositID)
 
 	v0HashB := crypto.Keccak256([]byte(txidString))
 	v0HashB32 := [32]byte{}
@@ -289,6 +305,7 @@ func MintTxHash(sel tx.Selector, ghash pack.Bytes32, txid pack.Bytes, txindex pa
 	return v0HashB32
 }
 
+// V1TxParamsFromTx will create a v1 Tx from a v0 Tx
 // Will attempt to check if we have already constructed the parameters previously,
 // otherwise will construct a v1 tx using v0 parameters, and persist a mapping
 // so that a v0 queryTX can find them
@@ -325,8 +342,11 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 	txindex := pack.NewU32(uint32(i))
 
 	txidB, err := utxo.TxHash.MarshalBinary()
+	if err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
 
-	// reverse the txhash bytes
+	// reverse the utxo txhash bytes
 	txl := len(txidB)
 	for i := 0; i < txl/2; i++ {
 		txidB[i], txidB[txl-1-i] = txidB[txl-1-i], txidB[i]
@@ -356,10 +376,19 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 	nonceP := pack.NewBytes32(c)
 
 	minter, err := bindings.DecodeAddress(sel.Destination(), multichain.Address(to))
+	if err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
 
 	ghash, err := txengine.V0Ghash(token[:], phash, minter, nonceP)
+	if err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
 
 	nhash, err := txengine.V0Nhash(nonceP, txidB, txindex)
+	if err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
 
 	// check if we've seen this amount before
 	// also a cheeky workaround to enable testability
@@ -393,6 +422,9 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 		Gpubkey: pack.NewBytes(pubkbytes),
 		Ghash:   ghash,
 	})
+	if err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
 
 	v1Transaction := jsonrpc.ParamsSubmitTx{
 		Tx: tx.Tx{
@@ -403,10 +435,10 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 	}
 
 	h, err := tx.NewTxHash(tx.Version0, sel, v1Transaction.Tx.Input)
-	v1Transaction.Tx.Hash = h
 	if err != nil {
 		return v1Transaction, err
 	}
+	v1Transaction.Tx.Hash = h
 
 	params.Tx.Hash = MintTxHash(sel, ghash, txidB, txindex)
 
