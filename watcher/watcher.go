@@ -209,6 +209,8 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, to pack.S
 
 	// Map the v0 burn txhash to v1 txhash so that it is still
 	// queryable
+	// We don't get the required data during tx submission rpc to track it there,
+	// so we persist here in order to not re-filter all burn events
 	v0Hash := v0.BurnTxHash(watcher.selector, pack.NewU256(nonce))
 	watcher.cache.Set(v0Hash.String(), transaction.Hash.String(), 0)
 

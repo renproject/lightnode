@@ -357,14 +357,11 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 	payload := pack.NewBytes(params.Tx.In.Get("p").Value.(ExtEthCompatPayload).Value[:])
 
 	token := params.Tx.In.Get("token").Value.(ExtEthCompatAddress)
-	/// We only accept BTC/toEthereum / fromEthereum txs for compat
-	/// We can't use the bindings, because the token addresses won't match
 	asset, err := bindings.AssetFromTokenAddress(multichain.Ethereum, multichain.Address(strings.ToUpper("0x"+token.String())))
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
 	sel := tx.Selector(asset + "/toEthereum")
-	// sel := tx.Selector("BTC/toEthereum")
 
 	phash := txengine.Phash(payload)
 
