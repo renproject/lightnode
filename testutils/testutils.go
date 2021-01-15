@@ -146,6 +146,17 @@ func MockParamSubmitTxV0BTC() v0.ParamsSubmitTx {
 	return params
 }
 
+func MockBurnParamSubmitTxV0BTC() v0.ParamsSubmitTx {
+	jsonStr := `{"tx":{"to":"BTC0Eth2Btc","in":[{"name":"ref","type":"u64","value":"1"}]},"tags":[]}`
+
+	var params v0.ParamsSubmitTx
+	err := json.Unmarshal([]byte(jsonStr), &params)
+	if err != nil {
+		fmt.Printf("Failed to unmarshal params %v", jsonStr)
+	}
+	return params
+}
+
 func MockParamSubmitTxV0BCH() v0.ParamsSubmitTx {
 	jsonStr := `{"tx":{"to":"BCH0Bch2Eth","in":[{"name":"p","type":"ext_ethCompatPayload","value":{"abi":"W3siY29uc3RhbnQiOmZhbHNlLCJpbnB1dHMiOlt7InR5cGUiOiJzdHJpbmciLCJuYW1lIjoiX3N5bWJvbCJ9LHsidHlwZSI6ImFkZHJlc3MiLCJuYW1lIjoiX2FkZHJlc3MifSx7Im5hbWUiOiJfYW1vdW50IiwidHlwZSI6InVpbnQyNTYifSx7Im5hbWUiOiJfbkhhc2giLCJ0eXBlIjoiYnl0ZXMzMiJ9LHsibmFtZSI6Il9zaWciLCJ0eXBlIjoiYnl0ZXMifV0sIm91dHB1dHMiOltdLCJwYXlhYmxlIjp0cnVlLCJzdGF0ZU11dGFiaWxpdHkiOiJwYXlhYmxlIiwidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6Im1pbnQifV0=","value":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAADqiy/w1/VGr66uF3EwZzY1fe+kNAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADQkNIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","fn":"bWludA=="}},{"name":"token","type":"ext_ethCompatAddress","value":"DD35d74c8EF6981Eb8b01F8F74358Cf667B20Abe"},{"name":"to","type":"ext_ethCompatAddress","value":"6fA045D176CE69Fdf9837242E8A72e81c2750E64"},{"name":"n","type":"b32","value":"PO6UI3V84YBYp9MiJGvi6SyUzxXOHugTaqiQYFuTxNo="},{"name":"utxo","type":"ext_btcCompatUTXO","value":{"txHash":"xt4W7r/K0xZh6awkn7PgJqpvS/mI23exobLJnmgeFfA=","vOut":"0"}}]},"tags":[]}`
 

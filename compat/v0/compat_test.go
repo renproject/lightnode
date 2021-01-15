@@ -15,6 +15,8 @@ import (
 	"github.com/alicebob/miniredis"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/go-redis/redis/v7"
+	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
@@ -25,7 +27,7 @@ import (
 )
 
 var _ = Describe("Compat V0", func() {
-	init := func(params v0.ParamsSubmitTx) (v0.Store, redis.Cmdable, *txenginebindings.Bindings, *id.PubKey) {
+	init := func(params v0.ParamsSubmitTx, hasCache bool) (v0.Store, redis.Cmdable, *txenginebindings.Bindings, *id.PubKey) {
 		mr, err := miniredis.Run()
 		if err != nil {
 			panic(err)
@@ -35,13 +37,16 @@ var _ = Describe("Compat V0", func() {
 			Addr: mr.Addr(),
 		})
 
-		// Cache a lookup value for the utxo so that
-		// we don't have to rely on external explorers
-		utxo := params.Tx.In.Get("utxo").Value.(v0.ExtBtcCompatUTXO)
-		vout := utxo.VOut.Int.String()
-		txHash := utxo.TxHash
-		key := fmt.Sprintf("amount_%s_%s", txHash, vout)
-		client.Set(key, 200000, 0)
+		if hasCache {
+			// Cache a lookup value for the utxo so that
+			// we don't have to rely on external explorers
+			utxo := params.Tx.In.Get("utxo").Value.(v0.ExtBtcCompatUTXO)
+			vout := utxo.VOut.Int.String()
+			txHash := utxo.TxHash
+			key := fmt.Sprintf("amount_%s_%s", txHash, vout)
+			client.Set(key, 200000, 0)
+
+		}
 
 		bindingsOpts := txenginebindings.DefaultOptions().
 			WithNetwork("testnet")
@@ -98,9 +103,25 @@ var _ = Describe("Compat V0", func() {
 		Expect(shardsResponse.Shards[0].Gateways[0].PubKey).Should(Equal("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"))
 	})
 
+	It("should convert a v0 BTC Burn ParamsSubmitTx into an empty v1 ParamsSubmitTx", func() {
+		params := testutils.MockBurnParamSubmitTxV0BTC()
+		store, _, bindings, pubkey := init(params, false)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(v1).Should(Equal(jsonrpc.ParamsSubmitTx{
+			Tx: tx.Tx{
+				Selector: tx.Selector("BTC/fromEthereum"),
+				Input:    pack.NewTyped("ref", pack.NewU64(1)),
+			},
+		}))
+	})
+
 	It("should convert a v0 BTC ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
 		params := testutils.MockParamSubmitTxV0BTC()
-		store, client, bindings, pubkey := init(params)
+		store, client, bindings, pubkey := init(params, true)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -134,7 +155,7 @@ var _ = Describe("Compat V0", func() {
 
 	It("should convert a v0 ZEC ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
 		params := testutils.MockParamSubmitTxV0ZEC()
-		store, client, bindings, pubkey := init(params)
+		store, client, bindings, pubkey := init(params, true)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -168,7 +189,7 @@ var _ = Describe("Compat V0", func() {
 
 	It("should convert a v0 BCH ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
 		params := testutils.MockParamSubmitTxV0BCH()
-		store, client, bindings, pubkey := init(params)
+		store, client, bindings, pubkey := init(params, true)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
