@@ -26,6 +26,7 @@ import (
 
 	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/tx/txutil"
 	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/darknode/txengine/txengineutil"
@@ -76,6 +77,9 @@ var _ = Describe("Resolver", func() {
 		btcTxHash := utxo.TxHash
 		key := fmt.Sprintf("amount_%s_%s", btcTxHash, vout)
 		client.Set(key, 200000, 0)
+
+		// Pre-set burn tx as we can't really watch for events
+		client.Set(fmt.Sprintf("%s_%v", tx.Selector("BTC/fromEthereum"), pack.NewU256FromUint8(1).String()), "hash", 0)
 
 		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 
@@ -269,6 +273,32 @@ var _ = Describe("Resolver", func() {
 		defer innerCancel()
 
 		resp := resolver.QueryConfig(innerCtx, "", &params, &req)
+		Expect(resp.Error).Should(BeZero())
+	})
+
+	It("should submit v0 burn txs", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, validator := init(ctx)
+		defer cleanup()
+
+		params := testutils.MockBurnParamSubmitTxV0BTC()
+		paramsJSON, err := json.Marshal(params)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		req, resp := validator.ValidateRequest(innerCtx, nil, jsonrpc.Request{
+			Version: "2.0",
+			ID:      nil,
+			Method:  jsonrpc.MethodSubmitTx,
+			Params:  paramsJSON,
+		})
+		Expect(resp).Should(Equal(jsonrpc.Response{}))
+
+		resp = resolver.SubmitTx(ctx, nil, (req).(*jsonrpc.ParamsSubmitTx), nil)
 		Expect(resp.Error).Should(BeZero())
 	})
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
@@ -60,24 +61,31 @@ func (resolver *Resolver) QueryBlocks(ctx context.Context, id interface{}, param
 }
 
 func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *jsonrpc.ParamsSubmitTx, req *http.Request) jsonrpc.Response {
-	// When a v0 burn tx gets submitted via RPC, we ignore it
+	// When a v0 burn tx gets submitted via RPC, we have to wait for the watcher to detect it
 	// because it does not have sufficient data to create a valid v1 tx hash
 	// (it just contains a ref to the burn event height + the v0 selector,
 	// and the contract doesn't have a way to query by event height, and can't really filter either)
 	//
-	// It gets converted into an empty tx in the compat layer
-	// and then we return an empty success response
-	// It will be handled correctly when the watcher detects the burn event
+	// Once the watcher detects it, we will be able to respond with the tx-hash that ren-js v1 uses
+	// to look up the release success status
 	emptyParams := jsonrpc.ParamsSubmitTx{}
 	if params.Tx.Hash == emptyParams.Tx.Hash {
 		ref := params.Tx.Input.Get("ref").(pack.U64)
-		hash, err := resolver.compatStore.GetV0BurnTxHashFromRef(params.Tx.Selector, ref.Uint64())
-		if err != nil {
-			resolver.logger.Errorf("[responder] cannot get v0-v1 tx mapping from store: %v", err)
-			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to read tx mapping from store", nil)
-			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		maxAttempts := 5
+		currentAttempt := 0
+		for {
+			hash, err := resolver.compatStore.GetV0BurnTxHashFromRef(params.Tx.Selector, ref.Uint64())
+			if err == nil {
+				return jsonrpc.NewResponse(id, v0.ResponseSubmitTx{Tx: v0.Tx{Hash: hash}}, nil)
+			} else if currentAttempt >= maxAttempts {
+				resolver.logger.Errorf("[responder] cannot get v0-v1 tx mapping from store: %v", err)
+				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to read tx mapping from store", nil)
+				return jsonrpc.NewResponse(id, nil, &jsonErr)
+			}
+			currentAttempt += 1
+			time.Sleep(time.Duration(currentAttempt+1) *
+				resolver.serverOptions.Timeout)
 		}
-		return jsonrpc.NewResponse(id, v0.ResponseSubmitTx{Tx: v0.Tx{Hash: hash}}, nil)
 	}
 
 	return resolver.handleMessage(ctx, id, jsonrpc.MethodSubmitTx, *params, req, true)
