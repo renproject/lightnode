@@ -312,15 +312,17 @@ func MintTxHash(sel tx.Selector, ghash pack.Bytes32, txid pack.Bytes, txindex pa
 func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txenginebindings.Bindings, pubkey *id.PubKey, store CompatStore) (jsonrpc.ParamsSubmitTx, error) {
 	// It's a burn tx, we don't need to process it
 	// as it should be picked up from the watcher
-	// We pass the ref along for lookup in order to pull
-	// the correct txhash from redis
+	// We pass the v0 hash along so that we can still
+	// respond with the data that renjs-v1 requires
 	if params.Tx.In.Get("utxo").Value == nil {
 		refTx := params.Tx.In.Get("ref").Value.(U64).Int
 		selString := fmt.Sprintf("%s/fromEthereum", params.Tx.To[0:3])
+		sel := tx.Selector(selString)
+		hash := BurnTxHash(sel, pack.NewU256FromInt(refTx))
 
 		return jsonrpc.ParamsSubmitTx{Tx: tx.Tx{
-			Selector: tx.Selector(selString),
-			Input:    pack.NewTyped("ref", pack.NewU64(refTx.Uint64())),
+			Selector: sel,
+			Input:    pack.NewTyped("v0hash", pack.NewBytes32(hash)),
 		}}, nil
 	}
 

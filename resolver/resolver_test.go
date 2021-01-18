@@ -26,7 +26,6 @@ import (
 
 	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/tx/txutil"
 	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/darknode/txengine/txengineutil"
@@ -77,9 +76,6 @@ var _ = Describe("Resolver", func() {
 		btcTxHash := utxo.TxHash
 		key := fmt.Sprintf("amount_%s_%s", btcTxHash, vout)
 		client.Set(key, 200000, 0)
-
-		// Pre-set burn tx as we can't really watch for events
-		client.Set(fmt.Sprintf("%s_%v", tx.Selector("BTC/fromEthereum"), pack.NewU256FromUint8(1).String()), "hash", 0)
 
 		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 
@@ -286,6 +282,7 @@ var _ = Describe("Resolver", func() {
 		params := testutils.MockBurnParamSubmitTxV0BTC()
 		paramsJSON, err := json.Marshal(params)
 		Expect(err).ShouldNot(HaveOccurred())
+		Expect(params).ShouldNot(Equal([]byte{}))
 
 		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer innerCancel()
@@ -296,7 +293,9 @@ var _ = Describe("Resolver", func() {
 			Method:  jsonrpc.MethodSubmitTx,
 			Params:  paramsJSON,
 		})
+		// Response will only exist for errors
 		Expect(resp).Should(Equal(jsonrpc.Response{}))
+		Expect((req).(*jsonrpc.ParamsSubmitTx).Tx.Hash).ShouldNot(BeEmpty())
 
 		resp = resolver.SubmitTx(ctx, nil, (req).(*jsonrpc.ParamsSubmitTx), nil)
 		Expect(resp.Error).Should(BeZero())
