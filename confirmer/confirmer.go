@@ -121,7 +121,7 @@ func (confirmer *Confirmer) confirm(ctx context.Context, transaction tx.Tx) {
 		case <-ctx.Done():
 			return
 		case response := <-req.Responder:
-			if response.Error == nil || strings.Contains(response.Error.Message, "current status = done") {
+			if response.Error == nil || strings.Contains(response.Error.Message, "status=done") || strings.Contains(response.Error.Message, "status = done") {
 				confirmer.options.Logger.Infof("✅ successfully submitted tx=%v to darknodes", transaction.Hash.String())
 			} else {
 				confirmer.options.Logger.Errorf("[confirmer] getting error back when submitting tx=%v: [%v] %v", transaction.Hash.String(), response.Error.Code, response.Error.Message)
