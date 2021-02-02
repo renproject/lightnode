@@ -90,6 +90,10 @@ func (b mockBindings) AssetFromTokenAddress(hostChain multichain.Chain, address 
 	panic("unimplemented")
 }
 
+func (b mockBindings) AccountNonce(ctx context.Context, chain multichain.Chain, address multichain.Address) (pack.U256, error) {
+	panic("unimplemented")
+}
+
 func (b mockBindings) AccountBurnInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, nonce pack.Bytes32) (amount pack.U256, recipient pack.String, payload pack.Bytes, err error) {
 	return pack.U256{}, "", nil, b.isConfirmed(nonce.String())
 }
