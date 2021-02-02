@@ -1,5 +1,6 @@
 ## 0.2.7
 - Update Darknode to fix preparation for account based chains (payload removal)
+- Update lightnode to support account-based gateway 
 
 ## 0.2.6
 - Fix Dockerfile issues with filecoin-ffi submodule
