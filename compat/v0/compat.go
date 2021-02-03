@@ -68,8 +68,8 @@ func ShardsResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQuerySha
 	return resp, nil
 }
 
-// TxFromV1Tx takes a V1 Tx and converts it to a V0 Tx
-func TxFromV1Tx(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx, error) {
+// TxFromV1Tx takes a V1 Tx and converts it to a V0 Tx, the given tx has to be a mint tx.
+func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 	tx := Tx{}
 
 	phash := t.Input.Get("phash").(pack.Bytes32)
@@ -95,20 +95,40 @@ func TxFromV1Tx(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 
 	utxo := ExtBtcCompatUTXO{}
 
+	btcTxHash := t.Input.Get("txid").(pack.Bytes)
+	btcTxHashReversed := make([]byte, len(btcTxHash))
+	copy(btcTxHashReversed, btcTxHash)
+	txl := len(btcTxHashReversed)
+	for i := 0; i < txl/2; i++ {
+		btcTxHashReversed[i], btcTxHashReversed[txl-1-i] = btcTxHashReversed[txl-1-i], btcTxHashReversed[i]
+	}
+	if err := utxo.TxHash.UnmarshalBinary(btcTxHashReversed); err != nil {
+		return tx, nil
+	}
+
+	btcTxIndex := t.Input.Get("txindex").(pack.U32)
+	utxo.VOut = U32{Int: big.NewInt(int64(btcTxIndex))}
+
+	// utxo field `In` on has txHash and vout
+	tx.In.Set(Arg{
+		Name:  "utxo",
+		Type:  "ext_btcCompatUTXO",
+		Value: utxo,
+	})
+
 	inamount := t.Input.Get("amount").(pack.U256)
 	utxo.Amount = U256{Int: inamount.Int()}
 	utxo.GHash = B32(ghash)
 
-	gpubkey := t.Input.Get("gpubkey").(pack.Bytes)
-	utxo.ScriptPubKey = B(gpubkey)
-
-	btcTxHash := t.Input.Get("txid").(pack.Bytes)
-	btcTxHash32 := [32]byte{}
-	copy(btcTxHash32[:], btcTxHash)
-	utxo.TxHash = B32(btcTxHash32)
-
-	btcTxIndex := t.Input.Get("txindex").(pack.U32)
-	utxo.VOut = U32{Int: big.NewInt(int64(btcTxIndex))}
+	outpoint := multichain.UTXOutpoint{
+		Hash:  btcTxHash,
+		Index: btcTxIndex,
+	}
+	output, err := bindings.UTXOLockInfo(context.TODO(), t.Selector.Source(), t.Selector.Asset(), outpoint)
+	if err != nil {
+		return tx, nil
+	}
+	utxo.ScriptPubKey = B(output.PubKeyScript)
 
 	tx.Autogen.Set(Arg{
 		Name:  "utxo",
@@ -116,22 +136,15 @@ func TxFromV1Tx(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 		Value: utxo,
 	})
 
-	tx.In.Set(Arg{
-		Name:  "utxo",
-		Type:  "ext_btcCompatUTXO",
-		Value: utxo,
-	})
-
-	// can't really re-create this correctly
-	payload := t.Input.Get("payload").(pack.Bytes)
+	payloadBytes := t.Input.Get("payload").(pack.Bytes)
+	var payload ExtEthCompatPayload
+	if err := payload.UnmarshalBinary(payloadBytes); err != nil {
+		return tx, nil
+	}
 	tx.In.Set(Arg{
 		Name: "p",
 		Type: "ext_ethCompatPayload",
-		Value: ExtEthCompatPayload{
-			ABI:   []byte("{}"),
-			Value: B(payload),
-			Fn:    []byte{},
-		},
+		Value: payload,
 	})
 
 	nonce := t.Input.Get("nonce").(pack.Bytes32)
@@ -159,7 +172,7 @@ func TxFromV1Tx(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 		Value: toAddr,
 	})
 
-	tokenAddrRaw, err := bindings.TokenAddressFromAsset(multichain.Ethereum, multichain.BTC)
+	tokenAddrRaw, err := bindings.TokenAddressFromAsset(multichain.Ethereum, t.Selector.Asset())
 	if err != nil {
 		return tx, err
 	}
@@ -176,11 +189,11 @@ func TxFromV1Tx(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 	})
 
 	// use the in amount if we don't have an output yet
-	tx.Autogen.Set(Arg{
-		Name:  "amount",
-		Type:  "u256",
-		Value: U256{Int: inamount.Int()},
-	})
+	// tx.Autogen.Set(Arg{
+	// 	Name:  "amount",
+	// 	Type:  "u256",
+	// 	Value: U256{Int: inamount.Int()},
+	// })
 
 	sighash := [32]byte{}
 	sender, err := ethereum.NewAddressFromHex(toAddr.String())
@@ -201,11 +214,11 @@ func TxFromV1Tx(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 		nhash,
 	)))
 
-	tx.Autogen.Set(Arg{
-		Name:  "sighash",
-		Type:  "b32",
-		Value: B32(sighash),
-	})
+	// tx.Autogen.Set(Arg{
+	// 	Name:  "sighash",
+	// 	Type:  "b32",
+	// 	Value: B32(sighash),
+	// })
 
 	if hasOut {
 		outamount := t.Output.Get("amount").(pack.U256)
@@ -243,8 +256,9 @@ func TxFromV1Tx(t tx.Tx, hash B32, hasOut bool, bindings txengine.Bindings) (Tx,
 		})
 	}
 
-	tx.To = "BTC0Btc2Eth"
-	tx.Hash = hash
+	tx.To = Address(ToFromV1Selector(t.Selector))
+	v0hash := MintTxHash(t.Selector, ghash, btcTxHash, btcTxIndex)
+	copy(tx.Hash[:],  v0hash[:])
 
 	return tx, nil
 }
@@ -356,7 +370,12 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 
 	txid := pack.NewBytes(txidB)
 
-	payload := pack.NewBytes(params.Tx.In.Get("p").Value.(ExtEthCompatPayload).Value[:])
+	payload := params.Tx.In.Get("p").Value.(ExtEthCompatPayload)
+	payloadValue := pack.NewBytes(params.Tx.In.Get("p").Value.(ExtEthCompatPayload).Value[:])
+	payloadBytes, err  := payload.MarshalBinary()
+	if err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
 
 	token := params.Tx.In.Get("token").Value.(ExtEthCompatAddress)
 	asset, err := bindings.AssetFromTokenAddress(multichain.Ethereum, multichain.Address(strings.ToUpper("0x"+token.String())))
@@ -365,7 +384,7 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 	}
 	sel := tx.Selector(asset + "/toEthereum")
 
-	phash := txengine.Phash(payload)
+	phash := txengine.Phash(payloadValue)
 
 	to := pack.String(params.Tx.In.Get("to").Value.(ExtEthCompatAddress).String())
 
@@ -413,7 +432,7 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 		Txid:    txid,
 		Txindex: txindex,
 		Amount:  pack.NewU256FromUint64(uint64(amount)),
-		Payload: payload,
+		Payload: payloadBytes,
 		Phash:   phash,
 		To:      to,
 		Nonce:   nonceP,
