@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"os"
 
@@ -111,10 +112,13 @@ var _ = Describe("Compat V0", func() {
 
 		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
 		Expect(err).ShouldNot(HaveOccurred())
+		hash, err := hex.DecodeString("ec5a011106c04a4019587c192409ca92faa518639569ccebd3c025c283b80fe9")
+		hash32 := [32]byte{}
+		copy(hash32[:], hash[:])
 		Expect(v1).Should(Equal(jsonrpc.ParamsSubmitTx{
 			Tx: tx.Tx{
 				Selector: tx.Selector("BTC/fromEthereum"),
-				Input:    pack.NewTyped("ref", pack.NewU64(1)),
+				Input:    pack.NewTyped("v0hash", pack.NewBytes32(hash32)),
 			},
 		}))
 	})
