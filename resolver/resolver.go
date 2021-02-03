@@ -81,6 +81,9 @@ func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *
 	if params.Tx.Version == tx.Version1 {
 		return response
 	}
+	if response.Error != nil {
+		return response
+	}
 
 	v0tx, err := v0.TxFromV1Tx(params.Tx, false , resolver.bindings)
 	if err != nil {

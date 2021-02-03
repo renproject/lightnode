@@ -136,15 +136,16 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 		Value: utxo,
 	})
 
-	payloadBytes := t.Input.Get("payload").(pack.Bytes)
-	var payload ExtEthCompatPayload
-	if err := payload.UnmarshalBinary(payloadBytes); err != nil {
-		return tx, nil
-	}
+	// can't really re-create this correctly
+	payload := t.Input.Get("payload").(pack.Bytes)
 	tx.In.Set(Arg{
 		Name: "p",
 		Type: "ext_ethCompatPayload",
-		Value: payload,
+		Value: ExtEthCompatPayload{
+			ABI:   []byte("{}"),
+			Value: B(payload),
+			Fn:    []byte{},
+		},
 	})
 
 	nonce := t.Input.Get("nonce").(pack.Bytes32)
@@ -370,13 +371,7 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 
 	txid := pack.NewBytes(txidB)
 
-	payload := params.Tx.In.Get("p").Value.(ExtEthCompatPayload)
-	payloadValue := pack.NewBytes(params.Tx.In.Get("p").Value.(ExtEthCompatPayload).Value[:])
-	payloadBytes, err  := payload.MarshalBinary()
-	if err != nil {
-		return jsonrpc.ParamsSubmitTx{}, err
-	}
-
+	payload := pack.NewBytes(params.Tx.In.Get("p").Value.(ExtEthCompatPayload).Value[:])
 	token := params.Tx.In.Get("token").Value.(ExtEthCompatAddress)
 	asset, err := bindings.AssetFromTokenAddress(multichain.Ethereum, multichain.Address(strings.ToUpper("0x"+token.String())))
 	if err != nil {
@@ -384,7 +379,7 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 	}
 	sel := tx.Selector(asset + "/toEthereum")
 
-	phash := txengine.Phash(payloadValue)
+	phash := txengine.Phash(payload)
 
 	to := pack.String(params.Tx.In.Get("to").Value.(ExtEthCompatAddress).String())
 
@@ -432,7 +427,7 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 		Txid:    txid,
 		Txindex: txindex,
 		Amount:  pack.NewU256FromUint64(uint64(amount)),
-		Payload: payloadBytes,
+		Payload: payload,
 		Phash:   phash,
 		To:      to,
 		Nonce:   nonceP,
