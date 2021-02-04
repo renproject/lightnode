@@ -115,7 +115,6 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 	// We have to encode as non-url safe because that's the format v0 uses
 	txhash, err := resolver.compatStore.GetV1HashFromHash(v0txhash)
 	if err != v0.ErrNotFound {
-
 		if err != nil {
 			resolver.logger.Errorf("[responder] cannot get v0-v1 tx mapping from store: %v", err)
 			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to read tx mapping from store", nil)

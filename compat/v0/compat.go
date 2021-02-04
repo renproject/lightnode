@@ -124,11 +124,11 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 		Hash:  btcTxHash,
 		Index: btcTxIndex,
 	}
-	output, err := bindings.UTXOLockInfo(context.TODO(), t.Selector.Source(), t.Selector.Asset(), outpoint)
-	if err != nil {
-		return tx, nil
-	}
-	utxo.ScriptPubKey = B(output.PubKeyScript)
+	// output, err := bindings.UTXOLockInfo(context.TODO(), t.Selector.Source(), t.Selector.Asset(), outpoint)
+	// if err != nil {
+	// 	return tx, nil
+	// }
+	// utxo.ScriptPubKey = B(output.PubKeyScript)
 
 	tx.Autogen.Set(Arg{
 		Name:  "utxo",
