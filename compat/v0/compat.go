@@ -120,10 +120,10 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 	utxo.Amount = U256{Int: inamount.Int()}
 	utxo.GHash = B32(ghash)
 
-	outpoint := multichain.UTXOutpoint{
-		Hash:  btcTxHash,
-		Index: btcTxIndex,
-	}
+	// outpoint := multichain.UTXOutpoint{
+	// 	Hash:  btcTxHash,
+	// 	Index: btcTxIndex,
+	// }
 	// output, err := bindings.UTXOLockInfo(context.TODO(), t.Selector.Source(), t.Selector.Asset(), outpoint)
 	// if err != nil {
 	// 	return tx, nil
@@ -190,11 +190,11 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 	})
 
 	// use the in amount if we don't have an output yet
-	// tx.Autogen.Set(Arg{
-	// 	Name:  "amount",
-	// 	Type:  "u256",
-	// 	Value: U256{Int: inamount.Int()},
-	// })
+	tx.Autogen.Set(Arg{
+		Name:  "amount",
+		Type:  "u256",
+		Value: U256{Int: inamount.Int()},
+	})
 
 	sighash := [32]byte{}
 	sender, err := ethereum.NewAddressFromHex(toAddr.String())
@@ -215,11 +215,11 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 		nhash,
 	)))
 
-	// tx.Autogen.Set(Arg{
-	// 	Name:  "sighash",
-	// 	Type:  "b32",
-	// 	Value: B32(sighash),
-	// })
+	tx.Autogen.Set(Arg{
+		Name:  "sighash",
+		Type:  "b32",
+		Value: B32(sighash),
+	})
 
 	if hasOut {
 		outamount := t.Output.Get("amount").(pack.U256)
@@ -236,8 +236,6 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 		s := [32]byte{}
 		copy(s[:], sig[32:])
 
-		v := sig[64:65]
-
 		tx.Out.Set(Arg{
 			Name:  "r",
 			Type:  "b32",
@@ -252,8 +250,8 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 
 		tx.Out.Set(Arg{
 			Name:  "v",
-			Type:  "b",
-			Value: B(v[:]),
+			Type:  "u8",
+			Value: U8{Int: big.NewInt(int64(sig[64]))},
 		})
 	}
 
