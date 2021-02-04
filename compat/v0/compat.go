@@ -120,16 +120,6 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 	utxo.Amount = U256{Int: inamount.Int()}
 	utxo.GHash = B32(ghash)
 
-	// outpoint := multichain.UTXOutpoint{
-	// 	Hash:  btcTxHash,
-	// 	Index: btcTxIndex,
-	// }
-	// output, err := bindings.UTXOLockInfo(context.TODO(), t.Selector.Source(), t.Selector.Asset(), outpoint)
-	// if err != nil {
-	// 	return tx, nil
-	// }
-	// utxo.ScriptPubKey = B(output.PubKeyScript)
-
 	tx.Autogen.Set(Arg{
 		Name:  "utxo",
 		Type:  "ext_btcCompatUTXO",
