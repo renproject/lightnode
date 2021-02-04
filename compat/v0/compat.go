@@ -120,6 +120,16 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 	utxo.Amount = U256{Int: inamount.Int()}
 	utxo.GHash = B32(ghash)
 
+	// outpoint := multichain.UTXOutpoint{
+	// 	Hash:  btcTxHash,
+	// 	Index: btcTxIndex,
+	// }
+	// output, err := bindings.UTXOLockInfo(context.TODO(), t.Selector.Source(), t.Selector.Asset(), outpoint)
+	// if err != nil {
+	// 	return tx, nil
+	// }
+	// utxo.ScriptPubKey = B(output.PubKeyScript)
+
 	tx.Autogen.Set(Arg{
 		Name:  "utxo",
 		Type:  "ext_btcCompatUTXO",
@@ -212,37 +222,41 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 	})
 
 	if hasOut {
-		outamount := t.Output.Get("amount").(pack.U256)
-		tx.Autogen.Set(Arg{
-			Name:  "amount",
-			Type:  "u256",
-			Value: U256{Int: outamount.Int()},
-		})
+		if t.Output.Get("amount") != nil {
+			outamount := t.Output.Get("amount").(pack.U256)
+			tx.Autogen.Set(Arg{
+				Name:  "amount",
+				Type:  "u256",
+				Value: U256{Int: outamount.Int()},
+			})
+		}
 
-		sig := t.Output.Get("sig").(pack.Bytes65)
-		r := [32]byte{}
-		copy(r[:], sig[:])
+		if t.Output.Get("sig") != nil {
+			sig := t.Output.Get("sig").(pack.Bytes65)
+			r := [32]byte{}
+			copy(r[:], sig[:])
 
-		s := [32]byte{}
-		copy(s[:], sig[32:])
+			s := [32]byte{}
+			copy(s[:], sig[32:])
 
-		tx.Out.Set(Arg{
-			Name:  "r",
-			Type:  "b32",
-			Value: B32(r),
-		})
+			tx.Out.Set(Arg{
+				Name:  "r",
+				Type:  "b32",
+				Value: B32(r),
+			})
 
-		tx.Out.Set(Arg{
-			Name:  "s",
-			Type:  "b32",
-			Value: B32(s),
-		})
+			tx.Out.Set(Arg{
+				Name:  "s",
+				Type:  "b32",
+				Value: B32(s),
+			})
 
-		tx.Out.Set(Arg{
-			Name:  "v",
-			Type:  "u8",
-			Value: U8{Int: big.NewInt(int64(sig[64]))},
-		})
+			tx.Out.Set(Arg{
+				Name:  "v",
+				Type:  "u8",
+				Value: U8{Int: big.NewInt(int64(sig[64]))},
+			})
+		}
 	}
 
 	tx.To = Address(ToFromV1Selector(t.Selector))
