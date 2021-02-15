@@ -3,6 +3,7 @@ package watcher
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/btcsuite/btcd/btcec"
@@ -122,16 +123,16 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 	// Loop through the logs and check if there are burn events.
 	for iter.Next() {
 		toBytes := iter.Event.To
+		log.Printf("new burn event, to = %v", string(toBytes))
 
 		// For v0 burn, `to` can be base58 encoded
-		var to string
+		to := string(iter.Event.To)
 		switch watcher.selector.Asset(){
 		case multichain.BTC, multichain.BCH, multichain.ZEC:
 			decoder := AddressEncodeDecoder(watcher.selector.Asset().OriginChain(), watcher.network)
-			to = base58.Encode(toBytes)
 			_, err := decoder.DecodeAddress(multichain.Address(to))
 			if err != nil {
-				to = string(iter.Event.To)
+				to = base58.Encode(toBytes)
 				_, err = decoder.DecodeAddress(multichain.Address(to))
 				if err != nil {
 					watcher.logger.Errorf("[watcher] invalid to field %x (hex), err = %v", toBytes, err)
