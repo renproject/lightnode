@@ -1432,6 +1432,8 @@ github.com/renproject/darknode v0.5.3-0.20210202054456-20290a7a369a h1:uuQKoJ4qZ
 github.com/renproject/darknode v0.5.3-0.20210202054456-20290a7a369a/go.mod h1:3mJXcyPi6/bzX00URx5lNKW3fivJyRj/+uyP2tWxv+k=
 github.com/renproject/darknode v0.5.3-0.20210214233843-2fb53abe8430 h1:ocVBd8dhKdLIxjomKKVI8xri6uHVdSL7RIbW7IWYmg0=
 github.com/renproject/darknode v0.5.3-0.20210214233843-2fb53abe8430/go.mod h1:3mJXcyPi6/bzX00URx5lNKW3fivJyRj/+uyP2tWxv+k=
+github.com/renproject/darknode v0.5.3-0.20210215032435-5ec527109d99 h1:Zvp1bkReg6SYUkofEn5cYw4cLKzpz67C3945dl2WJY4=
+github.com/renproject/darknode v0.5.3-0.20210215032435-5ec527109d99/go.mod h1:3mJXcyPi6/bzX00URx5lNKW3fivJyRj/+uyP2tWxv+k=
 github.com/renproject/id v0.4.2 h1:XseNDPPCJtsZjIWR7Qgf+zxy0Gt5xsLrfwpQxJt5wFQ=
 github.com/renproject/id v0.4.2/go.mod h1:bCzV4zZkyWetf0GvhJxMT9HQNnGUwzQpImtXOUXqq0k=
 github.com/renproject/kv v1.1.2 h1:P18yHdDVJTEZ9yeyx6o82ICY1m6f+VdtAt/ouZez+AU=
