@@ -228,11 +228,16 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes [
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
-	transaction, err := tx.NewTx(watcher.selector, pack.Typed(input.(pack.Struct)))
+	hash, err := tx.NewTxHash(version, watcher.selector, pack.Typed(input.(pack.Struct)))
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
-	transaction.Version = version
+	transaction := tx.Tx{
+		Hash:     hash,
+		Version:  version,
+		Selector: watcher.selector,
+		Input:    pack.Typed(input.(pack.Struct)),
+	}
 
 	// Map the v0 burn txhash to v1 txhash so that it is still
 	// queryable
