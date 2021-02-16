@@ -125,7 +125,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 
 		amount := iter.Event.Amount.Uint64()
 		nonce := iter.Event.N.Uint64()
-		watcher.logger.Infof("[watcher] detected burn for %v (to=%v, amount=%v, nonce=%v)", watcher.selector.String(), to, amount, nonce)
+		watcher.logger.Infof("[watcher] detected burn for %v (to=%v, amount=%v, nonce=%v)", watcher.selector.String(), string(to), amount, nonce)
 
 		var nonceBytes pack.Bytes32
 		copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
@@ -194,11 +194,11 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes [
 		_, err := decoder.DecodeAddress(multichain.Address(to))
 		if err != nil {
 			to = base58.Encode(toBytes)
-			version = tx.Version0
 			_, err = decoder.DecodeAddress(multichain.Address(to))
 			if err != nil {
 				return jsonrpc.ParamsSubmitTx{}, err
 			}
+			version = tx.Version0
 		}
 	}
 
