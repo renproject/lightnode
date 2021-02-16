@@ -1428,6 +1428,10 @@ github.com/renproject/aw v0.4.0-9 h1:O3rFYg4arz+kuu+qqn/+FYtWDhsstD/R8/+RkOTrOCE
 github.com/renproject/aw v0.4.0-9/go.mod h1:iuELPkEjsWV9dSyZ9TE5SKsTr+jv2I9naHDhsodH3Z0=
 github.com/renproject/darknode v0.5.3-0.20210202054456-20290a7a369a h1:uuQKoJ4qZD/JNLo6EeJJ3ZSWqJHPAKk8wg6chSceTqM=
 github.com/renproject/darknode v0.5.3-0.20210202054456-20290a7a369a/go.mod h1:3mJXcyPi6/bzX00URx5lNKW3fivJyRj/+uyP2tWxv+k=
+github.com/renproject/darknode v0.5.3-0.20210215032435-5ec527109d99 h1:Zvp1bkReg6SYUkofEn5cYw4cLKzpz67C3945dl2WJY4=
+github.com/renproject/darknode v0.5.3-0.20210215032435-5ec527109d99/go.mod h1:3mJXcyPi6/bzX00URx5lNKW3fivJyRj/+uyP2tWxv+k=
+github.com/renproject/darknode v0.5.3-0.20210216011743-e88be13521f3 h1:YICqnrpjNJq3zbX3/ZX0MnYtRgvT3a1m5nJZEklEX2Y=
+github.com/renproject/darknode v0.5.3-0.20210216011743-e88be13521f3/go.mod h1:3mJXcyPi6/bzX00URx5lNKW3fivJyRj/+uyP2tWxv+k=
 github.com/renproject/id v0.4.2 h1:XseNDPPCJtsZjIWR7Qgf+zxy0Gt5xsLrfwpQxJt5wFQ=
 github.com/renproject/id v0.4.2/go.mod h1:bCzV4zZkyWetf0GvhJxMT9HQNnGUwzQpImtXOUXqq0k=
 github.com/renproject/kv v1.1.2 h1:P18yHdDVJTEZ9yeyx6o82ICY1m6f+VdtAt/ouZez+AU=
@@ -1441,6 +1445,7 @@ github.com/renproject/pack v0.2.7 h1:zVf8/d/ehuZLFgiorj8zOl3B2LXRhpvSCYYswQfUWT4
 github.com/renproject/pack v0.2.7/go.mod h1:pzX3Hc04RoPft89LaZJVp0xgngVGi90V7GvyC3mOGg4=
 github.com/renproject/phi v0.1.0 h1:ZOn7QeDribk/uV46OhQWcTLxyuLg7P+xR1Hfl5cOQuI=
 github.com/renproject/phi v0.1.0/go.mod h1:Hrxx2ONVpfByficRjyRd1trecalYr0lo7Z0akx8UXqg=
+github.com/renproject/secp256k1 v0.0.0-20200831230925-4e5d077cddc7 h1:UB9PqBO81xdZBDOcTnpeRMSr8WfPNPXP1Rpl8nH61TE=
 github.com/renproject/secp256k1 v0.0.0-20200831230925-4e5d077cddc7/go.mod h1:KPbbvwaU8dmK2eqr+xccakbFA11EfOQU9gB8jPT0zDs=
 github.com/renproject/surge v1.2.2/go.mod h1:jNVsKCM3/2PAllkc2cx7g2saG9NrHRX5x20I/TDMXOs=
 github.com/renproject/surge v1.2.3/go.mod h1:jNVsKCM3/2PAllkc2cx7g2saG9NrHRX5x20I/TDMXOs=
