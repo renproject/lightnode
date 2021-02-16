@@ -68,8 +68,49 @@ func ShardsResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQuerySha
 	return resp, nil
 }
 
-// TxFromV1Tx takes a V1 Tx and converts it to a V0 Tx, the given tx has to be a mint tx.
+func BurnTxFromV1Tx(t tx.Tx, bindings txengine.Bindings) (Tx, error) {
+	tx := Tx{}
+
+	//nonce is ref in byte format
+	nonce := t.Input.Get("nonce").(pack.Bytes32)
+	ref := pack.NewU256(nonce)
+
+	tx.Hash = BurnTxHash(t.Selector, ref)
+
+	tx.To = Address(ToFromV1Selector(t.Selector))
+
+	tx.In.Set(Arg{
+		Name:  "ref",
+		Type:  "u64",
+		Value: U64{Int: ref.Int()},
+	})
+
+	to := t.Input.Get("to").(pack.String)
+
+	tx.In.Set(Arg{
+		Name:  "to",
+		Type:  "b",
+		Value: B(to),
+	})
+
+	inamount := t.Input.Get("amount").(pack.U256)
+	castamount := U256{Int: inamount.Int()}
+
+	tx.In.Set(Arg{
+		Name:  "amount",
+		Type:  "u256",
+		Value: castamount,
+	})
+
+	return tx, nil
+}
+
+// TxFromV1Tx takes a V1 Tx and converts it to a V0 Tx.
 func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
+	if t.Selector.IsBurn() || t.Selector.IsRelease() {
+		return BurnTxFromV1Tx(t, bindings)
+	}
+
 	tx := Tx{}
 
 	phash := t.Input.Get("phash").(pack.Bytes32)
@@ -145,12 +186,6 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 		Value: B32(nonce),
 	})
 
-	// rest of compat won't work beyond this point, so return early
-	// in theory burns only need to check the status anyhow
-	if t.Selector.IsBurn() || t.Selector.IsRelease() {
-		return tx, nil
-	}
-
 	to := t.Input.Get("to").(pack.String)
 	toAddr, err := ExtEthCompatAddressFromHex(to.String())
 	if err != nil {
@@ -221,6 +256,16 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 			})
 		}
 
+		if t.Output.Get("revert") != nil {
+			reason := t.Output.Get("revert").(pack.String)
+
+			tx.Out.Set(Arg{
+				Name:  "revert",
+				Type:  "str",
+				Value: Str(reason),
+			})
+		}
+
 		if t.Output.Get("sig") != nil {
 			sig := t.Output.Get("sig").(pack.Bytes65)
 			r := [32]byte{}
@@ -251,7 +296,7 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
 
 	tx.To = Address(ToFromV1Selector(t.Selector))
 	v0hash := MintTxHash(t.Selector, ghash, btcTxHash, btcTxIndex)
-	copy(tx.Hash[:],  v0hash[:])
+	copy(tx.Hash[:], v0hash[:])
 
 	return tx, nil
 }
