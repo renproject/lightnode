@@ -45,7 +45,7 @@ func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector 
 	gpubkey := (*btcec.PublicKey)(distPubKey).SerializeCompressed()
 	return Watcher{
 		logger:       logger,
-		network:  	  network,
+		network:      network,
 		gpubkey:      gpubkey,
 		selector:     selector,
 		bindings:     bindings,
@@ -188,7 +188,7 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes [
 	// For v0 burn, `to` can be base58 encoded
 	version := tx.Version1
 	to := string(toBytes)
-	switch watcher.selector.Asset(){
+	switch watcher.selector.Asset() {
 	case multichain.BTC, multichain.BCH, multichain.ZEC:
 		decoder := AddressEncodeDecoder(watcher.selector.Asset().OriginChain(), watcher.network)
 		_, err := decoder.DecodeAddress(multichain.Address(to))
