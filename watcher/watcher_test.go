@@ -63,7 +63,7 @@ var _ = Describe("Watcher", func() {
 		gateways := bindings.EthereumGateways()
 		btcGateway := gateways[multichain.Ethereum][multichain.BTC]
 
-		watcher := NewWatcher(logger, selector, bindings, ethClient, btcGateway, mockResolver, client, pubk, interval)
+		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, ethClient, btcGateway, mockResolver, client, pubk, interval)
 
 		go watcher.Run(ctx)
 
