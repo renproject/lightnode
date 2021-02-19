@@ -88,6 +88,30 @@ var _ = Describe("Watcher", func() {
 				return lastBlock
 			}, 10*time.Second).ShouldNot(Equal(uint64(0)))
 		})
+
+		It("should encode and decode addresses", func() {
+			validTestnetAddrs := []multichain.Address{
+				"miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6",
+				"bchtest:qq0j3wgesd5de3tuhkka25yjh2xselqvmvpxvx7863",
+				"t28Tc2BUTHifXthexsohy89umGdqMWLSUqw",
+			}
+			chains := []multichain.Chain{multichain.Bitcoin, multichain.BitcoinCash, multichain.Zcash}
+			networks := []multichain.Network{multichain.NetworkDevnet, multichain.NetworkMainnet, multichain.NetworkLocalnet}
+			for i := range chains {
+				for j := range networks {
+					decoder := AddressEncodeDecoder(chains[i], networks[j])
+					println(i)
+					_, err := decoder.DecodeAddress(validTestnetAddrs[i])
+					// If network is mainnet, fail
+					// otherwise pass
+					if j == 1 {
+						Expect(err).To(HaveOccurred())
+					} else {
+						Expect(err).NotTo(HaveOccurred())
+					}
+				}
+			}
+		})
 	})
 
 })
