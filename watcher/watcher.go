@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/go-redis/redis/v7"
+	"github.com/jbenet/go-base58"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/txengine"
@@ -16,6 +18,9 @@ import (
 	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/multichain"
+	"github.com/renproject/multichain/chain/bitcoin"
+	"github.com/renproject/multichain/chain/bitcoincash"
+	"github.com/renproject/multichain/chain/zcash"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
 )
@@ -23,6 +28,7 @@ import (
 // Watcher watches for event logs for burn transactions. These transactions are
 // then forwarded to the cacher.
 type Watcher struct {
+	network      multichain.Network
 	logger       logrus.FieldLogger
 	gpubkey      pack.Bytes
 	selector     tx.Selector
@@ -35,10 +41,11 @@ type Watcher struct {
 }
 
 // NewWatcher returns a new Watcher.
-func NewWatcher(logger logrus.FieldLogger, selector tx.Selector, bindings txengine.Bindings, ethClient *ethclient.Client, ethBindings *ethereumbindings.MintGatewayLogicV1, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey, pollInterval time.Duration) Watcher {
+func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector tx.Selector, bindings txengine.Bindings, ethClient *ethclient.Client, ethBindings *ethereumbindings.MintGatewayLogicV1, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey, pollInterval time.Duration) Watcher {
 	gpubkey := (*btcec.PublicKey)(distPubKey).SerializeCompressed()
 	return Watcher{
 		logger:       logger,
+		network:      network,
 		gpubkey:      gpubkey,
 		selector:     selector,
 		bindings:     bindings,
@@ -114,16 +121,17 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 
 	// Loop through the logs and check if there are burn events.
 	for iter.Next() {
-		to := string(iter.Event.To)
+		to := iter.Event.To
+
 		amount := iter.Event.Amount.Uint64()
 		nonce := iter.Event.N.Uint64()
-		watcher.logger.Infof("[watcher] detected burn for %v (to=%v, amount=%v, nonce=%v)", watcher.selector.String(), to, amount, nonce)
+		watcher.logger.Infof("[watcher] detected burn for %v (to=%v, amount=%v, nonce=%v)", watcher.selector.String(), string(to), amount, nonce)
 
 		var nonceBytes pack.Bytes32
 		copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
 
 		// Send the burn transaction to the resolver.
-		params, err := watcher.burnToParams(iter.Event.Raw.TxHash.Bytes(), pack.NewU256FromU64(pack.NewU64(amount)), pack.String(to), nonceBytes, watcher.gpubkey)
+		params, err := watcher.burnToParams(iter.Event.Raw.TxHash.Bytes(), pack.NewU256FromU64(pack.NewU64(amount)), to, nonceBytes, watcher.gpubkey)
 		if err != nil {
 			watcher.logger.Errorf("[watcher] cannot get params from burn transaction (to=%v, amount=%v, nonce=%v): %v", to, amount, nonce, err)
 			continue
@@ -175,7 +183,25 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, err
 }
 
 // burnToParams constructs params for a SubmitTx request with given ref.
-func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, to pack.String, nonce pack.Bytes32, gpubkey pack.Bytes) (jsonrpc.ParamsSubmitTx, error) {
+func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes []byte, nonce pack.Bytes32, gpubkey pack.Bytes) (jsonrpc.ParamsSubmitTx, error) {
+
+	// For v0 burn, `to` can be base58 encoded
+	version := tx.Version1
+	to := string(toBytes)
+	switch watcher.selector.Asset() {
+	case multichain.BTC, multichain.BCH, multichain.ZEC:
+		decoder := AddressEncodeDecoder(watcher.selector.Asset().OriginChain(), watcher.network)
+		_, err := decoder.DecodeAddress(multichain.Address(to))
+		if err != nil {
+			to = base58.Encode(toBytes)
+			_, err = decoder.DecodeAddress(multichain.Address(to))
+			if err != nil {
+				return jsonrpc.ParamsSubmitTx{}, err
+			}
+			version = tx.Version0
+		}
+	}
+
 	burnChain := watcher.selector.Destination()
 	toBytes, err := watcher.bindings.DecodeAddress(burnChain, multichain.Address(to))
 	if err != nil {
@@ -193,7 +219,7 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, to pack.S
 		Amount:  amount,
 		Payload: payload,
 		Phash:   phash,
-		To:      to,
+		To:      pack.String(to),
 		Nonce:   nonce,
 		Nhash:   nhash,
 		Gpubkey: gpubkey,
@@ -202,9 +228,15 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, to pack.S
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
-	transaction, err := tx.NewTx(watcher.selector, pack.Typed(input.(pack.Struct)))
+	hash, err := tx.NewTxHash(version, watcher.selector, pack.Typed(input.(pack.Struct)))
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
+	}
+	transaction := tx.Tx{
+		Hash:     hash,
+		Version:  version,
+		Selector: watcher.selector,
+		Input:    pack.Typed(input.(pack.Struct)),
 	}
 
 	// Map the v0 burn txhash to v1 txhash so that it is still
@@ -219,4 +251,56 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, to pack.S
 	watcher.cache.Set(fmt.Sprintf("%s_%v", watcher.selector, pack.NewU256(nonce).String()), v0Hash.String(), 0)
 
 	return jsonrpc.ParamsSubmitTx{Tx: transaction}, nil
+}
+
+func AddressEncodeDecoder(chain multichain.Chain, network multichain.Network) multichain.AddressEncodeDecoder {
+	switch chain {
+	case multichain.Bitcoin, multichain.DigiByte, multichain.Dogecoin:
+		params := NetParams(network, chain)
+		return bitcoin.NewAddressEncodeDecoder(params)
+	case multichain.BitcoinCash:
+		params := NetParams(network, chain)
+		return bitcoincash.NewAddressEncodeDecoder(params)
+	case multichain.Zcash:
+		params := ZcashNetParams(network)
+		return zcash.NewAddressEncodeDecoder(params)
+	default:
+		panic(fmt.Errorf("unknown chain %v", chain))
+	}
+}
+
+func ZcashNetParams(network multichain.Network) *zcash.Params {
+	switch network {
+	case multichain.NetworkMainnet:
+		return &zcash.MainNetParams
+	case multichain.NetworkDevnet, multichain.NetworkTestnet:
+		return &zcash.TestNet3Params
+	default:
+		return &zcash.RegressionNetParams
+	}
+}
+
+func NetParams(network multichain.Network, chain multichain.Chain) *chaincfg.Params {
+	switch chain {
+	case multichain.Bitcoin, multichain.BitcoinCash:
+		switch network {
+		case multichain.NetworkMainnet:
+			return &chaincfg.MainNetParams
+		case multichain.NetworkDevnet, multichain.NetworkTestnet:
+			return &chaincfg.TestNet3Params
+		default:
+			return &chaincfg.RegressionNetParams
+		}
+	case multichain.Zcash:
+		switch network {
+		case multichain.NetworkMainnet:
+			return zcash.MainNetParams.Params
+		case multichain.NetworkDevnet, multichain.NetworkTestnet:
+			return zcash.TestNet3Params.Params
+		default:
+			return zcash.RegressionNetParams.Params
+		}
+	default:
+		panic(fmt.Errorf("cannot get network params: unknown chain %v", chain))
+	}
 }

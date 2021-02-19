@@ -12,12 +12,14 @@ require (
 	github.com/go-redis/redis/v7 v7.2.0
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/google/go-cmp v0.5.0
+	github.com/jbenet/go-base58 v0.0.0-20150317085156-6237cf65f3a6 // indirect
 	github.com/lib/pq v1.7.0
 	github.com/mattn/go-sqlite3 v1.11.0
 	github.com/onsi/ginkgo v1.14.0
 	github.com/onsi/gomega v1.10.1
 	github.com/renproject/aw v0.4.0-9
-	github.com/renproject/darknode v0.5.3-0.20210202054456-20290a7a369a
+	github.com/renproject/darknode v0.5.3-0.20210215032435-5ec527109d99
+	github.com/renproject/darknode v0.5.3-0.20210216011743-e88be13521f3
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/mercury v0.3.16
