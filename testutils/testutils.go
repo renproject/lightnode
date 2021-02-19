@@ -115,11 +115,15 @@ func ErrorResponse(id interface{}) jsonrpc.Response {
 func MockQueryStateResponse() jsonrpc.ResponseQueryState {
 	bitcoinState := pack.NewStruct(
 		"pubKey", pack.String("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"),
+		"gasCap", pack.U64(2),
+		"gasLimit", pack.U64(3),
 	)
 
 	return jsonrpc.ResponseQueryState{
 		State: map[multichain.Chain]pack.Struct{
-			multichain.Bitcoin: bitcoinState,
+			multichain.Bitcoin:     bitcoinState,
+			multichain.BitcoinCash: bitcoinState,
+			multichain.Zcash:       bitcoinState,
 		},
 	}
 }
