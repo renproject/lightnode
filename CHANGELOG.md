@@ -1,4 +1,7 @@
-## 0.1.15
+## 0.1.17
+- Increase the pending txs expiry from 24h to 48h in confirmer 
+
+## 0.1.16
 - Increase mint fees
 
 ## 0.1.15
