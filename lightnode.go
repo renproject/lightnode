@@ -147,7 +147,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 			if watchers[chain] == nil {
 				watchers[chain] = map[multichain.Asset]watcher.Watcher{}
 			}
-			watchers[chain][asset] = watcher.NewWatcher(logger, selector, verifierBindings, ethClients[chain], bindings, resolverI, client, options.DistPubKey, options.WatcherPollRate)
+			watchers[chain][asset] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, ethClients[chain], bindings, resolverI, client, options.DistPubKey, options.WatcherPollRate)
 		}
 	}
 

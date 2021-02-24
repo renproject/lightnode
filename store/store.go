@@ -89,10 +89,11 @@ func (multiStore *MultiAddrStore) BootstrapAll() ([]wire.Address, error) {
 // RandomBootstrapAddrs returns a random number of Bootstrap multi-addresses in
 // the store.
 func (multiStore *MultiAddrStore) RandomBootstrapAddrs(n int) ([]wire.Address, error) {
-	indexes := rand.Perm(len(multiStore.bootstrapAddrs))
 	if n > len(multiStore.bootstrapAddrs) {
 		n = len(multiStore.bootstrapAddrs)
 	}
+	indexes := rand.Perm(n)
+
 	addrs := make([]wire.Address, 0, n)
 
 	for _, index := range indexes {

@@ -63,7 +63,7 @@ var _ = Describe("Watcher", func() {
 		gateways := bindings.EthereumGateways()
 		btcGateway := gateways[multichain.Ethereum][multichain.BTC]
 
-		watcher := NewWatcher(logger, selector, bindings, ethClient, btcGateway, mockResolver, client, pubk, interval)
+		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, ethClient, btcGateway, mockResolver, client, pubk, interval)
 
 		go watcher.Run(ctx)
 
@@ -87,6 +87,35 @@ var _ = Describe("Watcher", func() {
 				Expect(err).ShouldNot(HaveOccurred())
 				return lastBlock
 			}, 10*time.Second).ShouldNot(Equal(uint64(0)))
+		})
+
+		It("should encode and decode addresses", func() {
+			validTestnetAddrs := []multichain.Address{
+				"miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6",
+				"bchtest:qq0j3wgesd5de3tuhkka25yjh2xselqvmvpxvx7863",
+				"t28Tc2BUTHifXthexsohy89umGdqMWLSUqw",
+			}
+			chains := []multichain.Chain{multichain.Bitcoin, multichain.BitcoinCash, multichain.Zcash}
+			networks := []multichain.Network{multichain.NetworkDevnet, multichain.NetworkMainnet, multichain.NetworkLocalnet}
+			for i := range chains {
+				for j := range networks {
+					decoder := AddressEncodeDecoder(chains[i], networks[j])
+					_, err := decoder.DecodeAddress(validTestnetAddrs[i])
+					// If network is mainnet, fail to decode addresses
+					// otherwise pass
+					if j == 1 {
+						Expect(err).To(HaveOccurred())
+					} else {
+						if i == 1 && j == 2 {
+							// bcash has a different format for Localnet and Devnet
+							// so it should fail when network is localnet, but pass when it is Devnet
+							Expect(err).To(HaveOccurred())
+						} else {
+							Expect(err).NotTo(HaveOccurred())
+						}
+					}
+				}
+			}
 		})
 	})
 

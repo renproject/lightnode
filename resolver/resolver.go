@@ -77,8 +77,28 @@ func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *
 
 		return jsonrpc.NewResponse(id, v0.ResponseSubmitTx{Tx: v0.Tx{Hash: v0.B32(hash)}}, nil)
 	}
+	response := resolver.handleMessage(ctx, id, jsonrpc.MethodSubmitTx, *params, req, true)
+	if params.Tx.Version == tx.Version1 {
+		return response
+	}
+	if response.Error != nil {
+		return response
+	}
 
-	return resolver.handleMessage(ctx, id, jsonrpc.MethodSubmitTx, *params, req, true)
+	v0tx, err := v0.TxFromV1Tx(params.Tx, false , resolver.bindings)
+	if err != nil {
+		resolver.logger.Errorf("[responder] cannot convert v1 tx to v0, %v", err)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "fail to convert v1 tx to v0", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	return jsonrpc.Response{
+		Version: response.Version,
+		ID:      response.ID,
+		Result: struct {
+			Tx  interface{} `json:"tx"`
+		}{v0tx},
+	}
 }
 
 // QueryTx either returns a locally cached result for confirming txs,
@@ -95,7 +115,6 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 	// We have to encode as non-url safe because that's the format v0 uses
 	txhash, err := resolver.compatStore.GetV1HashFromHash(v0txhash)
 	if err != v0.ErrNotFound {
-
 		if err != nil {
 			resolver.logger.Errorf("[responder] cannot get v0-v1 tx mapping from store: %v", err)
 			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to read tx mapping from store", nil)
@@ -128,7 +147,7 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 		if err == nil {
 			if v0tx {
 				// we need to respond with the v0txhash to keep renjs consistent
-				v0tx, err := v0.TxFromV1Tx(transaction, v0txhash, false, resolver.bindings)
+				v0tx, err := v0.TxFromV1Tx(transaction, false, resolver.bindings)
 				if err != nil {
 
 				}
@@ -195,7 +214,7 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 				return res
 			}
 
-			v0tx, err := v0.TxFromV1Tx(resp.Tx, v0txhash, true, resolver.bindings)
+			v0tx, err := v0.TxFromV1Tx(resp.Tx, true, resolver.bindings)
 			if err != nil {
 				resolver.logger.Errorf("[resolver] error casting tx from v1 to v0: %v", err)
 				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to cast v1 to v0 tx", nil)
