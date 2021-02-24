@@ -100,14 +100,19 @@ var _ = Describe("Watcher", func() {
 			for i := range chains {
 				for j := range networks {
 					decoder := AddressEncodeDecoder(chains[i], networks[j])
-					println(i)
 					_, err := decoder.DecodeAddress(validTestnetAddrs[i])
-					// If network is mainnet, fail
+					// If network is mainnet, fail to decode addresses
 					// otherwise pass
 					if j == 1 {
 						Expect(err).To(HaveOccurred())
 					} else {
-						Expect(err).NotTo(HaveOccurred())
+						if i == 1 && j == 2 {
+							// bcash has a different format for Localnet and Devnet
+							// so it should fail when network is localnet, but pass when it is Devnet
+							Expect(err).To(HaveOccurred())
+						} else {
+							Expect(err).NotTo(HaveOccurred())
+						}
 					}
 				}
 			}
