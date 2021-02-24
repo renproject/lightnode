@@ -92,6 +92,25 @@ var _ = Describe("Store", func() {
 			Expect(len(addrs)).To(Equal(expectedSize))
 		})
 
+		It("should return random addresses on RandomBootstrapAddrs", func() {
+			r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+			expectedSize := rand.Intn(100) + 1
+			addrs := make([]wire.Address, expectedSize)
+			for i := 0; i < expectedSize; i++ {
+				addrs[i] = randomAddress(r)
+			}
+			addrStore := New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "randomaddresses"), addrs)
+
+			addrs, err := addrStore.RandomBootstrapAddrs(expectedSize + 1)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(len(addrs)).To(Equal(expectedSize))
+
+			randomSize := rand.Intn(expectedSize)
+			addrs, err = addrStore.RandomBootstrapAddrs(randomSize)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(len(addrs)).To(Equal(randomSize))
+		})
+
 		It("should return random addresses on RandomAddrs", func() {
 			r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 			expectedSize := rand.Intn(100) + 1
