@@ -26,6 +26,7 @@ import (
 
 	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/tx/txutil"
 	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/darknode/txengine/txengineutil"
@@ -39,7 +40,7 @@ import (
 )
 
 var _ = Describe("Resolver", func() {
-	init := func(ctx context.Context) (*Resolver, jsonrpc.Validator) {
+	init := func(ctx context.Context) (*Resolver, jsonrpc.Validator, *redis.Client) {
 		logger := logrus.New()
 
 		table := kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses")
@@ -70,7 +71,7 @@ var _ = Describe("Resolver", func() {
 		})
 		// Hack to ensure that the mock tx can be cast
 		// prevents needing to use the bindings to find the utxo
-		params := testutils.MockParamSubmitTxV0()
+		params := testutils.MockParamSubmitTxV0BTC()
 		utxo := params.Tx.In.Get("utxo").Value.(v0.ExtBtcCompatUTXO)
 		vout := utxo.VOut.Int.String()
 		btcTxHash := utxo.TxHash
@@ -97,7 +98,7 @@ var _ = Describe("Resolver", func() {
 		bindingsOpts.WithChainOptions(multichain.Ethereum, txenginebindings.ChainOptions{
 			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
 			Confirmations: pack.U64(0),
-			Protocol:      pack.String("0x1CAD87e16b56815d6a0b4Cd91A6639eae86Fc53A"),
+			Protocol:      pack.String("0xcF9F36668ad5b28B336B248a67268AFcF1ECbdbF"),
 		})
 
 		bindings, err := txenginebindings.New(bindingsOpts)
@@ -116,10 +117,10 @@ var _ = Describe("Resolver", func() {
 		pubkey, err := crypto.DecompressPubkey(pubkeyB)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		validator := NewValidator(bindings, (*id.PubKey)(pubkey), compatStore)
+		validator := NewValidator(bindings, (*id.PubKey)(pubkey), compatStore, logger)
 		resolver := New(logger, cacher, multiaddrStore, verifier, database, jsonrpc.Options{}, compatStore, bindings)
 
-		return resolver, validator
+		return resolver, validator, client
 	}
 
 	cleanup := func() {
@@ -130,7 +131,7 @@ var _ = Describe("Resolver", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		resolver, _ := init(ctx)
+		resolver, _, _ := init(ctx)
 		defer cleanup()
 		offset := pack.NewU32(1)
 
@@ -167,20 +168,20 @@ var _ = Describe("Resolver", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		resolver, validator := init(ctx)
+		resolver, validator, _ := init(ctx)
 		defer cleanup()
 
 		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer innerCancel()
 
 		// Submit tx to ensure that it can be queried against
-		params := testutils.MockParamSubmitTxV0()
+		params := testutils.MockParamSubmitTxV0BTC()
 		paramsJSON, err := json.Marshal(params)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// It's a bit of a pain to make this robustly calculatable, so lets use the mock
 		// v0 tx's v0 hash directly
-		v0HashBytes, err := base64.StdEncoding.DecodeString("fC8FhISFgwCkDCw5SumejYhdXZAavG/2ucX+kGyOifE=")
+		v0HashBytes, err := base64.StdEncoding.DecodeString("npiRyatJm8KSgbwA/EqdvFclMjfsnfrVY2HkjhElEDk=")
 		Expect(err).ShouldNot(HaveOccurred())
 		v0Hash := [32]byte{}
 		copy(v0Hash[:], v0HashBytes[:])
@@ -206,11 +207,42 @@ var _ = Describe("Resolver", func() {
 		Expect(resp).ShouldNot(Equal(jsonrpc.Response{}))
 	})
 
+	It("should handle queryTx to a v0 burn tx", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, client := init(ctx)
+		defer cleanup()
+
+		// Use a v1 burn tx, as it will be persisted
+		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+		mocktx := txutil.RandomGoodTx(r)
+		mocktx.Selector = tx.Selector("BTC/fromEthereum")
+
+		// Submit tx to ensure that it can be queried against
+		params := jsonrpc.ParamsSubmitTx{
+			Tx: mocktx,
+		}
+
+		// hacky
+		// manually set an entry in redis so that we think a v1 burn
+		client.Set(mocktx.Hash.String(), mocktx.Hash.String(), 0)
+
+		// Submit so that it gets persisted in db
+		resp := resolver.SubmitTx(ctx, nil, &params, nil)
+
+		resp = resolver.QueryTx(ctx, nil, &jsonrpc.ParamsQueryTx{
+			TxHash: mocktx.Hash,
+		}, nil)
+
+		Expect(resp).ShouldNot(Equal(jsonrpc.Response{}))
+	})
+
 	It("should handle a request witout a specified ID", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		resolver, _ := init(ctx)
+		resolver, _, _ := init(ctx)
 		defer cleanup()
 
 		urlI, err := url.Parse("http://localhost/")
@@ -232,7 +264,7 @@ var _ = Describe("Resolver", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		resolver, _ := init(ctx)
+		resolver, _, _ := init(ctx)
 		defer cleanup()
 
 		urlI, err := url.Parse("http://localhost/?id=123")
@@ -254,7 +286,7 @@ var _ = Describe("Resolver", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		resolver, _ := init(ctx)
+		resolver, _, _ := init(ctx)
 		defer cleanup()
 
 		urlI, err := url.Parse("http://localhost/?id=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
@@ -272,11 +304,40 @@ var _ = Describe("Resolver", func() {
 		Expect(resp.Error).Should(BeZero())
 	})
 
+	It("should submit v0 burn txs", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, validator, _ := init(ctx)
+		defer cleanup()
+
+		params := testutils.MockBurnParamSubmitTxV0BTC()
+		paramsJSON, err := json.Marshal(params)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(params).ShouldNot(Equal([]byte{}))
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		req, resp := validator.ValidateRequest(innerCtx, nil, jsonrpc.Request{
+			Version: "2.0",
+			ID:      nil,
+			Method:  jsonrpc.MethodSubmitTx,
+			Params:  paramsJSON,
+		})
+		// Response will only exist for errors
+		Expect(resp).Should(Equal(jsonrpc.Response{}))
+		Expect((req).(*jsonrpc.ParamsSubmitTx).Tx.Hash).ShouldNot(BeEmpty())
+
+		resp = resolver.SubmitTx(ctx, nil, (req).(*jsonrpc.ParamsSubmitTx), nil)
+		Expect(resp.Error).Should(BeZero())
+	})
+
 	It("should submit txs", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		resolver, _ := init(ctx)
+		resolver, _, _ := init(ctx)
 		defer cleanup()
 
 		r := rand.New(rand.NewSource(GinkgoRandomSeed()))

@@ -124,9 +124,41 @@ func MockQueryStateResponse() jsonrpc.ResponseQueryState {
 	}
 }
 
-func MockParamSubmitTxV0() v0.ParamsSubmitTx {
-	// jsonStr := `{"tx":{"to":"BTC0Btc2Eth","in":[{"name":"p","type":"ext_ethCompatPayload","value":{"abi":"W3siY29uc3RhbnQiOmZhbHNlLCJpbnB1dHMiOlt7InR5cGUiOiJzdHJpbmciLCJuYW1lIjoiX3N5bWJvbCJ9LHsidHlwZSI6ImFkZHJlc3MiLCJuYW1lIjoiX2FkZHJlc3MifSx7Im5hbWUiOiJfYW1vdW50IiwidHlwZSI6InVpbnQyNTYifSx7Im5hbWUiOiJfbkhhc2giLCJ0eXBlIjoiYnl0ZXMzMiJ9LHsibmFtZSI6Il9zaWciLCJ0eXBlIjoiYnl0ZXMifV0sIm91dHB1dHMiOltdLCJwYXlhYmxlIjp0cnVlLCJzdGF0ZU11dGFiaWxpdHkiOiJwYXlhYmxlIiwidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6Im1pbnQifV0=","value":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAADqiy/w1/VGr66uF3EwZzY1fe+kNAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADQlRDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","fn":"bWludA=="}},{"name":"token","type":"ext_ethCompatAddress","value":"0A9ADD98C076448CBcFAcf5E457DA12ddbEF4A8f"},{"name":"to","type":"ext_ethCompatAddress","value":"7DDFA2e5435027f6e13Ca8Db2f32ebd5551158Bb"},{"name":"n","type":"b32","value":"UL02xN5g613wuVxDCRDN0ynj5IVUyY0ehBgecccHLzw="},{"name":"utxo","type":"ext_btcCompatUTXO","value":{"txHash":"7AuVKdtoEOEpvhkUecFvt39ggsk/QYr0talTTGSPB4A=","vOut":"0"}}]},"tags":[]}`
-	jsonStr := `{"tx":{"to":"BTC0Btc2Eth","in":[{"name":"p","type":"ext_ethCompatPayload","value":{"abi":"W3siY29uc3RhbnQiOmZhbHNlLCJpbnB1dHMiOlt7InR5cGUiOiJzdHJpbmciLCJuYW1lIjoiX3N5bWJvbCJ9LHsidHlwZSI6ImFkZHJlc3MiLCJuYW1lIjoiX2FkZHJlc3MifSx7Im5hbWUiOiJfYW1vdW50IiwidHlwZSI6InVpbnQyNTYifSx7Im5hbWUiOiJfbkhhc2giLCJ0eXBlIjoiYnl0ZXMzMiJ9LHsibmFtZSI6Il9zaWciLCJ0eXBlIjoiYnl0ZXMifV0sIm91dHB1dHMiOltdLCJwYXlhYmxlIjp0cnVlLCJzdGF0ZU11dGFiaWxpdHkiOiJwYXlhYmxlIiwidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6Im1pbnQifV0=","value":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAACJGOCpLdxrU70fzhypE84q/owC0gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADQlRDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","fn":"bWludA=="}},{"name":"token","type":"ext_ethCompatAddress","value":"0A9ADD98C076448CBcFAcf5E457DA12ddbEF4A8f"},{"name":"to","type":"ext_ethCompatAddress","value":"7DDFA2e5435027f6e13Ca8Db2f32ebd5551158Bb"},{"name":"n","type":"b32","value":"9XnGLCgI5MjA1y7/3JagAD6XJy9v6DhfFMdVitbA4m4="},{"name":"utxo","type":"ext_btcCompatUTXO","value":{"txHash":"06HQtSGSItb9R+kin2SCUhmJyCC1oALUe206azSbtUA=","vOut":"0"}}]},"tags":[]}`
+func MockParamSubmitTxV0ZEC() v0.ParamsSubmitTx {
+	jsonStr := `{"tx":{"to":"ZEC0Zec2Eth","in":[{"name":"p","type":"ext_ethCompatPayload","value":{"abi":"W3siY29uc3RhbnQiOmZhbHNlLCJpbnB1dHMiOlt7InR5cGUiOiJzdHJpbmciLCJuYW1lIjoiX3N5bWJvbCJ9LHsidHlwZSI6ImFkZHJlc3MiLCJuYW1lIjoiX2FkZHJlc3MifSx7Im5hbWUiOiJfYW1vdW50IiwidHlwZSI6InVpbnQyNTYifSx7Im5hbWUiOiJfbkhhc2giLCJ0eXBlIjoiYnl0ZXMzMiJ9LHsibmFtZSI6Il9zaWciLCJ0eXBlIjoiYnl0ZXMifV0sIm91dHB1dHMiOltdLCJwYXlhYmxlIjp0cnVlLCJzdGF0ZU11dGFiaWxpdHkiOiJwYXlhYmxlIiwidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6Im1pbnQifV0=","value":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAADqiy/w1/VGr66uF3EwZzY1fe+kNAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADWkVDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","fn":"bWludA=="}},{"name":"token","type":"ext_ethCompatAddress","value":"B0b458DeEa6DC99E683B63dAc3a6Ee5Fc1B6f493"},{"name":"to","type":"ext_ethCompatAddress","value":"6fA045D176CE69Fdf9837242E8A72e81c2750E64"},{"name":"n","type":"b32","value":"w6chJGKc0alaCkrLxdeAqubqyhfNGv+FD2Zh2eU4lRM="},{"name":"utxo","type":"ext_btcCompatUTXO","value":{"txHash":"eK3tRXHMrxw1SXOSGVJAWIpfTTy4Cr1g6wMWBATt3UM=","vOut":"0"}}]},"tags":[]}`
+
+	var params v0.ParamsSubmitTx
+	err := json.Unmarshal([]byte(jsonStr), &params)
+	if err != nil {
+		fmt.Printf("Failed to unmarshal params %v", jsonStr)
+	}
+	return params
+}
+
+func MockParamSubmitTxV0BTC() v0.ParamsSubmitTx {
+	jsonStr := `{"tx":{"to":"BTC0Btc2Eth","in":[{"name":"p","type":"ext_ethCompatPayload","value":{"abi":"W3siY29uc3RhbnQiOmZhbHNlLCJpbnB1dHMiOlt7InR5cGUiOiJzdHJpbmciLCJuYW1lIjoiX3N5bWJvbCJ9LHsidHlwZSI6ImFkZHJlc3MiLCJuYW1lIjoiX2FkZHJlc3MifSx7Im5hbWUiOiJfYW1vdW50IiwidHlwZSI6InVpbnQyNTYifSx7Im5hbWUiOiJfbkhhc2giLCJ0eXBlIjoiYnl0ZXMzMiJ9LHsibmFtZSI6Il9zaWciLCJ0eXBlIjoiYnl0ZXMifV0sIm91dHB1dHMiOltdLCJwYXlhYmxlIjp0cnVlLCJzdGF0ZU11dGFiaWxpdHkiOiJwYXlhYmxlIiwidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6Im1pbnQifV0=","value":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAADqiy/w1/VGr66uF3EwZzY1fe+kNAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADQlRDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","fn":"bWludA=="}},{"name":"token","type":"ext_ethCompatAddress","value":"48d7442B9BB36FEe26a81E1b634D1c4f75BAe4Ad"},{"name":"to","type":"ext_ethCompatAddress","value":"6fA045D176CE69Fdf9837242E8A72e81c2750E64"},{"name":"n","type":"b32","value":"D7NxsMHBvIxWLFebaK86BhxfFf9srpj+u67GZV/fKPs="},{"name":"utxo","type":"ext_btcCompatUTXO","value":{"txHash":"mArPrCPk9+zMT6h9s0aUKuJ1zV4S5X1zXqZObPL0wMM=","vOut":"0"}}]},"tags":[]}`
+
+	var params v0.ParamsSubmitTx
+	err := json.Unmarshal([]byte(jsonStr), &params)
+	if err != nil {
+		fmt.Printf("Failed to unmarshal params %v", jsonStr)
+	}
+	return params
+}
+
+func MockBurnParamSubmitTxV0BTC() v0.ParamsSubmitTx {
+	jsonStr := `{"tx":{"to":"BTC0Eth2Btc","in":[{"name":"ref","type":"u64","value":"1"}]},"tags":[]}`
+
+	var params v0.ParamsSubmitTx
+	err := json.Unmarshal([]byte(jsonStr), &params)
+	if err != nil {
+		fmt.Printf("Failed to unmarshal params %v", jsonStr)
+	}
+	return params
+}
+
+func MockParamSubmitTxV0BCH() v0.ParamsSubmitTx {
+	jsonStr := `{"tx":{"to":"BCH0Bch2Eth","in":[{"name":"p","type":"ext_ethCompatPayload","value":{"abi":"W3siY29uc3RhbnQiOmZhbHNlLCJpbnB1dHMiOlt7InR5cGUiOiJzdHJpbmciLCJuYW1lIjoiX3N5bWJvbCJ9LHsidHlwZSI6ImFkZHJlc3MiLCJuYW1lIjoiX2FkZHJlc3MifSx7Im5hbWUiOiJfYW1vdW50IiwidHlwZSI6InVpbnQyNTYifSx7Im5hbWUiOiJfbkhhc2giLCJ0eXBlIjoiYnl0ZXMzMiJ9LHsibmFtZSI6Il9zaWciLCJ0eXBlIjoiYnl0ZXMifV0sIm91dHB1dHMiOltdLCJwYXlhYmxlIjp0cnVlLCJzdGF0ZU11dGFiaWxpdHkiOiJwYXlhYmxlIiwidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6Im1pbnQifV0=","value":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAADqiy/w1/VGr66uF3EwZzY1fe+kNAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADQkNIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","fn":"bWludA=="}},{"name":"token","type":"ext_ethCompatAddress","value":"DD35d74c8EF6981Eb8b01F8F74358Cf667B20Abe"},{"name":"to","type":"ext_ethCompatAddress","value":"6fA045D176CE69Fdf9837242E8A72e81c2750E64"},{"name":"n","type":"b32","value":"PO6UI3V84YBYp9MiJGvi6SyUzxXOHugTaqiQYFuTxNo="},{"name":"utxo","type":"ext_btcCompatUTXO","value":{"txHash":"xt4W7r/K0xZh6awkn7PgJqpvS/mI23exobLJnmgeFfA=","vOut":"0"}}]},"tags":[]}`
 
 	var params v0.ParamsSubmitTx
 	err := json.Unmarshal([]byte(jsonStr), &params)

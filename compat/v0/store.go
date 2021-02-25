@@ -1,6 +1,7 @@
 package v0
 
 import (
+	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"time"
@@ -17,6 +18,7 @@ type CompatStore interface {
 	GetV1TxFromUTXO(utxo ExtBtcCompatUTXO) (tx.Tx, error)
 	GetV1TxFromHash(hash B32) (tx.Tx, error)
 	GetV1HashFromHash(hash B32) (pack.Bytes32, error)
+	GetV0BurnTxHashFromRef(sel tx.Selector, ref uint64) (B32, error)
 	// Because amount is not provided in v0, and we can't use
 	// bindings to re-fetch the amount once the utxo has been spent
 	GetAmountFromUTXO(utxo ExtBtcCompatUTXO) (int64, error)
@@ -108,7 +110,34 @@ func (store Store) GetV1TxFromUTXO(utxo ExtBtcCompatUTXO) (tx.Tx, error) {
 	if err != nil {
 		return tx.Tx{}, err
 	}
-	return store.db.Tx(hash)
+
+	tx, err := store.db.Tx(hash)
+	if err == sql.ErrNoRows {
+		err = ErrNotFound
+	}
+
+	return tx, err
+}
+
+func (store Store) GetV0BurnTxHashFromRef(sel tx.Selector, ref uint64) (B32, error) {
+	key := fmt.Sprintf("%s_%v", sel.String(), ref)
+	fmt.Println("checking " + key)
+	hashS, err := store.client.Get(key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			err = ErrNotFound
+		}
+		return B32{}, err
+	}
+	hashBytes, err := base64.StdEncoding.DecodeString(hashS)
+	if err != nil {
+		return B32{}, err
+	}
+
+	hash := B32{}
+	copy(hash[:], hashBytes)
+
+	return hash, nil
 }
 
 func (store Store) PersistTxMappings(v0tx Tx, v1tx tx.Tx) error {

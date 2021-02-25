@@ -11,6 +11,7 @@ import (
 	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
+	"github.com/sirupsen/logrus"
 )
 
 // The lightnode Validator checks requests and also casts in case of compat changes
@@ -18,13 +19,15 @@ type LightnodeValidator struct {
 	bindings *txenginebindings.Bindings
 	pubkey   *id.PubKey
 	store    v0.CompatStore
+	logger   logrus.FieldLogger
 }
 
-func NewValidator(bindings *txenginebindings.Bindings, pubkey *id.PubKey, store v0.CompatStore) *LightnodeValidator {
+func NewValidator(bindings *txenginebindings.Bindings, pubkey *id.PubKey, store v0.CompatStore, logger logrus.FieldLogger) *LightnodeValidator {
 	return &LightnodeValidator{
 		bindings: bindings,
 		pubkey:   pubkey,
 		store:    store,
+		logger:   logger,
 	}
 }
 
@@ -77,6 +80,7 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 		if err := json.Unmarshal(req.Params, &params); err == nil {
 			castParams, err := v0.V1TxParamsFromTx(ctx, params, validator.bindings, validator.pubkey, validator.store)
 			if err != nil {
+				validator.logger.Errorf("[validator]: failed to validate compat tx submission: %v", err)
 				return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
 					Code:    jsonrpc.ErrorCodeInvalidParams,
 					Message: fmt.Sprintf("invalid params: %v", err),
