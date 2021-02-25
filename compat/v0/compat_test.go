@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"os"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -95,6 +96,12 @@ var _ = Describe("Compat V0", func() {
 
 	AfterSuite(func() {
 		os.Remove("./test.db")
+	})
+
+	It("should convert a QueryState response into a QueryFees response", func() {
+		shardsResponse, err := v0.QueryFeesResponseFromState(testutils.MockQueryStateResponse())
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(shardsResponse.Btc.Lock.Int).Should(Equal(big.NewInt(6)))
 	})
 
 	It("should convert a QueryState response into a QueryShards response", func() {

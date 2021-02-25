@@ -33,6 +33,23 @@ type ResponseQueryShards struct {
 	Shards []CompatShard `json:"shards"`
 }
 
+type Fees struct {
+	Lock     U64             `json:"lock"`
+	Release  U64             `json:"release"`
+	Ethereum MintAndBurnFees `json:"ethereum"`
+}
+
+type MintAndBurnFees struct {
+	Mint U64 `json:"mint"`
+	Burn U64 `json:"burn"`
+}
+
+type ResponseQueryFees struct {
+	Btc Fees `json:"btc"`
+	Zec Fees `json:"zec"`
+	Bch Fees `json:"bch"`
+}
+
 type ParamsSubmitTx struct {
 	Tx Tx `json:"tx"`
 }

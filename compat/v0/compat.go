@@ -68,6 +68,86 @@ func ShardsResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQuerySha
 	return resp, nil
 }
 
+// ShardsResponseFromState takes a QueryState rpc response and converts it into a QueryShards rpc response
+// It can be a standalone function as it has no dependencies
+func QueryFeesResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQueryFees, error) {
+	bitcoinCap, ok := state.State[multichain.Bitcoin].Get("gasCap").(pack.U64)
+	if !ok {
+		return ResponseQueryFees{},
+			fmt.Errorf("unexpected type for bitcoinCap: expected pack.U64, got %v",
+				state.State[multichain.Bitcoin].Get("gasCap").Type())
+	}
+
+	bitcoinLimit, ok := state.State[multichain.Bitcoin].Get("gasLimit").(pack.U64)
+	if !ok {
+		return ResponseQueryFees{},
+			fmt.Errorf("unexpected type for bitcoinLimit: expected pack.U64, got %v",
+				state.State[multichain.Bitcoin].Get("gasLimit").Type())
+	}
+	bitcoinUnderlying := U64{Int: big.NewInt(int64(bitcoinCap.Uint64() * bitcoinLimit.Uint64()))}
+
+	zcashCap, ok := state.State[multichain.Zcash].Get("gasCap").(pack.U64)
+	if !ok {
+		return ResponseQueryFees{},
+			fmt.Errorf("unexpected type for zcashCap: expected pack.U64 , got %v",
+				state.State[multichain.Zcash].Get("gasCap").Type())
+	}
+
+	zcashLimit, ok := state.State[multichain.Zcash].Get("gasLimit").(pack.U64)
+	if !ok {
+		return ResponseQueryFees{},
+			fmt.Errorf("unexpected type for zcashLimit: expected pack.U64, got %v",
+				state.State[multichain.Zcash].Get("gasLimit").Type())
+	}
+	zcashUnderlying := U64{Int: big.NewInt(int64(zcashCap.Uint64() * zcashLimit.Uint64()))}
+
+	bitcoinCashCap, ok := state.State[multichain.BitcoinCash].Get("gasCap").(pack.U64)
+	if !ok {
+		return ResponseQueryFees{},
+			fmt.Errorf("unexpected type for bitcoinCashCap: expected pack.U64, got %v",
+				state.State[multichain.BitcoinCash].Get("gasCap").Type())
+	}
+
+	bitcoinCashLimit, ok := state.State[multichain.BitcoinCash].Get("gasLimit").(pack.U64)
+	if !ok {
+		return ResponseQueryFees{},
+			fmt.Errorf("unexpected type for bitcoinCashLimit: expected pack.U64, got %v",
+				state.State[multichain.BitcoinCash].Get("gasLimit").Type())
+	}
+	bitcoinCashUnderlying := U64{Int: big.NewInt(int64(bitcoinCashCap.Uint64() * bitcoinCashLimit.Uint64()))}
+
+	mintFee := U64{Int: big.NewInt(25)}
+	burnFee := U64{Int: big.NewInt(10)}
+
+	resp := ResponseQueryFees{
+		Btc: Fees{
+			Lock:    bitcoinUnderlying,
+			Release: bitcoinUnderlying,
+			Ethereum: MintAndBurnFees{
+				Mint: mintFee,
+				Burn: burnFee,
+			},
+		},
+		Zec: Fees{
+			Lock:    zcashUnderlying,
+			Release: zcashUnderlying,
+			Ethereum: MintAndBurnFees{
+				Mint: mintFee,
+				Burn: burnFee,
+			},
+		},
+		Bch: Fees{
+			Lock:    bitcoinCashUnderlying,
+			Release: bitcoinCashUnderlying,
+			Ethereum: MintAndBurnFees{
+				Mint: mintFee,
+				Burn: burnFee,
+			},
+		},
+	}
+	return resp, nil
+}
+
 func BurnTxFromV1Tx(t tx.Tx, bindings txengine.Bindings) (Tx, error) {
 	tx := Tx{}
 
