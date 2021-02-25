@@ -1,12 +1,11 @@
-<<<<<<< HEAD
 ## 0.3.0
 
 - Add compatibility with v0 txs
 - Update multichain dependency
-=======
+
 ## 0.2.7
+
 - Update Darknode to fix preparation for account based chains (payload removal)
->>>>>>> feat/fix-bindings
 
 ## 0.2.6
 
