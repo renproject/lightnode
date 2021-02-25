@@ -285,6 +285,15 @@ func (resolver *Resolver) QueryStat(ctx context.Context, id interface{}, params 
 	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryStat, *params, req, false)
 }
 
+type GasCapLimitState struct {
+	GasCap   string `json:"gasCap"`
+	GasLimit string `json:"gasLimit"`
+}
+
+type QueryStateResponse struct {
+	State map[multichain.Chain]GasCapLimitState `json:"state"`
+}
+
 func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryFees, req *http.Request) jsonrpc.Response {
 	// This is required for compatibility with renjs v1
 
@@ -308,7 +317,7 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 
-		var resp map[string]map[multichain.Chain]map[string]interface{}
+		var resp QueryStateResponse
 		if err := json.Unmarshal(raw, &resp); err != nil {
 			resolver.logger.Errorf("[resolver] cannot unmarshal queryState result: %v", err)
 			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed unmarshal darknode queryState", nil)
@@ -318,24 +327,25 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 		state := jsonrpc.ResponseQueryState{}
 		state.State = make(map[multichain.Chain]pack.Struct)
 
-		for i := range resp["state"] {
-			gasCap, err := strconv.Atoi(resp["state"][i]["gasCap"].(string))
+		for i := range resp.State {
+			chainState := resp.State[i]
+			gascap, err := strconv.Atoi(chainState.GasCap)
 			if err != nil {
-				resolver.logger.Error("[resolver] missing gasCap for %v", i)
-				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
-				return jsonrpc.NewResponse(id, nil, &jsonErr)
+				resolver.logger.Error("[resolver] missing/incorrect gascap for %v: %v", i, gascap)
+				jsonerr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
+				return jsonrpc.NewResponse(id, nil, &jsonerr)
 			}
 
-			gasLimit, err := strconv.Atoi(resp["state"][i]["gasLimit"].(string))
+			gaslimit, err := strconv.Atoi(chainState.GasLimit)
 			if err != nil {
-				resolver.logger.Error("[resolver] missing gasLimit for %v", i)
-				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
-				return jsonrpc.NewResponse(id, nil, &jsonErr)
+				resolver.logger.Error("[resolver] missing/incorrect gaslimit for %v", i, gaslimit)
+				jsonerr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
+				return jsonrpc.NewResponse(id, nil, &jsonerr)
 			}
 
 			state.State[multichain.Chain(i)] = pack.NewStruct(
-				"gasCap", pack.NewU64(uint64(gasCap)),
-				"gasLimit", pack.NewU64(uint64(gasLimit)),
+				"gasCap", pack.NewU64(uint64(gascap)),
+				"gasLimit", pack.NewU64(uint64(gaslimit)),
 			)
 		}
 
