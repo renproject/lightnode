@@ -286,8 +286,8 @@ func (resolver *Resolver) QueryStat(ctx context.Context, id interface{}, params 
 }
 
 type GasCapLimitState struct {
-	GasCap   string `json:"gasCap"`
-	GasLimit string `json:"gasLimit"`
+	GasCap   string `json:"gasCap,omitempty"`
+	GasLimit string `json:"gasLimit,omitempty"`
 }
 
 type QueryStateResponse struct {
@@ -331,16 +331,16 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 			chainState := resp.State[i]
 			gascap, err := strconv.Atoi(chainState.GasCap)
 			if err != nil {
-				resolver.logger.Error("[resolver] missing/incorrect gascap for %v: %v", i, gascap)
-				jsonerr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
-				return jsonrpc.NewResponse(id, nil, &jsonerr)
+				resolver.logger.Warnf("[resolver] missing/incorrect gascap for %v: %v", i, gascap)
+				// Some chains might not have a gascap
+				continue
 			}
 
 			gaslimit, err := strconv.Atoi(chainState.GasLimit)
 			if err != nil {
-				resolver.logger.Error("[resolver] missing/incorrect gaslimit for %v", i, gaslimit)
-				jsonerr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
-				return jsonrpc.NewResponse(id, nil, &jsonerr)
+				resolver.logger.Warnf("[resolver] missing/incorrect gaslimit for %v", i, gaslimit)
+				// Some chains might not have a gaslimit
+				continue
 			}
 
 			state.State[multichain.Chain(i)] = pack.NewStruct(
@@ -352,7 +352,7 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 		shards, err := v0.QueryFeesResponseFromState(state)
 
 		if err != nil {
-			resolver.logger.Error("failed to cast to QueryFees")
+			resolver.logger.Error("failed to cast to QueryFees: %v", err)
 			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}

@@ -73,9 +73,8 @@ func ShardsResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQuerySha
 func QueryFeesResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQueryFees, error) {
 	bitcoinCap, ok := state.State[multichain.Bitcoin].Get("gasCap").(pack.U64)
 	if !ok {
-		fmt.Printf("state: %v", state.State)
 		return ResponseQueryFees{},
-			fmt.Errorf("unexpected type for bitcoinCap: expected pack.String , got %v",
+			fmt.Errorf("unexpected type for bitcoinCap: expected pack.U64, got %v",
 				state.State[multichain.Bitcoin].Get("gasCap").Type())
 	}
 

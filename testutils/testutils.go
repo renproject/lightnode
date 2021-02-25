@@ -119,11 +119,16 @@ func MockQueryStateResponse() jsonrpc.ResponseQueryState {
 		"gasLimit", pack.U64(3),
 	)
 
+	partialState := pack.NewStruct(
+		"pubKey", pack.String("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"),
+	)
+
 	return jsonrpc.ResponseQueryState{
 		State: map[multichain.Chain]pack.Struct{
 			multichain.Bitcoin:     bitcoinState,
 			multichain.BitcoinCash: bitcoinState,
 			multichain.Zcash:       bitcoinState,
+			multichain.Terra:       partialState,
 		},
 	}
 }
