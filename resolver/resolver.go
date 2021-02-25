@@ -273,7 +273,7 @@ func (resolver *Resolver) QueryShards(ctx context.Context, id interface{}, param
 
 		if err != nil {
 			resolver.logger.Error("failed to cast to QueryShards")
-			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatability conversion", nil)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 
@@ -304,11 +304,15 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 		raw, err := json.Marshal(response.Result)
 		if err != nil {
 			resolver.logger.Errorf("[resolver] error marshaling queryState result: %v", err)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed marshal darknode queryState", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 
-		var resp map[string]map[string]map[string]interface{}
+		var resp map[string]map[multichain.Chain]map[string]interface{}
 		if err := json.Unmarshal(raw, &resp); err != nil {
-			resolver.logger.Warnf("[resolver] cannot unmarshal queryState result from %v", err)
+			resolver.logger.Errorf("[resolver] cannot unmarshal queryState result: %v", err)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed unmarshal darknode queryState", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 
 		state := jsonrpc.ResponseQueryState{}
@@ -318,14 +322,14 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 			gasCap, err := strconv.Atoi(resp["state"][i]["gasCap"].(string))
 			if err != nil {
 				resolver.logger.Error("[resolver] missing gasCap for %v", i)
-				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatability conversion", nil)
+				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
 				return jsonrpc.NewResponse(id, nil, &jsonErr)
 			}
 
 			gasLimit, err := strconv.Atoi(resp["state"][i]["gasLimit"].(string))
 			if err != nil {
 				resolver.logger.Error("[resolver] missing gasLimit for %v", i)
-				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatability conversion", nil)
+				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
 				return jsonrpc.NewResponse(id, nil, &jsonErr)
 			}
 
@@ -339,7 +343,7 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 
 		if err != nil {
 			resolver.logger.Error("failed to cast to QueryFees")
-			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatability conversion", nil)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 

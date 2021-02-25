@@ -82,7 +82,7 @@ func QueryFeesResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQuery
 	bitcoinLimit, ok := state.State[multichain.Bitcoin].Get("gasLimit").(pack.U64)
 	if !ok {
 		return ResponseQueryFees{},
-			fmt.Errorf("unexpected type for bitcoinLimit: expected pack.String , got %v",
+			fmt.Errorf("unexpected type for bitcoinLimit: expected pack.U64, got %v",
 				state.State[multichain.Bitcoin].Get("gasLimit").Type())
 	}
 	bitcoinUnderlying := U64{Int: big.NewInt(int64(bitcoinCap.Uint64() * bitcoinLimit.Uint64()))}
@@ -90,14 +90,14 @@ func QueryFeesResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQuery
 	zcashCap, ok := state.State[multichain.Zcash].Get("gasCap").(pack.U64)
 	if !ok {
 		return ResponseQueryFees{},
-			fmt.Errorf("unexpected type for zcashCap: expected pack.String , got %v",
+			fmt.Errorf("unexpected type for zcashCap: expected pack.U64 , got %v",
 				state.State[multichain.Zcash].Get("gasCap").Type())
 	}
 
 	zcashLimit, ok := state.State[multichain.Zcash].Get("gasLimit").(pack.U64)
 	if !ok {
 		return ResponseQueryFees{},
-			fmt.Errorf("unexpected type for zcashLimit: expected pack.String , got %v",
+			fmt.Errorf("unexpected type for zcashLimit: expected pack.U64, got %v",
 				state.State[multichain.Zcash].Get("gasLimit").Type())
 	}
 	zcashUnderlying := U64{Int: big.NewInt(int64(zcashCap.Uint64() * zcashLimit.Uint64()))}
@@ -105,14 +105,14 @@ func QueryFeesResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQuery
 	bitcoinCashCap, ok := state.State[multichain.BitcoinCash].Get("gasCap").(pack.U64)
 	if !ok {
 		return ResponseQueryFees{},
-			fmt.Errorf("unexpected type for bitcoinCashCap: expected pack.String , got %v",
+			fmt.Errorf("unexpected type for bitcoinCashCap: expected pack.U64, got %v",
 				state.State[multichain.BitcoinCash].Get("gasCap").Type())
 	}
 
 	bitcoinCashLimit, ok := state.State[multichain.BitcoinCash].Get("gasLimit").(pack.U64)
 	if !ok {
 		return ResponseQueryFees{},
-			fmt.Errorf("unexpected type for bitcoinCashLimit: expected pack.String , got %v",
+			fmt.Errorf("unexpected type for bitcoinCashLimit: expected pack.U64, got %v",
 				state.State[multichain.BitcoinCash].Get("gasLimit").Type())
 	}
 	bitcoinCashUnderlying := U64{Int: big.NewInt(int64(bitcoinCashCap.Uint64() * bitcoinCashLimit.Uint64()))}
