@@ -1,3 +1,6 @@
+## 0.1.18
+- Update the logic for updater to store the latest ip of the darknode (if migrated) 
+
 ## 0.1.17
 - Increase the pending txs expiry from 24h to 48h in confirmer 
 
