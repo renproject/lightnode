@@ -2,7 +2,6 @@ package store_test
 
 import (
 	"database/sql"
-	"math/rand"
 	"os"
 
 	. "github.com/onsi/ginkgo"
@@ -23,6 +22,7 @@ const (
 
 var _ = Describe("MultiAddrStore", func() {
 
+	// TODO : Enable sqlite
 	testDBs := []string{ /*Sqlite, */ Postgres}
 
 	init := func(name string) *sql.DB {
@@ -75,8 +75,7 @@ var _ = Describe("MultiAddrStore", func() {
 						store, err := New(db, RandomAddresses(numBoostrapAddrs))
 						Expect(err).ShouldNot(HaveOccurred())
 
-						size, err := store.Size()
-						Expect(err).ShouldNot(HaveOccurred())
+						size := store.Size()
 						Expect(size).Should(Equal(numBoostrapAddrs))
 					})
 				})
@@ -94,8 +93,7 @@ var _ = Describe("MultiAddrStore", func() {
 						store, err := New(db, bootstraps)
 						Expect(err).ShouldNot(HaveOccurred())
 
-						size, err := store.Size()
-						Expect(err).ShouldNot(HaveOccurred())
+						size := store.Size()
 						Expect(size).Should(Equal(numBoostrapAddrs))
 					})
 				})
@@ -119,21 +117,33 @@ var _ = Describe("MultiAddrStore", func() {
 					addrs := RandomAddressesWithoutDuplicates(100, bootstraps)
 					Expect(err).ShouldNot(HaveOccurred())
 
+					Expect(store.Insert(addrs)).Should(Succeed())
+					Expect(store.Size()).Should(Equal(100 + numBoostrapAddrs))
 					for _, addr := range addrs {
-						Expect(store.Insert(addr)).Should(Succeed())
-						addrsMap[addr.String()] = struct{}{}
 						stored, err := store.Address(addr.ID().String())
 						Expect(err).ShouldNot(HaveOccurred())
 						Expect(addr.String()).Should(Equal(stored.String()))
 					}
+				})
 
-					all, err := store.Addresses()
+				It("should update the addresses when it's in store", func() {
+					db := init(dbname)
+					defer cleanup(db)
+
+					numBoostrapAddrs := 10
+					bootstraps := RandomAddresses(numBoostrapAddrs)
+					store, err := New(db, bootstraps)
 					Expect(err).ShouldNot(HaveOccurred())
 
-					for _, addr := range all {
-						_, ok := addrsMap[addr.String()]
-						Expect(ok).Should(BeTrue())
-						delete(addrsMap, addr.String())
+					addrs := RandomAddressesWithoutDuplicates(100, bootstraps)
+					Expect(err).ShouldNot(HaveOccurred())
+
+					Expect(store.Insert(addrs)).Should(Succeed())
+					Expect(store.Size()).Should(Equal(100 + numBoostrapAddrs))
+					for _, addr := range addrs {
+						stored, err := store.Address(addr.ID().String())
+						Expect(err).ShouldNot(HaveOccurred())
+						Expect(addr.String()).Should(Equal(stored.String()))
 					}
 				})
 
@@ -159,29 +169,14 @@ var _ = Describe("MultiAddrStore", func() {
 					}
 				})
 
-				It("should be able to batch insert", func() {
-					db := init(dbname)
-					defer cleanup(db)
-
-					store, err := New(db, nil)
-					Expect(err).ShouldNot(HaveOccurred())
-
-					addrs := RandomAddressesWithoutDuplicates(50, nil)
-					Expect(err).ShouldNot(HaveOccurred())
-					Expect(store.InsertAddresses(addrs)).Should(Succeed())
-
-					size, err := store.Size()
-					Expect(err).ShouldNot(HaveOccurred())
-					Expect(size).Should(Equal(50))
-				})
-
 				It("should be able to batch insert when giving a nil address list", func() {
 					db := init(dbname)
 					defer cleanup(db)
 
 					store, err := New(db, nil)
 					Expect(err).ShouldNot(HaveOccurred())
-					Expect(store.InsertAddresses(nil)).Should(Succeed())
+					Expect(store.Insert(nil)).Should(Succeed())
+					Expect(store.Size()).Should(Equal(0))
 				})
 
 				It("should return the size of the db", func() {
@@ -196,41 +191,10 @@ var _ = Describe("MultiAddrStore", func() {
 					numAddrs := 100
 					addrs := RandomAddressesWithoutDuplicates(numAddrs, bootstraps)
 					Expect(err).ShouldNot(HaveOccurred())
-					for _, addr := range addrs {
-						Expect(store.Insert(addr)).Should(Succeed())
+					for _, address := range addrs {
+						Expect(store.Insert([]addr.MultiAddress{address})).Should(Succeed())
 					}
-
-					size, err := store.Size()
-					Expect(err).ShouldNot(HaveOccurred())
-					Expect(size).Should(Equal(numBoostrapAddrs + numAddrs))
-				})
-
-				It("should be able to delete address", func() {
-					db := init(dbname)
-					defer cleanup(db)
-
-					store, err := New(db, nil)
-					Expect(err).ShouldNot(HaveOccurred())
-
-					addrs := RandomAddresses(100)
-					Expect(err).ShouldNot(HaveOccurred())
-					addrsMap := map[string]struct{}{}
-
-					for _, addr := range addrs {
-						Expect(store.Insert(addr)).Should(Succeed())
-						addrsMap[addr.String()] = struct{}{}
-						stored, err := store.Address(addr.ID().String())
-						Expect(err).ShouldNot(HaveOccurred())
-						Expect(addr.String()).Should(Equal(stored.String()))
-
-						Expect(store.Delete(addr.ID().String())).Should(Succeed())
-						stored, err = store.Address(addr.ID().String())
-						Expect(err).Should(HaveOccurred())
-					}
-
-					size, err := store.Size()
-					Expect(err).ShouldNot(HaveOccurred())
-					Expect(size).Should(BeZero())
+					Expect(store.Size()).Should(Equal(numBoostrapAddrs + numAddrs))
 				})
 			})
 
@@ -250,14 +214,12 @@ var _ = Describe("MultiAddrStore", func() {
 
 					numAddrs := 100
 					addrs := RandomAddressesWithoutDuplicates(numAddrs, bootstraps)
-					Expect(err).ShouldNot(HaveOccurred())
+					Expect(store.Insert(addrs)).Should(Succeed())
 					for _, addr := range addrs {
-						Expect(store.Insert(addr)).Should(Succeed())
 						addrsMap[addr.String()] = struct{}{}
 					}
 
-					randAddrs, err := store.RandomAddresses(20, false)
-					Expect(err).ShouldNot(HaveOccurred())
+					randAddrs := store.RandomAddresses(20)
 					Expect(len(randAddrs)).Should(Equal(20))
 
 					for _, addr := range randAddrs {
@@ -280,62 +242,67 @@ var _ = Describe("MultiAddrStore", func() {
 					store, err := New(db, bootstraps)
 					Expect(err).ShouldNot(HaveOccurred())
 
-					numAddrs := 100
-					addrs := RandomAddressesWithoutDuplicates(numAddrs, bootstraps)
-					Expect(err).ShouldNot(HaveOccurred())
-					for _, addr := range addrs {
-						Expect(store.Insert(addr)).Should(Succeed())
-					}
-
-					randAddrs, err := store.RandomAddresses(5, true)
-					Expect(err).ShouldNot(HaveOccurred())
-					Expect(len(randAddrs)).Should(Equal(numBoostrapAddrs))
-
+					// when n is less than total number bootstrap addresses
+					randAddrs := store.RandomBootstraps(5)
+					Expect(len(randAddrs)).Should(Equal(5))
 					for _, addr := range randAddrs {
 						_, ok := addrsMap[addr.String()]
 						Expect(ok).Should(BeTrue())
-						delete(addrsMap, addr.String())
+					}
+
+					// when n is greater than total number bootstrap addresses
+					randAddrs = store.RandomBootstraps(100)
+					Expect(len(randAddrs)).Should(Equal(numBoostrapAddrs))
+					for _, addr := range randAddrs {
+						_, ok := addrsMap[addr.String()]
+						Expect(ok).Should(BeTrue())
 					}
 				})
 			})
 
-			Context("when travelling through address in the store", func() {
-				It("should return expected number of addresses in expected order", func() {
-					db := init(dbname)
-					defer cleanup(db)
+			Context("when deleting addresses in the store", func() {
+				Context("when deleting stored addresses", func() {
+					It("should be able to delete address", func() {
+						db := init(dbname)
+						defer cleanup(db)
 
-					numBoostrapAddrs := 10
-					addrsMap := map[string]struct{}{}
-					bootstraps := RandomAddresses(numBoostrapAddrs)
-					for _, addr := range bootstraps {
-						addrsMap[addr.String()] = struct{}{}
-					}
-					store, err := New(db, bootstraps)
-					Expect(err).ShouldNot(HaveOccurred())
-
-					numAddrs := 100
-					addrs := RandomAddressesWithoutDuplicates(numAddrs, bootstraps)
-					Expect(err).ShouldNot(HaveOccurred())
-					for _, addr := range addrs {
-						Expect(store.Insert(addr)).Should(Succeed())
-					}
-
-					addrsAll := append(bootstraps, addrs...)
-
-					index := 0
-					for i := 0; i < 50; i++ {
-						n := rand.Intn(20)
-						addrs1, err := store.CycleThroughAddresses(n)
+						store, err := New(db, nil)
 						Expect(err).ShouldNot(HaveOccurred())
-						var addrs2 addr.MultiAddresses
-						if index+n > len(addrsAll) {
-							addrs2 = append(addrsAll[index:], addrsAll[:index][:index+n-len(addrsAll)]...)
-						} else {
-							addrs2 = addrsAll[index : index+n]
+
+						addrs := RandomAddresses(100)
+						Expect(err).ShouldNot(HaveOccurred())
+						addrsMap := map[string]struct{}{}
+
+						for _, address := range addrs {
+							Expect(store.Insert([]addr.MultiAddress{address})).Should(Succeed())
+							addrsMap[address.String()] = struct{}{}
+							stored, err := store.Address(address.ID().String())
+							Expect(err).ShouldNot(HaveOccurred())
+							Expect(address.String()).Should(Equal(stored.String()))
+
+							id := address.ID().String()
+							Expect(store.Delete([]string{id})).Should(Succeed())
+							stored, err = store.Address(address.ID().String())
+							Expect(err).Should(HaveOccurred())
 						}
-						index = (index + n) % len(addrsAll)
-						Expect(CompareAddresses(addrs1, addrs2)).Should(BeTrue())
-					}
+
+						Expect(store.Size()).Should(BeZero())
+					})
+				})
+
+				Context("when deleting empty addresses", func() {
+					It("should do nothing", func() {
+						db := init(dbname)
+						defer cleanup(db)
+
+						numBoostrapAddrs := 10
+						bootstraps := RandomAddresses(numBoostrapAddrs)
+						store, err := New(db, bootstraps)
+						Expect(err).ShouldNot(HaveOccurred())
+
+						Expect(store.Delete(nil)).Should(Succeed())
+						Expect(store.Delete([]string{})).Should(Succeed())
+					})
 				})
 			})
 		})
