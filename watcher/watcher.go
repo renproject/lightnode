@@ -148,7 +148,6 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 
 	if cur <= last {
 		watcher.logger.Warnf("[watcher] tried to process old blocks")
-		// FIXME: shouldn't we update the last block somewhere? Otherwise this will never proceed
 		// Make sure we do not process old events. This could occur if there is
 		// an issue with the underlying blockchain node, for example if it needs
 		// to resync.
@@ -162,7 +161,8 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 	}
 
 	// Fetch logs
-	c, err := watcher.burnLogFetcher.FetchBurnLogs(ctx, last, cur)
+	// Add 1 to last so that we don't process duplicates
+	c, err := watcher.burnLogFetcher.FetchBurnLogs(ctx, last+1, cur)
 	if err != nil {
 		watcher.logger.Errorf("[watcher] error iterating LogBurn events from=%v to=%v: %v", last, cur, err)
 		return
@@ -341,15 +341,6 @@ func NetParams(network multichain.Network, chain multichain.Chain) *chaincfg.Par
 			return &chaincfg.TestNet3Params
 		default:
 			return &chaincfg.RegressionNetParams
-		}
-	case multichain.Zcash:
-		switch network {
-		case multichain.NetworkMainnet:
-			return zcash.MainNetParams.Params
-		case multichain.NetworkDevnet, multichain.NetworkTestnet:
-			return zcash.TestNet3Params.Params
-		default:
-			return zcash.RegressionNetParams.Params
 		}
 	default:
 		panic(fmt.Errorf("cannot get network params: unknown chain %v", chain))

@@ -13,7 +13,7 @@ import (
 	v0 "github.com/renproject/lightnode/compat/v0"
 	. "github.com/renproject/lightnode/watcher"
 
-	"github.com/alicebob/miniredis"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode/jsonrpc/jsonrpcresolver"
 	"github.com/renproject/darknode/tx"
@@ -53,7 +53,7 @@ func (fetcher MockBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64
 }
 
 var _ = Describe("Watcher", func() {
-	init := func(ctx context.Context, interval time.Duration) (Watcher, *redis.Client, chan ethereumbindings.MintGatewayLogicV1LogBurn) {
+	init := func(ctx context.Context, interval time.Duration) (Watcher, *redis.Client, chan ethereumbindings.MintGatewayLogicV1LogBurn, *miniredis.Miniredis) {
 		mr, err := miniredis.Run()
 		if err != nil {
 			panic(err)
@@ -100,16 +100,17 @@ var _ = Describe("Watcher", func() {
 
 		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, ethClient, burnLogFetcher, mockResolver, client, pubk, interval)
 
-		go watcher.Run(ctx)
-
-		return watcher, client, burnLogFetcher.BurnIn
+		return watcher, client, burnLogFetcher.BurnIn, mr
 	}
 
 	Context("when watching", func() {
 		It("should initialize successfully and check for cached block height", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			_, redisClient, _ := init(ctx, time.Second)
+			watcher, redisClient, _, _ := init(ctx, time.Second)
+
+			go watcher.Run(ctx)
+
 			defer redisClient.Close()
 
 			Eventually(func() uint64 {
@@ -127,9 +128,10 @@ var _ = Describe("Watcher", func() {
 		It("should detect burn events", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			_, redisClient, burnIn := init(ctx, time.Second)
+			watcher, redisClient, burnIn, _ := init(ctx, time.Second)
 			defer redisClient.Close()
-			// hash, _, _, err := accountClient.BurnBeforeMint(ctx, multichain.BTC, "miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6", pack.NewU256FromU64(100000))
+
+			go watcher.Run(ctx)
 			// Wait for the block number to be picked up
 			time.Sleep(time.Second)
 
@@ -146,8 +148,84 @@ var _ = Describe("Watcher", func() {
 
 			Eventually(func() string {
 				h := redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", 0)).Val()
-				// println(h)
-				// Expect().ShouldNot(HaveOccurred())
+				return h
+			}, 15*time.Second).Should(Equal(v0Hash.String()))
+		})
+
+		It("should handle last checked blocks ahead of eth node", func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			watcher, redisClient, burnIn, _ := init(ctx, time.Second)
+			defer redisClient.Close()
+
+			// Set the block far in the future
+			redisClient.Set("BTC/fromEthereum_lastCheckedBlock", 1000000000, 0)
+			go watcher.Run(ctx)
+
+			// channels will block until read from, so we make this concurrent
+			go func() {
+				burnIn <- ethereumbindings.MintGatewayLogicV1LogBurn{
+					To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+					Amount:    big.NewInt(10000),
+					N:         big.NewInt(0),
+					IndexedTo: [32]byte{},
+					Raw:       types.Log{},
+				}
+				close(burnIn)
+			}()
+
+			selector := tx.Selector("BTC/fromEthereum")
+			v0Hash := v0.BurnTxHash(selector, pack.NewU256FromU8(0))
+
+			// Over 2 intervals, the mock burn should not be processed
+			time.Sleep(2 * time.Second)
+
+			h := redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", 0)).Val()
+			Expect(h).NotTo(Equal(v0Hash.String()))
+
+			// clear the block, and check that we recover gracefully
+			redisClient.Del("BTC/fromEthereum_lastCheckedBlock")
+
+			Eventually(func() string {
+				h := redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", 0)).Val()
+				return h
+			}, 15*time.Second).Should(Equal(v0Hash.String()))
+		})
+
+		It("should handle redis failures", func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			watcher, redisClient, burnIn, redismock := init(ctx, time.Second)
+			defer redisClient.Close()
+			// Pause during latest block collection
+			redismock.SetError("test error")
+			go watcher.Run(ctx)
+
+			// channels will block until read from, so we make this concurrent
+			go func() {
+				burnIn <- ethereumbindings.MintGatewayLogicV1LogBurn{
+					To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+					Amount:    big.NewInt(10000),
+					N:         big.NewInt(0),
+					IndexedTo: [32]byte{},
+					Raw:       types.Log{},
+				}
+				close(burnIn)
+			}()
+
+			selector := tx.Selector("BTC/fromEthereum")
+			v0Hash := v0.BurnTxHash(selector, pack.NewU256FromU8(0))
+
+			// Over 2 intervals, the mock burn should not be processed
+			time.Sleep(2 * time.Second)
+
+			h := redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", 0)).Val()
+			Expect(h).NotTo(Equal(v0Hash.String()))
+
+			// Unset error so that we can pass
+			redismock.SetError("")
+			Eventually(func() string {
+				h := redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", 0)).Val()
 				return h
 			}, 15*time.Second).Should(Equal(v0Hash.String()))
 		})

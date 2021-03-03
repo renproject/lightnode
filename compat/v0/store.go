@@ -121,7 +121,6 @@ func (store Store) GetV1TxFromUTXO(utxo ExtBtcCompatUTXO) (tx.Tx, error) {
 
 func (store Store) GetV0BurnTxHashFromRef(sel tx.Selector, ref uint64) (B32, error) {
 	key := fmt.Sprintf("%s_%v", sel.String(), ref)
-	fmt.Println("checking " + key)
 	hashS, err := store.client.Get(key).Result()
 	if err != nil {
 		if err == redis.Nil {
