@@ -71,7 +71,7 @@ var _ = Describe("Updater", func() {
 				"/ip4/13.238.180.76/tcp/18514/ren/8MK929isSkURtgwjZNsG31HNZYEyfx",
 			}
 			addrs := make([]addr.MultiAddress, len(addrStrs))
-			for i, str := range addrStrs{
+			for i, str := range addrStrs {
 				multiAddr, err := addr.NewMultiAddressFromString(str)
 				Expect(err).NotTo(HaveOccurred())
 				addrs[i] = multiAddr
@@ -89,10 +89,10 @@ var _ = Describe("Updater", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}()
 
-			updater := updater.New(logger, store, 10 * time.Second, 5 * time.Second)
+			updater := updater.New(logger, store, 10*time.Second, 5*time.Second)
 			go updater.Run(context.Background())
 
-			time.Sleep(30* time.Second)
+			time.Sleep(30 * time.Second)
 
 			size := store.Size()
 			Expect(size).Should(BeNumerically(">", 1000))

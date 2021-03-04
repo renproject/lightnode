@@ -65,7 +65,6 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 
 	// Initialize address map for updating/deleting
 	addrsToUpdate := []addr.MultiAddress{}
-	idsToDelete := []string{}
 
 	// Query 50 random addresses from store
 	mu := new(sync.Mutex)
@@ -90,9 +89,6 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		address := fmt.Sprintf("http://%s:%v", randAddrs[i].IP4(), randAddrs[i].Port()+1)
 		response, err := updater.client.SendRequest(queryCtx, address, request, nil)
 		if err != nil {
-			mu.Lock()
-			defer mu.Unlock()
-			idsToDelete = append(idsToDelete, multi.ID().String())
 			return
 		}
 
@@ -123,20 +119,37 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		}
 	})
 
-	for _, multis := range addrsToDecide{
+	for id, multis := range addrsToDecide {
 		// If we only get one multiAddress for the id, we simply add that to our store
 		// It would take a long time to ping each of them to check if they're online.
 		if len(multis) == 1 {
-			for peer := range multis{
-				multi, err := addr.NewMultiAddressFromString(peer)
+			var multi addr.MultiAddress
+			for peer := range multis {
+				var err error
+				multi, err = addr.NewMultiAddressFromString(peer)
 				if err != nil {
 					return
 				}
-				addrsToUpdate = append(addrsToUpdate, multi)
+				break
+			}
 
-				// Remove it from the store so that only ids with more than 1 multiAddress
-				// are stored in `addrsToDecide`
+			stored, err := updater.multiStore.Address(multi.ID().String())
+			switch err {
+			case store.ErrNotFound:
 				delete(addrsToDecide, multi.ID().String())
+				addrsToUpdate = append(addrsToUpdate, multi)
+			case nil:
+				// No need to update the address if it's same as we stored
+				if stored.String() == multi.String() {
+					delete(addrsToDecide, multi.ID().String())
+				} else {
+					// If it's different from what we stored, add the stored one to the map
+					// and we'll ping both of them to see check which one is online
+					multis[stored.String()] = struct{}{}
+					addrsToDecide[id] = multis
+				}
+			default:
+				continue
 			}
 		}
 	}
@@ -147,6 +160,8 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		pingCtx, pingCancel := context.WithTimeout(queryCtx, time.Second)
 		defer pingCancel()
 
+		var address addr.MultiAddress
+		var found bool
 		phi.ForAll(multis, func(key string) {
 			multi, err := addr.NewMultiAddressFromString(key)
 			if err != nil {
@@ -161,8 +176,8 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 				Params:  json.RawMessage("{}"),
 			}
 
-			address := fmt.Sprintf("http://%s:%v", multi.IP4(), multi.Port()+1)
-			response, err := updater.client.SendRequest(pingCtx, address, request, nil)
+			url := fmt.Sprintf("http://%s:%v", multi.IP4(), multi.Port()+1)
+			response, err := updater.client.SendRequest(pingCtx, url, request, nil)
 			if err != nil {
 				return
 			}
@@ -170,11 +185,28 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 				return
 			}
 
+			// Cancel the context for other requests in parallel as we found one which is online.
 			pingCancel()
 			mu.Lock()
 			defer mu.Unlock()
-			addrsToUpdate = append(addrsToUpdate, multi)
+			if !found {
+				address = multi
+				found = true
+			}
 		})
+
+		// If we do find one which is alive, we compare it with our stored value
+		// decide if we need to do an update
+		if found {
+			stored, err := updater.multiStore.Address(key)
+			if err != nil && err != store.ErrNotFound {
+				updater.logger.Warnf("[updater] cannot read multiAddress of id %v", key, err)
+				return
+			}
+			if err == store.ErrNotFound || address.String() != stored.String() {
+				addrsToUpdate = append(addrsToUpdate, address)
+			}
+		}
 	})
 
 	// Update store with new addresses
@@ -183,13 +215,7 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 		return
 	}
 
-	// Delete non-responsive addresses
-	if err := updater.multiStore.Delete(idsToDelete); err != nil {
-		updater.logger.Errorf("cannot delete non-responsive addresses: %v", err)
-		return
-	}
-
-	// Print how many nodes we have connected to.
+	// Print how many nodes we have connected to.git
 	size := updater.multiStore.Size()
 	updater.logger.Infof("connected to %v nodes", size)
 }
