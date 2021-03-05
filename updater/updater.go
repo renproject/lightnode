@@ -63,7 +63,7 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 	queryCtx, cancel := context.WithTimeout(ctx, updater.pollRate)
 	defer cancel()
 
-	// Initialize address map for updating/deleting
+	// Initialize address list for updating
 	addrsToUpdate := []addr.MultiAddress{}
 
 	// Query 50 random addresses from store
@@ -86,7 +86,7 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 			Params:  params,
 		}
 
-		address := fmt.Sprintf("http://%s:%v", randAddrs[i].IP4(), randAddrs[i].Port()+1)
+		address := fmt.Sprintf("http://%s:18515", randAddrs[i].IP4())
 		response, err := updater.client.SendRequest(queryCtx, address, request, nil)
 		if err != nil {
 			return

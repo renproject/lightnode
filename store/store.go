@@ -75,7 +75,6 @@ func New(db *sql.DB, bootstrapAddrs addr.MultiAddresses) (MultiAddrStore, error)
 	if err != nil {
 		return nil, err
 	}
-	addrs := make(addr.MultiAddresses, 0)
 	for rows.Next() {
 		var id, ip string
 		if err := rows.Scan(&id, &ip); err != nil {
@@ -86,7 +85,7 @@ func New(db *sql.DB, bootstrapAddrs addr.MultiAddresses) (MultiAddrStore, error)
 		if err != nil {
 			return nil, err
 		}
-		addrs = append(addrs, address)
+		s.addresses[address.ID().String()] = address
 	}
 	if rows.Err() != nil {
 		return nil, err

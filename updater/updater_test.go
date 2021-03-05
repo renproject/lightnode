@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http/httptest"
 	"time"
 
@@ -60,7 +61,7 @@ var _ = Describe("Updater", func() {
 	})
 
 	Context("when running against existing network", func() {
-		It("should connect to most of the nodes", func() {
+		FIt("should connect to most of the nodes", func() {
 			addrStrs := []string{
 				"/ip4/35.180.200.106/tcp/18514/ren/8MGaGCjCjrJMjp7kMrkKzxtmLpbX8q",
 				"/ip4/18.221.96.210/tcp/18514/ren/8MKcWsSD8asdBzsGrFh7jShGL9QJR3",
@@ -90,9 +91,12 @@ var _ = Describe("Updater", func() {
 			}()
 
 			updater := updater.New(logger, store, 10*time.Second, 5*time.Second)
+			log.Print("size = ", store.Size())
+
 			go updater.Run(context.Background())
 
 			time.Sleep(30 * time.Second)
+			time.Sleep(time.Hour)
 
 			size := store.Size()
 			Expect(size).Should(BeNumerically(">", 1000))
