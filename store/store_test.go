@@ -37,6 +37,9 @@ var _ = Describe("MultiAddrStore", func() {
 		}
 		sqlDB, err := sql.Open(name, source)
 		Expect(err).NotTo(HaveOccurred())
+		query := "DROP TABLE IF EXISTS addresses;"
+		_, err = sqlDB.Exec(query)
+		Expect(err).NotTo(HaveOccurred())
 
 		// foreign_key needs to be manually enabled for Sqlite
 		if name == Sqlite {

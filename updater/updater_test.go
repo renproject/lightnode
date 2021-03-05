@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"net/http/httptest"
 	"time"
 
@@ -61,15 +60,15 @@ var _ = Describe("Updater", func() {
 	})
 
 	Context("when running against existing network", func() {
-		FIt("should connect to most of the nodes", func() {
+		It("should connect to most of the nodes", func() {
 			addrStrs := []string{
-				"/ip4/35.180.200.106/tcp/18514/ren/8MGaGCjCjrJMjp7kMrkKzxtmLpbX8q",
-				"/ip4/18.221.96.210/tcp/18514/ren/8MKcWsSD8asdBzsGrFh7jShGL9QJR3",
-				"/ip4/3.23.0.5/tcp/18514/ren/8MGC6fgodDrs3x97e8cACQ691Fme5Z",
-				"/ip4/18.231.47.73/tcp/18514/ren/8MGDQn1LrKBbiqWU9q4Re3xSsbDAKS",
-				"/ip4/15.223.97.146/tcp/18514/ren/8MJDZ8Dsg4jytEZxnmY4dQcmUqkUYN",
-				"/ip4/3.13.16.10/tcp/18514/ren/8MJiy8CU3HvTWTTCAuhDEjHTe5dvib",
-				"/ip4/13.238.180.76/tcp/18514/ren/8MK929isSkURtgwjZNsG31HNZYEyfx",
+				"/ip4/35.180.200.106/tcp/18515/ren/8MGaGCjCjrJMjp7kMrkKzxtmLpbX8q",
+				"/ip4/18.221.96.210/tcp/18515/ren/8MKcWsSD8asdBzsGrFh7jShGL9QJR3",
+				"/ip4/3.23.0.5/tcp/18515/ren/8MGC6fgodDrs3x97e8cACQ691Fme5Z",
+				"/ip4/18.231.47.73/tcp/18515/ren/8MGDQn1LrKBbiqWU9q4Re3xSsbDAKS",
+				"/ip4/15.223.97.146/tcp/18515/ren/8MJDZ8Dsg4jytEZxnmY4dQcmUqkUYN",
+				"/ip4/3.13.16.10/tcp/18515/ren/8MJiy8CU3HvTWTTCAuhDEjHTe5dvib",
+				"/ip4/13.238.180.76/tcp/18515/ren/8MK929isSkURtgwjZNsG31HNZYEyfx",
 			}
 			addrs := make([]addr.MultiAddress, len(addrStrs))
 			for i, str := range addrStrs {
@@ -91,12 +90,9 @@ var _ = Describe("Updater", func() {
 			}()
 
 			updater := updater.New(logger, store, 10*time.Second, 5*time.Second)
-			log.Print("size = ", store.Size())
-
 			go updater.Run(context.Background())
 
 			time.Sleep(30 * time.Second)
-			time.Sleep(time.Hour)
 
 			size := store.Size()
 			Expect(size).Should(BeNumerically(">", 1000))

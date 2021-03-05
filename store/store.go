@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net"
 	"strings"
 	"sync"
 
@@ -80,7 +81,11 @@ func New(db *sql.DB, bootstrapAddrs addr.MultiAddresses) (MultiAddrStore, error)
 		if err := rows.Scan(&id, &ip); err != nil {
 			return nil, err
 		}
-		multiStr := fmt.Sprintf("/ip4/%v/tcp/%v/ren/%v", ip, RenPort, id)
+		ipAddr, err := net.ResolveTCPAddr("tcp", ip)
+		if err != nil {
+			return nil, err
+		}
+		multiStr := fmt.Sprintf("/ip4/%v/tcp/%v/ren/%v", ipAddr.IP.String(), ipAddr.Port, id)
 		address, err := addr.NewMultiAddressFromString(multiStr)
 		if err != nil {
 			return nil, err
@@ -133,7 +138,7 @@ func (s *store) Insert(addresses addr.MultiAddresses) error {
 	// According to https://stackoverflow.com/questions/12486436/how-do-i-batch-sql-statements-with-package-database-sql/25192138#25192138
 	values := make([]string, len(updates))
 	for i, addr := range updates {
-		values[i] = fmt.Sprintf("('%v', '%v')", addr.ID().String(), addr.IP4())
+		values[i] = fmt.Sprintf("('%v', '%v')", addr.ID().String(), fmt.Sprintf("%v:%v", addr.IP4(), addr.Port()))
 	}
 
 	query := fmt.Sprintf(`INSERT INTO addresses (id, ip) VALUES %v ON CONFLICT (id) DO UPDATE SET ip=excluded.ip;`, strings.Join(values, ","))
