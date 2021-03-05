@@ -62,18 +62,28 @@ func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64,
 	resultChan := make(chan BurnLogResult)
 
 	go func() {
-		for iter.Next() {
-			err := iter.Error()
-			if err != nil {
-				resultChan <- BurnLogResult{Error: err}
-				break
+		func() {
+			for iter.Next() {
+				resultChan <- BurnLogResult{Result: *iter.Event}
+				select {
+				case <-ctx.Done():
+					return
+				}
 			}
-			resultChan <- BurnLogResult{Result: *iter.Event}
-			select {
-			case <-ctx.Done():
-				break
-			}
+		}()
+		// Iter should stop if an error occurs,
+		// so no need to check on each iteration
+		err := iter.Error()
+		if err != nil {
+			resultChan <- BurnLogResult{Error: err}
 		}
+		// Always close the iter because apparently
+		// it doesn't close its subscription?
+		err = iter.Close()
+		if err != nil {
+			resultChan <- BurnLogResult{Error: err}
+		}
+
 		close(resultChan)
 	}()
 
@@ -171,7 +181,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 	// Loop through the logs and check if there are burn events.
 	for res := range c {
 		if res.Error != nil {
-			watcher.logger.Errorf("[watcher] error iterating LogBurn events from=%v to=%v: %v", last, cur, err)
+			watcher.logger.Errorf("[watcher] error iterating LogBurn events from=%v to=%v: %v", last, cur, res.Error)
 			return
 		}
 		event := res.Result
