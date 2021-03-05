@@ -41,7 +41,7 @@ func initDarknodes(n int) []*MockDarknode {
 
 var _ = Describe("Updater", func() {
 	Context("When running", func() {
-		FIt("should periodically query the darknodes", func() {
+		It("should periodically query the darknodes", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
