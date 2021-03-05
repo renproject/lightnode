@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	_ "github.com/mattn/go-sqlite3"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -27,11 +28,21 @@ import (
 
 type MockBurnLogFetcher struct {
 	BurnIn chan BurnLogResult
+	state  *MockState
+}
+
+type MockState struct {
+	futureLogs []BurnLogResult
+	logs       uint
 }
 
 func NewMockBurnLogFetcher() MockBurnLogFetcher {
 	return MockBurnLogFetcher{
 		BurnIn: make(chan BurnLogResult),
+		state: &MockState{
+			futureLogs: make([]BurnLogResult, 0),
+			logs:       0,
+		},
 	}
 }
 
@@ -39,11 +50,38 @@ func (fetcher MockBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64
 	x := make(chan BurnLogResult)
 
 	go func() {
+		newLogs := make([]BurnLogResult, 0)
+		for i := range fetcher.state.futureLogs {
+			e := fetcher.state.futureLogs[i]
+			if e.Result.Raw.BlockNumber > to {
+				newLogs = append(newLogs, e)
+				continue
+			}
+			if e.Result.Raw.BlockNumber < to && e.Result.Raw.BlockNumber > from {
+				x <- e
+			}
+		}
+		fetcher.state.futureLogs = newLogs
 		// We always need to drain the channel,
 		// even if the context finishes before the channel is drained,
 		// to prevent blocking
 		for e := range fetcher.BurnIn {
-			x <- e
+			fetcher.state.logs += 1
+			// If we haven't set a block number, don't filter
+			if e.Result.Raw.BlockNumber == 0 {
+				x <- e
+				continue
+			}
+
+			// If the event is in the future, cache it for later
+			if e.Result.Raw.BlockNumber > to {
+				fetcher.state.futureLogs = append(fetcher.state.futureLogs, e)
+				continue
+			}
+
+			if e.Result.Raw.BlockNumber > from {
+				x <- e
+			}
 		}
 		close(x)
 	}()
@@ -155,6 +193,130 @@ var _ = Describe("Watcher", func() {
 				h := redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", 0)).Val()
 				return h
 			}, 15*time.Second).Should(Equal(v0Hash.String()))
+		})
+
+		It("should not process burn events in the future or the past", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			watcher, redisClient, burnIn, _ := init(ctx, time.Second, true)
+			defer redisClient.Close()
+
+			go watcher.Run(ctx)
+			// Wait for the block number to be picked up
+			time.Sleep(time.Second)
+
+			burnIn <- BurnLogResult{
+				Result: ethereumbindings.MintGatewayLogicV1LogBurn{
+					To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+					Amount:    big.NewInt(10000),
+					N:         big.NewInt(0),
+					IndexedTo: [32]byte{},
+					Raw: types.Log{
+						BlockNumber: 1,
+					},
+				},
+			}
+
+			burnIn <- BurnLogResult{
+				Result: ethereumbindings.MintGatewayLogicV1LogBurn{
+					To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+					Amount:    big.NewInt(10000),
+					N:         big.NewInt(0),
+					IndexedTo: [32]byte{},
+					Raw: types.Log{
+						BlockNumber: 100000000,
+					},
+				},
+			}
+
+			selector := tx.Selector("BTC/fromEthereum")
+			v0Hash := v0.BurnTxHash(selector, pack.NewU256FromU8(0))
+
+			time.Sleep(2 * time.Second)
+
+			h := redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", 0)).Val()
+			Expect(h).NotTo(Equal(v0Hash.String()))
+
+		})
+
+		It("should process logs in block batches", func() {
+			ethC, err := ethclient.Dial("https://multichain-staging.renproject.io/testnet/geth")
+			Expect(err).NotTo(HaveOccurred())
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			watcher, redisClient, burnIn, _ := init(ctx, time.Second, true)
+			defer redisClient.Close()
+
+			currentBlock, err := ethC.HeaderByNumber(ctx, nil)
+			Expect(err).NotTo(HaveOccurred())
+			blockNumber := currentBlock.Number.Uint64()
+
+			// Set the last checked block some time in the past
+			redisClient.Set("BTC/fromEthereum_lastCheckedBlock", blockNumber-5000, 0)
+			go watcher.Run(ctx)
+
+			burnIn <- BurnLogResult{
+				Result: ethereumbindings.MintGatewayLogicV1LogBurn{
+					To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+					Amount:    big.NewInt(10000),
+					N:         big.NewInt(0),
+					IndexedTo: [32]byte{},
+					Raw: types.Log{
+						BlockNumber: blockNumber,
+					},
+				},
+			}
+
+			burnIn <- BurnLogResult{
+				Result: ethereumbindings.MintGatewayLogicV1LogBurn{
+					To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+					Amount:    big.NewInt(10000),
+					N:         big.NewInt(1),
+					IndexedTo: [32]byte{},
+					Raw: types.Log{
+						BlockNumber: blockNumber - 4500,
+					},
+				},
+			}
+
+			burnIn <- BurnLogResult{
+				Result: ethereumbindings.MintGatewayLogicV1LogBurn{
+					To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+					Amount:    big.NewInt(10000),
+					N:         big.NewInt(2),
+					IndexedTo: [32]byte{},
+					Raw: types.Log{
+						BlockNumber: blockNumber - 1500,
+					},
+				},
+			}
+
+			close(burnIn)
+
+			selector := tx.Selector("BTC/fromEthereum")
+			v0Hash := v0.BurnTxHash(selector, pack.NewU256FromU8(0))
+
+			time.Sleep(2 * time.Second)
+			h := redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", 0)).Val()
+			// We should not see the first transaction, because it is too new
+			Expect(h).NotTo(Equal(v0Hash.String()))
+
+			v0Hash = v0.BurnTxHash(selector, pack.NewU256FromU8(1))
+			h = redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", 1)).Val()
+			// We should see the second transaction, because it falls in the first batch
+			Expect(h).To(Equal(v0Hash.String()))
+
+			v0Hash = v0.BurnTxHash(selector, pack.NewU256FromU8(2))
+			h = redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", 2)).Val()
+			// We should not see the third transaction, because it falls in the fourth batch
+			Expect(h).NotTo(Equal(v0Hash.String()))
+
+			// After a few more ticks, we should see the fourth tx
+			time.Sleep(4 * time.Second)
+
+			h = redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", 2)).Val()
+			Expect(h).To(Equal(v0Hash.String()))
 		})
 
 		It("should handle failures to fetch burn events", func() {
