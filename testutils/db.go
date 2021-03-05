@@ -11,6 +11,7 @@ import (
 	"github.com/renproject/darknode/addr"
 	"github.com/renproject/kv"
 	"github.com/renproject/kv/db"
+	"github.com/renproject/lightnode/store"
 )
 
 // CheckTableExistence checks the underlying `db` object if there exists a table
@@ -150,6 +151,9 @@ func (multiStore *MultiAddrStore) Size() int {
 func (multiStore *MultiAddrStore) Address(id string) (addr.MultiAddress, error) {
 	var multiAddrString string
 	if err := multiStore.store.Get(id, &multiAddrString); err != nil {
+		if err == db.ErrKeyNotFound {
+			return addr.MultiAddress{}, store.ErrNotFound
+		}
 		return addr.MultiAddress{}, err
 	}
 	return addr.NewMultiAddressFromString(multiAddrString)
