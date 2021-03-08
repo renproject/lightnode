@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
@@ -32,6 +33,7 @@ type MockBurnLogFetcher struct {
 }
 
 type MockState struct {
+	mu         sync.Mutex
 	futureLogs []BurnLogResult
 	logs       uint
 }
@@ -50,6 +52,7 @@ func (fetcher MockBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64
 	x := make(chan BurnLogResult)
 
 	go func() {
+
 		newLogs := make([]BurnLogResult, 0)
 		for i := range fetcher.state.futureLogs {
 			e := fetcher.state.futureLogs[i]
@@ -61,12 +64,14 @@ func (fetcher MockBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64
 				x <- e
 			}
 		}
+
+		fetcher.state.mu.Lock()
 		fetcher.state.futureLogs = newLogs
+		fetcher.state.mu.Unlock()
 		// We always need to drain the channel,
 		// even if the context finishes before the channel is drained,
 		// to prevent blocking
 		for e := range fetcher.BurnIn {
-			fetcher.state.logs += 1
 			// If we haven't set a block number, don't filter
 			if e.Result.Raw.BlockNumber == 0 {
 				x <- e
@@ -75,7 +80,10 @@ func (fetcher MockBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64
 
 			// If the event is in the future, cache it for later
 			if e.Result.Raw.BlockNumber > to {
+
+				fetcher.state.mu.Lock()
 				fetcher.state.futureLogs = append(fetcher.state.futureLogs, e)
+				fetcher.state.mu.Unlock()
 				continue
 			}
 
@@ -83,6 +91,7 @@ func (fetcher MockBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64
 				x <- e
 			}
 		}
+
 		close(x)
 	}()
 
