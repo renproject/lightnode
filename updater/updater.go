@@ -204,7 +204,9 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 				return
 			}
 			if err == store.ErrNotFound || address.String() != stored.String() {
+				mu.Lock()
 				addrsToUpdate = append(addrsToUpdate, address)
+				mu.Unlock()
 			}
 		}
 	})
