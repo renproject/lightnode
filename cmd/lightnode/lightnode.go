@@ -210,6 +210,12 @@ func parseOptions() lightnode.Options {
 	if os.Getenv("WATCHER_POLL_RATE") != "" {
 		options = options.WithWatcherPollRate(parseTime("WATCHER_POLL_RATE"))
 	}
+	if os.Getenv("WATCHER_MAX_BLOCK_ADVANCE") != "" {
+		options = options.WithWatcherMaxBlockAdvance(uint64(parseInt("WATCHER_MAX_BLOCK_ADVANCE")))
+	}
+	if os.Getenv("WATCHER_CONFIDENCE_INTERVAL") != "" {
+		options = options.WithWatcherMaxBlockAdvance(uint64(parseInt("WATCHER_CONFIDENCE_INTERVAL")))
+	}
 	if os.Getenv("EXPIRY") != "" {
 		options = options.WithTransactionExpiry(parseTime("EXPIRY"))
 	}

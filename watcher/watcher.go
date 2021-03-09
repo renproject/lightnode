@@ -108,7 +108,7 @@ type Watcher struct {
 }
 
 // NewWatcher returns a new Watcher.
-func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector tx.Selector, bindings txengine.Bindings, ethClient *ethclient.Client, burnLogFetcher BurnLogFetcher, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey, pollInterval time.Duration) Watcher {
+func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector tx.Selector, bindings txengine.Bindings, ethClient *ethclient.Client, burnLogFetcher BurnLogFetcher, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey, pollInterval time.Duration, maxBlockAdvance uint64, confidenceInterval uint64) Watcher {
 	gpubkey := (*btcec.PublicKey)(distPubKey).SerializeCompressed()
 	return Watcher{
 		logger:             logger,
@@ -121,8 +121,8 @@ func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector 
 		resolver:           resolver,
 		cache:              cache,
 		pollInterval:       pollInterval,
-		maxBlockAdvance:    1000,
-		confidenceInterval: 6,
+		maxBlockAdvance:    maxBlockAdvance,
+		confidenceInterval: confidenceInterval,
 	}
 }
 
