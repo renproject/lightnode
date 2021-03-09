@@ -13,56 +13,62 @@ import (
 
 // Enumerate default options.
 var (
-	DefaultPort              = "5000"
-	DefaultCap               = 128
-	DefaultMaxBatchSize      = 10
-	DefaultMaxPageSize       = 10
-	DefaultServerTimeout     = 15 * time.Second
-	DefaultClientTimeout     = 15 * time.Second
-	DefaultTTL               = 3 * time.Second
-	DefaultUpdaterPollRate   = 5 * time.Minute
-	DefaultConfirmerPollRate = confirmer.DefaultPollInterval
-	DefaultWatcherPollRate   = 15 * time.Second
-	DefaultTransactionExpiry = confirmer.DefaultExpiry
-	DefaultBootstrapAddrs    = []wire.Address{}
+	DefaultPort                      = "5000"
+	DefaultCap                       = 128
+	DefaultMaxBatchSize              = 10
+	DefaultMaxPageSize               = 10
+	DefaultServerTimeout             = 15 * time.Second
+	DefaultClientTimeout             = 15 * time.Second
+	DefaultTTL                       = 3 * time.Second
+	DefaultUpdaterPollRate           = 5 * time.Minute
+	DefaultConfirmerPollRate         = confirmer.DefaultPollInterval
+	DefaultWatcherPollRate           = 15 * time.Second
+	DefaultWatcherMaxBlockAdvance    = uint64(1000)
+	DefaultWatcherConfidenceInterval = uint64(6)
+	DefaultTransactionExpiry         = confirmer.DefaultExpiry
+	DefaultBootstrapAddrs            = []wire.Address{}
 )
 
 // Options to configure the precise behaviour of the Lightnode.
 type Options struct {
-	Network           multichain.Network
-	DistPubKey        *id.PubKey
-	Port              string
-	Cap               int
-	MaxBatchSize      int
-	MaxPageSize       int
-	ServerTimeout     time.Duration
-	ClientTimeout     time.Duration
-	TTL               time.Duration
-	UpdaterPollRate   time.Duration
-	ConfirmerPollRate time.Duration
-	WatcherPollRate   time.Duration
-	TransactionExpiry time.Duration
-	BootstrapAddrs    []wire.Address
-	Chains            map[multichain.Chain]txenginebindings.ChainOptions
-	Whitelist         []tx.Selector
+	Network                   multichain.Network
+	DistPubKey                *id.PubKey
+	Port                      string
+	Cap                       int
+	MaxBatchSize              int
+	MaxPageSize               int
+	ServerTimeout             time.Duration
+	ClientTimeout             time.Duration
+	TTL                       time.Duration
+	UpdaterPollRate           time.Duration
+	ConfirmerPollRate         time.Duration
+	WatcherPollRate           time.Duration
+	WatcherMaxBlockAdvance    uint64
+	WatcherConfidenceInterval uint64
+	TransactionExpiry         time.Duration
+	BootstrapAddrs            []wire.Address
+	Chains                    map[multichain.Chain]txenginebindings.ChainOptions
+	Whitelist                 []tx.Selector
 }
 
 // DefaultOptions returns new options with default configurations that should
 // work for the majority of use cases.
 func DefaultOptions() Options {
 	return Options{
-		Port:              DefaultPort,
-		Cap:               DefaultCap,
-		MaxBatchSize:      DefaultMaxBatchSize,
-		MaxPageSize:       DefaultMaxPageSize,
-		ServerTimeout:     DefaultServerTimeout,
-		ClientTimeout:     DefaultClientTimeout,
-		TTL:               DefaultTTL,
-		UpdaterPollRate:   DefaultUpdaterPollRate,
-		ConfirmerPollRate: DefaultConfirmerPollRate,
-		WatcherPollRate:   DefaultWatcherPollRate,
-		TransactionExpiry: DefaultTransactionExpiry,
-		BootstrapAddrs:    DefaultBootstrapAddrs,
+		Port:                      DefaultPort,
+		Cap:                       DefaultCap,
+		MaxBatchSize:              DefaultMaxBatchSize,
+		MaxPageSize:               DefaultMaxPageSize,
+		ServerTimeout:             DefaultServerTimeout,
+		ClientTimeout:             DefaultClientTimeout,
+		TTL:                       DefaultTTL,
+		UpdaterPollRate:           DefaultUpdaterPollRate,
+		ConfirmerPollRate:         DefaultConfirmerPollRate,
+		WatcherPollRate:           DefaultWatcherPollRate,
+		WatcherMaxBlockAdvance:    DefaultWatcherMaxBlockAdvance,
+		WatcherConfidenceInterval: DefaultWatcherConfidenceInterval,
+		TransactionExpiry:         DefaultTransactionExpiry,
+		BootstrapAddrs:            DefaultBootstrapAddrs,
 	}
 }
 
@@ -137,6 +143,18 @@ func (opts Options) WithConfirmerPollRate(confirmerPollRate time.Duration) Optio
 // WithWatcherPollRate updates the watcher poll rate.
 func (opts Options) WithWatcherPollRate(watcherPollRate time.Duration) Options {
 	opts.WatcherPollRate = watcherPollRate
+	return opts
+}
+
+// WithWatcherPollRate updates the watcher poll rate.
+func (opts Options) WithWatcherMaxBlockAdvance(watcherMaxBlockAdvance uint64) Options {
+	opts.WatcherMaxBlockAdvance = watcherMaxBlockAdvance
+	return opts
+}
+
+// WithWatcherPollRate updates the watcher poll rate.
+func (opts Options) WithWatcherConfidenceInterval(watcherConfidenceInterval uint64) Options {
+	opts.WatcherConfidenceInterval = DefaultWatcherConfidenceInterval
 	return opts
 }
 

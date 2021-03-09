@@ -71,12 +71,7 @@ func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64,
 				}
 			}
 		}()
-		// Iter should stop if an error occurs,
-		// so no need to check on each iteration
-		err := iter.Error()
-		if err != nil {
-			resultChan <- BurnLogResult{Error: err}
-		}
+
 		// Always close the iter because apparently
 		// it doesn't close its subscription?
 		err = iter.Close()
@@ -84,41 +79,52 @@ func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64,
 			resultChan <- BurnLogResult{Error: err}
 		}
 
+		// Iter should stop if an error occurs,
+		// so no need to check on each iteration
+		err := iter.Error()
+		if err != nil {
+			resultChan <- BurnLogResult{Error: err}
+		}
+
 		close(resultChan)
 	}()
 
-	return resultChan, iter.Error()
+	return resultChan, nil
 }
 
 // Watcher watches for event logs for burn transactions. These transactions are
 // then forwarded to the cacher.
 type Watcher struct {
-	network        multichain.Network
-	logger         logrus.FieldLogger
-	gpubkey        pack.Bytes
-	selector       tx.Selector
-	bindings       txengine.Bindings
-	ethClient      *ethclient.Client
-	burnLogFetcher BurnLogFetcher
-	resolver       jsonrpc.Resolver
-	cache          redis.Cmdable
-	pollInterval   time.Duration
+	network            multichain.Network
+	logger             logrus.FieldLogger
+	gpubkey            pack.Bytes
+	selector           tx.Selector
+	bindings           txengine.Bindings
+	ethClient          *ethclient.Client
+	burnLogFetcher     BurnLogFetcher
+	resolver           jsonrpc.Resolver
+	cache              redis.Cmdable
+	pollInterval       time.Duration
+	maxBlockAdvance    uint64
+	confidenceInterval uint64
 }
 
 // NewWatcher returns a new Watcher.
-func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector tx.Selector, bindings txengine.Bindings, ethClient *ethclient.Client, burnLogFetcher BurnLogFetcher, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey, pollInterval time.Duration) Watcher {
+func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector tx.Selector, bindings txengine.Bindings, ethClient *ethclient.Client, burnLogFetcher BurnLogFetcher, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey, pollInterval time.Duration, maxBlockAdvance uint64, confidenceInterval uint64) Watcher {
 	gpubkey := (*btcec.PublicKey)(distPubKey).SerializeCompressed()
 	return Watcher{
-		logger:         logger,
-		network:        network,
-		gpubkey:        gpubkey,
-		selector:       selector,
-		bindings:       bindings,
-		ethClient:      ethClient,
-		burnLogFetcher: burnLogFetcher,
-		resolver:       resolver,
-		cache:          cache,
-		pollInterval:   pollInterval,
+		logger:             logger,
+		network:            network,
+		gpubkey:            gpubkey,
+		selector:           selector,
+		bindings:           bindings,
+		ethClient:          ethClient,
+		burnLogFetcher:     burnLogFetcher,
+		resolver:           resolver,
+		cache:              cache,
+		pollInterval:       pollInterval,
+		maxBlockAdvance:    maxBlockAdvance,
+		confidenceInterval: confidenceInterval,
 	}
 }
 
@@ -170,9 +176,17 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		return
 	}
 
+	// Only advance by a set number of blocks at a time to prevent over-subscription
+	step := last + watcher.maxBlockAdvance
+	if step < cur {
+		cur = step
+	}
+
+	// avoid checking blocks that might have shuffled
+	cur -= watcher.confidenceInterval
+
 	// Fetch logs
-	// Add 1 to last so that we don't process duplicates
-	c, err := watcher.burnLogFetcher.FetchBurnLogs(ctx, last+1, cur)
+	c, err := watcher.burnLogFetcher.FetchBurnLogs(ctx, last, cur)
 	if err != nil {
 		watcher.logger.Errorf("[watcher] error iterating LogBurn events from=%v to=%v: %v", last, cur, err)
 		return

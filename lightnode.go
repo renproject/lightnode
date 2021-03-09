@@ -148,7 +148,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 				watchers[chain] = map[multichain.Asset]watcher.Watcher{}
 			}
 			burnLogFetcher := watcher.NewBurnLogFetcher(bindings)
-			watchers[chain][asset] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, ethClients[chain], burnLogFetcher, resolverI, client, options.DistPubKey, options.WatcherPollRate)
+			watchers[chain][asset] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, ethClients[chain], burnLogFetcher, resolverI, client, options.DistPubKey, options.WatcherPollRate, options.WatcherMaxBlockAdvance, options.WatcherConfidenceInterval)
 		}
 	}
 
