@@ -41,7 +41,7 @@ func NewMockDarknode(server *httptest.Server, store store.MultiAddrStore) *MockD
 	if err != nil {
 		panic(err)
 	}
-	if err := store.Insert(multi); err != nil {
+	if err := store.Insert([]addr.MultiAddress{multi}); err != nil {
 		panic(err)
 	}
 	return &MockDarknode{

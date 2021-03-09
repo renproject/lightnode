@@ -165,7 +165,7 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 
 	select {
 	case <-ctx.Done():
-		resolver.logger.Error("timeout when waiting for response: %v", ctx.Err())
+		resolver.logger.Warnf("timeout when waiting for response: %v", ctx.Err())
 		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "request timed out", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	case res := <-reqWithResponder.Responder:
