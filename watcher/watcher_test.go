@@ -114,6 +114,7 @@ var _ = Describe("Watcher", func() {
 		})
 
 		logger := logrus.New()
+		logger.SetLevel(logrus.ErrorLevel)
 
 		selector := tx.Selector("BTC/fromEthereum")
 

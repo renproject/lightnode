@@ -71,12 +71,7 @@ func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64,
 				}
 			}
 		}()
-		// Iter should stop if an error occurs,
-		// so no need to check on each iteration
-		err := iter.Error()
-		if err != nil {
-			resultChan <- BurnLogResult{Error: err}
-		}
+
 		// Always close the iter because apparently
 		// it doesn't close its subscription?
 		err = iter.Close()
@@ -84,10 +79,17 @@ func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64,
 			resultChan <- BurnLogResult{Error: err}
 		}
 
+		// Iter should stop if an error occurs,
+		// so no need to check on each iteration
+		err := iter.Error()
+		if err != nil {
+			resultChan <- BurnLogResult{Error: err}
+		}
+
 		close(resultChan)
 	}()
 
-	return resultChan, iter.Error()
+	return resultChan, nil
 }
 
 // Watcher watches for event logs for burn transactions. These transactions are
