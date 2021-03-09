@@ -1,3 +1,7 @@
+## 0.3.1
+
+- Update to Multichain v0.2.24
+
 ## 0.3.0
 
 - Add compatibility with v0 txs

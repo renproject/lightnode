@@ -23,7 +23,7 @@ require (
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/mercury v0.3.16
-	github.com/renproject/multichain v0.2.23
+	github.com/renproject/multichain v0.2.24
 	github.com/renproject/pack v0.2.7
 	github.com/renproject/phi v0.1.0
 	github.com/sirupsen/logrus v1.6.0
