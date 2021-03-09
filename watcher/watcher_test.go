@@ -7,26 +7,24 @@ import (
 	"sync"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	. "github.com/renproject/lightnode/watcher"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/go-redis/redis/v7"
-	_ "github.com/mattn/go-sqlite3"
-	"github.com/sirupsen/logrus"
-
-	v0 "github.com/renproject/lightnode/compat/v0"
-	. "github.com/renproject/lightnode/watcher"
-
 	"github.com/renproject/darknode/jsonrpc/jsonrpcresolver"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/darknode/txengine/txenginebindings/ethereumbindings"
 	"github.com/renproject/id"
+	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
+	"github.com/sirupsen/logrus"
 )
 
 type MockBurnLogFetcher struct {
