@@ -86,7 +86,7 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 			Params:  params,
 		}
 
-		address := fmt.Sprintf("http://%s:%v", multi.IP4(), multi.Port())
+		address := fmt.Sprintf("http://%s:%v", multi.IP4(), multi.Port() +1 )
 		response, err := updater.client.SendRequest(queryCtx, address, request, nil)
 		if err != nil {
 			return
