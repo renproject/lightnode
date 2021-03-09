@@ -25,35 +25,100 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type BurnLogResult struct {
+	Result ethereumbindings.MintGatewayLogicV1LogBurn
+	Error  error
+}
+
+type BurnLogFetcher interface {
+	FetchBurnLogs(ctx context.Context, from uint64, to uint64) (chan BurnLogResult, error)
+}
+
+type EthBurnLogFetcher struct {
+	bindings *ethereumbindings.MintGatewayLogicV1
+}
+
+func NewBurnLogFetcher(bindings *ethereumbindings.MintGatewayLogicV1) EthBurnLogFetcher {
+	return EthBurnLogFetcher{
+		bindings: bindings,
+	}
+}
+
+// This will fetch the burn event logs using the ethereum bindings and emit them via a channel
+// We do this so that we can unit test the log handling without calling ethereum
+func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uint64) (chan BurnLogResult, error) {
+	iter, err := fetcher.bindings.FilterLogBurn(
+		&bind.FilterOpts{
+			Context: ctx,
+			Start:   from,
+			End:     &to,
+		},
+		nil,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+	resultChan := make(chan BurnLogResult)
+
+	go func() {
+		func() {
+			for iter.Next() {
+				resultChan <- BurnLogResult{Result: *iter.Event}
+				select {
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+		// Iter should stop if an error occurs,
+		// so no need to check on each iteration
+		err := iter.Error()
+		if err != nil {
+			resultChan <- BurnLogResult{Error: err}
+		}
+		// Always close the iter because apparently
+		// it doesn't close its subscription?
+		err = iter.Close()
+		if err != nil {
+			resultChan <- BurnLogResult{Error: err}
+		}
+
+		close(resultChan)
+	}()
+
+	return resultChan, iter.Error()
+}
+
 // Watcher watches for event logs for burn transactions. These transactions are
 // then forwarded to the cacher.
 type Watcher struct {
-	network      multichain.Network
-	logger       logrus.FieldLogger
-	gpubkey      pack.Bytes
-	selector     tx.Selector
-	bindings     txengine.Bindings
-	ethClient    *ethclient.Client
-	ethBindings  *ethereumbindings.MintGatewayLogicV1
-	resolver     jsonrpc.Resolver
-	cache        redis.Cmdable
-	pollInterval time.Duration
+	network        multichain.Network
+	logger         logrus.FieldLogger
+	gpubkey        pack.Bytes
+	selector       tx.Selector
+	bindings       txengine.Bindings
+	ethClient      *ethclient.Client
+	burnLogFetcher BurnLogFetcher
+	resolver       jsonrpc.Resolver
+	cache          redis.Cmdable
+	pollInterval   time.Duration
 }
 
 // NewWatcher returns a new Watcher.
-func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector tx.Selector, bindings txengine.Bindings, ethClient *ethclient.Client, ethBindings *ethereumbindings.MintGatewayLogicV1, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey, pollInterval time.Duration) Watcher {
+func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector tx.Selector, bindings txengine.Bindings, ethClient *ethclient.Client, burnLogFetcher BurnLogFetcher, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey, pollInterval time.Duration) Watcher {
 	gpubkey := (*btcec.PublicKey)(distPubKey).SerializeCompressed()
 	return Watcher{
-		logger:       logger,
-		network:      network,
-		gpubkey:      gpubkey,
-		selector:     selector,
-		bindings:     bindings,
-		ethClient:    ethClient,
-		ethBindings:  ethBindings,
-		resolver:     resolver,
-		cache:        cache,
-		pollInterval: pollInterval,
+		logger:         logger,
+		network:        network,
+		gpubkey:        gpubkey,
+		selector:       selector,
+		bindings:       bindings,
+		ethClient:      ethClient,
+		burnLogFetcher: burnLogFetcher,
+		resolver:       resolver,
+		cache:          cache,
+		pollInterval:   pollInterval,
 	}
 }
 
@@ -92,6 +157,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 	}
 
 	if cur <= last {
+		watcher.logger.Warnf("[watcher] tried to process old blocks")
 		// Make sure we do not process old events. This could occur if there is
 		// an issue with the underlying blockchain node, for example if it needs
 		// to resync.
@@ -104,34 +170,33 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		return
 	}
 
-	// Filter for all burn events in this range of blocks.
-	iter, err := watcher.ethBindings.FilterLogBurn(
-		&bind.FilterOpts{
-			Context: ctx,
-			Start:   last + 1, // Add one to avoid duplication.
-			End:     &cur,
-		},
-		nil,
-		nil,
-	)
+	// Fetch logs
+	// Add 1 to last so that we don't process duplicates
+	c, err := watcher.burnLogFetcher.FetchBurnLogs(ctx, last+1, cur)
 	if err != nil {
-		watcher.logger.Errorf("[watcher] error filtering LogBurn events from=%v to=%v: %v", last, cur, err)
+		watcher.logger.Errorf("[watcher] error iterating LogBurn events from=%v to=%v: %v", last, cur, err)
 		return
 	}
 
 	// Loop through the logs and check if there are burn events.
-	for iter.Next() {
-		to := iter.Event.To
+	for res := range c {
+		if res.Error != nil {
+			watcher.logger.Errorf("[watcher] error iterating LogBurn events from=%v to=%v: %v", last, cur, res.Error)
+			return
+		}
+		event := res.Result
 
-		amount := iter.Event.Amount.Uint64()
-		nonce := iter.Event.N.Uint64()
+		to := event.To
+
+		amount := event.Amount.Uint64()
+		nonce := event.N.Uint64()
 		watcher.logger.Infof("[watcher] detected burn for %v (to=%v, amount=%v, nonce=%v)", watcher.selector.String(), string(to), amount, nonce)
 
 		var nonceBytes pack.Bytes32
 		copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
 
 		// Send the burn transaction to the resolver.
-		params, err := watcher.burnToParams(iter.Event.Raw.TxHash.Bytes(), pack.NewU256FromU64(pack.NewU64(amount)), to, nonceBytes, watcher.gpubkey)
+		params, err := watcher.burnToParams(event.Raw.TxHash.Bytes(), pack.NewU256FromU64(pack.NewU64(amount)), to, nonceBytes, watcher.gpubkey)
 		if err != nil {
 			watcher.logger.Errorf("[watcher] cannot get params from burn transaction (to=%v, amount=%v, nonce=%v): %v", to, amount, nonce, err)
 			continue
@@ -141,10 +206,6 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 			watcher.logger.Errorf("[watcher] invalid burn transaction %v: %v", params, response.Error.Message)
 			continue
 		}
-	}
-	if err := iter.Error(); err != nil {
-		watcher.logger.Errorf("[watcher] error iterating LogBurn events from=%v to=%v: %v", last, cur, err)
-		return
 	}
 
 	if err := watcher.cache.Set(watcher.key(), cur, 0).Err(); err != nil {
@@ -290,15 +351,6 @@ func NetParams(network multichain.Network, chain multichain.Chain) *chaincfg.Par
 			return &chaincfg.TestNet3Params
 		default:
 			return &chaincfg.RegressionNetParams
-		}
-	case multichain.Zcash:
-		switch network {
-		case multichain.NetworkMainnet:
-			return zcash.MainNetParams.Params
-		case multichain.NetworkDevnet, multichain.NetworkTestnet:
-			return zcash.TestNet3Params.Params
-		default:
-			return zcash.RegressionNetParams.Params
 		}
 	default:
 		panic(fmt.Errorf("cannot get network params: unknown chain %v", chain))
