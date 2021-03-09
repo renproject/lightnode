@@ -7,16 +7,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
-	_ "github.com/mattn/go-sqlite3"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/alicebob/miniredis/v2"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/go-redis/redis/v7"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/sirupsen/logrus"
+
 	v0 "github.com/renproject/lightnode/compat/v0"
 	. "github.com/renproject/lightnode/watcher"
 
-	"github.com/alicebob/miniredis/v2"
-	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode/jsonrpc/jsonrpcresolver"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/txengine/txenginebindings"
@@ -24,7 +27,6 @@ import (
 	"github.com/renproject/id"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
-	"github.com/sirupsen/logrus"
 )
 
 type MockBurnLogFetcher struct {
@@ -48,6 +50,8 @@ func NewMockBurnLogFetcher() MockBurnLogFetcher {
 	}
 }
 
+// Loop through the logs and pipe them to the channel if they are within the
+// provided block range. Otherwise, store them in a list for later use.
 func (fetcher MockBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uint64) (chan BurnLogResult, error) {
 	x := make(chan BurnLogResult)
 
@@ -148,7 +152,7 @@ var _ = Describe("Watcher", func() {
 
 		burnLogFetcher := NewMockBurnLogFetcher()
 
-		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, ethClient, burnLogFetcher, mockResolver, client, pubk, interval)
+		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, ethClient, burnLogFetcher, mockResolver, client, pubk, interval, 1000, 6)
 
 		return watcher, client, burnLogFetcher.BurnIn, mr
 	}
@@ -551,13 +555,21 @@ var _ = Describe("Watcher", func() {
 			}
 			close(burnIn)
 
+			v0Hashes := make([]string, 5000)
 			selector := tx.Selector("BTC/fromEthereum")
-			v0Hash := v0.BurnTxHash(selector, pack.NewU256FromU64(4999))
+			for i := range v0Hashes {
+				hash := v0.BurnTxHash(selector, pack.NewU256FromUint64(uint64(i))).String()
+				v0Hashes = append(v0Hashes[:], hash)
+			}
 
-			Eventually(func() string {
-				h := redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", 4999)).Val()
-				return h
-			}, 15*time.Second).Should(Equal(v0Hash.String()))
+			Eventually(func() []string {
+				hashes := make([]string, 5000)
+				for i := range hashes {
+					hash := redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", i)).Val()
+					hashes = append(hashes[:], hash)
+				}
+				return hashes
+			}, 15*time.Second).Should(Equal(v0Hashes))
 		})
 
 		It("should handle an intermittent responder", func() {
@@ -590,6 +602,41 @@ var _ = Describe("Watcher", func() {
 				h := redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", 0)).Val()
 				return h
 			}, 15*time.Second).Should(Equal(v0Hash.String()))
+		})
+
+		It("should be able to call filter logs on ethereum", func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			bindingsOpts := txenginebindings.DefaultOptions().
+				WithNetwork("localnet")
+
+			bindingsOpts.WithChainOptions(multichain.Bitcoin, txenginebindings.ChainOptions{
+				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
+				Confirmations: pack.U64(0),
+			})
+
+			bindingsOpts.WithChainOptions(multichain.Ethereum, txenginebindings.ChainOptions{
+				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
+				Confirmations: pack.U64(0),
+				Protocol:      pack.String("0x1CAD87e16b56815d6a0b4Cd91A6639eae86Fc53A"),
+			})
+
+			bindings, err := txenginebindings.New(bindingsOpts)
+			Expect(err).ToNot(HaveOccurred())
+
+			gateways := bindings.EthereumGateways()
+			btcGateway := gateways[multichain.Ethereum][multichain.BTC]
+			burnLogFetcher := NewBurnLogFetcher(btcGateway)
+
+			results, err := burnLogFetcher.FetchBurnLogs(ctx, 0, 0)
+			Expect(err).ToNot(HaveOccurred())
+
+			// wait to see if the channel picks anything up
+			time.Sleep(time.Second)
+
+			for r := range results {
+				Expect(r).To(BeEmpty())
+			}
 		})
 
 		It("should encode and decode addresses", func() {
