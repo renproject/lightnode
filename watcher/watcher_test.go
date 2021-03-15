@@ -3,23 +3,20 @@ package watcher_test
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	_ "github.com/mattn/go-sqlite3"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/watcher"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/go-redis/redis/v7"
+	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/jsonrpc/jsonrpcresolver"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/darknode/txengine/txenginebindings"
-	"github.com/renproject/darknode/txengine/txenginebindings/ethereumbindings"
 	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/multichain"
@@ -38,9 +35,9 @@ type MockState struct {
 	logs       uint
 }
 
-func NewMockBurnLogFetcher() MockBurnLogFetcher {
+func NewMockBurnLogFetcher(burnIn chan BurnLogResult) MockBurnLogFetcher {
 	return MockBurnLogFetcher{
-		BurnIn: make(chan BurnLogResult),
+		BurnIn: burnIn,
 		state: &MockState{
 			futureLogs: make([]BurnLogResult, 0),
 			logs:       0,
@@ -58,11 +55,11 @@ func (fetcher MockBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64
 		newLogs := make([]BurnLogResult, 0)
 		for i := range fetcher.state.futureLogs {
 			e := fetcher.state.futureLogs[i]
-			if e.Result.Raw.BlockNumber > to {
+			if e.Result.BlockNumber.Uint64() > to {
 				newLogs = append(newLogs, e)
 				continue
 			}
-			if e.Result.Raw.BlockNumber < to && e.Result.Raw.BlockNumber > from {
+			if e.Result.BlockNumber.Uint64() < to && e.Result.BlockNumber.Uint64() > from {
 				x <- e
 			}
 		}
@@ -75,13 +72,13 @@ func (fetcher MockBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64
 		// to prevent blocking
 		for e := range fetcher.BurnIn {
 			// If we haven't set a block number, don't filter
-			if e.Result.Raw.BlockNumber == 0 {
+			if e.Result.BlockNumber == 0 {
 				x <- e
 				continue
 			}
 
 			// If the event is in the future, cache it for later
-			if e.Result.Raw.BlockNumber > to {
+			if e.Result.BlockNumber.Uint64() > to {
 
 				fetcher.state.mu.Lock()
 				fetcher.state.futureLogs = append(fetcher.state.futureLogs, e)
@@ -89,7 +86,7 @@ func (fetcher MockBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64
 				continue
 			}
 
-			if e.Result.Raw.BlockNumber > from {
+			if e.Result.BlockNumber.Uint64() > from {
 				x <- e
 			}
 		}
@@ -127,33 +124,31 @@ var _ = Describe("Watcher", func() {
 			logger.Panicf("failed to create account client: %v", err)
 		}
 
-		bindingsOpts := txenginebindings.DefaultOptions().
-			WithNetwork("localnet")
+		burnIn := make(chan BurnLogResult)
+		bindingsOpts := binding.DefaultOptions().
+			WithNetwork("localnet").
+			WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
+				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
+				Confirmations: pack.U64(0),
+			}).
+			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
+				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
+				Confirmations: pack.U64(0),
+				Protocol:      pack.String("0x1CAD87e16b56815d6a0b4Cd91A6639eae86Fc53A"),
+			})
 
-		bindingsOpts.WithChainOptions(multichain.Bitcoin, txenginebindings.ChainOptions{
-			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
-			Confirmations: pack.U64(0),
-		})
-
-		bindingsOpts.WithChainOptions(multichain.Ethereum, txenginebindings.ChainOptions{
-			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
-			Confirmations: pack.U64(0),
-			Protocol:      pack.String("0x1CAD87e16b56815d6a0b4Cd91A6639eae86Fc53A"),
-		})
-
-		bindings, err := txenginebindings.New(bindingsOpts)
+		bindings := binding.New(bindingsOpts)
 		if err != nil {
 			logger.Panicf("bad bindings: %v", err)
 		}
 
 		ethClients := bindings.EthereumClients()
 		ethClient := ethClients[multichain.Ethereum]
+		fetcher := NewMockBurnLogFetcher(burnIn)
 
-		burnLogFetcher := NewMockBurnLogFetcher()
+		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, fetcher, ethClient, mockResolver, client, pubk, interval, 1000, 6)
 
-		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, ethClient, burnLogFetcher, mockResolver, client, pubk, interval, 1000, 6)
-
-		return watcher, client, burnLogFetcher.BurnIn, mr
+		return watcher, client, burnIn, mr
 	}
 
 	Context("when watching", func() {
@@ -189,12 +184,10 @@ var _ = Describe("Watcher", func() {
 			time.Sleep(time.Second)
 
 			burnIn <- BurnLogResult{
-				Result: ethereumbindings.MintGatewayLogicV1LogBurn{
-					To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-					Amount:    big.NewInt(10000),
-					N:         big.NewInt(0),
-					IndexedTo: [32]byte{},
-					Raw:       types.Log{},
+				Result: BurnInfo{
+					ToBytes: []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+					Amount:  pack.NewU256FromU64(10000),
+					Nonce:   pack.NewU256FromU64(0).Bytes32(),
 				},
 			}
 
@@ -218,26 +211,20 @@ var _ = Describe("Watcher", func() {
 			time.Sleep(time.Second)
 
 			burnIn <- BurnLogResult{
-				Result: ethereumbindings.MintGatewayLogicV1LogBurn{
-					To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-					Amount:    big.NewInt(10000),
-					N:         big.NewInt(0),
-					IndexedTo: [32]byte{},
-					Raw: types.Log{
-						BlockNumber: 1,
-					},
+				Result: BurnInfo{
+					ToBytes:     []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+					Amount:      pack.NewU256FromU64(10000),
+					Nonce:       pack.NewU256FromU64(0).Bytes32(),
+					BlockNumber: pack.NewU64(1),
 				},
 			}
 
 			burnIn <- BurnLogResult{
-				Result: ethereumbindings.MintGatewayLogicV1LogBurn{
-					To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-					Amount:    big.NewInt(10000),
-					N:         big.NewInt(0),
-					IndexedTo: [32]byte{},
-					Raw: types.Log{
-						BlockNumber: 100000000,
-					},
+				Result: BurnInfo{
+					ToBytes:     []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+					Amount:      pack.NewU256FromU64(10000),
+					Nonce:       pack.NewU256FromU64(1).Bytes32(),
+					BlockNumber: pack.NewU64(uint64(time.Now().Unix() + 1000000)),
 				},
 			}
 
@@ -269,38 +256,29 @@ var _ = Describe("Watcher", func() {
 			go watcher.Run(ctx)
 
 			burnIn <- BurnLogResult{
-				Result: ethereumbindings.MintGatewayLogicV1LogBurn{
-					To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-					Amount:    big.NewInt(10000),
-					N:         big.NewInt(0),
-					IndexedTo: [32]byte{},
-					Raw: types.Log{
-						BlockNumber: blockNumber,
-					},
+				Result: BurnInfo{
+					ToBytes:     []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+					Amount:      pack.NewU256FromU64(10000),
+					Nonce:       pack.NewU256FromU64(0).Bytes32(),
+					BlockNumber: pack.NewU64(uint64(blockNumber)),
 				},
 			}
 
 			burnIn <- BurnLogResult{
-				Result: ethereumbindings.MintGatewayLogicV1LogBurn{
-					To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-					Amount:    big.NewInt(10000),
-					N:         big.NewInt(1),
-					IndexedTo: [32]byte{},
-					Raw: types.Log{
-						BlockNumber: blockNumber - 4500,
-					},
+				Result: BurnInfo{
+					ToBytes:     []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+					Amount:      pack.NewU256FromU64(10000),
+					Nonce:       pack.NewU256FromU64(1).Bytes32(),
+					BlockNumber: pack.NewU64(uint64(blockNumber - 4500)),
 				},
 			}
 
 			burnIn <- BurnLogResult{
-				Result: ethereumbindings.MintGatewayLogicV1LogBurn{
-					To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-					Amount:    big.NewInt(10000),
-					N:         big.NewInt(2),
-					IndexedTo: [32]byte{},
-					Raw: types.Log{
-						BlockNumber: blockNumber - 1500,
-					},
+				Result: BurnInfo{
+					ToBytes:     []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+					Amount:      pack.NewU256FromU64(10000),
+					Nonce:       pack.NewU256FromU64(2).Bytes32(),
+					BlockNumber: pack.NewU64(uint64(blockNumber - 1500)),
 				},
 			}
 
@@ -353,12 +331,10 @@ var _ = Describe("Watcher", func() {
 			// re-fetched on failure
 			for range [2]bool{} {
 				burnIn <- BurnLogResult{
-					Result: ethereumbindings.MintGatewayLogicV1LogBurn{
-						To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-						Amount:    big.NewInt(10000),
-						N:         big.NewInt(0),
-						IndexedTo: [32]byte{},
-						Raw:       types.Log{},
+					Result: BurnInfo{
+						ToBytes: []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+						Amount:  pack.NewU256FromU64(10000),
+						Nonce:   pack.NewU256FromU64(0).Bytes32(),
 					},
 				}
 			}
@@ -380,12 +356,10 @@ var _ = Describe("Watcher", func() {
 			time.Sleep(time.Second)
 
 			burnIn <- BurnLogResult{
-				Result: ethereumbindings.MintGatewayLogicV1LogBurn{
-					To:        []byte("not a valid address"),
-					Amount:    big.NewInt(10000),
-					N:         big.NewInt(0),
-					IndexedTo: [32]byte{},
-					Raw:       types.Log{},
+				Result: BurnInfo{
+					ToBytes: []byte("not an address"),
+					Amount:  pack.NewU256FromU64(10000),
+					Nonce:   pack.NewU256FromU64(0).Bytes32(),
 				},
 			}
 
@@ -399,12 +373,10 @@ var _ = Describe("Watcher", func() {
 
 			// check that we recover
 			burnIn <- BurnLogResult{
-				Result: ethereumbindings.MintGatewayLogicV1LogBurn{
-					To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-					Amount:    big.NewInt(10000),
-					N:         big.NewInt(1),
-					IndexedTo: [32]byte{},
-					Raw:       types.Log{},
+				Result: BurnInfo{
+					ToBytes: []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+					Amount:  pack.NewU256FromU64(10000),
+					Nonce:   pack.NewU256FromU64(1).Bytes32(),
 				},
 			}
 
@@ -423,18 +395,16 @@ var _ = Describe("Watcher", func() {
 			defer redisClient.Close()
 
 			// Set the block far in the future
-			redisClient.Set("BTC/fromEthereum_lastCheckedBlock", 1000000000, 0)
+			redisClient.Set("BTC/fromEthereum_lastCheckedBlock", time.Now().Unix()+100000, 0)
 			go watcher.Run(ctx)
 
 			// channels will block until read from, so we make this concurrent
 			go func() {
 				burnIn <- BurnLogResult{
-					Result: ethereumbindings.MintGatewayLogicV1LogBurn{
-						To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-						Amount:    big.NewInt(10000),
-						N:         big.NewInt(0),
-						IndexedTo: [32]byte{},
-						Raw:       types.Log{},
+					Result: BurnInfo{
+						ToBytes: []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+						Amount:  pack.NewU256FromU64(10000),
+						Nonce:   pack.NewU256FromU64(0).Bytes32(),
 					},
 				}
 				close(burnIn)
@@ -470,12 +440,10 @@ var _ = Describe("Watcher", func() {
 			// channels will block until read from, so we make this concurrent
 			go func() {
 				burnIn <- BurnLogResult{
-					Result: ethereumbindings.MintGatewayLogicV1LogBurn{
-						To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-						Amount:    big.NewInt(10000),
-						N:         big.NewInt(0),
-						IndexedTo: [32]byte{},
-						Raw:       types.Log{},
+					Result: BurnInfo{
+						ToBytes: []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+						Amount:  pack.NewU256FromU64(10000),
+						Nonce:   pack.NewU256FromU64(0).Bytes32(),
 					},
 				}
 				close(burnIn)
@@ -508,12 +476,10 @@ var _ = Describe("Watcher", func() {
 			func() {
 				for range [100]bool{} {
 					burnIn <- BurnLogResult{
-						Result: ethereumbindings.MintGatewayLogicV1LogBurn{
-							To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-							Amount:    big.NewInt(10000),
-							N:         big.NewInt(0),
-							IndexedTo: [32]byte{},
-							Raw:       types.Log{},
+						Result: BurnInfo{
+							ToBytes: []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+							Amount:  pack.NewU256FromU64(10000),
+							Nonce:   pack.NewU256FromU64(0).Bytes32(),
 						},
 					}
 
@@ -543,12 +509,10 @@ var _ = Describe("Watcher", func() {
 
 			for i := range [5000]bool{} {
 				burnIn <- BurnLogResult{
-					Result: ethereumbindings.MintGatewayLogicV1LogBurn{
-						To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-						Amount:    big.NewInt(10000),
-						N:         big.NewInt(int64(i)),
-						IndexedTo: [32]byte{},
-						Raw:       types.Log{},
+					Result: BurnInfo{
+						ToBytes: []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+						Amount:  pack.NewU256FromU64(10000),
+						Nonce:   pack.NewU256FromU64(pack.U64(uint64(i))).Bytes32(),
 					},
 				}
 			}
@@ -582,12 +546,10 @@ var _ = Describe("Watcher", func() {
 			go func() {
 				for range [1000]bool{} {
 					burnIn <- BurnLogResult{
-						Result: ethereumbindings.MintGatewayLogicV1LogBurn{
-							To:        []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-							Amount:    big.NewInt(10000),
-							N:         big.NewInt(0),
-							IndexedTo: [32]byte{},
-							Raw:       types.Log{},
+						Result: BurnInfo{
+							ToBytes: []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+							Amount:  pack.NewU256FromU64(10000),
+							Nonce:   pack.NewU256FromU64(0).Bytes32(),
 						},
 					}
 				}
@@ -606,22 +568,19 @@ var _ = Describe("Watcher", func() {
 		It("should be able to call filter logs on ethereum", func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
-			bindingsOpts := txenginebindings.DefaultOptions().
-				WithNetwork("localnet")
+			bindingsOpts := binding.DefaultOptions().
+				WithNetwork("localnet").
+				WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
+					RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
+					Confirmations: pack.U64(0),
+				}).
+				WithChainOptions(multichain.Ethereum, binding.ChainOptions{
+					RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
+					Confirmations: pack.U64(0),
+					Protocol:      pack.String("0x557e211EC5fc9a6737d2C6b7a1aDe3e0C11A8D5D"),
+				})
 
-			bindingsOpts.WithChainOptions(multichain.Bitcoin, txenginebindings.ChainOptions{
-				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
-				Confirmations: pack.U64(0),
-			})
-
-			bindingsOpts.WithChainOptions(multichain.Ethereum, txenginebindings.ChainOptions{
-				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
-				Confirmations: pack.U64(0),
-				Protocol:      pack.String("0x1CAD87e16b56815d6a0b4Cd91A6639eae86Fc53A"),
-			})
-
-			bindings, err := txenginebindings.New(bindingsOpts)
-			Expect(err).ToNot(HaveOccurred())
+			bindings := binding.New(bindingsOpts)
 
 			gateways := bindings.EthereumGateways()
 			btcGateway := gateways[multichain.Ethereum][multichain.BTC]
@@ -636,6 +595,22 @@ var _ = Describe("Watcher", func() {
 			for r := range results {
 				Expect(r).To(BeEmpty())
 			}
+
+			results, err = burnLogFetcher.FetchBurnLogs(ctx, 23704992, 23704995)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() BurnLogResult {
+				for r := range results {
+					return r
+				}
+				return BurnLogResult{}
+			}, 5*time.Second).Should(Equal(BurnLogResult{Result: BurnInfo{
+				Txid:        []byte{42, 187, 84, 27, 111, 181, 207, 26, 30, 239, 244, 76, 7, 157, 157, 29, 159, 155, 62, 12, 65, 112, 124, 110, 85, 132, 116, 128, 171, 68, 197, 65},
+				Amount:      pack.NewU256FromUint64(896853),
+				ToBytes:     []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+				Nonce:       [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 231},
+				BlockNumber: 23704993,
+			}}))
 		})
 
 		It("should encode and decode addresses", func() {

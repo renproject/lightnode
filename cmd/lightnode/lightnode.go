@@ -20,9 +20,9 @@ import (
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/aw/wire"
+	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/id"
 	"github.com/renproject/lightnode"
 	"github.com/renproject/lightnode/http"
@@ -223,41 +223,41 @@ func parseOptions() lightnode.Options {
 		options = options.WithBootstrapAddrs(parseAddresses("ADDRESSES"))
 	}
 
-	chains := map[multichain.Chain]txenginebindings.ChainOptions{}
+	chains := map[multichain.Chain]binding.ChainOptions{}
 	if os.Getenv("RPC_BINANCE") != "" {
-		chains[multichain.BinanceSmartChain] = txenginebindings.ChainOptions{
+		chains[multichain.BinanceSmartChain] = binding.ChainOptions{
 			RPC:      pack.String(os.Getenv("RPC_BINANCE")),
 			Protocol: pack.String(os.Getenv("GATEWAY_BINANCE")),
 		}
 	}
 	if os.Getenv("RPC_BITCOIN") != "" {
-		chains[multichain.Bitcoin] = txenginebindings.ChainOptions{
+		chains[multichain.Bitcoin] = binding.ChainOptions{
 			RPC: pack.String(os.Getenv("RPC_BITCOIN")),
 		}
 	}
 	if os.Getenv("RPC_BITCOIN_CASH") != "" {
-		chains[multichain.BitcoinCash] = txenginebindings.ChainOptions{
+		chains[multichain.BitcoinCash] = binding.ChainOptions{
 			RPC: pack.String(os.Getenv("RPC_BITCOIN_CASH")),
 		}
 	}
 	if os.Getenv("RPC_DIGIBYTE") != "" {
-		chains[multichain.DigiByte] = txenginebindings.ChainOptions{
+		chains[multichain.DigiByte] = binding.ChainOptions{
 			RPC: pack.String(os.Getenv("RPC_DIGIBYTE")),
 		}
 	}
 	if os.Getenv("RPC_DOGECOIN") != "" {
-		chains[multichain.Dogecoin] = txenginebindings.ChainOptions{
+		chains[multichain.Dogecoin] = binding.ChainOptions{
 			RPC: pack.String(os.Getenv("RPC_DOGECOIN")),
 		}
 	}
 	if os.Getenv("RPC_ETHEREUM") != "" {
-		chains[multichain.Ethereum] = txenginebindings.ChainOptions{
+		chains[multichain.Ethereum] = binding.ChainOptions{
 			RPC:      pack.String(os.Getenv("RPC_ETHEREUM")),
 			Protocol: pack.String(os.Getenv("GATEWAY_ETHEREUM")),
 		}
 	}
 	if os.Getenv("RPC_FILECOIN") != "" {
-		chains[multichain.Filecoin] = txenginebindings.ChainOptions{
+		chains[multichain.Filecoin] = binding.ChainOptions{
 			RPC: pack.String(os.Getenv("RPC_FILECOIN")),
 			Extras: map[pack.String]pack.String{
 				"authToken": pack.String(os.Getenv("EXTRAS_FILECOIN_AUTH")),
@@ -265,12 +265,12 @@ func parseOptions() lightnode.Options {
 		}
 	}
 	if os.Getenv("RPC_TERRA") != "" {
-		chains[multichain.Terra] = txenginebindings.ChainOptions{
+		chains[multichain.Terra] = binding.ChainOptions{
 			RPC: pack.String(os.Getenv("RPC_TERRA")),
 		}
 	}
 	if os.Getenv("RPC_ZCASH") != "" {
-		chains[multichain.Zcash] = txenginebindings.ChainOptions{
+		chains[multichain.Zcash] = binding.ChainOptions{
 			RPC: pack.String(os.Getenv("RPC_ZCASH")),
 		}
 	}

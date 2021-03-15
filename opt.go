@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/renproject/aw/wire"
+	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/id"
 	"github.com/renproject/lightnode/confirmer"
 	"github.com/renproject/multichain"
@@ -47,7 +47,7 @@ type Options struct {
 	WatcherConfidenceInterval uint64
 	TransactionExpiry         time.Duration
 	BootstrapAddrs            []wire.Address
-	Chains                    map[multichain.Chain]txenginebindings.ChainOptions
+	Chains                    map[multichain.Chain]binding.ChainOptions
 	Whitelist                 []tx.Selector
 }
 
@@ -172,7 +172,7 @@ func (opts Options) WithBootstrapAddrs(bootstrapAddrs []wire.Address) Options {
 }
 
 // WithChains is used to specify the chain options for a the supported chains.
-func (opts Options) WithChains(chains map[multichain.Chain]txenginebindings.ChainOptions) Options {
+func (opts Options) WithChains(chains map[multichain.Chain]binding.ChainOptions) Options {
 	opts.Chains = chains
 	return opts
 }

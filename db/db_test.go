@@ -12,12 +12,12 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/renproject/id"
 	. "github.com/renproject/lightnode/db"
 	. "github.com/renproject/lightnode/testutils"
 
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/tx/txutil"
-	"github.com/renproject/pack"
 )
 
 const (
@@ -130,7 +130,7 @@ var _ = Describe("Lightnode db", func() {
 						Expect(db.Init()).Should(Succeed())
 						defer cleanUp(sqlDB)
 
-						txs := map[pack.Bytes32]tx.Tx{}
+						txs := map[id.Hash]tx.Tx{}
 						for i := 0; i < 50; i++ {
 							transaction := txutil.RandomGoodTx(r)
 							transaction.Output = nil
@@ -172,7 +172,7 @@ var _ = Describe("Lightnode db", func() {
 						Expect(db.Init()).Should(Succeed())
 						defer cleanUp(sqlDB)
 
-						txs := map[pack.Bytes32]tx.Tx{}
+						txs := map[id.Hash]tx.Tx{}
 						for i := 0; i < 50; i++ {
 							transaction := txutil.RandomGoodTx(r)
 							transaction.Output = nil
@@ -234,7 +234,7 @@ var _ = Describe("Lightnode db", func() {
 						Expect(db.Init()).Should(Succeed())
 						defer cleanUp(sqlDB)
 
-						txs := map[pack.Bytes32]tx.Tx{}
+						txs := map[id.Hash]tx.Tx{}
 						for i := 0; i < 50; i++ {
 							transaction := txutil.RandomGoodTx(r)
 							txs[transaction.Hash] = transaction

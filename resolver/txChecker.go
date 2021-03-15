@@ -7,9 +7,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/renproject/darknode/binding"
+	"github.com/renproject/darknode/chainstate"
+	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/darknode/txpool"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/phi"
@@ -21,13 +23,35 @@ import (
 type txchecker struct {
 	logger   logrus.FieldLogger
 	requests <-chan http.RequestWithResponder
-	verifier txpool.Verifier
+	verifier Verifier
 	db       db.DB
 	mu       *sync.Mutex
 }
 
+type Verifier interface {
+	VerifyTx(ctx context.Context, tx tx.Tx) error
+}
+
+type verifier struct {
+	bindings binding.Bindings
+}
+
+func NewVerifier(bindings binding.Bindings) Verifier {
+	return verifier{
+		bindings: bindings,
+	}
+}
+
+func (v verifier) VerifyTx(ctx context.Context, tx tx.Tx) error {
+	err := engine.XValidateLockMintBurnReleaseExtrinsicTx(chainstate.CodeContext{
+		Context:  ctx,
+		Bindings: v.bindings,
+	}, nil, tx)
+	return err
+}
+
 // newTxChecker returns a new txchecker.
-func newTxChecker(logger logrus.FieldLogger, requests <-chan http.RequestWithResponder, verifier txpool.Verifier, db db.DB) txchecker {
+func newTxChecker(logger logrus.FieldLogger, requests <-chan http.RequestWithResponder, verifier Verifier, db db.DB) txchecker {
 	return txchecker{
 		logger:   logger,
 		requests: requests,
@@ -45,7 +69,8 @@ func (tc *txchecker) Run() {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 
 			params := req.Params.(jsonrpc.ParamsSubmitTx)
-			err := tc.verifier.VerifyTx(ctx, &params.Tx)
+
+			err := tc.verifier.VerifyTx(ctx, params.Tx)
 			cancel()
 			if err != nil {
 				req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, err)

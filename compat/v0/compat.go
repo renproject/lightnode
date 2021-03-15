@@ -10,10 +10,10 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/renproject/darknode/binding"
+	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/darknode/txengine"
-	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/id"
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/ethereum"
@@ -22,14 +22,7 @@ import (
 
 // ShardsResponseFromState takes a QueryState rpc response and converts it into a QueryShards rpc response
 // It can be a standalone function as it has no dependencies
-func ShardsResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQueryShards, error) {
-	bitcoinPubkey, ok := state.State[multichain.Bitcoin].Get("pubKey").(pack.String)
-	if !ok {
-		return ResponseQueryShards{},
-			fmt.Errorf("unexpected type for Bitcoin pubKey: expected pack.String , got %v",
-				state.State[multichain.Bitcoin].Get("pubKey").Type())
-	}
-
+func ShardsResponseFromSystemState(state engine.SystemState) (ResponseQueryShards, error) {
 	shards := make([]CompatShard, 1)
 	shards[0] = CompatShard{
 		DarknodesRootHash: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
@@ -39,7 +32,7 @@ func ShardsResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQuerySha
 				Hosts:  []string{"Ethereum"},
 				Locked: "0",
 				Origin: "Bitcoin",
-				PubKey: bitcoinPubkey.String(),
+				PubKey: state.Shards.Primary[0].PubKey.String(),
 			},
 			{
 
@@ -47,19 +40,19 @@ func ShardsResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQuerySha
 				Hosts:  []string{"Ethereum"},
 				Locked: "0",
 				Origin: "Zcash",
-				PubKey: bitcoinPubkey.String(),
+				PubKey: state.Shards.Primary[0].PubKey.String(),
 			},
 			{
 				Asset:  "BCH",
 				Hosts:  []string{"Ethereum"},
 				Locked: "0",
 				Origin: "BitcoinCash",
-				PubKey: bitcoinPubkey.String(),
+				PubKey: state.Shards.Primary[0].PubKey.String(),
 			},
 		},
 		GatewaysRootHash: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
 		Primary:          true,
-		PubKey:           bitcoinPubkey.String(),
+		PubKey:           state.Shards.Primary[0].PubKey.String(),
 	}
 
 	resp := ResponseQueryShards{
@@ -71,48 +64,51 @@ func ShardsResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQuerySha
 // ShardsResponseFromState takes a QueryState rpc response and converts it into a QueryShards rpc response
 // It can be a standalone function as it has no dependencies
 func QueryFeesResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQueryFees, error) {
-	bitcoinCap, ok := state.State[multichain.Bitcoin].Get("gasCap").(pack.U64)
+	bitcoinS := state.State[pack.NewString(string(multichain.Bitcoin.NativeAsset()))]
+	bitcoinCap, ok := bitcoinS.Get("gasCap").(pack.U64)
 	if !ok {
 		return ResponseQueryFees{},
 			fmt.Errorf("unexpected type for bitcoinCap: expected pack.U64, got %v",
-				state.State[multichain.Bitcoin].Get("gasCap").Type())
+				bitcoinS.Get("gasCap").Type())
 	}
 
-	bitcoinLimit, ok := state.State[multichain.Bitcoin].Get("gasLimit").(pack.U64)
+	bitcoinLimit, ok := bitcoinS.Get("gasLimit").(pack.U64)
 	if !ok {
 		return ResponseQueryFees{},
 			fmt.Errorf("unexpected type for bitcoinLimit: expected pack.U64, got %v",
-				state.State[multichain.Bitcoin].Get("gasLimit").Type())
+				bitcoinS.Get("gasLimit").Type())
 	}
 	bitcoinUnderlying := U64{Int: big.NewInt(int64(bitcoinCap.Uint64() * bitcoinLimit.Uint64()))}
 
-	zcashCap, ok := state.State[multichain.Zcash].Get("gasCap").(pack.U64)
+	zcashS := state.State[pack.NewString(string(multichain.Zcash.NativeAsset()))]
+	zcashCap, ok := zcashS.Get("gasCap").(pack.U64)
 	if !ok {
 		return ResponseQueryFees{},
 			fmt.Errorf("unexpected type for zcashCap: expected pack.U64 , got %v",
-				state.State[multichain.Zcash].Get("gasCap").Type())
+				zcashS.Get("gasCap").Type())
 	}
 
-	zcashLimit, ok := state.State[multichain.Zcash].Get("gasLimit").(pack.U64)
+	zcashLimit, ok := zcashS.Get("gasLimit").(pack.U64)
 	if !ok {
 		return ResponseQueryFees{},
 			fmt.Errorf("unexpected type for zcashLimit: expected pack.U64, got %v",
-				state.State[multichain.Zcash].Get("gasLimit").Type())
+				zcashS.Get("gasLimit").Type())
 	}
 	zcashUnderlying := U64{Int: big.NewInt(int64(zcashCap.Uint64() * zcashLimit.Uint64()))}
 
-	bitcoinCashCap, ok := state.State[multichain.BitcoinCash].Get("gasCap").(pack.U64)
+	bitcoinCashS := state.State[pack.NewString(string(multichain.BitcoinCash.NativeAsset()))]
+	bitcoinCashCap, ok := bitcoinCashS.Get("gasCap").(pack.U64)
 	if !ok {
 		return ResponseQueryFees{},
 			fmt.Errorf("unexpected type for bitcoinCashCap: expected pack.U64, got %v",
-				state.State[multichain.BitcoinCash].Get("gasCap").Type())
+				bitcoinCashS.Get("gasCap").Type())
 	}
 
-	bitcoinCashLimit, ok := state.State[multichain.BitcoinCash].Get("gasLimit").(pack.U64)
+	bitcoinCashLimit, ok := bitcoinCashS.Get("gasLimit").(pack.U64)
 	if !ok {
 		return ResponseQueryFees{},
 			fmt.Errorf("unexpected type for bitcoinCashLimit: expected pack.U64, got %v",
-				state.State[multichain.BitcoinCash].Get("gasLimit").Type())
+				bitcoinCashS.Get("gasLimit").Type())
 	}
 	bitcoinCashUnderlying := U64{Int: big.NewInt(int64(bitcoinCashCap.Uint64() * bitcoinCashLimit.Uint64()))}
 
@@ -148,7 +144,7 @@ func QueryFeesResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQuery
 	return resp, nil
 }
 
-func BurnTxFromV1Tx(t tx.Tx, bindings txengine.Bindings) (Tx, error) {
+func BurnTxFromV1Tx(t tx.Tx, bindings binding.Bindings) (Tx, error) {
 	tx := Tx{}
 
 	//nonce is ref in byte format
@@ -186,7 +182,7 @@ func BurnTxFromV1Tx(t tx.Tx, bindings txengine.Bindings) (Tx, error) {
 }
 
 // TxFromV1Tx takes a V1 Tx and converts it to a V0 Tx.
-func TxFromV1Tx(t tx.Tx, hasOut bool, bindings txengine.Bindings) (Tx, error) {
+func TxFromV1Tx(t tx.Tx, hasOut bool, bindings binding.Bindings) (Tx, error) {
 	if t.Selector.IsBurn() || t.Selector.IsRelease() {
 		return BurnTxFromV1Tx(t, bindings)
 	}
@@ -441,7 +437,7 @@ func MintTxHash(sel tx.Selector, ghash pack.Bytes32, txid pack.Bytes, txindex pa
 // Will attempt to check if we have already constructed the parameters previously,
 // otherwise will construct a v1 tx using v0 parameters, and persist a mapping
 // so that a v0 queryTX can find them
-func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txenginebindings.Bindings, pubkey *id.PubKey, store CompatStore) (jsonrpc.ParamsSubmitTx, error) {
+func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings binding.Bindings, pubkey *id.PubKey, store CompatStore) (jsonrpc.ParamsSubmitTx, error) {
 	// It's a burn tx, we don't need to process it
 	// as it should be picked up from the watcher
 	// We pass the v0 hash along so that we can still
@@ -496,7 +492,7 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 	}
 	sel := tx.Selector(asset + "/toEthereum")
 
-	phash := txengine.Phash(payload)
+	phash := engine.Phash(payload)
 
 	to := pack.String(params.Tx.In.Get("to").Value.(ExtEthCompatAddress).String())
 
@@ -510,12 +506,12 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
 
-	ghash, err := txengine.V0Ghash(token[:], phash, minter, nonceP)
+	ghash, err := engine.V0Ghash(token[:], phash, minter, nonceP)
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
 
-	nhash, err := txengine.V0Nhash(nonceP, txidB, txindex)
+	nhash, err := engine.V0Nhash(nonceP, txidB, txindex)
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
@@ -540,7 +536,7 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *txen
 
 	pubkbytes := crypto.CompressPubkey((*ecdsa.PublicKey)(pubkey))
 
-	input, err := pack.Encode(txengine.CrossChainInput{
+	input, err := pack.Encode(engine.LockMintBurnReleaseInput{
 		Txid:    txid,
 		Txindex: txindex,
 		Amount:  pack.NewU256FromUint64(uint64(amount)),

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/sirupsen/logrus"
@@ -16,13 +16,13 @@ import (
 
 // The lightnode Validator checks requests and also casts in case of compat changes
 type LightnodeValidator struct {
-	bindings *txenginebindings.Bindings
+	bindings binding.Bindings
 	pubkey   *id.PubKey
 	store    v0.CompatStore
 	logger   logrus.FieldLogger
 }
 
-func NewValidator(bindings *txenginebindings.Bindings, pubkey *id.PubKey, store v0.CompatStore, logger logrus.FieldLogger) *LightnodeValidator {
+func NewValidator(bindings binding.Bindings, pubkey *id.PubKey, store v0.CompatStore, logger logrus.FieldLogger) *LightnodeValidator {
 	return &LightnodeValidator{
 		bindings: bindings,
 		pubkey:   pubkey,

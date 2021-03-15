@@ -7,8 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/renproject/darknode/txengine"
-	"github.com/renproject/id"
+	"github.com/renproject/darknode/binding"
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/api/address"
 	"github.com/renproject/multichain/api/utxo"
@@ -62,37 +61,19 @@ type mockBindings struct {
 	numAttemptsMu             *sync.Mutex
 }
 
-func MockBindings(logger logrus.FieldLogger, maxAttemptsUntilConfirmed int) txengine.Bindings {
-	return &mockBindings{
+func MockBindings(logger logrus.FieldLogger, maxAttemptsUntilConfirmed int) *binding.Callbacks {
+	mock := mockBindings{
 		logger:                    logger,
 		maxAttemptsUntilConfirmed: maxAttemptsUntilConfirmed,
 		numAttempts:               make(map[string]int),
 		numAttemptsMu:             new(sync.Mutex),
 	}
-}
-
-func (b mockBindings) AssetFromTokenAddress(chain multichain.Chain, addr multichain.Address) (multichain.Asset, error) {
-	panic("unimplemented")
-}
-
-func (b mockBindings) TokenAddressFromAsset(chain multichain.Chain, addr multichain.Asset) (address.RawAddress, error) {
-	panic("unimplemented")
-}
-
-func (b mockBindings) EncodeAddress(chain multichain.Chain, rawAddr multichain.RawAddress) (multichain.Address, error) {
-	panic("unimplemented")
-}
-
-func (b mockBindings) DecodeAddress(chain multichain.Chain, addr multichain.Address) (multichain.RawAddress, error) {
-	panic("unimplemented")
-}
-
-func (b mockBindings) AddressFromPubKey(chain multichain.Chain, pubKey *id.PubKey) (multichain.Address, error) {
-	panic("unimplemented")
-}
-
-func (b mockBindings) AccountNonce(ctx context.Context, chain multichain.Chain, address multichain.Address) (pack.U256, error) {
-	panic("unimplemented")
+	return &binding.Callbacks{
+		HandleAccountBurnInfo:       mock.AccountBurnInfo,
+		HandleAccountLockInfo:       mock.AccountLockInfo,
+		HandleUTXOLockInfo:          mock.UTXOLockInfo,
+		HandleTokenAddressFromAsset: mock.TokenAddressFromAsset,
+	}
 }
 
 func (b mockBindings) AccountBurnInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, nonce pack.Bytes32) (amount pack.U256, recipient pack.String, payload pack.Bytes, err error) {
@@ -103,28 +84,13 @@ func (b mockBindings) AccountLockInfo(ctx context.Context, chain multichain.Chai
 	return mockAccountTx{}, nil
 }
 
-func (b mockBindings) AccountBuildTx(ctx context.Context, chain multichain.Chain, asset multichain.Asset, from, to multichain.Address, value, nonce, gasLimit, gasPrice, gasCap pack.U256, payload pack.Bytes) (multichain.AccountTx, error) {
-	panic("unimplemented")
-}
-
-func (b mockBindings) AccountSubmitTx(ctx context.Context, chain multichain.Chain, tx multichain.AccountTx) error {
-	panic("unimplemented")
-}
-
 func (b mockBindings) UTXOLockInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, outpoint multichain.UTXOutpoint) (multichain.UTXOutput, error) {
 	return utxo.Output{}, b.isConfirmed(outpoint.Hash.String())
 }
 
-func (b mockBindings) UTXOBuildTx(chain multichain.Chain, asset multichain.Asset, inputs []multichain.UTXOInput, recipients []multichain.UTXORecipient) (multichain.UTXOTx, error) {
-	panic("unimplemented")
-}
-
-func (b mockBindings) UTXOSubmitTx(ctx context.Context, chain multichain.Chain, tx multichain.UTXOTx) error {
-	panic("unimplemented")
-}
-
-func (b mockBindings) Gas(chain multichain.Chain) (pack.U256, pack.U256, error) {
-	panic("unimplemented")
+func (b mockBindings) TokenAddressFromAsset(chain multichain.Chain, asset multichain.Asset) (address.RawAddress, error) {
+	addr := [20]byte{}
+	return address.RawAddress(addr[:]), nil
 }
 
 func (b mockBindings) isConfirmed(hash string) error {

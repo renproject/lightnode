@@ -1,6 +1,7 @@
 package store_test
 
 import (
+	"fmt"
 	"math/rand"
 
 	. "github.com/onsi/ginkgo"
@@ -8,17 +9,27 @@ import (
 	. "github.com/renproject/lightnode/store"
 
 	"github.com/renproject/aw/wire"
-	"github.com/renproject/aw/wire/wireutil"
 	"github.com/renproject/id"
 	"github.com/renproject/kv"
 )
 
+func RandomOkAddrValue(r *rand.Rand) string {
+	switch r.Int() % 10 {
+	case 0:
+		return fmt.Sprintf("127.0.0.1:%v", uint16(r.Int()))
+	case 1:
+		return fmt.Sprintf("0.0.0.0:%v", uint16(r.Int()))
+	default:
+		return fmt.Sprintf("%v.%v.%v.%v:%v", uint8(r.Int()), uint8(r.Int()), uint8(r.Int()), uint8(r.Int()), uint16(r.Int()))
+	}
+}
+
 var _ = Describe("Store", func() {
 	randomAddress := func(r *rand.Rand) wire.Address {
-		return wireutil.NewAddressBuilder(id.NewPrivKey(), r).
-			WithProtocol(wire.TCP).
-			WithValue(wireutil.RandomOkAddrValue(r)).
-			WithNonce(wireutil.RandomAddrNonce(r)).Build()
+		a := wire.NewUnsignedAddress(wire.TCP, RandomOkAddrValue(r), r.Uint64())
+		e := a.Sign(id.NewPrivKey())
+		Expect(e).NotTo(HaveOccurred())
+		return a
 	}
 
 	Context("when running", func() {

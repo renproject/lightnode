@@ -1,11 +1,13 @@
 package testutils
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math/rand"
 	"time"
 
+	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx/txutil"
 	v0 "github.com/renproject/lightnode/compat/v0"
@@ -112,6 +114,23 @@ func ErrorResponse(id interface{}) jsonrpc.Response {
 	}
 }
 
+func MockSystemState() engine.SystemState {
+	pubkeyBytes, err := base64.URLEncoding.DecodeString("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm")
+	if err != nil {
+		panic("Shouldn't fail")
+	}
+	return engine.SystemState{
+		Shards: engine.SystemStateShards{
+			Primary: []engine.SystemStateShardsShard{{
+				Shard:  [32]byte{},
+				PubKey: pubkeyBytes,
+			}},
+			Secondary: []engine.SystemStateShardsShard{},
+			Tertiary:  []engine.SystemStateShardsShard{},
+		},
+	}
+}
+
 func MockQueryStateResponse() jsonrpc.ResponseQueryState {
 	bitcoinState := pack.NewStruct(
 		"pubKey", pack.String("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"),
@@ -122,13 +141,17 @@ func MockQueryStateResponse() jsonrpc.ResponseQueryState {
 	partialState := pack.NewStruct(
 		"pubKey", pack.String("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"),
 	)
-
+	systemStateP, err := pack.Encode(MockSystemState())
+	if err != nil {
+		panic("Shouldn't fail")
+	}
 	return jsonrpc.ResponseQueryState{
-		State: map[multichain.Chain]pack.Struct{
-			multichain.Bitcoin:     bitcoinState,
-			multichain.BitcoinCash: bitcoinState,
-			multichain.Zcash:       bitcoinState,
-			multichain.Terra:       partialState,
+		State: map[pack.String]pack.Struct{
+			pack.String("System"):                systemStateP.(pack.Struct),
+			pack.String(string(multichain.BTC)):  bitcoinState,
+			pack.String(string(multichain.BCH)):  bitcoinState,
+			pack.String(string(multichain.ZEC)):  bitcoinState,
+			pack.String(string(multichain.LUNA)): partialState,
 		},
 	}
 }
