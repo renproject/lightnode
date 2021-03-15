@@ -111,7 +111,7 @@ func (dispatcher *Dispatcher) multiAddrs(method string) addr.MultiAddresses {
 	case jsonrpc.MethodQueryStat:
 		return dispatcher.multiStore.RandomAddresses(3)
 	default:
-		return dispatcher.multiStore.RandomAddresses(5)
+		return dispatcher.multiStore.RandomBootstraps(5)
 	}
 }
 
