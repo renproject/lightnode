@@ -17,7 +17,7 @@ var _ = Describe("Lightnode cmd test", func() {
 		defer cancel()
 
 		logger := logrus.New()
-		conf, err := fetchConfig(ctx, "http://lightnode-devnet.herokuapp.com/", logger, time.Minute)
+		conf, err := fetchConfig(ctx, "http://lightnode-new-testnet.herokuapp.com/", logger, time.Minute)
 		Expect(err).ShouldNot(HaveOccurred())
 		ethConfs := conf.Confirmations[multichain.Ethereum]
 		Expect(ethConfs).NotTo(BeZero())
@@ -52,7 +52,7 @@ var _ = Describe("Lightnode cmd test", func() {
 		addrs := make([]wire.Address, 3)
 		addrs[1] = wire.Address{
 			Protocol:  0,
-			Value:     "lightnode-devnet.herokuapp.com:79",
+			Value:     "lightnode-new-testnet.herokuapp.com:79",
 			Nonce:     0,
 			Signature: [65]byte{},
 		}
