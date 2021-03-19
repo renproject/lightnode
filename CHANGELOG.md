@@ -1,3 +1,7 @@
+## 0.3.3
+
+- Update to Multichain v0.3.3
+
 ## 0.3.2
 
 - Improve watcher reliability by extracting Ethereum log filter function to make it more testable and configurable

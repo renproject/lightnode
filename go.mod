@@ -3,7 +3,6 @@ module github.com/renproject/lightnode
 go 1.15
 
 require (
-	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/alicebob/miniredis v2.5.0+incompatible
 	github.com/alicebob/miniredis/v2 v2.14.3
 	github.com/btcsuite/btcd v0.21.0-beta
@@ -12,7 +11,7 @@ require (
 	github.com/evalphobia/logrus_sentry v0.8.2
 	github.com/go-redis/redis/v7 v7.2.0
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
-	github.com/google/go-cmp v0.5.0
+	github.com/google/go-cmp v0.5.5
 	github.com/jbenet/go-base58 v0.0.0-20150317085156-6237cf65f3a6
 	github.com/lib/pq v1.7.0
 	github.com/mattn/go-sqlite3 v1.11.0
@@ -23,11 +22,10 @@ require (
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/mercury v0.3.16
-	github.com/renproject/multichain v0.2.24
+	github.com/renproject/multichain v0.3.3
 	github.com/renproject/pack v0.2.7
 	github.com/renproject/phi v0.1.0
 	github.com/sirupsen/logrus v1.6.0
-	github.com/yuin/gopher-lua v0.0.0-20200816102855-ee81675732da // indirect
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
 )
