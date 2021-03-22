@@ -117,7 +117,7 @@ func ErrorResponse(id interface{}) jsonrpc.Response {
 func MockSystemState() engine.SystemState {
 	pubkeyBytes, err := base64.URLEncoding.DecodeString("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm")
 	if err != nil {
-		panic("Shouldn't fail")
+		panic(fmt.Sprintf("encoding state: %v", err))
 	}
 	return engine.SystemState{
 		Shards: engine.SystemStateShards{

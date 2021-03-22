@@ -266,15 +266,6 @@ func (resolver *Resolver) QueryShards(ctx context.Context, id interface{}, param
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 
-		// pack.String(resp["state"].(map[string]interface{})["System"].(map[string]interface{})["pubKey"].(string))),
-		//var systemState engine.SystemState
-		// err = pack.Decode(systemState, resp["state"].(map[string]interface{})["System"].(pack.Struct))
-		// if err != nil {
-		// 	resolver.logger.Error("failed to cast to QueryShards: %v", err)
-		// 	jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
-		// 	return jsonrpc.NewResponse(id, nil, &jsonErr)
-		// }
-
 		shards, err := v0.ShardsResponseFromSystemState(resp.State["System"])
 
 		if err != nil {
