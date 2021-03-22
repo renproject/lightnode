@@ -25,12 +25,10 @@ import (
 	"github.com/renproject/multichain"
 
 	"github.com/renproject/aw/wire"
+	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/tx/txutil"
-	"github.com/renproject/darknode/txengine/txenginebindings"
-	"github.com/renproject/darknode/txengine/txengineutil"
-	"github.com/renproject/darknode/txpool/txpoolverifier"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/store"
@@ -38,6 +36,12 @@ import (
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
 )
+
+type mockVerifier struct{}
+
+func (v mockVerifier) VerifyTx(ctx context.Context, tx tx.Tx) error {
+	return nil
+}
 
 var _ = Describe("Resolver", func() {
 	init := func(ctx context.Context) (*Resolver, jsonrpc.Validator, *redis.Client) {
@@ -78,33 +82,19 @@ var _ = Describe("Resolver", func() {
 		key := fmt.Sprintf("amount_%s_%s", btcTxHash, vout)
 		client.Set(key, 200000, 0)
 
-		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+		bindingsOpts := binding.DefaultOptions().
+			WithNetwork("localnet").
+			WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
+				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
+				Confirmations: pack.U64(0),
+			}).
+			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
+				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
+				Confirmations: pack.U64(0),
+				Protocol:      pack.String("0xcF9F36668ad5b28B336B248a67268AFcF1ECbdbF"),
+			})
 
-		output := pack.NewTyped(
-			"foo", pack.U64(0).Generate(r, 1).Interface().(pack.U64),
-			"bar", pack.Bytes32{}.Generate(r, 1).Interface().(pack.Bytes32),
-		)
-
-		verifier := txpoolverifier.New(txengineutil.NewMockTxEngine(output))
-
-		bindingsOpts := txenginebindings.DefaultOptions().
-			WithNetwork("localnet")
-
-		bindingsOpts.WithChainOptions(multichain.Bitcoin, txenginebindings.ChainOptions{
-			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
-			Confirmations: pack.U64(0),
-		})
-
-		bindingsOpts.WithChainOptions(multichain.Ethereum, txenginebindings.ChainOptions{
-			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
-			Confirmations: pack.U64(0),
-			Protocol:      pack.String("0xcF9F36668ad5b28B336B248a67268AFcF1ECbdbF"),
-		})
-
-		bindings, err := txenginebindings.New(bindingsOpts)
-		if err != nil {
-			logger.Panicf("bad bindings: %v", err)
-		}
+		bindings := binding.New(bindingsOpts)
 
 		cacher := testutils.NewMockCacher()
 		go cacher.Run(ctx)
@@ -118,7 +108,9 @@ var _ = Describe("Resolver", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		validator := NewValidator(bindings, (*id.PubKey)(pubkey), compatStore, logger)
-		resolver := New(logger, cacher, multiaddrStore, verifier, database, jsonrpc.Options{}, compatStore, bindings)
+
+		mockVerifier := mockVerifier{}
+		resolver := New(logger, cacher, multiaddrStore, database, jsonrpc.Options{}, compatStore, bindings, mockVerifier)
 
 		return resolver, validator, client
 	}
@@ -168,7 +160,7 @@ var _ = Describe("Resolver", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		resolver, validator, _ := init(ctx)
+		resolver, validator, client := init(ctx)
 		defer cleanup()
 
 		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -196,6 +188,11 @@ var _ = Describe("Resolver", func() {
 
 		// Submit so that it gets persisted in db
 		resp = resolver.SubmitTx(ctx, nil, (req).(*jsonrpc.ParamsSubmitTx), nil)
+		Expect(resp.Error).Should(BeNil())
+
+		hashS, err := client.Get("npiRyatJm8KSgbwA/EqdvFclMjfsnfrVY2HkjhElEDk=").Result()
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(hashS).ShouldNot(Equal(nil))
 
 		submission := (req).(*jsonrpc.ParamsSubmitTx)
 		Expect(submission.Tx.Hash).NotTo(Equal(pack.Bytes32{}))

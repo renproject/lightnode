@@ -6,11 +6,9 @@ import (
 	"fmt"
 
 	"github.com/go-redis/redis/v7"
+	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/darknode/txengine"
-	"github.com/renproject/darknode/txengine/txenginebindings"
-	"github.com/renproject/darknode/txpool/txpoolverifier"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/cacher"
 	v0 "github.com/renproject/lightnode/compat/v0"
@@ -79,15 +77,12 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	multiStore := store.New(table, options.BootstrapAddrs)
 
 	// Initialise the blockchain adapter.
-	bindingsOpts := txenginebindings.DefaultOptions().
+	bindingsOpts := binding.DefaultOptions().
 		WithNetwork(options.Network)
 	for chain, chainOpts := range options.Chains {
 		bindingsOpts = bindingsOpts.WithChainOptions(chain, chainOpts)
 	}
-	bindings, err := txenginebindings.New(bindingsOpts)
-	if err != nil {
-		logger.Panicf("bad bindings: %v", err)
-	}
+	bindings := binding.New(bindingsOpts)
 
 	// ==== BEGIN GROSS HACK
 	//
@@ -97,16 +92,13 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	// confirmations.
 	//
 
-	verifierBindingsOpts := txenginebindings.DefaultOptions().
+	verifierBindingsOpts := binding.DefaultOptions().
 		WithNetwork(options.Network)
 	for chain, chainOpts := range options.Chains {
 		chainOpts.Confirmations = 0
 		verifierBindingsOpts = verifierBindingsOpts.WithChainOptions(chain, chainOpts)
 	}
-	verifierBindings, err := txenginebindings.New(verifierBindingsOpts)
-	if err != nil {
-		logger.Panicf("bad bindings: %v", err)
-	}
+	verifierBindings := binding.New(verifierBindingsOpts)
 
 	// ==== END GROSS HACK
 	//
@@ -119,15 +111,10 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	for i := range options.Whitelist {
 		whitelist[options.Whitelist[i]] = true
 	}
-	engine := txengine.New(
-		txengine.DefaultOptions().
-			WithWhitelist(whitelist),
-		nil,
-		verifierBindings,
-	)
-	verifier := txpoolverifier.New(engine)
+
 	compatStore := v0.NewCompatStore(db, client)
-	resolverI := resolver.New(logger, cacher, multiStore, verifier, db, serverOptions, compatStore, bindings)
+	verifier := resolver.NewVerifier(verifierBindings)
+	resolverI := resolver.New(logger, cacher, multiStore, db, serverOptions, compatStore, bindings, verifier)
 	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewValidator(verifierBindings, options.DistPubKey, compatStore, logger))
 	confirmer := confirmer.New(
 		confirmer.DefaultOptions().
@@ -138,6 +125,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		db,
 		bindings,
 	)
+
 	watchers := map[multichain.Chain]map[multichain.Asset]watcher.Watcher{}
 	ethGateways := bindings.EthereumGateways()
 	ethClients := bindings.EthereumClients()
@@ -148,7 +136,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 				watchers[chain] = map[multichain.Asset]watcher.Watcher{}
 			}
 			burnLogFetcher := watcher.NewBurnLogFetcher(bindings)
-			watchers[chain][asset] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, ethClients[chain], burnLogFetcher, resolverI, client, options.DistPubKey, options.WatcherPollRate, options.WatcherMaxBlockAdvance, options.WatcherConfidenceInterval)
+			watchers[chain][selector.Asset()] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, burnLogFetcher, ethClients[chain], resolverI, client, options.DistPubKey, options.WatcherPollRate, options.WatcherMaxBlockAdvance, options.WatcherConfidenceInterval)
 		}
 	}
 

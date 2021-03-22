@@ -11,6 +11,7 @@ import (
 
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx/txutil"
+	"github.com/renproject/id"
 	"github.com/renproject/pack"
 )
 
@@ -180,7 +181,7 @@ func RandomRequest(method string) jsonrpc.Request {
 		}
 	case jsonrpc.MethodQueryTx:
 		params = jsonrpc.ParamsQueryTx{
-			TxHash: pack.Bytes32{}.Generate(r, 1).Interface().(pack.Bytes32),
+			TxHash: id.Hash{},
 		}
 
 	// Peers

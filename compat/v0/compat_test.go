@@ -17,9 +17,9 @@ import (
 	"github.com/alicebob/miniredis"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/go-redis/redis/v7"
+	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/darknode/txengine/txenginebindings"
 	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/lightnode/db"
@@ -29,7 +29,7 @@ import (
 )
 
 var _ = Describe("Compat V0", func() {
-	init := func(params v0.ParamsSubmitTx, hasCache bool) (v0.Store, redis.Cmdable, *txenginebindings.Bindings, *id.PubKey) {
+	init := func(params v0.ParamsSubmitTx, hasCache bool) (v0.Store, redis.Cmdable, *binding.Binding, *id.PubKey) {
 		mr, err := miniredis.Run()
 		if err != nil {
 			panic(err)
@@ -50,32 +50,31 @@ var _ = Describe("Compat V0", func() {
 
 		}
 
-		bindingsOpts := txenginebindings.DefaultOptions().
+		bindingsOpts := binding.DefaultOptions().
 			WithNetwork("testnet")
 
-		bindingsOpts.WithChainOptions(multichain.Bitcoin, txenginebindings.ChainOptions{
+		bindingsOpts.WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
 			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
 			Confirmations: pack.U64(0),
 		})
 
-		bindingsOpts.WithChainOptions(multichain.BitcoinCash, txenginebindings.ChainOptions{
+		bindingsOpts.WithChainOptions(multichain.BitcoinCash, binding.ChainOptions{
 			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoincashd"),
 			Confirmations: pack.U64(0),
 		})
 
-		bindingsOpts.WithChainOptions(multichain.Zcash, txenginebindings.ChainOptions{
+		bindingsOpts.WithChainOptions(multichain.Zcash, binding.ChainOptions{
 			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/zcashd"),
 			Confirmations: pack.U64(0),
 		})
 
-		bindingsOpts.WithChainOptions(multichain.Ethereum, txenginebindings.ChainOptions{
+		bindingsOpts.WithChainOptions(multichain.Ethereum, binding.ChainOptions{
 			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
 			Confirmations: pack.U64(0),
 			Protocol:      pack.String("0xcF9F36668ad5b28B336B248a67268AFcF1ECbdbF"),
 		})
 
-		bindings, err := txenginebindings.New(bindingsOpts)
-		Expect(err).ShouldNot(HaveOccurred())
+		bindings := binding.New(bindingsOpts)
 
 		pubkeyB, err := base64.URLEncoding.DecodeString("AiF7_2ykZmts2wzZKJ5D-J1scRM2Pm2jJ84W_K4PQaGl")
 		Expect(err).ShouldNot(HaveOccurred())
@@ -105,8 +104,7 @@ var _ = Describe("Compat V0", func() {
 	})
 
 	It("should convert a QueryState response into a QueryShards response", func() {
-
-		shardsResponse, err := v0.ShardsResponseFromState(testutils.MockQueryStateResponse())
+		shardsResponse, err := v0.ShardsResponseFromSystemState(testutils.MockSystemState())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(shardsResponse.Shards[0].Gateways[0].PubKey).Should(Equal("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"))
 	})

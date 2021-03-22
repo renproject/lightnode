@@ -3,7 +3,6 @@ module github.com/renproject/lightnode
 go 1.15
 
 require (
-	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/alicebob/miniredis v2.5.0+incompatible
 	github.com/alicebob/miniredis/v2 v2.14.3
 	github.com/btcsuite/btcd v0.21.0-beta
@@ -18,16 +17,15 @@ require (
 	github.com/mattn/go-sqlite3 v1.11.0
 	github.com/onsi/ginkgo v1.14.0
 	github.com/onsi/gomega v1.10.1
-	github.com/renproject/aw v0.4.0-9
-	github.com/renproject/darknode v0.5.3-0.20210216011743-e88be13521f3
+	github.com/renproject/aw v0.4.1-0.20210309032102-70551e9ba4f9
+	github.com/renproject/darknode v0.5.3-0.20210316044833-07791871541b
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/mercury v0.3.16
 	github.com/renproject/multichain v0.2.24
-	github.com/renproject/pack v0.2.7
+	github.com/renproject/pack v0.2.9
 	github.com/renproject/phi v0.1.0
 	github.com/sirupsen/logrus v1.6.0
-	github.com/yuin/gopher-lua v0.0.0-20200816102855-ee81675732da // indirect
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
 )

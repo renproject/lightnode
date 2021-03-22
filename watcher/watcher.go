@@ -11,10 +11,11 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/go-redis/redis/v7"
 	"github.com/jbenet/go-base58"
+	"github.com/renproject/darknode/binding"
+	"github.com/renproject/darknode/binding/ethereumbinding"
+	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/darknode/txengine"
-	"github.com/renproject/darknode/txengine/txenginebindings/ethereumbindings"
 	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/multichain"
@@ -25,8 +26,16 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type BurnInfo struct {
+	Txid        pack.Bytes
+	Amount      pack.U256
+	ToBytes     []byte
+	Nonce       pack.Bytes32
+	BlockNumber pack.U64
+}
+
 type BurnLogResult struct {
-	Result ethereumbindings.MintGatewayLogicV1LogBurn
+	Result BurnInfo
 	Error  error
 }
 
@@ -35,10 +44,10 @@ type BurnLogFetcher interface {
 }
 
 type EthBurnLogFetcher struct {
-	bindings *ethereumbindings.MintGatewayLogicV1
+	bindings *ethereumbinding.MintGatewayLogicV1
 }
 
-func NewBurnLogFetcher(bindings *ethereumbindings.MintGatewayLogicV1) EthBurnLogFetcher {
+func NewBurnLogFetcher(bindings *ethereumbinding.MintGatewayLogicV1) EthBurnLogFetcher {
 	return EthBurnLogFetcher{
 		bindings: bindings,
 	}
@@ -63,8 +72,22 @@ func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64,
 
 	go func() {
 		func() {
+			defer close(resultChan)
 			for iter.Next() {
-				resultChan <- BurnLogResult{Result: *iter.Event}
+				nonce := iter.Event.N.Uint64()
+				var nonceBytes pack.Bytes32
+				copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
+
+				result := BurnInfo{
+					Txid:        iter.Event.Raw.TxHash.Bytes(),
+					Amount:      pack.NewU256FromInt(iter.Event.Amount),
+					ToBytes:     iter.Event.To,
+					Nonce:       nonceBytes,
+					BlockNumber: pack.NewU64(iter.Event.Raw.BlockNumber),
+				}
+
+				// Send the burn transaction to the resolver.
+				resultChan <- BurnLogResult{Result: result}
 				select {
 				case <-ctx.Done():
 					return
@@ -72,11 +95,11 @@ func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64,
 			}
 		}()
 
-		// Always close the iter because apparently
-		// it doesn't close its subscription?
+		// Always close the iter to clear the event subscription
 		err = iter.Close()
 		if err != nil {
 			resultChan <- BurnLogResult{Error: err}
+			return
 		}
 
 		// Iter should stop if an error occurs,
@@ -84,9 +107,9 @@ func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64,
 		err := iter.Error()
 		if err != nil {
 			resultChan <- BurnLogResult{Error: err}
+			return
 		}
 
-		close(resultChan)
 	}()
 
 	return resultChan, nil
@@ -99,9 +122,9 @@ type Watcher struct {
 	logger             logrus.FieldLogger
 	gpubkey            pack.Bytes
 	selector           tx.Selector
-	bindings           txengine.Bindings
-	ethClient          *ethclient.Client
+	bindings           binding.Bindings
 	burnLogFetcher     BurnLogFetcher
+	ethClient          *ethclient.Client
 	resolver           jsonrpc.Resolver
 	cache              redis.Cmdable
 	pollInterval       time.Duration
@@ -110,7 +133,7 @@ type Watcher struct {
 }
 
 // NewWatcher returns a new Watcher.
-func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector tx.Selector, bindings txengine.Bindings, ethClient *ethclient.Client, burnLogFetcher BurnLogFetcher, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey, pollInterval time.Duration, maxBlockAdvance uint64, confidenceInterval uint64) Watcher {
+func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector tx.Selector, bindings binding.Bindings, burnLogFetcher BurnLogFetcher, ethClient *ethclient.Client, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey, pollInterval time.Duration, maxBlockAdvance uint64, confidenceInterval uint64) Watcher {
 	gpubkey := (*btcec.PublicKey)(distPubKey).SerializeCompressed()
 	return Watcher{
 		logger:             logger,
@@ -118,8 +141,8 @@ func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector 
 		gpubkey:            gpubkey,
 		selector:           selector,
 		bindings:           bindings,
-		ethClient:          ethClient,
 		burnLogFetcher:     burnLogFetcher,
+		ethClient:          ethClient,
 		resolver:           resolver,
 		cache:              cache,
 		pollInterval:       pollInterval,
@@ -198,19 +221,15 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 			watcher.logger.Errorf("[watcher] error iterating LogBurn events from=%v to=%v: %v", last, cur, res.Error)
 			return
 		}
-		event := res.Result
+		burn := res.Result
+		nonce := burn.Nonce
+		amount := burn.Amount
+		to := burn.ToBytes
 
-		to := event.To
-
-		amount := event.Amount.Uint64()
-		nonce := event.N.Uint64()
 		watcher.logger.Infof("[watcher] detected burn for %v (to=%v, amount=%v, nonce=%v)", watcher.selector.String(), string(to), amount, nonce)
 
-		var nonceBytes pack.Bytes32
-		copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
-
 		// Send the burn transaction to the resolver.
-		params, err := watcher.burnToParams(event.Raw.TxHash.Bytes(), pack.NewU256FromU64(pack.NewU64(amount)), to, nonceBytes, watcher.gpubkey)
+		params, err := watcher.burnToParams(burn.Txid, amount, to, nonce, watcher.gpubkey)
 		if err != nil {
 			watcher.logger.Errorf("[watcher] cannot get params from burn transaction (to=%v, amount=%v, nonce=%v): %v", to, amount, nonce, err)
 			continue
@@ -233,7 +252,7 @@ func (watcher Watcher) key() string {
 	return fmt.Sprintf("%v_lastCheckedBlock", watcher.selector.String())
 }
 
-// currentBlockNumber returns the current block number on Ethereum.
+// currentBlockNumber returns the current block number for the chain being watched
 func (watcher Watcher) currentBlockNumber(ctx context.Context) (uint64, error) {
 	currentBlock, err := watcher.ethClient.HeaderByNumber(ctx, nil)
 	if err != nil {
@@ -285,10 +304,10 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes [
 
 	txindex := pack.U32(0)
 	payload := pack.Bytes{}
-	phash := txengine.Phash(payload)
-	nhash := txengine.Nhash(nonce, txid, txindex)
-	ghash := txengine.Ghash(watcher.selector, phash, toBytes, nonce)
-	input, err := pack.Encode(txengine.CrossChainInput{
+	phash := engine.Phash(payload)
+	nhash := engine.Nhash(nonce, txid, txindex)
+	ghash := engine.Ghash(watcher.selector, phash, toBytes, nonce)
+	input, err := pack.Encode(engine.LockMintBurnReleaseInput{
 		Txid:    txid,
 		Txindex: txindex,
 		Amount:  amount,

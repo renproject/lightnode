@@ -10,12 +10,12 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/renproject/id"
 	. "github.com/renproject/lightnode/confirmer"
 
 	"github.com/renproject/darknode/tx/txutil"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/testutils"
-	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
 )
 
@@ -54,7 +54,7 @@ var _ = Describe("Confirmer", func() {
 			go confirmer.Run(ctx)
 
 			// Insert random transactions into the database.
-			hashes := make([]pack.Bytes32, 100)
+			hashes := make([]id.Hash, 100)
 			r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 			for i := range hashes {
 				transaction := txutil.RandomGoodTx(r)

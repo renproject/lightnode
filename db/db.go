@@ -7,8 +7,9 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/darknode/txengine"
+	"github.com/renproject/id"
 	"github.com/renproject/pack"
 )
 
@@ -37,7 +38,7 @@ type DB interface {
 
 	// Tx gets the details of the transaction with the given hash. It returns an
 	// `sql.ErrNoRows` if the transaction cannot be found.
-	Tx(hash pack.Bytes32) (tx.Tx, error)
+	Tx(hash id.Hash) (tx.Tx, error)
 
 	// Txs returns transactions with the given pagination options.
 	Txs(offset, limit int) ([]tx.Tx, error)
@@ -48,11 +49,11 @@ type DB interface {
 
 	// TxStatus returns the current status of the transaction with the given
 	// hash.
-	TxStatus(hash pack.Bytes32) (TxStatus, error)
+	TxStatus(hash id.Hash) (TxStatus, error)
 
 	// UpdateStatus updates the status of the given transaction. The status
 	// cannot be updated to a previous status.
-	UpdateStatus(hash pack.Bytes32, status TxStatus) error
+	UpdateStatus(hash id.Hash, status TxStatus) error
 
 	// Prune deletes transactions which have expired.
 	Prune(expiry time.Duration) error
@@ -160,7 +161,7 @@ func (db database) InsertTx(tx tx.Tx) error {
 }
 
 // Tx implements the DB interface.
-func (db database) Tx(txHash pack.Bytes32) (tx.Tx, error) {
+func (db database) Tx(txHash id.Hash) (tx.Tx, error) {
 	script := "SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs WHERE hash = $1"
 	row := db.db.QueryRow(script, txHash.String())
 	err := row.Err()
@@ -213,7 +214,7 @@ func (db database) PendingTxs(expiry time.Duration) ([]tx.Tx, error) {
 }
 
 // TxStatus implements the DB interface.
-func (db database) TxStatus(txHash pack.Bytes32) (TxStatus, error) {
+func (db database) TxStatus(txHash id.Hash) (TxStatus, error) {
 	var status int
 	err := db.db.QueryRow(`SELECT status FROM txs WHERE hash = $1;`, txHash.String()).Scan(&status)
 	if err != nil {
@@ -223,7 +224,7 @@ func (db database) TxStatus(txHash pack.Bytes32) (TxStatus, error) {
 }
 
 // UpdateStatus implements the DB interface.
-func (db database) UpdateStatus(txHash pack.Bytes32, status TxStatus) error {
+func (db database) UpdateStatus(txHash id.Hash, status TxStatus) error {
 	r, err := db.db.Exec("UPDATE txs SET status = $1 WHERE hash = $2 AND status < $1;", status, txHash.String())
 	updated, err := r.RowsAffected()
 	if err != nil {
@@ -281,7 +282,7 @@ func rowToTx(row Scannable) (tx.Tx, error) {
 		return tx.Tx{}, fmt.Errorf("decoding ghash %v: %v", ghashStr, err)
 	}
 	input, err := pack.Encode(
-		txengine.CrossChainInput{
+		engine.LockMintBurnReleaseInput{
 			Txid:    txID,
 			Txindex: pack.U32(txindex),
 			Amount:  amount,
@@ -307,7 +308,7 @@ func rowToTx(row Scannable) (tx.Tx, error) {
 			Input:    pack.Typed(input.(pack.Struct)),
 		}
 		hash32, err := decodeBytes32(hash)
-		transaction.Hash = hash32
+		transaction.Hash = [32]byte(hash32)
 
 		return transaction, err
 	} else {

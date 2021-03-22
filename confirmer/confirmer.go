@@ -9,9 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/renproject/darknode/binding"
+	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/darknode/txengine"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/multichain"
@@ -26,11 +27,11 @@ type Confirmer struct {
 	options    Options
 	dispatcher phi.Sender
 	database   db.DB
-	bindings   txengine.Bindings
+	bindings   binding.Bindings
 }
 
 // New returns a new Confirmer.
-func New(options Options, dispatcher phi.Sender, db db.DB, bindings txengine.Bindings) Confirmer {
+func New(options Options, dispatcher phi.Sender, db db.DB, bindings binding.Bindings) Confirmer {
 	return Confirmer{
 		options:    options,
 		dispatcher: dispatcher,
@@ -143,7 +144,7 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 	lockChain := transaction.Selector.Source()
 	switch {
 	case lockChain.IsUTXOBased():
-		input := txengine.CrossChainInput{}
+		input := engine.LockMintBurnReleaseInput{}
 		if err := pack.Decode(&input, transaction.Input); err != nil {
 			confirmer.options.Logger.Errorf("[confirmer] failed to decode input for tx=%v: %v", transaction.Hash.String(), err)
 			return false
@@ -157,7 +158,7 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 			return false
 		}
 	case lockChain.IsAccountBased():
-		input := txengine.CrossChainInput{}
+		input := engine.LockMintBurnReleaseInput{}
 		if err := pack.Decode(&input, transaction.Input); err != nil {
 			confirmer.options.Logger.Errorf("[confirmer] failed to decode input for tx=%v: %v", transaction.Hash.String(), err)
 			return false

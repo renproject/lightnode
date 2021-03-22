@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/renproject/pack"
+	"github.com/renproject/id"
 )
 
 // CheckTableExistence checks the underlying `db` object if there exists a table
@@ -50,7 +50,7 @@ func NumOfDataEntries(db *sql.DB, name string) (int, error) {
 }
 
 // UpdateTxCreatedTime of given tx hash.
-func UpdateTxCreatedTime(db *sql.DB, name string, txHash pack.Bytes32, createdTime int64) error {
+func UpdateTxCreatedTime(db *sql.DB, name string, txHash id.Hash, createdTime int64) error {
 	script := fmt.Sprintf("UPDATE %v set created_time = %v where hash = $1;", name, createdTime)
 	_, err := db.Exec(script, txHash.String())
 	return err

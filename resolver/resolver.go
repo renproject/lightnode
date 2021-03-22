@@ -9,10 +9,10 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/renproject/darknode/binding"
+	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/darknode/txengine"
-	"github.com/renproject/darknode/txpool"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/lightnode/db"
 	lhttp "github.com/renproject/lightnode/http"
@@ -31,11 +31,11 @@ type Resolver struct {
 	db                db.DB
 	serverOptions     jsonrpc.Options
 	compatStore       v0.CompatStore
-	bindings          txengine.Bindings
+	bindings          binding.Bindings
 }
 
-func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, verifier txpool.Verifier, db db.DB,
-	serverOptions jsonrpc.Options, compatStore v0.CompatStore, bindings txengine.Bindings) *Resolver {
+func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, db db.DB,
+	serverOptions jsonrpc.Options, compatStore v0.CompatStore, bindings binding.Bindings, verifier Verifier) *Resolver {
 	requests := make(chan lhttp.RequestWithResponder, 128)
 	txChecker := newTxChecker(logger, requests, verifier, db)
 	go txChecker.Run()
@@ -79,7 +79,7 @@ func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *
 		return jsonrpc.NewResponse(id, v0.ResponseSubmitTx{Tx: v0.Tx{Hash: v0.B32(hash)}}, nil)
 	}
 	response := resolver.handleMessage(ctx, id, jsonrpc.MethodSubmitTx, *params, req, true)
-	if params.Tx.Version == tx.Version1 {
+	if params.Tx.Version != tx.Version0 {
 		return response
 	}
 	if response.Error != nil {
@@ -123,7 +123,7 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 		}
 
 		resolver.logger.Debugf("[responder] found v0 tx mapping - v1: %s", txhash)
-		params.TxHash = txhash
+		params.TxHash = [32]byte(txhash)
 		v0tx = true
 	}
 
@@ -256,23 +256,20 @@ func (resolver *Resolver) QueryShards(ctx context.Context, id interface{}, param
 		raw, err := json.Marshal(response.Result)
 		if err != nil {
 			resolver.logger.Errorf("[resolver] error marshaling queryState result: %v", err)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
-		var resp map[string]interface{}
+		var resp QueryStateSystemResponse
 		if err := json.Unmarshal(raw, &resp); err != nil {
-			resolver.logger.Warnf("[resolver] cannot unmarshal queryState result from %v", err)
+			resolver.logger.Errorf("[resolver] cannot unmarshal queryState result from %v", err)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 
-		state := jsonrpc.ResponseQueryState{
-			State: map[multichain.Chain]pack.Struct{
-				multichain.Bitcoin: pack.NewStruct(
-					"pubKey",
-					pack.String(resp["state"].(map[string]interface{})["Bitcoin"].(map[string]interface{})["pubKey"].(string))),
-			},
-		}
-		shards, err := v0.ShardsResponseFromState(state)
+		shards, err := v0.ShardsResponseFromSystemState(resp.State["System"])
 
 		if err != nil {
-			resolver.logger.Error("failed to cast to QueryShards")
+			resolver.logger.Error("failed to cast to QueryShards: %v", err)
 			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
@@ -290,8 +287,12 @@ type GasCapLimitState struct {
 	GasLimit string `json:"gasLimit,omitempty"`
 }
 
-type QueryStateResponse struct {
-	State map[multichain.Chain]GasCapLimitState `json:"state"`
+type QueryStateAssetsResponse struct {
+	State map[string]GasCapLimitState `json:"state"`
+}
+
+type QueryStateSystemResponse struct {
+	State map[string]engine.SystemState `json:"state"`
 }
 
 func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryFees, req *http.Request) jsonrpc.Response {
@@ -317,7 +318,7 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 
-		var resp QueryStateResponse
+		var resp QueryStateAssetsResponse
 		if err := json.Unmarshal(raw, &resp); err != nil {
 			resolver.logger.Errorf("[resolver] cannot unmarshal queryState result: %v", err)
 			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed unmarshal darknode queryState", nil)
@@ -325,7 +326,7 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 		}
 
 		state := jsonrpc.ResponseQueryState{}
-		state.State = make(map[multichain.Chain]pack.Struct)
+		state.State = make(map[pack.String]pack.Struct)
 
 		for i := range resp.State {
 			chainState := resp.State[i]
@@ -343,7 +344,7 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 				continue
 			}
 
-			state.State[multichain.Chain(i)] = pack.NewStruct(
+			state.State[pack.String(multichain.Asset(i))] = pack.NewStruct(
 				"gasCap", pack.NewU64(uint64(gascap)),
 				"gasLimit", pack.NewU64(uint64(gaslimit)),
 			)

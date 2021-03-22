@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode/tx"
+	"github.com/renproject/id"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/pack"
 )
@@ -17,7 +18,7 @@ type CompatStore interface {
 	GetV1TxFromTx(tx Tx) (tx.Tx, error)
 	GetV1TxFromUTXO(utxo ExtBtcCompatUTXO) (tx.Tx, error)
 	GetV1TxFromHash(hash B32) (tx.Tx, error)
-	GetV1HashFromHash(hash B32) (pack.Bytes32, error)
+	GetV1HashFromHash(hash B32) (id.Hash, error)
 	GetV0BurnTxHashFromRef(sel tx.Selector, ref uint64) (B32, error)
 	// Because amount is not provided in v0, and we can't use
 	// bindings to re-fetch the amount once the utxo has been spent
@@ -45,8 +46,8 @@ func NewCompatStore(db db.DB, client redis.Cmdable) Store {
 	}
 }
 
-func (store Store) decodeHashString(s string) (pack.Bytes32, error) {
-	hash := pack.Bytes32{}
+func (store Store) decodeHashString(s string) (id.Hash, error) {
+	hash := id.Hash{}
 	hashBytes, err := base64.RawURLEncoding.DecodeString(s)
 	if err != nil {
 		err = fmt.Errorf("invalid hash encoding persisted: %v", err)
@@ -58,13 +59,13 @@ func (store Store) decodeHashString(s string) (pack.Bytes32, error) {
 }
 
 // Check redis for existing hash-hash mapping
-func (store Store) GetV1HashFromHash(v0hash B32) (pack.Bytes32, error) {
+func (store Store) GetV1HashFromHash(v0hash B32) (id.Hash, error) {
 	hashS, err := store.client.Get(v0hash.String()).Result()
 	if err != nil {
 		if err == redis.Nil {
 			err = ErrNotFound
 		}
-		return pack.Bytes32{}, err
+		return id.Hash{}, err
 	}
 
 	return store.decodeHashString(hashS)
@@ -80,13 +81,13 @@ func (store Store) GetV1TxFromHash(v0hash B32) (tx.Tx, error) {
 	return store.db.Tx(hash)
 }
 
-func (store Store) getTxHashFromUTXO(utxo ExtBtcCompatUTXO) (pack.Bytes32, error) {
+func (store Store) getTxHashFromUTXO(utxo ExtBtcCompatUTXO) (id.Hash, error) {
 	hashS, err := store.client.Get(utxoLookupString(utxo)).Result()
 	if err != nil {
 		if err == redis.Nil {
 			err = ErrNotFound
 		}
-		return pack.Bytes32{}, err
+		return id.Hash{}, err
 	}
 	return store.decodeHashString(hashS)
 }
