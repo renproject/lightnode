@@ -15,6 +15,7 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/id"
+	v2 "github.com/renproject/lightnode/compat/v2"
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/ethereum"
 	"github.com/renproject/pack"
@@ -63,54 +64,36 @@ func ShardsResponseFromSystemState(state engine.SystemState) (ResponseQueryShard
 
 // ShardsResponseFromState takes a QueryState rpc response and converts it into a QueryShards rpc response
 // It can be a standalone function as it has no dependencies
-func QueryFeesResponseFromState(state jsonrpc.ResponseQueryState) (ResponseQueryFees, error) {
-	bitcoinS := state.State[pack.NewString(string(multichain.Bitcoin.NativeAsset()))]
-	bitcoinCap, ok := bitcoinS.Get("gasCap").(pack.U64)
+func QueryFeesResponseFromState(state map[string]v2.UTXOState) (ResponseQueryFees, error) {
+	bitcoinS, ok := state[string(multichain.Bitcoin.NativeAsset())]
 	if !ok {
 		return ResponseQueryFees{},
-			fmt.Errorf("unexpected type for bitcoinCap: expected pack.U64, got %v",
-				bitcoinS.Get("gasCap").Type())
+			fmt.Errorf("Missing Bitcoin State")
+	}
+	bitcoinCap := bitcoinS.GasCap
+	bitcoinLimit := bitcoinS.GasLimit
+
+	bitcoinUnderlying := U64{Int: big.NewInt(int64(bitcoinCap.Int().Uint64() * bitcoinLimit.Int().Uint64()))}
+
+	zcashS, ok := state[string(multichain.Zcash.NativeAsset())]
+	if !ok {
+		return ResponseQueryFees{},
+			fmt.Errorf("Missing ZCash State")
 	}
 
-	bitcoinLimit, ok := bitcoinS.Get("gasLimit").(pack.U64)
-	if !ok {
-		return ResponseQueryFees{},
-			fmt.Errorf("unexpected type for bitcoinLimit: expected pack.U64, got %v",
-				bitcoinS.Get("gasLimit").Type())
-	}
-	bitcoinUnderlying := U64{Int: big.NewInt(int64(bitcoinCap.Uint64() * bitcoinLimit.Uint64()))}
+	zcashCap := zcashS.GasCap
+	zcashLimit := zcashS.GasLimit
+	zcashUnderlying := U64{Int: big.NewInt(int64(zcashCap.Int().Uint64() * zcashLimit.Int().Uint64()))}
 
-	zcashS := state.State[pack.NewString(string(multichain.Zcash.NativeAsset()))]
-	zcashCap, ok := zcashS.Get("gasCap").(pack.U64)
+	bitcoinCashS, ok := state[string(multichain.BitcoinCash.NativeAsset())]
 	if !ok {
 		return ResponseQueryFees{},
-			fmt.Errorf("unexpected type for zcashCap: expected pack.U64 , got %v",
-				zcashS.Get("gasCap").Type())
+			fmt.Errorf("Missing BitcoinCash State")
 	}
+	bitcoinCashCap := bitcoinCashS.GasCap
+	bitcoinCashLimit := bitcoinCashS.GasLimit
 
-	zcashLimit, ok := zcashS.Get("gasLimit").(pack.U64)
-	if !ok {
-		return ResponseQueryFees{},
-			fmt.Errorf("unexpected type for zcashLimit: expected pack.U64, got %v",
-				zcashS.Get("gasLimit").Type())
-	}
-	zcashUnderlying := U64{Int: big.NewInt(int64(zcashCap.Uint64() * zcashLimit.Uint64()))}
-
-	bitcoinCashS := state.State[pack.NewString(string(multichain.BitcoinCash.NativeAsset()))]
-	bitcoinCashCap, ok := bitcoinCashS.Get("gasCap").(pack.U64)
-	if !ok {
-		return ResponseQueryFees{},
-			fmt.Errorf("unexpected type for bitcoinCashCap: expected pack.U64, got %v",
-				bitcoinCashS.Get("gasCap").Type())
-	}
-
-	bitcoinCashLimit, ok := bitcoinCashS.Get("gasLimit").(pack.U64)
-	if !ok {
-		return ResponseQueryFees{},
-			fmt.Errorf("unexpected type for bitcoinCashLimit: expected pack.U64, got %v",
-				bitcoinCashS.Get("gasLimit").Type())
-	}
-	bitcoinCashUnderlying := U64{Int: big.NewInt(int64(bitcoinCashCap.Uint64() * bitcoinCashLimit.Uint64()))}
+	bitcoinCashUnderlying := U64{Int: big.NewInt(int64(bitcoinCashCap.Int().Uint64() * bitcoinCashLimit.Int().Uint64()))}
 
 	mintFee := U64{Int: big.NewInt(25)}
 	burnFee := U64{Int: big.NewInt(10)}

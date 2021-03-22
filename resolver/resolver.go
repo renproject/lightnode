@@ -7,17 +7,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	v0 "github.com/renproject/lightnode/compat/v0"
+	v1 "github.com/renproject/lightnode/compat/v1"
+	v2 "github.com/renproject/lightnode/compat/v2"
 	"github.com/renproject/lightnode/db"
 	lhttp "github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
-	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
@@ -240,7 +240,7 @@ func (resolver *Resolver) QueryNumPeers(ctx context.Context, id interface{}, par
 func (resolver *Resolver) QueryShards(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryShards, req *http.Request) jsonrpc.Response {
 	// This is required for compatibility with renjs v1
 
-	reqWithResponder := lhttp.NewRequestWithResponder(ctx, id, jsonrpc.MethodQueryState, params, nil)
+	reqWithResponder := lhttp.NewRequestWithResponder(ctx, id, jsonrpc.MethodQueryBlockState, params, nil)
 	if ok := resolver.cacher.Send(reqWithResponder); !ok {
 		resolver.logger.Error("failed to send request to cacher, too much back pressure")
 		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "too much back pressure", nil)
@@ -255,27 +255,18 @@ func (resolver *Resolver) QueryShards(ctx context.Context, id interface{}, param
 	case response := <-reqWithResponder.Responder:
 		raw, err := json.Marshal(response.Result)
 		if err != nil {
-			resolver.logger.Errorf("[resolver] error marshaling queryState result: %v", err)
+			resolver.logger.Errorf("[resolver] error marshaling queryBlockState result: %v", err)
 			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 		var resp QueryStateSystemResponse
 		if err := json.Unmarshal(raw, &resp); err != nil {
-			resolver.logger.Errorf("[resolver] cannot unmarshal queryState result from %v", err)
+			resolver.logger.Errorf("[resolver] cannot unmarshal queryBlockState result from %v", err)
 			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 
-		// pack.String(resp["state"].(map[string]interface{})["System"].(map[string]interface{})["pubKey"].(string))),
-		//var systemState engine.SystemState
-		// err = pack.Decode(systemState, resp["state"].(map[string]interface{})["System"].(pack.Struct))
-		// if err != nil {
-		// 	resolver.logger.Error("failed to cast to QueryShards: %v", err)
-		// 	jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
-		// 	return jsonrpc.NewResponse(id, nil, &jsonErr)
-		// }
-
-		shards, err := v0.ShardsResponseFromSystemState(resp.State["System"])
+		shards, err := v0.ShardsResponseFromSystemState(resp.State.System)
 
 		if err != nil {
 			resolver.logger.Error("failed to cast to QueryShards: %v", err)
@@ -291,23 +282,18 @@ func (resolver *Resolver) QueryStat(ctx context.Context, id interface{}, params 
 	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryStat, *params, req, false)
 }
 
-type GasCapLimitState struct {
-	GasCap   string `json:"gasCap,omitempty"`
-	GasLimit string `json:"gasLimit,omitempty"`
-}
-
-type QueryStateAssetsResponse struct {
-	State map[string]GasCapLimitState `json:"state"`
+type StateSystem struct {
+	System engine.SystemState `json:"System"`
 }
 
 type QueryStateSystemResponse struct {
-	State map[string]engine.SystemState `json:"state"`
+	State StateSystem `json:"state"`
 }
 
 func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryFees, req *http.Request) jsonrpc.Response {
 	// This is required for compatibility with renjs v1
 
-	reqWithResponder := lhttp.NewRequestWithResponder(ctx, id, jsonrpc.MethodQueryState, params, nil)
+	reqWithResponder := lhttp.NewRequestWithResponder(ctx, id, jsonrpc.MethodQueryBlockState, params, nil)
 	if ok := resolver.cacher.Send(reqWithResponder); !ok {
 		resolver.logger.Error("failed to send request to cacher, too much back pressure")
 		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "too much back pressure", nil)
@@ -322,44 +308,81 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 	case response := <-reqWithResponder.Responder:
 		raw, err := json.Marshal(response.Result)
 		if err != nil {
-			resolver.logger.Errorf("[resolver] error marshaling queryState result: %v", err)
-			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed marshal darknode queryState", nil)
+			resolver.logger.Errorf("[resolver] error marshaling queryBlockState result: %v", err)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to marshal darknode queryBlockState for legacy assets", nil)
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 
-		var resp QueryStateAssetsResponse
+		var resp v2.QueryBlockStateJSON
 		if err := json.Unmarshal(raw, &resp); err != nil {
-			resolver.logger.Errorf("[resolver] cannot unmarshal queryState result: %v", err)
-			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed unmarshal darknode queryState", nil)
+			resolver.logger.Errorf("[resolver] cannot unmarshal queryBlockState result for legacy assets: %v", err)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to unmarshal darknode queryBlockState for legacy assets", nil)
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 
-		state := jsonrpc.ResponseQueryState{}
-		state.State = make(map[pack.String]pack.Struct)
+		fees, err := v0.QueryFeesResponseFromState(map[string]v2.UTXOState{
+			"BTC": resp.State.BTC,
+			"ZEC": resp.State.ZEC,
+			"BCH": resp.State.BCH,
+		})
 
-		for i := range resp.State {
-			chainState := resp.State[i]
-			gascap, err := strconv.Atoi(chainState.GasCap)
-			if err != nil {
-				resolver.logger.Warnf("[resolver] missing/incorrect gascap for %v: %v", i, gascap)
-				// Some chains might not have a gascap
-				continue
-			}
-
-			gaslimit, err := strconv.Atoi(chainState.GasLimit)
-			if err != nil {
-				resolver.logger.Warnf("[resolver] missing/incorrect gaslimit for %v", i, gaslimit)
-				// Some chains might not have a gaslimit
-				continue
-			}
-
-			state.State[pack.String(multichain.Asset(i))] = pack.NewStruct(
-				"gasCap", pack.NewU64(uint64(gascap)),
-				"gasLimit", pack.NewU64(uint64(gaslimit)),
-			)
+		if err != nil {
+			resolver.logger.Error("failed to cast to QueryFees: %v", err)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 
-		shards, err := v0.QueryFeesResponseFromState(state)
+		return jsonrpc.NewResponse(id, fees, nil)
+	}
+}
+
+func (resolver *Resolver) QueryConfig(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryConfig, req *http.Request) jsonrpc.Response {
+	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryConfig, *params, req, false)
+}
+
+func (resolver *Resolver) QueryState(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryState, req *http.Request) jsonrpc.Response {
+	// This is required for compatibility with renjs v1
+
+	reqWithResponder := lhttp.NewRequestWithResponder(ctx, id, jsonrpc.MethodQueryBlockState, params, nil)
+	if ok := resolver.cacher.Send(reqWithResponder); !ok {
+		resolver.logger.Error("failed to send request to cacher, too much back pressure")
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "too much back pressure", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	select {
+	case <-ctx.Done():
+		resolver.logger.Error("timeout when waiting for response: %v", ctx.Err())
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "request timed out", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	case response := <-reqWithResponder.Responder:
+		raw, err := json.Marshal(response.Result)
+		if err != nil {
+			resolver.logger.Errorf("[resolver] error marshaling queryBlockState result: %v", err)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed marshal darknode queryBlockState", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
+
+		var resp v2.QueryBlockStateJSON
+		if err := json.Unmarshal(raw, &resp); err != nil {
+			resolver.logger.Errorf("[resolver] cannot unmarshal queryBlockState result for v2 Assets: %v", err)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed unmarshal darknode queryBlockState", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
+
+		shards, err := v1.QueryStateResponseFromState(
+			map[string]v2.UTXOState{
+				"BTC":  resp.State.BTC,
+				"ZEC":  resp.State.ZEC,
+				"BCH":  resp.State.BCH,
+				"DGB":  resp.State.DGB,
+				"DOGE": resp.State.DOGE,
+			},
+			map[string]v2.AccountState{
+				"LUNA": resp.State.LUNA,
+				"FIL":  resp.State.FIL,
+			},
+		)
 
 		if err != nil {
 			resolver.logger.Error("failed to cast to QueryFees: %v", err)
@@ -371,12 +394,8 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 	}
 }
 
-func (resolver *Resolver) QueryConfig(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryConfig, req *http.Request) jsonrpc.Response {
-	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryConfig, *params, req, false)
-}
-
-func (resolver *Resolver) QueryState(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryState, req *http.Request) jsonrpc.Response {
-	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryState, *params, req, false)
+func (resolver *Resolver) QueryBlockState(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryBlockState, req *http.Request) jsonrpc.Response {
+	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryBlockState, *params, req, false)
 }
 
 func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryTxs, req *http.Request) jsonrpc.Response {
