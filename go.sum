@@ -1525,6 +1525,8 @@ github.com/renproject/multichain v0.2.21 h1:Sd/MdBvr3IZPm9W8XdmbZo0X0K6CAsM8l8TC
 github.com/renproject/multichain v0.2.21/go.mod h1:HexRygMyMZAnXUTiHT6egxJaC4XWnMFBgBBMU0vCw5g=
 github.com/renproject/multichain v0.3.3 h1:CjOLhAXxfDvHLFE87FAAMXK3ZhUYm2/75cK6FXDwsnU=
 github.com/renproject/multichain v0.3.3/go.mod h1:mL1wpmd5wU3ZRZD7dN18wHk4mtHWe8aiw2sr99eG8Oo=
+github.com/renproject/multichain v0.3.4 h1:B6p//sKlD2/B9tb52o/QMKfiUX8Kku1SttCQpsZqEF4=
+github.com/renproject/multichain v0.3.4/go.mod h1:mL1wpmd5wU3ZRZD7dN18wHk4mtHWe8aiw2sr99eG8Oo=
 github.com/renproject/pack v0.2.5/go.mod h1:pzX3Hc04RoPft89LaZJVp0xgngVGi90V7GvyC3mOGg4=
 github.com/renproject/pack v0.2.7 h1:zVf8/d/ehuZLFgiorj8zOl3B2LXRhpvSCYYswQfUWT4=
 github.com/renproject/pack v0.2.7/go.mod h1:pzX3Hc04RoPft89LaZJVp0xgngVGi90V7GvyC3mOGg4=
