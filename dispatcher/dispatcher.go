@@ -51,7 +51,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 	if id != "" {
 		addrs, err = dispatcher.multiAddr(id)
 	} else {
-		addrs, err = dispatcher.multiAddrs(msg.Method)
+		addrs = dispatcher.multiAddrs(msg.Method)
 	}
 	if err != nil {
 		dispatcher.logger.Errorf("[dispatcher] fail to send %v message to [%v], error getting multi-address: %v", msg.Method, id, err)
@@ -102,16 +102,16 @@ func (dispatcher *Dispatcher) multiAddr(darknodeID string) (addr.MultiAddresses,
 
 // multiAddrs returns the multi-addresses for the Darknodes based on the given
 // method.
-func (dispatcher *Dispatcher) multiAddrs(method string) (addr.MultiAddresses, error) {
+func (dispatcher *Dispatcher) multiAddrs(method string) addr.MultiAddresses {
 	switch method {
 	case jsonrpc.MethodSubmitTx:
-		return dispatcher.multiStore.RandomAddresses(3, true)
+		return dispatcher.multiStore.RandomBootstraps(3)
 	case jsonrpc.MethodQueryTx:
-		return dispatcher.multiStore.BootstrapAddresses(), nil
+		return dispatcher.multiStore.BootstrapAddresses()
 	case jsonrpc.MethodQueryStat:
-		return dispatcher.multiStore.RandomAddresses(3, false)
+		return dispatcher.multiStore.RandomAddresses(3)
 	default:
-		return dispatcher.multiStore.RandomAddresses(5, true)
+		return dispatcher.multiStore.RandomBootstraps(5)
 	}
 }
 

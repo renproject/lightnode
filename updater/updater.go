@@ -63,25 +63,22 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 	queryCtx, cancel := context.WithTimeout(ctx, updater.pollRate)
 	defer cancel()
 
-	params, err := json.Marshal(jsonrpc.ParamsQueryPeers{})
-	if err != nil {
-		updater.logger.Errorf("cannot marshal query peers params: %v", err)
-		return
-	}
+	// Initialize address list for updating
+	addrsToUpdate := []addr.MultiAddress{}
 
-	addrs, err := updater.multiStore.CycleThroughAddresses(50)
-	if err != nil {
-		updater.logger.Errorf("cannot read address from multiAddress store: %v", err)
-		return
-	}
-
-	// Ping all the selected nodes and collect results.
+	// Query 50 random addresses from store
 	mu := new(sync.Mutex)
-	newAddrs := map[string]addr.MultiAddress{}
-	phi.ParForAll(addrs, func(i int) {
-		multi := addrs[i]
+	addrsToDecide := map[string]map[string]struct{}{}
+	randAddrs := updater.multiStore.RandomAddresses(50)
+	phi.ParForAll(randAddrs, func(i int) {
+		multi := randAddrs[i]
 
 		// Send request to the node to retrieve its peers.
+		params, err := json.Marshal(jsonrpc.ParamsQueryPeers{})
+		if err != nil {
+			updater.logger.Errorf("cannot marshal query peers params: %v", err)
+			return
+		}
 		request := jsonrpc.Request{
 			Version: "2.0",
 			ID:      rand.Int31(),
@@ -89,10 +86,9 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 			Params:  params,
 		}
 
-		address := fmt.Sprintf("http://%s:%v", addrs[i].IP4(), addrs[i].Port()+1)
+		address := fmt.Sprintf("http://%s:%v", multi.IP4(), multi.Port() +1 )
 		response, err := updater.client.SendRequest(queryCtx, address, request, nil)
 		if err != nil {
-			updater.logger.Warnf("[updater] cannot connect to node %v: %v", multi.String(), err)
 			return
 		}
 
@@ -114,26 +110,115 @@ func (updater *Updater) updateMultiAddress(ctx context.Context) {
 			if err != nil {
 				continue
 			}
-			newAddrs[multiAddr.ID().String()] = multiAddr
+			addrsForSameID := addrsToDecide[multiAddr.ID().String()]
+			if addrsForSameID == nil {
+				addrsForSameID = map[string]struct{}{}
+			}
+			addrsForSameID[peer] = struct{}{}
+			addrsToDecide[multiAddr.ID().String()] = addrsForSameID
+		}
+	})
+
+	for id, multis := range addrsToDecide {
+		// If we only get one multiAddress for the id, we simply add that to our store
+		// It would take a long time to ping each of them to check if they're online.
+		if len(multis) == 1 {
+			var multi addr.MultiAddress
+			for peer := range multis {
+				var err error
+				multi, err = addr.NewMultiAddressFromString(peer)
+				if err != nil {
+					return
+				}
+				break
+			}
+
+			stored, err := updater.multiStore.Address(multi.ID().String())
+			switch err {
+			case store.ErrNotFound:
+				delete(addrsToDecide, multi.ID().String())
+				addrsToUpdate = append(addrsToUpdate, multi)
+			case nil:
+				// No need to update the address if it's same as we stored
+				if stored.String() == multi.String() {
+					delete(addrsToDecide, multi.ID().String())
+				} else {
+					// If it's different from what we stored, add the stored one to the map
+					// and we'll ping both of them to see check which one is online
+					multis[stored.String()] = struct{}{}
+					addrsToDecide[id] = multis
+				}
+			default:
+				continue
+			}
+		}
+	}
+
+	// Ping different multiAddress of the same id to see which is actually online
+	phi.ParForAll(addrsToDecide, func(key string) {
+		multis := addrsToDecide[key]
+		pingCtx, pingCancel := context.WithTimeout(queryCtx, time.Second)
+		defer pingCancel()
+
+		var address addr.MultiAddress
+		var found bool
+		phi.ForAll(multis, func(key string) {
+			multi, err := addr.NewMultiAddressFromString(key)
+			if err != nil {
+				return
+			}
+
+			// Send request to the node to retrieve its peers.
+			request := jsonrpc.Request{
+				Version: "2.0",
+				ID:      1,
+				Method:  jsonrpc.MethodQueryStat,
+				Params:  json.RawMessage("{}"),
+			}
+
+			url := fmt.Sprintf("http://%s:%v", multi.IP4(), multi.Port()+1)
+			response, err := updater.client.SendRequest(pingCtx, url, request, nil)
+			if err != nil {
+				return
+			}
+			if response.Error != nil {
+				return
+			}
+
+			// Cancel the context for other requests in parallel as we found one which is online.
+			pingCancel()
+			mu.Lock()
+			defer mu.Unlock()
+			if !found {
+				address = multi
+				found = true
+			}
+		})
+
+		// If we do find one which is alive, we compare it with our stored value
+		// decide if we need to do an update
+		if found {
+			stored, err := updater.multiStore.Address(key)
+			if err != nil && err != store.ErrNotFound {
+				updater.logger.Warnf("[updater] cannot read multiAddress of id %v", key, err)
+				return
+			}
+			if err == store.ErrNotFound || address.String() != stored.String() {
+				mu.Lock()
+				addrsToUpdate = append(addrsToUpdate, address)
+				mu.Unlock()
+			}
 		}
 	})
 
 	// Update store with new addresses
-	addresses := make([]addr.MultiAddress, 0, len(newAddrs))
-	for _, peer := range newAddrs {
-		addresses = append(addresses, peer)
-	}
-	if err := updater.multiStore.InsertAddresses(addresses); err != nil {
+	if err := updater.multiStore.Insert(addrsToUpdate); err != nil {
 		updater.logger.Errorf("cannot update new addresses: %v", err)
 		return
 	}
 
-	// Print how many nodes we have connected to.
-	size, err := updater.multiStore.Size()
-	if err != nil {
-		updater.logger.Errorf("cannot get query addresses: %v", err)
-		return
-	}
+	// Print how many nodes we have connected to.git
+	size := updater.multiStore.Size()
 	updater.logger.Infof("connected to %v nodes", size)
 }
 

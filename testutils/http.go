@@ -37,10 +37,7 @@ func (cl ChanWriter) Write(p []byte) (n int, err error) {
 
 func RandomAddressHandler(store store.MultiAddrStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		addrs, err := store.RandomAddresses(5, false)
-		if err != nil {
-			panic(err)
-		}
+		addrs := store.RandomAddresses(5)
 		addrsString := make([]string, len(addrs))
 		for i := range addrsString {
 			addrsString[i] = addrs[i].String()
