@@ -192,29 +192,34 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 
 	case res := <-reqWithResponder.Responder:
+		raw, err := json.Marshal(res.Result)
+		if err != nil {
+			resolver.logger.Errorf("[resolver] error marshaling queryTx result: %v", err)
+			return res
+		}
+
+		if raw == nil {
+			resolver.logger.Warnf("[resolver] empty response for hash %s", params.TxHash)
+			return res
+		}
+
+		var resp jsonrpc.ResponseQueryTx
+		if err := json.Unmarshal(raw, &resp); err != nil {
+			resolver.logger.Warnf("[resolver] cannot unmarshal queryState result from %v", err)
+			return res
+		}
+
+		if resp.Tx.Hash != params.TxHash {
+			resolver.logger.Warnf("[resolver] darknode query response (%s) does not match lightnode hash request (%s)", resp.Tx.Hash, params.TxHash)
+			return res
+		}
+
+		if resp.Tx.Output.String() == pack.NewTyped().String() {
+			// Transaction is still being processed
+			resp.TxStatus = tx.StatusExecuting
+		}
+
 		if v0tx {
-			raw, err := json.Marshal(res.Result)
-			if err != nil {
-				resolver.logger.Errorf("[resolver] error marshaling queryTx result: %v", err)
-				return res
-			}
-
-			if raw == nil {
-				resolver.logger.Warnf("[resolver] empty response for hash %s", params.TxHash)
-				return res
-			}
-
-			var resp jsonrpc.ResponseQueryTx
-			if err := json.Unmarshal(raw, &resp); err != nil {
-				resolver.logger.Warnf("[resolver] cannot unmarshal queryState result from %v", err)
-				return res
-			}
-
-			if resp.Tx.Hash != params.TxHash {
-				resolver.logger.Warnf("[resolver] darknode query response (%s) does not match lightnode hash request (%s)", resp.Tx.Hash, params.TxHash)
-				return res
-			}
-
 			v0tx, err := v0.TxFromV1Tx(resp.Tx, true, resolver.bindings)
 			if err != nil {
 				resolver.logger.Errorf("[resolver] error casting tx from v1 to v0: %v", err)
@@ -224,7 +229,7 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 
 			return jsonrpc.NewResponse(id, v0.ResponseQueryTx{Tx: v0tx, TxStatus: resp.TxStatus.String()}, nil)
 		} else {
-			return res
+			return jsonrpc.NewResponse(id, resp, nil)
 		}
 	}
 }
