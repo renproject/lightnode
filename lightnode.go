@@ -126,18 +126,6 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		bindings,
 	)
 
-	whitelistedHostChains := map[multichain.Chain][]tx.Selector{}
-	for _, sel := range options.Whitelist {
-		// only support configured chains
-		if _, ok := options.Chains[sel.Destination()]; !ok {
-			continue
-		}
-		if sel.IsMint() {
-			whitelistedHostChains[sel.Destination()] =
-				append(whitelistedHostChains[sel.Destination()], sel)
-		}
-	}
-
 	watchers := map[multichain.Chain]map[multichain.Asset]watcher.Watcher{}
 	ethGateways := bindings.EthereumGateways()
 	ethClients := bindings.EthereumClients()
