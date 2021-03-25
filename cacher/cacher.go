@@ -121,11 +121,13 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 				raw, err := json.Marshal(response.Result)
 				// no need to handle errors here as it will be handled by the resolver
 				if err != nil {
+					cacher.logger.Warnf("Failed to marshal queryTx response: %v", err)
 					return true
 				}
 				var tx jsonrpc.ResponseQueryTx
 				err = json.Unmarshal(raw, &tx)
 				if err != nil {
+					cacher.logger.Warnf("Failed to unmarshal queryTx response: %v", err)
 					return true
 				}
 

@@ -293,14 +293,6 @@ func (resolver *Resolver) QueryStat(ctx context.Context, id interface{}, params 
 	return resolver.handleMessage(ctx, id, jsonrpc.MethodQueryStat, *params, req, false)
 }
 
-type StateSystem struct {
-	System engine.SystemState `json:"System"`
-}
-
-type QueryStateSystemResponse struct {
-	State StateSystem `json:"state"`
-}
-
 func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params *jsonrpc.ParamsQueryFees, req *http.Request) jsonrpc.Response {
 	// This is required for compatibility with renjs v1
 

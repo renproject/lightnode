@@ -60,10 +60,6 @@ func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse,
 
 	bitcoinS, ok := state[string(multichain.Bitcoin.NativeAsset())]
 	if ok {
-		// do we want to log that we are missing bitcoin
-		// return StateResponse{},
-		// 	fmt.Errorf("Missing Bitcoin State")
-
 		if len(bitcoinS.Shards) == 0 {
 			return StateResponse{},
 				fmt.Errorf("No Bitcoin Shards")

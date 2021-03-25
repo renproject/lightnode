@@ -166,19 +166,9 @@ func MockQueryBlockStateResponse() jsonrpc.ResponseQueryBlockState {
 }
 
 func MockEngineState() map[string]engine.XState {
-	// systemStateP, err := json.Marshal(MockSystemState())
-	// if err != nil {
-	// 	panic(fmt.Sprintf("Failed to encode state %v", err))
-	// }
-	// var systemX engine.XState
-	// err = json.Unmarshal(systemStateP, &systemX)
-	// if err != nil {
-	// 	panic(fmt.Sprintf("Failed to decode state %v", err))
-	// }
-	//
 	pkBytes, err := base64.RawURLEncoding.DecodeString("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm")
 	if err != nil {
-		panic(fmt.Sprintf("Failed to decode pubk %v", err))
+		panic(fmt.Sprintf("failed to decode pub key: %v", err))
 	}
 
 	bitcoinShardState := engine.XStateShardUTXO{
@@ -191,7 +181,7 @@ func MockEngineState() map[string]engine.XState {
 	}
 	bitcoinShardStateP, err := pack.Encode(bitcoinShardState)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to encode utxo shard %v", err))
+		panic(fmt.Sprintf("failed to encode utxo shard: %v", err))
 	}
 
 	accountShardState := engine.XStateShardAccount{
@@ -200,7 +190,7 @@ func MockEngineState() map[string]engine.XState {
 	}
 	accountShardStateP, err := pack.Encode(accountShardState)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to encode account shard %v", err))
+		panic(fmt.Sprintf("failed to encode account shard: %v", err))
 	}
 
 	utxoState := engine.XState{
