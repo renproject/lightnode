@@ -152,14 +152,16 @@ func MockQueryBlockStateResponse() jsonrpc.ResponseQueryBlockState {
 	if err != nil {
 		panic(fmt.Sprintf("failed to encode system state:  %v", err))
 	}
+
+	var state pack.Typed
+	state = append(state, pack.NewStructField("System", systemStateP))
+	state = append(state, pack.NewStructField(string(multichain.BTC), bitcoinStateS))
+	state = append(state, pack.NewStructField(string(multichain.BCH), bitcoinStateS))
+	state = append(state, pack.NewStructField(string(multichain.ZEC), bitcoinStateS))
+	state = append(state, pack.NewStructField(string(multichain.LUNA), terraStateS))
+
 	return jsonrpc.ResponseQueryBlockState{
-		State: map[pack.String]pack.Struct{
-			pack.String("System"):                systemStateP.(pack.Struct),
-			pack.String(string(multichain.BTC)):  bitcoinStateS,
-			pack.String(string(multichain.BCH)):  bitcoinStateS,
-			pack.String(string(multichain.ZEC)):  bitcoinStateS,
-			pack.String(string(multichain.LUNA)): terraStateS,
-		},
+		State: state,
 	}
 }
 

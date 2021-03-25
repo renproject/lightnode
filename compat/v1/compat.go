@@ -1,13 +1,12 @@
 package v1
 
 import (
-	v2 "github.com/renproject/lightnode/compat/v2"
-	"github.com/renproject/multichain"
-)
+	"fmt"
 
-type QueryStateResponse struct {
-	State StateResponse `json:"state"`
-}
+	"github.com/renproject/darknode/engine"
+	"github.com/renproject/multichain"
+	"github.com/renproject/pack"
+)
 
 type StateResponse struct {
 	Bitcoin     UTXOState    `json:"Bitcoin,omitempty"`
@@ -56,17 +55,27 @@ type AccountState struct {
 	Pubkey            string    `json:"pubKey"`
 }
 
-func QueryStateResponseFromState(utxostates map[string]v2.UTXOState, accountstates map[string]v2.AccountState) (QueryStateResponse, error) {
+func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse, error) {
 	stateResponse := StateResponse{}
 
-	bitcoinS, ok := utxostates[string(multichain.Bitcoin.NativeAsset())]
-	if ok && len(bitcoinS.Shards) != 0 {
+	bitcoinS, ok := state[string(multichain.Bitcoin.NativeAsset())]
+	if ok {
 		// do we want to log that we are missing bitcoin
 		// return StateResponse{},
 		// 	fmt.Errorf("Missing Bitcoin State")
 
+		if len(bitcoinS.Shards) == 0 {
+			return StateResponse{},
+				fmt.Errorf("No Bitcoin Shards")
+		}
+
 		btcShard := bitcoinS.Shards[0]
-		btcOutput := btcShard.State
+
+		var btcOutput engine.XStateShardUTXO
+		if err := pack.Decode(&btcOutput, btcShard.State); err != nil {
+			return StateResponse{},
+				fmt.Errorf("Failed to unmarshal bitcoin shard state: %v", err)
+		}
 
 		stateResponse.Bitcoin = UTXOState{
 			Address:           btcShard.Shard.String(),
@@ -89,12 +98,20 @@ func QueryStateResponseFromState(utxostates map[string]v2.UTXOState, accountstat
 
 	}
 
-	zcashS, ok := utxostates[string(multichain.Zcash.NativeAsset())]
-	if ok && len(zcashS.Shards) != 0 {
+	zcashS, ok := state[string(multichain.Zcash.NativeAsset())]
+	if ok {
+		if len(zcashS.Shards) == 0 {
+			return StateResponse{},
+				fmt.Errorf("No Zcash Shards")
+		}
 
 		zecShard := zcashS.Shards[0]
 
-		zecOutput := zecShard.State
+		var zecOutput engine.XStateShardUTXO
+		if err := pack.Decode(&zecOutput, zecShard.State); err != nil {
+			return StateResponse{},
+				fmt.Errorf("Failed to unmarshal zcash shard state: %v", err)
+		}
 
 		stateResponse.Zcash = UTXOState{
 			Address:           zecShard.Shard.String(),
@@ -116,12 +133,21 @@ func QueryStateResponseFromState(utxostates map[string]v2.UTXOState, accountstat
 		}
 	}
 
-	bitcoinCashS, ok := utxostates[string(multichain.BitcoinCash.NativeAsset())]
-	if ok && len(bitcoinCashS.Shards) != 0 {
+	bitcoinCashS, ok := state[string(multichain.BitcoinCash.NativeAsset())]
+	if ok {
+
+		if len(bitcoinCashS.Shards) == 0 {
+			return StateResponse{},
+				fmt.Errorf("No BitcoinCash Shards")
+		}
 
 		bchShard := bitcoinCashS.Shards[0]
 
-		bchOutput := bchShard.State
+		var bchOutput engine.XStateShardUTXO
+		if err := pack.Decode(&bchOutput, bchShard.State); err != nil {
+			return StateResponse{},
+				fmt.Errorf("Failed to unmarshal bitcoinCash shard state: %v", err)
+		}
 
 		stateResponse.Bitcoincash = UTXOState{
 			Address:           bchShard.Shard.String(),
@@ -143,12 +169,21 @@ func QueryStateResponseFromState(utxostates map[string]v2.UTXOState, accountstat
 		}
 	}
 
-	digibyteS, ok := utxostates[string(multichain.DigiByte.NativeAsset())]
-	if ok && len(digibyteS.Shards) != 0 {
+	digibyteS, ok := state[string(multichain.DigiByte.NativeAsset())]
+	if ok {
+
+		if len(digibyteS.Shards) == 0 {
+			return StateResponse{},
+				fmt.Errorf("No Digibyte Shards")
+		}
 
 		dgbShard := digibyteS.Shards[0]
 
-		dgbOutput := dgbShard.State
+		var dgbOutput engine.XStateShardUTXO
+		if err := pack.Decode(&dgbOutput, dgbShard.State); err != nil {
+			return StateResponse{},
+				fmt.Errorf("Failed to unmarshal digibyte shard state: %v", err)
+		}
 
 		stateResponse.Digibyte = UTXOState{
 			Address:           dgbShard.Shard.String(),
@@ -171,12 +206,21 @@ func QueryStateResponseFromState(utxostates map[string]v2.UTXOState, accountstat
 
 	}
 
-	dogecoinS, ok := utxostates[string(multichain.DigiByte.NativeAsset())]
-	if ok && len(dogecoinS.Shards) != 0 {
+	dogecoinS, ok := state[string(multichain.DigiByte.NativeAsset())]
+	if ok {
+
+		if len(dogecoinS.Shards) == 0 {
+			return StateResponse{},
+				fmt.Errorf("No Dogecoin Shards")
+		}
 
 		dogeShard := dogecoinS.Shards[0]
 
-		dogeOutput := dogeShard.State
+		var dogeOutput engine.XStateShardUTXO
+		if err := pack.Decode(&dogeOutput, dogeShard.State); err != nil {
+			return StateResponse{},
+				fmt.Errorf("Failed to unmarshal dogecoin shard state: %v", err)
+		}
 
 		stateResponse.Dogecoin = UTXOState{
 			Address:           dogeShard.Shard.String(),
@@ -199,12 +243,21 @@ func QueryStateResponseFromState(utxostates map[string]v2.UTXOState, accountstat
 
 	}
 
-	terraS, ok := accountstates[string(multichain.Terra.NativeAsset())]
-	if ok && len(terraS.Shards) != 0 {
+	terraS, ok := state[string(multichain.Terra.NativeAsset())]
+	if ok {
+
+		if len(terraS.Shards) == 0 {
+			return StateResponse{},
+				fmt.Errorf("No Terra Shards")
+		}
 
 		lunaShard := terraS.Shards[0]
 
-		lunaOutput := lunaShard.State
+		var lunaOutput engine.XStateShardAccount
+		if err := pack.Decode(&lunaOutput, lunaShard.State); err != nil {
+			return StateResponse{},
+				fmt.Errorf("Failed to unmarshal terra shard state: %v", err)
+		}
 
 		terra := AccountState{
 			Address:           lunaShard.Shard.String(),
@@ -228,12 +281,21 @@ func QueryStateResponseFromState(utxostates map[string]v2.UTXOState, accountstat
 
 	}
 
-	filecoinS, ok := accountstates[string(multichain.Filecoin.NativeAsset())]
-	if ok && len(filecoinS.Shards) != 0 {
+	filecoinS, ok := state[string(multichain.Filecoin.NativeAsset())]
+	if ok {
+
+		if len(filecoinS.Shards) == 0 {
+			return StateResponse{},
+				fmt.Errorf("No Filecoin Shards")
+		}
 
 		filShard := filecoinS.Shards[0]
 
-		filOutput := filShard.State
+		var filOutput engine.XStateShardAccount
+		if err := pack.Decode(&filOutput, filShard.State); err != nil {
+			return StateResponse{},
+				fmt.Errorf("Failed to unmarshal filecoin shard state: %v", err)
+		}
 
 		filecoin := AccountState{
 			Address:           filShard.Shard.String(),
@@ -257,7 +319,5 @@ func QueryStateResponseFromState(utxostates map[string]v2.UTXOState, accountstat
 
 	}
 
-	return QueryStateResponse{
-		State: stateResponse,
-	}, nil
+	return stateResponse, nil
 }

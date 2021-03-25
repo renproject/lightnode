@@ -15,7 +15,6 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/id"
-	v2 "github.com/renproject/lightnode/compat/v2"
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/ethereum"
 	"github.com/renproject/pack"
@@ -64,7 +63,7 @@ func ShardsResponseFromSystemState(state engine.SystemState) (ResponseQueryShard
 
 // ShardsResponseFromState takes a QueryState rpc response and converts it into a QueryShards rpc response
 // It can be a standalone function as it has no dependencies
-func QueryFeesResponseFromState(state map[string]v2.UTXOState) (ResponseQueryFees, error) {
+func QueryFeesResponseFromState(state map[string]engine.XState) (ResponseQueryFees, error) {
 	bitcoinS, ok := state[string(multichain.Bitcoin.NativeAsset())]
 	if !ok {
 		return ResponseQueryFees{},

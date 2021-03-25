@@ -14,7 +14,6 @@ import (
 	"github.com/renproject/darknode/tx"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	v1 "github.com/renproject/lightnode/compat/v1"
-	v2 "github.com/renproject/lightnode/compat/v2"
 	"github.com/renproject/lightnode/db"
 	lhttp "github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
@@ -264,14 +263,21 @@ func (resolver *Resolver) QueryShards(ctx context.Context, id interface{}, param
 			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
-		var resp QueryStateSystemResponse
+		var resp jsonrpc.ResponseQueryBlockState
 		if err := json.Unmarshal(raw, &resp); err != nil {
 			resolver.logger.Errorf("[resolver] cannot unmarshal queryBlockState result from %v", err)
 			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
+		var system engine.SystemState
 
-		shards, err := v0.ShardsResponseFromSystemState(resp.State.System)
+		if err := pack.Decode(&system, resp.State.Get("System")); err != nil {
+			resolver.logger.Errorf("[resolver] cannot decode system state result from %v", err)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
+
+		shards, err := v0.ShardsResponseFromSystemState(system)
 
 		if err != nil {
 			resolver.logger.Error("failed to cast to QueryShards: %v", err)
@@ -318,18 +324,35 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 
-		var resp v2.QueryBlockStateJSON
+		var resp jsonrpc.ResponseQueryBlockState
 		if err := json.Unmarshal(raw, &resp); err != nil {
-			resolver.logger.Errorf("[resolver] cannot unmarshal queryBlockState result for legacy assets: %v", err)
-			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to unmarshal darknode queryBlockState for legacy assets", nil)
+			resolver.logger.Errorf("[resolver] cannot unmarshal queryBlockState result for v2 Assets: %v", err)
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed unmarshal darknode queryBlockState", nil)
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 
-		fees, err := v0.QueryFeesResponseFromState(map[string]v2.UTXOState{
-			"BTC": resp.State.BTC,
-			"ZEC": resp.State.ZEC,
-			"BCH": resp.State.BCH,
-		})
+		legacyAssets := []string{
+			"BTC",
+			"ZEC",
+			"BCH",
+		}
+		legacyAssetState := map[string]engine.XState{}
+		for _, v := range legacyAssets {
+			val := resp.State.Get(v)
+			if val == nil {
+				continue
+			}
+			var state engine.XState
+			if err := pack.Decode(&state, val); err != nil {
+				resolver.logger.Errorf("[resolver] cannot decode pack value for %v: %v", v, err)
+				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to decode block state", nil)
+				return jsonrpc.NewResponse(id, nil, &jsonErr)
+			}
+
+			legacyAssetState[v] = state
+		}
+
+		fees, err := v0.QueryFeesResponseFromState(legacyAssetState)
 
 		if err != nil {
 			resolver.logger.Error("failed to cast to QueryFees: %v", err)
@@ -368,26 +391,39 @@ func (resolver *Resolver) QueryState(ctx context.Context, id interface{}, params
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 
-		var resp v2.QueryBlockStateJSON
+		var resp jsonrpc.ResponseQueryBlockState
 		if err := json.Unmarshal(raw, &resp); err != nil {
 			resolver.logger.Errorf("[resolver] cannot unmarshal queryBlockState result for v2 Assets: %v", err)
 			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed unmarshal darknode queryBlockState", nil)
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
 
-		shards, err := v1.QueryStateResponseFromState(
-			map[string]v2.UTXOState{
-				"BTC":  resp.State.BTC,
-				"ZEC":  resp.State.ZEC,
-				"BCH":  resp.State.BCH,
-				"DGB":  resp.State.DGB,
-				"DOGE": resp.State.DOGE,
-			},
-			map[string]v2.AccountState{
-				"LUNA": resp.State.LUNA,
-				"FIL":  resp.State.FIL,
-			},
-		)
+		v2Assets := []string{
+			"BTC",
+			"ZEC",
+			"BCH",
+			"DGB",
+			"DOGE",
+			"LUNA",
+			"FIL",
+		}
+		v2AssetState := map[string]engine.XState{}
+		for _, v := range v2Assets {
+			val := resp.State.Get(v)
+			if val == nil {
+				continue
+			}
+			var state engine.XState
+			if err := pack.Decode(&state, val); err != nil {
+				resolver.logger.Errorf("[resolver] cannot decode pack value for %v: %v", v, err)
+				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to decode block state", nil)
+				return jsonrpc.NewResponse(id, nil, &jsonErr)
+			}
+
+			v2AssetState[v] = state
+		}
+
+		shards, err := v1.QueryStateResponseFromState(v2AssetState)
 
 		if err != nil {
 			resolver.logger.Error("failed to cast to QueryFees: %v", err)
