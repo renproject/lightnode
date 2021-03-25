@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"os"
@@ -23,7 +22,6 @@ import (
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
-	v2 "github.com/renproject/lightnode/compat/v2"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/multichain"
@@ -100,23 +98,7 @@ var _ = Describe("Compat V0", func() {
 	})
 
 	It("should convert a QueryState response into a QueryFees response", func() {
-		mockState := testutils.MockQueryBlockStateResponse()
-
-		raw, err := json.Marshal(mockState)
-		Expect(err).ToNot(HaveOccurred())
-
-		var resp v2.QueryBlockStateJSON
-		json.Unmarshal(raw, &resp)
-		Expect(err).ToNot(HaveOccurred())
-		shardsResponse, err := v0.QueryFeesResponseFromState(
-			map[string]v2.UTXOState{
-				"BTC":  resp.State.BTC,
-				"ZEC":  resp.State.ZEC,
-				"BCH":  resp.State.BCH,
-				"DGB":  resp.State.DGB,
-				"DOGE": resp.State.DOGE,
-			},
-		)
+		shardsResponse, err := v0.QueryFeesResponseFromState(testutils.MockEngineState())
 
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(shardsResponse.Btc.Lock.Int).Should(Equal(big.NewInt(6)))
