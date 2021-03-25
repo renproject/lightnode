@@ -98,7 +98,8 @@ var _ = Describe("Compat V0", func() {
 	})
 
 	It("should convert a QueryState response into a QueryFees response", func() {
-		shardsResponse, err := v0.QueryFeesResponseFromState(testutils.MockQueryStateResponse())
+		shardsResponse, err := v0.QueryFeesResponseFromState(testutils.MockEngineState())
+
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(shardsResponse.Btc.Lock.Int).Should(Equal(big.NewInt(6)))
 	})

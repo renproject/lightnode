@@ -12,6 +12,7 @@ import (
 	"github.com/renproject/darknode/tx/txutil"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/multichain"
+	"github.com/renproject/multichain/api/utxo"
 	"github.com/renproject/pack"
 	"github.com/renproject/phi"
 )
@@ -92,6 +93,8 @@ func ValidRequest(method string) (id interface{}, params interface{}) {
 		params = jsonrpc.ParamsQueryConfig{}
 	case jsonrpc.MethodQueryState:
 		params = jsonrpc.ParamsQueryState{}
+	case jsonrpc.MethodQueryBlockState:
+		params = jsonrpc.ParamsQueryBlockState{}
 	default:
 		panic("invalid method")
 	}
@@ -117,7 +120,7 @@ func ErrorResponse(id interface{}) jsonrpc.Response {
 func MockSystemState() engine.SystemState {
 	pubkeyBytes, err := base64.URLEncoding.DecodeString("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm")
 	if err != nil {
-		panic(fmt.Sprintf("encoding state: %v", err))
+		panic(fmt.Sprintf("failed to encode pubk %v", err))
 	}
 	return engine.SystemState{
 		Shards: engine.SystemStateShards{
@@ -131,28 +134,106 @@ func MockSystemState() engine.SystemState {
 	}
 }
 
-func MockQueryStateResponse() jsonrpc.ResponseQueryState {
-	bitcoinState := pack.NewStruct(
-		"pubKey", pack.String("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"),
-		"gasCap", pack.U64(2),
-		"gasLimit", pack.U64(3),
-	)
+func MockQueryBlockStateResponse() jsonrpc.ResponseQueryBlockState {
 
-	partialState := pack.NewStruct(
-		"pubKey", pack.String("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"),
-	)
+	bitcoinState, err := pack.Encode(MockEngineState()["BTC"])
+	if err != nil {
+		panic(fmt.Sprintf("failed to encode bitcoinState:  %v", err))
+	}
+	bitcoinStateS := bitcoinState.(pack.Struct)
+
+	terraState, err := pack.Encode(MockEngineState()["LUNA"])
+	if err != nil {
+		panic(fmt.Sprintf("failed to encode terraState:  %v", err))
+	}
+	terraStateS := terraState.(pack.Struct)
+
 	systemStateP, err := pack.Encode(MockSystemState())
 	if err != nil {
-		panic("Shouldn't fail")
+		panic(fmt.Sprintf("failed to encode system state:  %v", err))
 	}
-	return jsonrpc.ResponseQueryState{
-		State: map[pack.String]pack.Struct{
-			pack.String("System"):                systemStateP.(pack.Struct),
-			pack.String(string(multichain.BTC)):  bitcoinState,
-			pack.String(string(multichain.BCH)):  bitcoinState,
-			pack.String(string(multichain.ZEC)):  bitcoinState,
-			pack.String(string(multichain.LUNA)): partialState,
+
+	var state pack.Typed
+	state = append(state, pack.NewStructField("System", systemStateP))
+	state = append(state, pack.NewStructField(string(multichain.BTC), bitcoinStateS))
+	state = append(state, pack.NewStructField(string(multichain.BCH), bitcoinStateS))
+	state = append(state, pack.NewStructField(string(multichain.ZEC), bitcoinStateS))
+	state = append(state, pack.NewStructField(string(multichain.LUNA), terraStateS))
+
+	return jsonrpc.ResponseQueryBlockState{
+		State: state,
+	}
+}
+
+func MockEngineState() map[string]engine.XState {
+	pkBytes, err := base64.RawURLEncoding.DecodeString("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm")
+	if err != nil {
+		panic(fmt.Sprintf("failed to decode pub key: %v", err))
+	}
+
+	bitcoinShardState := engine.XStateShardUTXO{
+		Outpoint: utxo.Outpoint{
+			Hash:  []byte{0},
+			Index: 0,
 		},
+		Value:        pack.NewU256FromU8(0),
+		PubKeyScript: pkBytes,
+	}
+	bitcoinShardStateP, err := pack.Encode(bitcoinShardState)
+	if err != nil {
+		panic(fmt.Sprintf("failed to encode utxo shard: %v", err))
+	}
+
+	accountShardState := engine.XStateShardAccount{
+		Nonce:   pack.NewU256FromU64(0),
+		Gnonces: []engine.XStateShardGnonce{},
+	}
+	accountShardStateP, err := pack.Encode(accountShardState)
+	if err != nil {
+		panic(fmt.Sprintf("failed to encode account shard: %v", err))
+	}
+
+	utxoState := engine.XState{
+		LatestHeight:  pack.NewU256FromU64(0),
+		GasCap:        pack.NewU256FromU64(2),
+		GasLimit:      pack.NewU256FromU64(3),
+		GasPrice:      pack.NewU256FromU64(0),
+		MinimumAmount: pack.NewU256FromU64(0),
+		DustAmount:    pack.NewU256FromU64(0),
+		Shards: []engine.XStateShard{
+			{
+				Shard:  [32]byte{},
+				PubKey: pkBytes,
+				Queue:  []engine.XStateShardQueueItem{},
+				State:  bitcoinShardStateP,
+			},
+		},
+	}
+	accountState := engine.XState{
+		LatestHeight:  pack.NewU256FromU64(0),
+		GasCap:        pack.NewU256FromU64(2),
+		GasLimit:      pack.NewU256FromU64(3),
+		GasPrice:      pack.NewU256FromU64(0),
+		MinimumAmount: pack.NewU256FromU64(0),
+		DustAmount:    pack.NewU256FromU64(0),
+		Shards: []engine.XStateShard{
+			{
+				Shard:  [32]byte{},
+				PubKey: pkBytes,
+				Queue:  []engine.XStateShardQueueItem{},
+				State:  accountShardStateP,
+			},
+		},
+	}
+
+	return map[string]engine.XState{
+		"BTC":  utxoState,
+		"BCH":  utxoState,
+		"ZEC":  utxoState,
+		"DGB":  utxoState,
+		"DOGE": utxoState,
+		"FIL":  accountState,
+		"LUNA": accountState,
 	}
 }
 
