@@ -1,4 +1,5 @@
 FROM renbot/multichain:latest
+RUN apt install -y libgmp3-dev
 
 # Use GitHub personal access token to fetch dependencies.
 ARG GITHUB_TOKEN
