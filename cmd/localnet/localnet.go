@@ -65,7 +65,9 @@ func main() {
 		WithPort(*flagPort).
 		WithBootstrapAddrs(config.Peers).
 		WithChains(config.Chains).
-		WithWhitelist(config.Selectors)
+		WithWhitelist(config.Selectors).
+		WithWatcherConfidenceInterval(0)
+
 	db := initSQLITE(*flagOut)
 	wg.Add(1)
 	go func() {
