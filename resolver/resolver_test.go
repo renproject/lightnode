@@ -147,6 +147,7 @@ var _ = Describe("Resolver", func() {
 			resolver.QueryFees(innerCtx, nil, &jsonrpc.ParamsQueryFees{}, nil),
 			resolver.QueryConfig(innerCtx, nil, &jsonrpc.ParamsQueryConfig{}, nil),
 			resolver.QueryState(innerCtx, nil, &jsonrpc.ParamsQueryState{}, nil),
+			resolver.QueryBlockState(innerCtx, nil, &jsonrpc.ParamsQueryBlockState{}, nil),
 		}
 
 		// Validate responses.

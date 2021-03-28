@@ -8,6 +8,7 @@ import (
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
+	"github.com/renproject/pack"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/sha3"
@@ -113,7 +114,32 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 
 	go func() {
 		response := <-responder
-		cacher.insert(id, msg.Query.Get("id"), response)
+		// QueryTx has an intermediary state where it has not yet been executed
+		// don't cache if we don't have output
+		skipCache := func() bool {
+			if msg.Method == jsonrpc.MethodQueryTx {
+				raw, err := json.Marshal(response.Result)
+				// no need to handle errors here as it will be handled by the resolver
+				if err != nil {
+					cacher.logger.Warnf("Failed to marshal queryTx response: %v", err)
+					return true
+				}
+				var tx jsonrpc.ResponseQueryTx
+				err = json.Unmarshal(raw, &tx)
+				if err != nil {
+					cacher.logger.Warnf("Failed to unmarshal queryTx response: %v", err)
+					return true
+				}
+
+				if tx.Tx.Output.String() == pack.NewTyped().String() {
+					return true
+				}
+			}
+			return false
+		}
+		if !skipCache() {
+			cacher.insert(id, msg.Query.Get("id"), response)
+		}
 		msg.Responder <- response
 	}()
 }

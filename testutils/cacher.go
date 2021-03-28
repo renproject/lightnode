@@ -29,11 +29,11 @@ func (cacher *MockCacher) Handle(_ phi.Task, message phi.Message) {
 	}
 
 	switch msg.Method {
-	case jsonrpc.MethodQueryState:
+	case jsonrpc.MethodQueryBlockState:
 		msg.Responder <- jsonrpc.Response{
 			Version: "2.0",
 			ID:      msg.ID,
-			Result:  MockQueryStateResponse(),
+			Result:  MockQueryBlockStateResponse(),
 			Error:   nil,
 		}
 	default:
