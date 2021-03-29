@@ -13,6 +13,6 @@ var _ = Describe("Compat V0", func() {
 		stateResponse, err := v1.QueryStateResponseFromState(testutils.MockEngineState())
 
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(stateResponse.Bitcoin.Gaslimit).Should(Equal("3"))
+		Expect(stateResponse.State.Bitcoin.Gaslimit).Should(Equal("3"))
 	})
 })
