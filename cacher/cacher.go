@@ -4,8 +4,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 
+	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
+	v1 "github.com/renproject/lightnode/compat/v1"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/pack"
@@ -117,7 +119,7 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 		// QueryTx has an intermediary state where it has not yet been executed
 		// don't cache if we don't have output
 		skipCache := func() bool {
-			if msg.Method == jsonrpc.MethodQueryTx {
+			if msg.Method == jsonrpc.MethodQueryTx && response.Error == nil {
 				raw, err := json.Marshal(response.Result)
 				// no need to handle errors here as it will be handled by the resolver
 				if err != nil {
@@ -131,8 +133,23 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 					return true
 				}
 
+				if tx.Tx.Selector.IsCrossChain() || tx.Tx.Selector.IsIntrinsic() {
+					return false
+				}
+
 				if tx.Tx.Output.String() == pack.NewTyped().String() {
 					return true
+				}
+
+				var output engine.LockMintBurnReleaseOutput
+				err = pack.Decode(&output, tx.Tx.Output)
+				if err != nil {
+					cacher.logger.Warnf("Failed to decode tx output: %v", err)
+					return false
+				}
+				if output.Revert.Equal("") {
+					v1Tx := v1.TxOutputFromV2QueryTxOutput(output)
+					response = jsonrpc.NewResponse(id, v1Tx, nil)
 				}
 			}
 			return false
