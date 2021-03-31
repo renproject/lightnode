@@ -133,7 +133,7 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 					return true
 				}
 
-				if tx.Tx.Selector.IsCrossChain() || tx.Tx.Selector.IsIntrinsic() {
+				if !tx.Tx.Selector.IsCrossChain() {
 					return false
 				}
 
@@ -148,8 +148,11 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 					return false
 				}
 				if output.Revert.Equal("") {
-					v1Tx := v1.TxOutputFromV2QueryTxOutput(output)
-					response = jsonrpc.NewResponse(id, v1Tx, nil)
+					v1TxOutput := v1.TxOutputFromV2QueryTxOutput(output)
+
+					tx.Tx.Output = v1TxOutput
+
+					response = jsonrpc.NewResponse(msg.ID, tx, nil)
 				}
 			}
 			return false

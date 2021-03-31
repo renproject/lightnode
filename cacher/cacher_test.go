@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"os"
 	"time"
@@ -74,6 +75,53 @@ var _ = Describe("Cacher", func() {
 				Expect(msgRequest.Responder).To(Not(BeNil()))
 				Eventually(msgRequest.Responder).ShouldNot(Receive())
 			}
+		})
+	})
+
+	Context("when receiving a queryTx request", func() {
+		It("should strip revert messages", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			cacher, messages := init(ctx, time.Minute)
+			defer cleanup()
+
+			method := jsonrpc.MethodQueryTx
+			// Send the first request and respond with an error
+			id, params := testutils.ValidRequest(method)
+			request := http.NewRequestWithResponder(ctx, id, method, params, url.Values{})
+			Expect(cacher.Send(request)).Should(BeTrue())
+			var message phi.Message
+			Eventually(messages).Should(Receive(&message))
+			req, ok := message.(http.RequestWithResponder)
+			Expect(ok).To(BeTrue())
+			queryTx := testutils.MockQueryTxResponse()
+			resp := jsonrpc.NewResponse(request.ID, queryTx, nil)
+			req.Responder <- resp
+
+			// Expect receiving the response from the responder channel
+			var receivedResp jsonrpc.Response
+			Eventually(request.Responder).Should(Receive(&receivedResp))
+
+			queryTxResp := receivedResp.Result.(jsonrpc.ResponseQueryTx)
+			Expect(queryTxResp.Tx.Hash).To(Equal(queryTx.Tx.Hash))
+			Expect(queryTxResp.Tx.Input).To(Equal(queryTx.Tx.Input))
+			Expect(queryTxResp.Tx.Output).NotTo(Equal(queryTx.Tx.Output))
+			res, err := queryTxResp.Tx.Output.MarshalJSON()
+			Expect(fmt.Sprintf("%v", string(res))).ShouldNot(ContainSubstring("\"revert\":\"\""))
+			Expect(fmt.Sprintf("%v", string(res))).Should(ContainSubstring("\"amount\":\"920000\""))
+
+			// Send the second request and expect a cached response
+			newReq := http.NewRequestWithResponder(ctx, id, method, params, url.Values{})
+			Expect(cacher.Send(newReq)).Should(BeTrue())
+
+			var newResp jsonrpc.Response
+			Eventually(newReq.Responder).Should(Receive(&newResp))
+
+			respBytes, err := json.Marshal(resp)
+			Expect(err).ToNot(HaveOccurred())
+			newRespBytes, err := json.Marshal(resp)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(respBytes).To(Equal(newRespBytes))
 		})
 	})
 

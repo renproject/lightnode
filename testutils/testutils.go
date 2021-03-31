@@ -280,3 +280,13 @@ func MockParamSubmitTxV0BCH() v0.ParamsSubmitTx {
 	}
 	return params
 }
+
+func MockQueryTxResponse() jsonrpc.ResponseQueryTx {
+	jsonStr := `{"tx":{"hash":"skM_gcwzSb4bdzXCKJ2alV38q778tTYO3Lsp0tg-hgc","version":"1","selector":"ZEC/toEthereum","in":{"t":{"struct":[{"txid":"bytes"},{"txindex":"u32"},{"amount":"u256"},{"payload":"bytes"},{"phash":"bytes32"},{"to":"string"},{"nonce":"bytes32"},{"nhash":"bytes32"},{"gpubkey":"bytes"},{"ghash":"bytes32"}]},"v":{"amount":"1000000","ghash":"nKZpOY3scl0uaDas4o03fe_GZkhOkUda54y27OOXGT0","gpubkey":"AjKTi8mz_QlIindwTRAvdptsic0z3kty0wn4O_G34m9Q","nhash":"s75yIqyGOo9708gK9LmiDOHxUssYjo64uguCQWFbQE8","nonce":"2uKOXi-ocrCoJp37_BblogLTkvVvv1NDr-_7Xbj3eUU","payload":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAADqiy_w1_VGr66uF3EwZzY1fe-kNAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADWkVDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","phash":"1UZqOtoWQ9fjjLxFXSNkdYeWss-9WG3oIOHMlcjIziE","to":"FABDB1F53Ef8B080332621cBc9F820a39e7A1B83","txid":"gGK044Z0usiT3G4bavm-UGsNdDR7IA_fJEPnnwkRASI","txindex":"0"}},"out":{"t":{"struct":[{"hash":"bytes32"},{"amount":"u256"},{"sighash":"bytes32"},{"sig":"bytes65"},{"txid":"bytes"},{"revert":"string"}]},"v":{"amount":"920000","hash":"skM_gcwzSb4bdzXCKJ2alV38q778tTYO3Lsp0tg-hgc","revert":"","sig":"6kmwybYsA7VbQddpYLyE8-faiUo3aZZY4h3e6Pz3SXQBk-e2y9t7wMtT6lI4PxKMBvTs8I15tnCMrjI_9xVQUAA","sighash":"rx7WprTCZO87j61sQkqNG0PWmsj3KE73nfz3gGB4GmM","txid":""}}},"txStatus":"done"}`
+	var params jsonrpc.ResponseQueryTx
+	err := json.Unmarshal([]byte(jsonStr), &params)
+	if err != nil {
+		fmt.Printf("Failed to unmarshal params %v", jsonStr)
+	}
+	return params
+}
