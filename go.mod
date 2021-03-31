@@ -17,12 +17,12 @@ require (
 	github.com/mattn/go-sqlite3 v1.11.0
 	github.com/onsi/ginkgo v1.14.0
 	github.com/onsi/gomega v1.10.1
-	github.com/renproject/aw v0.4.1-0.20210309032102-70551e9ba4f9
-	github.com/renproject/darknode v0.5.3-0.20210325032740-6d4d60268e6e
+	github.com/renproject/aw v0.4.1-0.20210324010314-20d605eff75f
+	github.com/renproject/darknode v0.5.3-0.20210331045155-bba15ce57478
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/mercury v0.3.16
-	github.com/renproject/multichain v0.2.24
+	github.com/renproject/multichain v0.3.4
 	github.com/renproject/pack v0.2.9
 	github.com/renproject/phi v0.1.0
 	github.com/sirupsen/logrus v1.6.0

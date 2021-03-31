@@ -331,5 +331,6 @@ func TxOutputFromV2QueryTxOutput(output engine.LockMintBurnReleaseOutput) pack.T
 		"sighash", output.Sighash,
 		"sig", output.Sig,
 		"txid", output.Txid,
+		"txindex", output.Txindex,
 	)
 }
