@@ -3,14 +3,12 @@ module github.com/renproject/lightnode
 go 1.15
 
 require (
-	github.com/alicebob/miniredis v2.5.0+incompatible
 	github.com/alicebob/miniredis/v2 v2.14.3
 	github.com/btcsuite/btcd v0.21.0-beta
 	github.com/dgryski/go-farm v0.0.0-20191112170834-c2139c5d712b // indirect
 	github.com/ethereum/go-ethereum v1.9.20
 	github.com/evalphobia/logrus_sentry v0.8.2
 	github.com/go-redis/redis/v7 v7.2.0
-	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/google/go-cmp v0.5.0
 	github.com/jbenet/go-base58 v0.0.0-20150317085156-6237cf65f3a6
 	github.com/lib/pq v1.7.0

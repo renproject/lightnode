@@ -1,4 +1,4 @@
-FROM renbot/multichain:latest
+FROM golang as base
 RUN apt-get update
 
 # Install Filecoin dependencies.
@@ -8,6 +8,7 @@ RUN apt install -y ocl-icd-opencl-dev libgmp3-dev
 RUN apt install -y libudev-dev libssl-dev
 
 # Use GitHub personal access token to fetch dependencies.
+FROM base as builder
 ARG GITHUB_TOKEN
 RUN git config --global url."https://${GITHUB_TOKEN}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
 
@@ -29,5 +30,11 @@ RUN go mod edit -replace=github.com/renproject/solana-ffi=./extern/solana-ffi
 
 # Build the code inside the container.
 RUN go build ./cmd/lightnode
+# TODO: we should look into statically compiling so that we can cut down the size of the docker image further
+# RUN GOOS=linux CGO_ENABLED=1 go build -ldflags "-linkmode external -extldflags -static" -tags sqlite_omit_load_extension ./cmd/lightnode 
 
-CMD ./lightnode
+# FROM base
+# WORKDIR /lightnode
+# COPY --from=builder /lightnode/lightnode .
+
+CMD ["./lightnode"]  

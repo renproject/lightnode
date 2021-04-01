@@ -12,7 +12,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/alicebob/miniredis"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/go-redis/redis/v7"
 	_ "github.com/mattn/go-sqlite3"

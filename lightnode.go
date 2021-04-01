@@ -107,10 +107,6 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	dispatcher := dispatcher.New(logger, options.ClientTimeout, multiStore, opts)
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
 	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
-	whitelist := make(map[tx.Selector]bool, len(options.Whitelist))
-	for i := range options.Whitelist {
-		whitelist[options.Whitelist[i]] = true
-	}
 
 	compatStore := v0.NewCompatStore(db, client)
 	verifier := resolver.NewVerifier(verifierBindings)
