@@ -218,7 +218,9 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		response := watcher.resolver.SubmitTx(ctx, 0, &params, nil)
 		if response.Error != nil {
 			watcher.logger.Errorf("[watcher] invalid burn transaction %v: %v", params, response.Error.Message)
-			continue
+			// return so that we retry, if the burnToParams are valid, the darknode should accept the tx
+			// we assume that the only failure case would be RPC/darknode backpressure, so we backoff here
+			return
 		}
 	}
 
