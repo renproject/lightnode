@@ -1,4 +1,5 @@
 FROM golang as base
+
 RUN apt-get update
 
 # Install Filecoin dependencies.
@@ -7,34 +8,50 @@ RUN apt install -y ocl-icd-opencl-dev libgmp3-dev
 # Install Solana dependencies.
 RUN apt install -y libudev-dev libssl-dev
 
-# Use GitHub personal access token to fetch dependencies.
-FROM base as builder
+FROM renbot/multichain:latest as builder
+
+# Compile cosmwasm dependency
+WORKDIR /lightnode
+RUN wget https://github.com/CosmWasm/go-cosmwasm/archive/v0.10.0.tar.gz
+RUN tar -xzf v0.10.0.tar.gz
+WORKDIR ./wasmvm-0.10.0
+RUN ls -lah
+RUN make build
+
+WORKDIR /lightnode
+
 ARG GITHUB_TOKEN
+
+RUN apt install -y ocl-icd-opencl-dev libgmp3-dev
+
+# Use GitHub personal access token to fetch dependencies.
 RUN git config --global url."https://${GITHUB_TOKEN}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
 
 # Mark private repositories.
 ENV GOPRIVATE=github.com/renproject/darknode
 
 # Download Go dependencies.
-WORKDIR /lightnode
 COPY go.mod .
 COPY go.sum .
-RUN go mod edit -dropreplace github.com/filecoin-project/filecoin-ffi
-RUN go mod edit -dropreplace github.com/renproject/solana-ffi
+
+# Use multichain image's filecoin
+RUN go mod edit -replace=github.com/filecoin-project/filecoin-ffi=$GOPATH/src/github.com/filecoin-project/filecoin-ffi
+
+# Use multichain image's solana 
+RUN go mod edit -replace=github.com/renproject/solana-ffi=$GOPATH/src/github.com/renproject/solana-ffi
+
 RUN go mod download
 
 # Copy the code into the container.
 COPY . .
-RUN go mod edit -replace=github.com/filecoin-project/filecoin-ffi=./extern/filecoin-ffi
-RUN go mod edit -replace=github.com/renproject/solana-ffi=./extern/solana-ffi
+
 
 # Build the code inside the container.
-RUN go build ./cmd/lightnode
-# TODO: we should look into statically compiling so that we can cut down the size of the docker image further
-# RUN GOOS=linux CGO_ENABLED=1 go build -ldflags "-linkmode external -extldflags -static" -tags sqlite_omit_load_extension ./cmd/lightnode 
+RUN go build -ldflags="-s -w" ./cmd/lightnode 
 
-# FROM base
-# WORKDIR /lightnode
-# COPY --from=builder /lightnode/lightnode .
+FROM base
+WORKDIR /lightnode
+COPY --from=builder /lightnode/lightnode .
+COPY --from=builder /lightnode/wasmvm-0.10.0/api/libgo_cosmwasm.so /usr/lib/
 
 CMD ["./lightnode"]  
