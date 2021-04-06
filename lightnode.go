@@ -138,17 +138,27 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		db,
 		bindings,
 	)
+	whitelistMap := map[tx.Selector]bool{}
+	for _, i := range options.Whitelist {
+		whitelistMap[i] = true
+	}
+
 	watchers := map[multichain.Chain]map[multichain.Asset]watcher.Watcher{}
 	ethGateways := bindings.EthereumGateways()
 	ethClients := bindings.EthereumClients()
 	for chain, contracts := range ethGateways {
 		for asset, bindings := range contracts {
 			selector := tx.Selector(fmt.Sprintf("%v/from%v", asset, chain))
+			if !whitelistMap[selector] {
+				logger.Info("not watching", selector)
+				continue
+			}
 			if watchers[chain] == nil {
 				watchers[chain] = map[multichain.Asset]watcher.Watcher{}
 			}
 			burnLogFetcher := watcher.NewBurnLogFetcher(bindings)
 			watchers[chain][asset] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, ethClients[chain], burnLogFetcher, resolverI, client, options.DistPubKey, options.WatcherPollRate, options.WatcherMaxBlockAdvance, options.WatcherConfidenceInterval)
+			logger.Info("watching", selector)
 		}
 	}
 

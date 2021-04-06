@@ -188,7 +188,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 	// Fetch logs
 	c, err := watcher.burnLogFetcher.FetchBurnLogs(ctx, last, cur)
 	if err != nil {
-		watcher.logger.Errorf("[watcher] error iterating LogBurn events from=%v to=%v: %v", last, cur, err)
+		watcher.logger.Errorf("[watcher] error fetching LogBurn events from=%v to=%v: %v", last, cur, err)
 		return
 	}
 
