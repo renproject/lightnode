@@ -40,10 +40,10 @@ jobs:
       - name: Install dependencies (Solana FFI)
         run: |
           sudo apt install libudev-dev libssl-dev
-          go get -u github.com/xlab/c-for-go
           git submodule add https://github.com/renproject/solana-ffi.git .extern/solana-ffi
           cd .extern/solana-ffi
           git checkout 4bd204b6017173c1425468db8566f053abb49f0b
+          go get -u github.com/xlab/c-for-go
           make clean
           make
           cd ../..
