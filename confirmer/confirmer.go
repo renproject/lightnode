@@ -195,7 +195,11 @@ func (confirmer *Confirmer) burnTxConfirmed(ctx context.Context, transaction tx.
 
 	_, _, _, err := confirmer.bindings.AccountBurnInfo(ctx, burnChain, transaction.Selector.Asset(), nonce)
 	if err != nil {
-		confirmer.options.Logger.Errorf("[confirmer] cannot get burn info for tx=%v (%v): %v", transaction.Hash.String(), transaction.Selector.String(), err)
+		if !strings.Contains(err.Error(), "insufficient confirmations") {
+			confirmer.options.Logger.Errorf("[confirmer] cannot get burn info for tx=%v (%v): %v", transaction.Hash.String(), transaction.Selector.String(), err)
+		} else {
+			confirmer.options.Logger.Warn("[confirmer] cannot get burn info for tx=%v (%v): %v", transaction.Hash.String(), transaction.Selector.String(), err)
+		}
 		return false
 	}
 	return true
