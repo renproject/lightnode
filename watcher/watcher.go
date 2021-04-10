@@ -202,15 +202,15 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 
 		to := event.To
 
-		amount := event.Amount.Uint64()
-		nonce := event.N.Uint64()
-		watcher.logger.Infof("[watcher] detected burn for %v (to=%v, amount=%v, nonce=%v)", watcher.selector.String(), string(to), amount, nonce)
+		amount := event.Amount
+		nonce := event.N
+		watcher.logger.Infof("[watcher] detected burn for %v (to=%v, amount=%v, nonce=%v)", watcher.selector.String(), string(to), amount.String(), nonce.String())
 
 		var nonceBytes pack.Bytes32
-		copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
+		copy(nonceBytes[:], pack.NewU256FromInt(nonce).Bytes())
 
 		// Send the burn transaction to the resolver.
-		params, err := watcher.burnToParams(event.Raw.TxHash.Bytes(), pack.NewU256FromU64(pack.NewU64(amount)), to, nonceBytes, watcher.gpubkey)
+		params, err := watcher.burnToParams(event.Raw.TxHash.Bytes(), pack.NewU256FromInt(amount), to, nonceBytes, watcher.gpubkey)
 		if err != nil {
 			watcher.logger.Errorf("[watcher] cannot get params from burn transaction (to=%v, amount=%v, nonce=%v): %v", to, amount, nonce, err)
 			continue
