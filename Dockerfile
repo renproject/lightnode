@@ -1,4 +1,4 @@
-FROM debian:stable-slim as final
+FROM debian:stable-slim AS final
 # Set up final runner first, so that it caches
 
 # Install Filecoin and Solana dependencies.
@@ -35,28 +35,21 @@ RUN git config --global url."https://${GITHUB_TOKEN}:x-oauth-basic@github.com/".
 ENV GOPRIVATE=github.com/renproject/darknode
 
 # Copy and download go dependencies first so that it caches
-COPY go.mod .
-COPY go.sum .
-
-# Use multichain image's filecoin
-RUN go mod edit -replace=github.com/filecoin-project/filecoin-ffi=$GOPATH/src/github.com/filecoin-project/filecoin-ffi
-
-# Use multichain image's solana 
-RUN go mod edit -replace=github.com/renproject/solana-ffi=$GOPATH/src/github.com/renproject/solana-ffi
+COPY . .
+RUN rm -rf extern && mkdir extern
+RUN cp -r $GOPATH/src/github.com/filecoin-project/filecoin-ffi ./extern
+RUN cp -r $GOPATH/src/github.com/renproject/solana-ffi ./extern
 
 RUN go mod download
 
-# Copy the code into the container.
-COPY . .
-
 # Restore changes to go.mod because we just overrode the modified dependencies
-RUN go mod edit -replace=github.com/filecoin-project/filecoin-ffi=$GOPATH/src/github.com/filecoin-project/filecoin-ffi
-RUN go mod edit -replace=github.com/renproject/solana-ffi=$GOPATH/src/github.com/renproject/solana-ffi
+#RUN go mod edit -replace=github.com/filecoin-project/filecoin-ffi=$GOPATH/src/github.com/filecoin-project/filecoin-ffi
+#RUN go mod edit -replace=github.com/renproject/solana-ffi=$GOPATH/src/github.com/renproject/solana-ffi
 
 # Build the code inside the container.
 RUN go build -ldflags="-s -w" ./cmd/lightnode 
 
-from final
+FROM final
 
 WORKDIR /lightnode
 COPY --from=builder /lightnode/lightnode .
