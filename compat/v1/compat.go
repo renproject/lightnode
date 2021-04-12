@@ -321,3 +321,16 @@ func QueryStateResponseFromState(state map[string]engine.XState) (QueryStateResp
 
 	return QueryStateResponse{State: stateResponse}, nil
 }
+
+// v0.4 darknodes respond with empty strings instead of omitting nil fields
+// This causes issues with ren-js v2 so we need to manually strip the responses
+func TxOutputFromV2QueryTxOutput(output engine.LockMintBurnReleaseOutput) pack.Typed {
+	return pack.NewTyped(
+		"hash", output.Hash,
+		"amount", output.Amount,
+		"sighash", output.Sighash,
+		"sig", output.Sig,
+		"txid", output.Txid,
+		"txindex", output.Txindex,
+	)
+}

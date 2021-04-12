@@ -14,7 +14,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/alicebob/miniredis"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode/binding"

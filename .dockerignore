@@ -1,0 +1,4 @@
+extern/solana-ffi/rust
+extern/filecoin-ffi/rust
+.direnv
+.git

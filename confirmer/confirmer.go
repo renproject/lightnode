@@ -154,7 +154,12 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 			Index: input.Txindex,
 		})
 		if err != nil {
-			confirmer.options.Logger.Errorf("[confirmer] cannot get output for utxo tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
+			if !strings.Contains(err.Error(), "insufficient confirmations") {
+				confirmer.options.Logger.Errorf("[confirmer] cannot get output for utxo tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
+			} else {
+				confirmer.options.Logger.Warnf("[confirmer] cannot get output for utxo tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
+			}
+
 			return false
 		}
 	case lockChain.IsAccountBased():
