@@ -8,7 +8,11 @@ import (
 	"github.com/renproject/pack"
 )
 
-type StateResponse struct {
+type QueryStateResponse struct {
+	State State `json:"state"`
+}
+
+type State struct {
 	Bitcoin     UTXOState    `json:"Bitcoin,omitempty"`
 	Bitcoincash UTXOState    `json:"BitcoinCash,omitempty"`
 	Digibyte    UTXOState    `json:"DigiByte,omitempty"`
@@ -55,13 +59,13 @@ type AccountState struct {
 	Pubkey            string    `json:"pubKey"`
 }
 
-func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse, error) {
-	stateResponse := StateResponse{}
+func QueryStateResponseFromState(state map[string]engine.XState) (QueryStateResponse, error) {
+	stateResponse := State{}
 
 	bitcoinS, ok := state[string(multichain.Bitcoin.NativeAsset())]
 	if ok {
 		if len(bitcoinS.Shards) == 0 {
-			return StateResponse{},
+			return QueryStateResponse{},
 				fmt.Errorf("No Bitcoin Shards")
 		}
 
@@ -69,7 +73,7 @@ func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse,
 
 		var btcOutput engine.XStateShardUTXO
 		if err := pack.Decode(&btcOutput, btcShard.State); err != nil {
-			return StateResponse{},
+			return QueryStateResponse{},
 				fmt.Errorf("Failed to unmarshal bitcoin shard state: %v", err)
 		}
 
@@ -97,7 +101,7 @@ func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse,
 	zcashS, ok := state[string(multichain.Zcash.NativeAsset())]
 	if ok {
 		if len(zcashS.Shards) == 0 {
-			return StateResponse{},
+			return QueryStateResponse{},
 				fmt.Errorf("No Zcash Shards")
 		}
 
@@ -105,7 +109,7 @@ func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse,
 
 		var zecOutput engine.XStateShardUTXO
 		if err := pack.Decode(&zecOutput, zecShard.State); err != nil {
-			return StateResponse{},
+			return QueryStateResponse{},
 				fmt.Errorf("Failed to unmarshal zcash shard state: %v", err)
 		}
 
@@ -133,7 +137,7 @@ func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse,
 	if ok {
 
 		if len(bitcoinCashS.Shards) == 0 {
-			return StateResponse{},
+			return QueryStateResponse{},
 				fmt.Errorf("No BitcoinCash Shards")
 		}
 
@@ -141,7 +145,7 @@ func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse,
 
 		var bchOutput engine.XStateShardUTXO
 		if err := pack.Decode(&bchOutput, bchShard.State); err != nil {
-			return StateResponse{},
+			return QueryStateResponse{},
 				fmt.Errorf("Failed to unmarshal bitcoinCash shard state: %v", err)
 		}
 
@@ -169,7 +173,7 @@ func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse,
 	if ok {
 
 		if len(digibyteS.Shards) == 0 {
-			return StateResponse{},
+			return QueryStateResponse{},
 				fmt.Errorf("No Digibyte Shards")
 		}
 
@@ -177,7 +181,7 @@ func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse,
 
 		var dgbOutput engine.XStateShardUTXO
 		if err := pack.Decode(&dgbOutput, dgbShard.State); err != nil {
-			return StateResponse{},
+			return QueryStateResponse{},
 				fmt.Errorf("Failed to unmarshal digibyte shard state: %v", err)
 		}
 
@@ -206,7 +210,7 @@ func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse,
 	if ok {
 
 		if len(dogecoinS.Shards) == 0 {
-			return StateResponse{},
+			return QueryStateResponse{},
 				fmt.Errorf("No Dogecoin Shards")
 		}
 
@@ -214,7 +218,7 @@ func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse,
 
 		var dogeOutput engine.XStateShardUTXO
 		if err := pack.Decode(&dogeOutput, dogeShard.State); err != nil {
-			return StateResponse{},
+			return QueryStateResponse{},
 				fmt.Errorf("Failed to unmarshal dogecoin shard state: %v", err)
 		}
 
@@ -243,7 +247,7 @@ func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse,
 	if ok {
 
 		if len(terraS.Shards) == 0 {
-			return StateResponse{},
+			return QueryStateResponse{},
 				fmt.Errorf("No Terra Shards")
 		}
 
@@ -251,7 +255,7 @@ func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse,
 
 		var lunaOutput engine.XStateShardAccount
 		if err := pack.Decode(&lunaOutput, lunaShard.State); err != nil {
-			return StateResponse{},
+			return QueryStateResponse{},
 				fmt.Errorf("Failed to unmarshal terra shard state: %v", err)
 		}
 
@@ -281,7 +285,7 @@ func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse,
 	if ok {
 
 		if len(filecoinS.Shards) == 0 {
-			return StateResponse{},
+			return QueryStateResponse{},
 				fmt.Errorf("No Filecoin Shards")
 		}
 
@@ -289,7 +293,7 @@ func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse,
 
 		var filOutput engine.XStateShardAccount
 		if err := pack.Decode(&filOutput, filShard.State); err != nil {
-			return StateResponse{},
+			return QueryStateResponse{},
 				fmt.Errorf("Failed to unmarshal filecoin shard state: %v", err)
 		}
 
@@ -315,5 +319,18 @@ func QueryStateResponseFromState(state map[string]engine.XState) (StateResponse,
 
 	}
 
-	return stateResponse, nil
+	return QueryStateResponse{State: stateResponse}, nil
+}
+
+// v0.4 darknodes respond with empty strings instead of omitting nil fields
+// This causes issues with ren-js v2 so we need to manually strip the responses
+func TxOutputFromV2QueryTxOutput(output engine.LockMintBurnReleaseOutput) pack.Typed {
+	return pack.NewTyped(
+		"hash", output.Hash,
+		"amount", output.Amount,
+		"sighash", output.Sighash,
+		"sig", output.Sig,
+		"txid", output.Txid,
+		"txindex", output.Txindex,
+	)
 }

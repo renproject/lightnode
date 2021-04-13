@@ -280,3 +280,13 @@ func MockParamSubmitTxV0BCH() v0.ParamsSubmitTx {
 	}
 	return params
 }
+
+func MockQueryTxResponse() jsonrpc.ResponseQueryTx {
+	jsonStr := `{"tx":{"hash":"A8neyBAdn-HJIA1KU58bqU4Lmj8qh7QsmprCnf45Ygs","version":"1","selector":"ZEC/toEthereum","in":{"t":{"struct":[{"txid":"bytes"},{"txindex":"u32"},{"amount":"u256"},{"payload":"bytes"},{"phash":"bytes32"},{"to":"string"},{"nonce":"bytes32"},{"nhash":"bytes32"},{"gpubkey":"bytes"},{"ghash":"bytes32"}]},"v":{"amount":"300000","ghash":"pBoH_E2ASnt4f3jq_tJ5plk5GasIQLqVrFI1bgOsEaw","gpubkey":"AjKTi8mz_QlIindwTRAvdptsic0z3kty0wn4O_G34m9Q","nhash":"_PRv-MQkllh0s3btZBKnbj384mG6m-i_jhQeJxHgoQQ","nonce":"CVAFO8WcfiRK26_wlhQxoVQz-pMxfICP8bm7vgJ6i1U","payload":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAACJGOCpLdxrU70fzhypE84q_owC0gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADWkVDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","phash":"CmjFomL7EFKbsxkiZauqBH7FYJOeMWEbX7BKctD-XhU","to":"FABDB1F53Ef8B080332621cBc9F820a39e7A1B83","txid":"LKbr6rlY2T4MMvzDCu447OML2aSwQd91_EBjhlsRuDE","txindex":"0"}},"out":{"t":{"struct":[{"hash":"bytes32"},{"amount":"u256"},{"sighash":"bytes32"},{"sig":"bytes65"},{"txid":"bytes"},{"txindex":"u32"}, {"revert":"string"}]},"v":{"amount":"220000","hash":"A8neyBAdn-HJIA1KU58bqU4Lmj8qh7QsmprCnf45Ygs","sig":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","sighash":"bI1wDSjG5NOrbqVCbBZztls9NzCVsMXVckpfH0M2EEE","txid":"","txindex":"0", "revert":""}}},"txStatus":"done"}`
+	var params jsonrpc.ResponseQueryTx
+	err := json.Unmarshal([]byte(jsonStr), &params)
+	if err != nil {
+		fmt.Printf("Failed to unmarshal params %v", jsonStr)
+	}
+	return params
+}

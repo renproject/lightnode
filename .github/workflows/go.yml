@@ -28,8 +28,9 @@ jobs:
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-lightnode-${{ hashFiles('**/go.sum') }}
-      - name: Install dependencies
+      - name: Install dependencies (Filecoin FFI)
         run: |
+          sudo apt-get update
           sudo apt install ocl-icd-opencl-dev
           git submodule add https://github.com/filecoin-project/filecoin-ffi.git .extern/filecoin-ffi
           cd .extern/filecoin-ffi
@@ -37,6 +38,17 @@ jobs:
           make
           cd ../..
           go mod edit -replace=github.com/filecoin-project/filecoin-ffi=./.extern/filecoin-ffi
+      - name: Install dependencies (Solana FFI)
+        run: |
+          sudo apt install libudev-dev libssl-dev
+          git submodule add https://github.com/renproject/solana-ffi.git .extern/solana-ffi
+          cd .extern/solana-ffi
+          git checkout 4bd204b6017173c1425468db8566f053abb49f0b
+          go get -u github.com/xlab/c-for-go
+          make clean
+          make
+          cd ../..
+          go mod edit -replace=github.com/renproject/solana-ffi=./.extern/solana-ffi
       - name: Get dependencies
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
