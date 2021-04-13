@@ -30,6 +30,7 @@ jobs:
           key: ${{ runner.os }}-go-lightnode-${{ hashFiles('**/go.sum') }}
       - name: Install dependencies (Filecoin FFI)
         run: |
+          sudo apt-get update
           sudo apt install ocl-icd-opencl-dev
           git submodule add https://github.com/filecoin-project/filecoin-ffi.git .extern/filecoin-ffi
           cd .extern/filecoin-ffi
