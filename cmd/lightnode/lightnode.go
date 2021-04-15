@@ -256,6 +256,12 @@ func parseOptions() lightnode.Options {
 			Protocol: pack.String(os.Getenv("GATEWAY_ETHEREUM")),
 		}
 	}
+	if os.Getenv("RPC_FANTOM") != "" {
+		chains[multichain.Fantom] = binding.ChainOptions{
+			RPC:      pack.String(os.Getenv("RPC_FANTOM")),
+			Protocol: pack.String(os.Getenv("GATEWAY_FANTOM")),
+		}
+	}
 	if os.Getenv("RPC_FILECOIN") != "" {
 		chains[multichain.Filecoin] = binding.ChainOptions{
 			RPC: pack.String(os.Getenv("RPC_FILECOIN")),
