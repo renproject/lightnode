@@ -25,8 +25,8 @@ func main() {
 
 	// Parse flags.
 	flagPort := flag.String("port", "", "Port for lightnode RPC")
-	// FIXME : IDEALLY LIGHTNODE SHOULDN'T HAVE ACCESS TO DARKNODE CONFIG, BUT
-	// FIXME : GETTING THOSE INFOS FROM QUERYING DARKNODES.
+	// FIXME: Lightnode usually should not have access to Darknode config, but
+	// for testing purposes this is acceptable.
 	flagConfig := flag.String("config", "", "Config file path for the shard darknode")
 	flagOut := flag.String("out", "", "Output directory for all the files")
 
