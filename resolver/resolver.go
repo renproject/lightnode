@@ -191,6 +191,10 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 
 	case res := <-reqWithResponder.Responder:
+		if res.Error != nil {
+			return jsonrpc.NewResponse(id, nil, res.Error)
+		}
+
 		raw, err := json.Marshal(res.Result)
 		if err != nil {
 			resolver.logger.Errorf("[resolver] error marshaling queryTx result: %v", err)
