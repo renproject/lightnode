@@ -12,7 +12,7 @@ import (
 	"github.com/go-redis/redis/v7"
 	"github.com/jbenet/go-base58"
 	"github.com/renproject/darknode/binding"
-	"github.com/renproject/darknode/binding/ethereumbinding"
+	"github.com/renproject/darknode/binding/gatewaybinding"
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
@@ -44,10 +44,10 @@ type BurnLogFetcher interface {
 }
 
 type EthBurnLogFetcher struct {
-	bindings *ethereumbinding.MintGatewayLogicV1
+	bindings *gatewaybinding.MintGatewayLogicV1
 }
 
-func NewBurnLogFetcher(bindings *ethereumbinding.MintGatewayLogicV1) EthBurnLogFetcher {
+func NewBurnLogFetcher(bindings *gatewaybinding.MintGatewayLogicV1) EthBurnLogFetcher {
 	return EthBurnLogFetcher{
 		bindings: bindings,
 	}

@@ -10,8 +10,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/renproject/mercury/types/ethtypes"
 )
 
 // Enumeration of extended types. Extended types are implemented whenever a new
@@ -26,7 +26,7 @@ const (
 )
 
 // ExtEthCompatAddress is an Ethereum compatible address.
-type ExtEthCompatAddress ethtypes.Address
+type ExtEthCompatAddress common.Address
 
 // ExtEthCompatAddressFromHex returns a ExtEthCompatAddress value decoded from a
 // hex encoded string. The "0x" prefix is optional.
