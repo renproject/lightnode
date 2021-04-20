@@ -123,13 +123,13 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 				raw, err := json.Marshal(response.Result)
 				// no need to handle errors here as it will be handled by the resolver
 				if err != nil {
-					cacher.logger.Warnf("Failed to marshal queryTx response: %v", err)
+					cacher.logger.Warnf("failed to marshal queryTx response: %v", err)
 					return true
 				}
 				var tx jsonrpc.ResponseQueryTx
 				err = json.Unmarshal(raw, &tx)
 				if err != nil {
-					cacher.logger.Warnf("Failed to unmarshal queryTx response: %v", err)
+					cacher.logger.Warnf("failed to unmarshal queryTx response: %v", err)
 					return true
 				}
 
@@ -144,14 +144,12 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 				var output engine.LockMintBurnReleaseOutput
 				err = pack.Decode(&output, tx.Tx.Output)
 				if err != nil {
-					cacher.logger.Warnf("Failed to decode tx output: %v", err)
+					cacher.logger.Warnf("failed to decode tx output: %v", err)
 					return false
 				}
 				if output.Revert.Equal("") {
 					v1TxOutput := v1.TxOutputFromV2QueryTxOutput(output)
-
 					tx.Tx.Output = v1TxOutput
-
 					response = jsonrpc.NewResponse(msg.ID, tx, nil)
 				}
 			}
