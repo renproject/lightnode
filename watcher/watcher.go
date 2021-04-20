@@ -87,10 +87,12 @@ func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64,
 				}
 
 				// Send the burn transaction to the resolver.
-				resultChan <- BurnLogResult{Result: result}
 				select {
 				case <-ctx.Done():
+					resultChan <- BurnLogResult{Error: ctx.Err()}
 					return
+				default:
+					resultChan <- BurnLogResult{Result: result}
 				}
 			}
 		}()
