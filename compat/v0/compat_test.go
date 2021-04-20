@@ -159,6 +159,11 @@ var _ = Describe("Compat V0", func() {
 		txindex := v1.Tx.Input.Get("txindex").(pack.U32)
 		v0Hash := v0.MintTxHash(v1.Tx.Selector, ghash, txid, txindex)
 		Expect(keys).Should(ContainElement(v0Hash.String()))
+
+		// v1 hash should be correct
+		v1Hash, err := tx.NewTxHash(v1.Tx.Version, v1.Tx.Selector, v1.Tx.Input)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(hash).To(Equal(v1Hash.String()))
 	})
 
 	It("should convert a v0 ZEC ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
@@ -191,6 +196,11 @@ var _ = Describe("Compat V0", func() {
 		txindex := v1.Tx.Input.Get("txindex").(pack.U32)
 		v0Hash := v0.MintTxHash(v1.Tx.Selector, ghash, txid, txindex)
 		Expect(keys).Should(ContainElement(v0Hash.String()))
+
+		// v1 hash should be correct
+		v1Hash, err := tx.NewTxHash(v1.Tx.Version, v1.Tx.Selector, v1.Tx.Input)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(hash).To(Equal(v1Hash.String()))
 	})
 
 	It("should convert a v0 BCH ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
@@ -223,5 +233,10 @@ var _ = Describe("Compat V0", func() {
 		txindex := v1.Tx.Input.Get("txindex").(pack.U32)
 		v0Hash := v0.MintTxHash(v1.Tx.Selector, ghash, txid, txindex)
 		Expect(keys).Should(ContainElement(v0Hash.String()))
+
+		// v1 hash should be correct
+		v1Hash, err := tx.NewTxHash(v1.Tx.Version, v1.Tx.Selector, v1.Tx.Input)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(hash).To(Equal(v1Hash.String()))
 	})
 })
