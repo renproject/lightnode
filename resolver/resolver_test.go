@@ -89,9 +89,9 @@ var _ = Describe("Resolver", func() {
 				Confirmations: pack.U64(0),
 			}).
 			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
+				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
 				Confirmations: pack.U64(0),
-				Protocol:      pack.String("0xcF9F36668ad5b28B336B248a67268AFcF1ECbdbF"),
+				Protocol:      pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
 			})
 
 		bindings := binding.New(bindingsOpts)
@@ -174,7 +174,8 @@ var _ = Describe("Resolver", func() {
 
 		// It's a bit of a pain to make this robustly calculatable, so lets use the mock
 		// v0 tx's v0 hash directly
-		v0HashBytes, err := base64.StdEncoding.DecodeString("npiRyatJm8KSgbwA/EqdvFclMjfsnfrVY2HkjhElEDk=")
+		v0HashString := "fEwRnmZAjz6uzPZFGwYSa4OK8xtHVl2nsncCHvV0aKE="
+		v0HashBytes, err := base64.StdEncoding.DecodeString(v0HashString)
 		Expect(err).ShouldNot(HaveOccurred())
 		v0Hash := [32]byte{}
 		copy(v0Hash[:], v0HashBytes[:])
@@ -191,7 +192,7 @@ var _ = Describe("Resolver", func() {
 		resp = resolver.SubmitTx(ctx, nil, (req).(*jsonrpc.ParamsSubmitTx), nil)
 		Expect(resp.Error).Should(BeNil())
 
-		hashS, err := client.Get("npiRyatJm8KSgbwA/EqdvFclMjfsnfrVY2HkjhElEDk=").Result()
+		hashS, err := client.Get(v0HashString).Result()
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(hashS).ShouldNot(Equal(nil))
 

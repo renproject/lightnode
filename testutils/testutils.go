@@ -123,6 +123,11 @@ func MockSystemState() engine.SystemState {
 		panic(fmt.Sprintf("failed to encode pubk %v", err))
 	}
 	return engine.SystemState{
+		Epoch: engine.SystemStateEpoch{
+			Number:   pack.NewU256([32]byte{}),
+			NumNodes: pack.NewU256([32]byte{}),
+		},
+		Nodes: []engine.SystemStateNode{},
 		Shards: engine.SystemStateShards{
 			Primary: []engine.SystemStateShardsShard{{
 				Shard:  [32]byte{},

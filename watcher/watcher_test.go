@@ -132,9 +132,9 @@ var _ = Describe("Watcher", func() {
 				Confirmations: pack.U64(0),
 			}).
 			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
+				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
 				Confirmations: pack.U64(0),
-				Protocol:      pack.String("0x1CAD87e16b56815d6a0b4Cd91A6639eae86Fc53A"),
+				Protocol:      pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
 			})
 
 		bindings := binding.New(bindingsOpts)
@@ -239,7 +239,7 @@ var _ = Describe("Watcher", func() {
 		})
 
 		It("should process logs in block batches", func() {
-			ethC, err := ethclient.Dial("https://multichain-staging.renproject.io/testnet/geth")
+			ethC, err := ethclient.Dial("https://multichain-staging.renproject.io/testnet/kovan")
 			Expect(err).NotTo(HaveOccurred())
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -577,7 +577,7 @@ var _ = Describe("Watcher", func() {
 				WithChainOptions(multichain.Ethereum, binding.ChainOptions{
 					RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
 					Confirmations: pack.U64(0),
-					Protocol:      pack.String("0x557e211EC5fc9a6737d2C6b7a1aDe3e0C11A8D5D"),
+					Protocol:      pack.String("0x59e23c087cA9bd9ce162875811CD6e99134D6d0F"),
 				})
 
 			bindings := binding.New(bindingsOpts)
