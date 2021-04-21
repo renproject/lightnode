@@ -270,6 +270,12 @@ func parseOptions() lightnode.Options {
 			},
 		}
 	}
+	if os.Getenv("RPC_SOLANA") != "" {
+		chains[multichain.Solana] = binding.ChainOptions{
+			RPC:      pack.String(os.Getenv("RPC_SOLANA")),
+			Protocol: pack.String(os.Getenv("GATEWAY_SOLANA")),
+		}
+	}
 	if os.Getenv("RPC_TERRA") != "" {
 		chains[multichain.Terra] = binding.ChainOptions{
 			RPC: pack.String(os.Getenv("RPC_TERRA")),

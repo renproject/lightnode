@@ -69,9 +69,9 @@ var _ = Describe("Compat V0", func() {
 		})
 
 		bindingsOpts.WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/geth"),
+			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
 			Confirmations: pack.U64(0),
-			Protocol:      pack.String("0xcF9F36668ad5b28B336B248a67268AFcF1ECbdbF"),
+			Protocol:      pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
 		})
 
 		bindings := binding.New(bindingsOpts)
@@ -137,30 +137,33 @@ var _ = Describe("Compat V0", func() {
 
 		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
 		Expect(err).ShouldNot(HaveOccurred())
-		// Check that redis mapped the hashes correctly
-		hash := v1.Tx.Hash.String()
-		// btc txhash mapping
-		keys, err := client.Keys("*").Result()
 
 		// should have a key for the utxo
 		utxo := params.Tx.In.Get("utxo").Value.(v0.ExtBtcCompatUTXO)
-		keys, err = client.Keys(utxo.TxHash.String() + "_" + utxo.VOut.Int.String()).Result()
+		keys, err := client.Keys(utxo.TxHash.String() + "_" + utxo.VOut.Int.String()).Result()
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(len(keys)).Should(Equal(1))
 
+		// Check that redis mapped the hashes correctly
+		hash := v1.Tx.Hash.String()
 		storedHash, err := client.Get(keys[0]).Result()
 		Expect(err).ShouldNot(HaveOccurred())
-
 		Expect(storedHash).Should(Equal(hash))
 
 		// btc txhash mapping
 		keys, err = client.Keys("*").Result()
 
 		// v0 hash should have a mapping in the store
-		Expect(keys).Should(ContainElement("npiRyatJm8KSgbwA/EqdvFclMjfsnfrVY2HkjhElEDk="))
+		ghash := v1.Tx.Input.Get("ghash").(pack.Bytes32)
+		txid := v1.Tx.Input.Get("txid").(pack.Bytes)
+		txindex := v1.Tx.Input.Get("txindex").(pack.U32)
+		v0Hash := v0.MintTxHash(v1.Tx.Selector, ghash, txid, txindex)
+		Expect(keys).Should(ContainElement(v0Hash.String()))
 
 		// v1 hash should be correct
-		Expect(hash).Should(Equal("YlkYzfTTCcptfS4bYdxnrXXNMv-C_6Y1UzWwi_wOrGI"))
+		v1Hash, err := tx.NewTxHash(v1.Tx.Version, v1.Tx.Selector, v1.Tx.Input)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(hash).To(Equal(v1Hash.String()))
 	})
 
 	It("should convert a v0 ZEC ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
@@ -171,30 +174,33 @@ var _ = Describe("Compat V0", func() {
 
 		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
 		Expect(err).ShouldNot(HaveOccurred())
-		// Check that redis mapped the hashes correctly
-		hash := v1.Tx.Hash.String()
-		// btc txhash mapping
-		keys, err := client.Keys("*").Result()
 
 		// should have a key for the utxo
 		utxo := params.Tx.In.Get("utxo").Value.(v0.ExtBtcCompatUTXO)
-		keys, err = client.Keys(utxo.TxHash.String() + "_" + utxo.VOut.Int.String()).Result()
+		keys, err := client.Keys(utxo.TxHash.String() + "_" + utxo.VOut.Int.String()).Result()
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(len(keys)).Should(Equal(1))
 
+		// Check that redis mapped the hashes correctly
+		hash := v1.Tx.Hash.String()
 		storedHash, err := client.Get(keys[0]).Result()
 		Expect(err).ShouldNot(HaveOccurred())
-
 		Expect(storedHash).Should(Equal(hash))
 
 		// btc txhash mapping
 		keys, err = client.Keys("*").Result()
 
 		// v0 hash should have a mapping in the store
-		Expect(keys).Should(ContainElement("Q1E14yjJGkz6Oe5VPIK3vX/A7q93qKF6Hof6DGQ/yW4="))
+		ghash := v1.Tx.Input.Get("ghash").(pack.Bytes32)
+		txid := v1.Tx.Input.Get("txid").(pack.Bytes)
+		txindex := v1.Tx.Input.Get("txindex").(pack.U32)
+		v0Hash := v0.MintTxHash(v1.Tx.Selector, ghash, txid, txindex)
+		Expect(keys).Should(ContainElement(v0Hash.String()))
 
 		// v1 hash should be correct
-		Expect(hash).Should(Equal("y4ol_nr7P9IXsW59AiAkIuUW5ytMKkwcEVihNZlPvJQ"))
+		v1Hash, err := tx.NewTxHash(v1.Tx.Version, v1.Tx.Selector, v1.Tx.Input)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(hash).To(Equal(v1Hash.String()))
 	})
 
 	It("should convert a v0 BCH ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
@@ -205,24 +211,32 @@ var _ = Describe("Compat V0", func() {
 
 		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
 		Expect(err).ShouldNot(HaveOccurred())
+
 		// should have a key for the utxo
 		utxo := params.Tx.In.Get("utxo").Value.(v0.ExtBtcCompatUTXO)
 		keys, err := client.Keys(utxo.TxHash.String() + "_" + utxo.VOut.Int.String()).Result()
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(len(keys)).Should(Equal(1))
 
+		// Check that redis mapped the hashes correctly
+		hash := v1.Tx.Hash.String()
 		storedHash, err := client.Get(keys[0]).Result()
 		Expect(err).ShouldNot(HaveOccurred())
+		Expect(hash).Should(Equal(storedHash))
 
 		// btc txhash mapping
 		keys, err = client.Keys("*").Result()
 
 		// v0 hash should have a mapping in the store
-		Expect(keys).Should(ContainElement("pEXm6Sae81WZxvzyqS8VAoLBAK3Df5r6FENl5BegewI="))
+		ghash := v1.Tx.Input.Get("ghash").(pack.Bytes32)
+		txid := v1.Tx.Input.Get("txid").(pack.Bytes)
+		txindex := v1.Tx.Input.Get("txindex").(pack.U32)
+		v0Hash := v0.MintTxHash(v1.Tx.Selector, ghash, txid, txindex)
+		Expect(keys).Should(ContainElement(v0Hash.String()))
 
-		// Check that redis mapped the hashes correctly
-		hash := v1.Tx.Hash.String()
-		Expect(hash).Should(Equal(storedHash))
-
+		// v1 hash should be correct
+		v1Hash, err := tx.NewTxHash(v1.Tx.Version, v1.Tx.Selector, v1.Tx.Input)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(hash).To(Equal(v1Hash.String()))
 	})
 })

@@ -108,7 +108,7 @@ var _ = Describe("Cacher", func() {
 			Expect(queryTxResp.Tx.Output).NotTo(Equal(queryTx.Tx.Output))
 			res, err := queryTxResp.Tx.Output.MarshalJSON()
 			Expect(fmt.Sprintf("%v", string(res))).ShouldNot(ContainSubstring("\"revert\":\"\""))
-			Expect(fmt.Sprintf("%v", string(res))).Should(ContainSubstring("\"amount\":\"220000\""))
+			Expect(fmt.Sprintf("%v", string(res))).Should(ContainSubstring("\"amount\":\"1698300\""))
 
 			// Send the second request and expect a cached response
 			newReq := http.NewRequestWithResponder(ctx, id, method, params, url.Values{})
