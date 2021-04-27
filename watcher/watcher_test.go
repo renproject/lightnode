@@ -145,8 +145,9 @@ var _ = Describe("Watcher", func() {
 		ethClients := bindings.EthereumClients()
 		ethClient := ethClients[multichain.Ethereum]
 		fetcher := NewMockBurnLogFetcher(burnIn)
+		heightFetcher := NewEthBlockHeightFetcher(ethClient)
 
-		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, fetcher, ethClient, mockResolver, client, pubk, interval, 1000, 6)
+		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, fetcher, heightFetcher, mockResolver, client, pubk, interval, 1000, 6)
 
 		return watcher, client, burnIn, mr
 	}
@@ -584,7 +585,7 @@ var _ = Describe("Watcher", func() {
 
 			gateways := bindings.EthereumGateways()
 			btcGateway := gateways[multichain.Ethereum][multichain.BTC]
-			burnLogFetcher := NewBurnLogFetcher(btcGateway)
+			burnLogFetcher := NewEthBurnLogFetcher(btcGateway)
 
 			results, err := burnLogFetcher.FetchBurnLogs(ctx, 0, 0)
 			Expect(err).ToNot(HaveOccurred())
@@ -640,6 +641,54 @@ var _ = Describe("Watcher", func() {
 					}
 				}
 			}
+		})
+
+		It("should be able to call filter logs on Solana", func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			bindingsOpts := binding.DefaultOptions().
+				WithNetwork("localnet").
+				WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
+					RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
+					Confirmations: pack.U64(0),
+				}).
+				WithChainOptions(multichain.Solana, binding.ChainOptions{
+					RPC:      pack.String("https://testnet.solana.com"),
+					Protocol: pack.String(""),
+				})
+
+			bindings := binding.New(bindingsOpts)
+
+			gateways := bindings.EthereumGateways()
+			btcGateway := gateways[multichain.Ethereum][multichain.BTC]
+			burnLogFetcher := NewEthBurnLogFetcher(btcGateway)
+
+			results, err := burnLogFetcher.FetchBurnLogs(ctx, 0, 0)
+			Expect(err).ToNot(HaveOccurred())
+
+			// wait to see if the channel picks anything up
+			time.Sleep(time.Second)
+
+			for r := range results {
+				Expect(r).To(BeEmpty())
+			}
+
+			results, err = burnLogFetcher.FetchBurnLogs(ctx, 23704992, 23704995)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() BurnLogResult {
+				for r := range results {
+					return r
+				}
+				return BurnLogResult{}
+			}, 5*time.Second).Should(Equal(BurnLogResult{Result: BurnInfo{
+				Txid:        []byte{42, 187, 84, 27, 111, 181, 207, 26, 30, 239, 244, 76, 7, 157, 157, 29, 159, 155, 62, 12, 65, 112, 124, 110, 85, 132, 116, 128, 171, 68, 197, 65},
+				Amount:      pack.NewU256FromUint64(896853),
+				ToBytes:     []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+				Nonce:       [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 231},
+				BlockNumber: 23704993,
+			}}))
+
 		})
 	})
 

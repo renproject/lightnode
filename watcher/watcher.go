@@ -2,17 +2,22 @@ package watcher
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"time"
 
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/btcsuite/btcd/chaincfg"
+	solanaSDK "github.com/dfuse-io/solana-go"
+	solanaRPC "github.com/dfuse-io/solana-go/rpc"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/go-redis/redis/v7"
 	"github.com/jbenet/go-base58"
+	"github.com/near/borsh-go"
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/binding/gatewaybinding"
+	"github.com/renproject/darknode/binding/solanastate"
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
@@ -21,6 +26,7 @@ import (
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/bitcoin"
 	"github.com/renproject/multichain/chain/bitcoincash"
+	"github.com/renproject/multichain/chain/solana"
 	"github.com/renproject/multichain/chain/zcash"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
@@ -47,7 +53,7 @@ type EthBurnLogFetcher struct {
 	bindings *gatewaybinding.MintGatewayLogicV1
 }
 
-func NewBurnLogFetcher(bindings *gatewaybinding.MintGatewayLogicV1) EthBurnLogFetcher {
+func NewEthBurnLogFetcher(bindings *gatewaybinding.MintGatewayLogicV1) EthBurnLogFetcher {
 	return EthBurnLogFetcher{
 		bindings: bindings,
 	}
@@ -117,6 +123,133 @@ func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64,
 	return resultChan, nil
 }
 
+type SolFetcher struct {
+	client           *solanaRPC.Client
+	gatewayStatePubk solanaSDK.PublicKey
+	gatewayAddress   string
+}
+
+func NewSolFetcher(client *solanaRPC.Client, gatewayAddress string) SolFetcher {
+	seeds := []byte("GatewayState")
+	programDerivedAddress := solana.ProgramDerivedAddress(pack.Bytes(seeds), multichain.Address(gatewayAddress))
+	programPubk, err := solanaSDK.PublicKeyFromBase58(string(programDerivedAddress))
+	if err != nil {
+		panic("invalid pubk")
+	}
+
+	return SolFetcher{
+		client:           client,
+		gatewayStatePubk: programPubk,
+		gatewayAddress:   gatewayAddress,
+	}
+}
+
+func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uint64) (chan BurnLogResult, error) {
+	resultChan := make(chan BurnLogResult)
+
+	go func() {
+		func() {
+			defer close(resultChan)
+			for i := from; i < to; i++ {
+				nonce := i + 1
+
+				b := make([]byte, 8)
+				binary.LittleEndian.PutUint64(b, i+1)
+
+				var nonceBytes pack.Bytes32
+				copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
+
+				programDerivedAddress := solana.ProgramDerivedAddress(b, multichain.Address(fetcher.gatewayAddress))
+
+				programPubk, err := solanaSDK.PublicKeyFromBase58(string(programDerivedAddress))
+				if err != nil {
+					resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log account: %v", err)}
+					return
+				}
+
+				// Fetch account data at gateway registry's state
+				accountInfo, err := fetcher.client.GetAccountInfo(ctx, programPubk)
+				if err != nil {
+					resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log data for burn: %v err: %v", i, err)}
+					return
+				}
+				data := accountInfo.Value.Data
+
+				if len(data) != 41 {
+					resultChan <- BurnLogResult{Error: fmt.Errorf("deserializing burn log data: %v", err)}
+					return
+				}
+				amount := binary.LittleEndian.Uint64(data[:8])
+				recipientLen := uint8(data[8:9][0])
+				recipient := multichain.RawAddress(data[9 : 9+int(recipientLen)])
+
+				signatures, err := fetcher.client.GetConfirmedSignaturesForAddress2(ctx, programPubk, &solanaRPC.GetConfirmedSignaturesForAddress2Opts{})
+				if err != nil {
+					resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log txes: %v", err)}
+					return
+				}
+
+				result := BurnInfo{
+					Txid:        base58.Decode(signatures[0].Signature),
+					Amount:      pack.NewU256FromUint64(amount),
+					ToBytes:     recipient[:],
+					Nonce:       nonceBytes,
+					BlockNumber: pack.NewU64(i),
+				}
+
+				// Send the burn transaction to the resolver.
+				select {
+				case <-ctx.Done():
+					resultChan <- BurnLogResult{Error: ctx.Err()}
+					return
+				default:
+					resultChan <- BurnLogResult{Result: result}
+				}
+			}
+		}()
+	}()
+
+	return resultChan, nil
+}
+
+type BlockHeightFetcher interface {
+	FetchBlockHeight(ctx context.Context) (uint64, error)
+}
+
+type EthBlockHeightFetcher struct {
+	client *ethclient.Client
+}
+
+func NewEthBlockHeightFetcher(ethClient *ethclient.Client) EthBlockHeightFetcher {
+	return EthBlockHeightFetcher{
+		client: ethClient,
+	}
+}
+
+// currentBlockNumber returns the current block number for the chain being watched
+func (fetcher EthBlockHeightFetcher) FetchBlockHeight(ctx context.Context) (uint64, error) {
+	currentBlock, err := fetcher.client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	return currentBlock.Number.Uint64(), nil
+}
+
+// Behaves differently, as it checks the maximum burn index that should be fetched
+func (fetcher SolFetcher) FetchBlockHeight(ctx context.Context) (uint64, error) {
+	accountData, err := fetcher.client.GetAccountInfo(ctx, fetcher.gatewayStatePubk)
+	if err != nil {
+		return 0, fmt.Errorf("getting gateway data: %v", err)
+	}
+
+	// Deserialize the account data into registry state's structure.
+	gateway := solanastate.Gateway{}
+	if err = borsh.Deserialize(&gateway, accountData.Value.Data); err != nil {
+		return 0, fmt.Errorf("deserializing account data: %v", err)
+	}
+	return uint64(gateway.BurnCount), nil
+}
+
 // Watcher watches for event logs for burn transactions. These transactions are
 // then forwarded to the cacher.
 type Watcher struct {
@@ -126,7 +259,7 @@ type Watcher struct {
 	selector           tx.Selector
 	bindings           binding.Bindings
 	burnLogFetcher     BurnLogFetcher
-	ethClient          *ethclient.Client
+	blockHeightFetcher BlockHeightFetcher
 	resolver           jsonrpc.Resolver
 	cache              redis.Cmdable
 	pollInterval       time.Duration
@@ -135,7 +268,7 @@ type Watcher struct {
 }
 
 // NewWatcher returns a new Watcher.
-func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector tx.Selector, bindings binding.Bindings, burnLogFetcher BurnLogFetcher, ethClient *ethclient.Client, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey, pollInterval time.Duration, maxBlockAdvance uint64, confidenceInterval uint64) Watcher {
+func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector tx.Selector, bindings binding.Bindings, burnLogFetcher BurnLogFetcher, blockHeightFetcher BlockHeightFetcher, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey, pollInterval time.Duration, maxBlockAdvance uint64, confidenceInterval uint64) Watcher {
 	gpubkey := (*btcec.PublicKey)(distPubKey).SerializeCompressed()
 	return Watcher{
 		logger:             logger,
@@ -144,7 +277,7 @@ func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector 
 		selector:           selector,
 		bindings:           bindings,
 		burnLogFetcher:     burnLogFetcher,
-		ethClient:          ethClient,
+		blockHeightFetcher: blockHeightFetcher,
 		resolver:           resolver,
 		cache:              cache,
 		pollInterval:       pollInterval,
@@ -176,18 +309,19 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 	defer cancel()
 
 	// Get current block number and last checked block number.
-	cur, err := watcher.currentBlockNumber(ctx)
+	currentHeight, err := watcher.blockHeightFetcher.FetchBlockHeight(ctx)
 	if err != nil {
-		watcher.logger.Errorf("[watcher] error loading eth block header: %v", err)
+		watcher.logger.Errorf("[watcher] error loading block header: %v", err)
 		return
 	}
-	last, err := watcher.lastCheckedBlockNumber(cur)
+
+	lastHeight, err := watcher.lastCheckedBlockNumber(currentHeight)
 	if err != nil {
 		watcher.logger.Errorf("[watcher] error loading last checked block number: %v", err)
 		return
 	}
 
-	if cur <= last {
+	if currentHeight < lastHeight {
 		watcher.logger.Warnf("[watcher] tried to process old blocks")
 		// Make sure we do not process old events. This could occur if there is
 		// an issue with the underlying blockchain node, for example if it needs
@@ -201,26 +335,31 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		return
 	}
 
+	watcher.logger.Info("current : last -", currentHeight, lastHeight)
+
 	// Only advance by a set number of blocks at a time to prevent over-subscription
-	step := last + watcher.maxBlockAdvance
-	if step < cur {
-		cur = step
+	step := lastHeight + watcher.maxBlockAdvance
+	if step < currentHeight {
+		currentHeight = step
 	}
 
-	// avoid checking blocks that might have shuffled
-	cur -= watcher.confidenceInterval
+	// for Eth, avoid checking blocks that might have shuffled
+	if watcher.selector.Source() != multichain.Solana {
+		watcher.logger.Info("selector ", watcher.selector)
+		currentHeight -= watcher.confidenceInterval
+	}
 
 	// Fetch logs
-	c, err := watcher.burnLogFetcher.FetchBurnLogs(ctx, last, cur)
+	c, err := watcher.burnLogFetcher.FetchBurnLogs(ctx, lastHeight, currentHeight)
 	if err != nil {
-		watcher.logger.Errorf("[watcher] error fetching LogBurn events from=%v to=%v: %v", last, cur, err)
+		watcher.logger.Errorf("[watcher] error fetching LogBurn events from=%v to=%v: %v", lastHeight, currentHeight, err)
 		return
 	}
 
 	// Loop through the logs and check if there are burn events.
 	for res := range c {
 		if res.Error != nil {
-			watcher.logger.Errorf("[watcher] error iterating LogBurn events from=%v to=%v: %v", last, cur, res.Error)
+			watcher.logger.Errorf("[watcher] error iterating LogBurn events from=%v to=%v: %v", lastHeight, currentHeight, res.Error)
 			return
 		}
 		burn := res.Result
@@ -246,7 +385,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		}
 	}
 
-	if err := watcher.cache.Set(watcher.key(), cur, 0).Err(); err != nil {
+	if err := watcher.cache.Set(watcher.key(), currentHeight, 0).Err(); err != nil {
 		watcher.logger.Errorf("[watcher] error setting last checked block number in redis: %v", err)
 		return
 	}
@@ -257,26 +396,22 @@ func (watcher Watcher) key() string {
 	return fmt.Sprintf("%v_lastCheckedBlock", watcher.selector.String())
 }
 
-// currentBlockNumber returns the current block number for the chain being watched
-func (watcher Watcher) currentBlockNumber(ctx context.Context) (uint64, error) {
-	currentBlock, err := watcher.ethClient.HeaderByNumber(ctx, nil)
-	if err != nil {
-		return 0, err
-	}
-	return currentBlock.Number.Uint64(), nil
-}
-
 // lastCheckedBlockNumber returns the last checked block number of Ethereum.
 func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, error) {
 	last, err := watcher.cache.Get(watcher.key()).Uint64()
 	// Initialise the pointer with current block number if it has not been yet.
 	if err == redis.Nil {
+		targetBlockN := currentBlockN - 1
+		// catch overflows
+		if targetBlockN > currentBlockN {
+			targetBlockN = 0
+		}
 		watcher.logger.Errorf("[watcher] last checked block number not initialised")
-		if err := watcher.cache.Set(watcher.key(), currentBlockN-1, 0).Err(); err != nil {
+		if err := watcher.cache.Set(watcher.key(), targetBlockN, 0).Err(); err != nil {
 			watcher.logger.Errorf("[watcher] cannot initialise last checked block in redis: %v", err)
 			return 0, err
 		}
-		return currentBlockN - 1, nil
+		return targetBlockN, nil
 	}
 	return last, err
 }

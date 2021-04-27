@@ -5,6 +5,7 @@ go 1.15
 require (
 	github.com/alicebob/miniredis/v2 v2.14.3
 	github.com/btcsuite/btcd v0.21.0-beta
+	github.com/dfuse-io/solana-go v0.2.0
 	github.com/dgryski/go-farm v0.0.0-20191112170834-c2139c5d712b // indirect
 	github.com/ethereum/go-ethereum v1.10.1
 	github.com/evalphobia/logrus_sentry v0.8.2
@@ -13,13 +14,14 @@ require (
 	github.com/jbenet/go-base58 v0.0.0-20150317085156-6237cf65f3a6
 	github.com/lib/pq v1.7.0
 	github.com/mattn/go-sqlite3 v1.11.0
+	github.com/near/borsh-go v0.3.0
 	github.com/onsi/ginkgo v1.14.0
 	github.com/onsi/gomega v1.10.1
 	github.com/renproject/aw v0.4.1-0.20210413051002-6234359989ab
-	github.com/renproject/darknode v0.5.3-0.20210420021957-c4f3b2fe62d2
+	github.com/renproject/darknode v0.5.3-0.20210422065457-e137a784055f
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
-	github.com/renproject/multichain v0.3.5
+	github.com/renproject/multichain v0.3.7
 	github.com/renproject/pack v0.2.9
 	github.com/renproject/phi v0.1.0
 	github.com/sirupsen/logrus v1.6.0
