@@ -217,7 +217,7 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 			return res
 		}
 
-		if resp.Tx.Output.String() == pack.NewTyped().String() {
+		if !resp.Tx.Selector.IsIntrinsic() && resp.Tx.Output.String() == pack.NewTyped().String() {
 			// Transaction is still being processed
 			resp.TxStatus = tx.StatusExecuting
 		}
