@@ -64,10 +64,12 @@ func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64,
 	go func() {
 		func() {
 			for iter.Next() {
-				resultChan <- BurnLogResult{Result: *iter.Event}
 				select {
 				case <-ctx.Done():
+					resultChan <- BurnLogResult{Error: ctx.Err()}
 					return
+				default:
+					resultChan <- BurnLogResult{Result: *iter.Event}
 				}
 			}
 		}()

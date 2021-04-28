@@ -1,3 +1,15 @@
+## 0.3.6
+
+- Fix watcher processing multiple burns in a block
+
+## 0.3.5
+
+- Fix watcher amount overflow and other reliability improvements
+
+## 0.3.4
+
+- Update to Multichain v0.3.4
+
 ## 0.3.3
 
 - Update to Multichain v0.3.3
