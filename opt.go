@@ -154,7 +154,7 @@ func (opts Options) WithWatcherMaxBlockAdvance(watcherMaxBlockAdvance uint64) Op
 
 // WithWatcherPollRate updates the watcher poll rate.
 func (opts Options) WithWatcherConfidenceInterval(watcherConfidenceInterval uint64) Options {
-	opts.WatcherConfidenceInterval = DefaultWatcherConfidenceInterval
+	opts.WatcherConfidenceInterval = watcherConfidenceInterval
 	return opts
 }
 
