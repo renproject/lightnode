@@ -124,13 +124,15 @@ func MockSystemState() engine.SystemState {
 	}
 	return engine.SystemState{
 		Epoch: engine.SystemStateEpoch{
-			Number:   pack.NewU256([32]byte{}),
-			NumNodes: pack.NewU256([32]byte{}),
+			Hash:      pack.Bytes32{},
+			Number:    0,
+			NumNodes:  0,
+			Timestamp: 0,
 		},
 		Nodes: []engine.SystemStateNode{},
 		Shards: engine.SystemStateShards{
 			Primary: []engine.SystemStateShardsShard{{
-				Shard:  [32]byte{},
+				Shard:  pack.Bytes32{},
 				PubKey: pubkeyBytes,
 			}},
 			Secondary: []engine.SystemStateShardsShard{},
