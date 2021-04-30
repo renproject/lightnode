@@ -3,9 +3,12 @@ package v1
 import (
 	"fmt"
 
+	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/engine"
+	"github.com/renproject/id"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
+	"github.com/renproject/surge"
 )
 
 type QueryStateResponse struct {
@@ -59,7 +62,7 @@ type AccountState struct {
 	Pubkey            string    `json:"pubKey"`
 }
 
-func QueryStateResponseFromState(state map[string]engine.XState) (QueryStateResponse, error) {
+func QueryStateResponseFromState(bindings binding.Bindings, state map[string]engine.XState) (QueryStateResponse, error) {
 	stateResponse := State{}
 
 	bitcoinS, ok := state[string(multichain.Bitcoin.NativeAsset())]
@@ -77,8 +80,16 @@ func QueryStateResponseFromState(state map[string]engine.XState) (QueryStateResp
 				fmt.Errorf("Failed to unmarshal bitcoin shard state: %v", err)
 		}
 
+		var pubKey id.PubKey
+		if err := surge.FromBinary(&pubKey, btcShard.PubKey); err != nil {
+			return QueryStateResponse{}, fmt.Errorf("decompressing pubkey: %v", err)
+		}
+		btcAddr, err := bindings.AddressFromPubKey(multichain.Bitcoin, &pubKey)
+		if err != nil {
+			return QueryStateResponse{}, fmt.Errorf("addressing pubkey: %v", err)
+		}
 		stateResponse.Bitcoin = UTXOState{
-			Address:           btcShard.Shard.String(),
+			Address:           string(btcAddr),
 			Dust:              bitcoinS.DustAmount.String(),
 			Gascap:            bitcoinS.GasCap.String(),
 			Gaslimit:          bitcoinS.GasLimit.String(),
@@ -113,8 +124,16 @@ func QueryStateResponseFromState(state map[string]engine.XState) (QueryStateResp
 				fmt.Errorf("Failed to unmarshal zcash shard state: %v", err)
 		}
 
+		var pubKey id.PubKey
+		if err := surge.FromBinary(&pubKey, zecShard.PubKey); err != nil {
+			return QueryStateResponse{}, fmt.Errorf("decompressing pubkey: %v", err)
+		}
+		zecAddr, err := bindings.AddressFromPubKey(multichain.Zcash, &pubKey)
+		if err != nil {
+			return QueryStateResponse{}, fmt.Errorf("addressing pubkey: %v", err)
+		}
 		stateResponse.Zcash = UTXOState{
-			Address:           zecShard.Shard.String(),
+			Address:           string(zecAddr),
 			Dust:              zcashS.DustAmount.String(),
 			Gascap:            zcashS.GasCap.String(),
 			Gaslimit:          zcashS.GasLimit.String(),
@@ -149,8 +168,16 @@ func QueryStateResponseFromState(state map[string]engine.XState) (QueryStateResp
 				fmt.Errorf("Failed to unmarshal bitcoinCash shard state: %v", err)
 		}
 
+		var pubKey id.PubKey
+		if err := surge.FromBinary(&pubKey, bchShard.PubKey); err != nil {
+			return QueryStateResponse{}, fmt.Errorf("decompressing pubkey: %v", err)
+		}
+		bchAddr, err := bindings.AddressFromPubKey(multichain.BitcoinCash, &pubKey)
+		if err != nil {
+			return QueryStateResponse{}, fmt.Errorf("addressing pubkey: %v", err)
+		}
 		stateResponse.Bitcoincash = UTXOState{
-			Address:           bchShard.Shard.String(),
+			Address:           string(bchAddr),
 			Dust:              bitcoinCashS.DustAmount.String(),
 			Gascap:            bitcoinCashS.GasCap.String(),
 			Gaslimit:          bitcoinCashS.GasLimit.String(),
@@ -185,8 +212,16 @@ func QueryStateResponseFromState(state map[string]engine.XState) (QueryStateResp
 				fmt.Errorf("Failed to unmarshal digibyte shard state: %v", err)
 		}
 
+		var pubKey id.PubKey
+		if err := surge.FromBinary(&pubKey, dgbShard.PubKey); err != nil {
+			return QueryStateResponse{}, fmt.Errorf("decompressing pubkey: %v", err)
+		}
+		dgbAddr, err := bindings.AddressFromPubKey(multichain.DigiByte, &pubKey)
+		if err != nil {
+			return QueryStateResponse{}, fmt.Errorf("addressing pubkey: %v", err)
+		}
 		stateResponse.Digibyte = UTXOState{
-			Address:           dgbShard.Shard.String(),
+			Address:           string(dgbAddr),
 			Dust:              digibyteS.DustAmount.String(),
 			Gascap:            digibyteS.GasCap.String(),
 			Gaslimit:          digibyteS.GasLimit.String(),
@@ -222,8 +257,16 @@ func QueryStateResponseFromState(state map[string]engine.XState) (QueryStateResp
 				fmt.Errorf("Failed to unmarshal dogecoin shard state: %v", err)
 		}
 
+		var pubKey id.PubKey
+		if err := surge.FromBinary(&pubKey, dogeShard.PubKey); err != nil {
+			return QueryStateResponse{}, fmt.Errorf("decompressing pubkey: %v", err)
+		}
+		dogeAddr, err := bindings.AddressFromPubKey(multichain.Dogecoin, &pubKey)
+		if err != nil {
+			return QueryStateResponse{}, fmt.Errorf("addressing pubkey: %v", err)
+		}
 		stateResponse.Dogecoin = UTXOState{
-			Address:           dogeShard.Shard.String(),
+			Address:           string(dogeAddr),
 			Dust:              dogecoinS.DustAmount.String(),
 			Gascap:            dogecoinS.GasCap.String(),
 			Gaslimit:          dogecoinS.GasLimit.String(),
@@ -259,8 +302,16 @@ func QueryStateResponseFromState(state map[string]engine.XState) (QueryStateResp
 				fmt.Errorf("Failed to unmarshal terra shard state: %v", err)
 		}
 
+		var pubKey id.PubKey
+		if err := surge.FromBinary(&pubKey, lunaShard.PubKey); err != nil {
+			return QueryStateResponse{}, fmt.Errorf("decompressing pubkey: %v", err)
+		}
+		lunaAddr, err := bindings.AddressFromPubKey(multichain.Terra, &pubKey)
+		if err != nil {
+			return QueryStateResponse{}, fmt.Errorf("addressing pubkey: %v", err)
+		}
 		terra := AccountState{
-			Address:           lunaShard.Shard.String(),
+			Address:           string(lunaAddr),
 			Gascap:            terraS.GasCap.String(),
 			Gaslimit:          terraS.GasLimit.String(),
 			Gasprice:          terraS.GasPrice.String(),
@@ -297,8 +348,16 @@ func QueryStateResponseFromState(state map[string]engine.XState) (QueryStateResp
 				fmt.Errorf("Failed to unmarshal filecoin shard state: %v", err)
 		}
 
+		var pubKey id.PubKey
+		if err := surge.FromBinary(&pubKey, filShard.PubKey); err != nil {
+			return QueryStateResponse{}, fmt.Errorf("decompressing pubkey: %v", err)
+		}
+		filAddr, err := bindings.AddressFromPubKey(multichain.Filecoin, &pubKey)
+		if err != nil {
+			return QueryStateResponse{}, fmt.Errorf("addressing pubkey: %v", err)
+		}
 		filecoin := AccountState{
-			Address:           filShard.Shard.String(),
+			Address:           string(filAddr),
 			Gascap:            filecoinS.GasCap.String(),
 			Gaslimit:          filecoinS.GasLimit.String(),
 			Gasprice:          filecoinS.GasPrice.String(),
