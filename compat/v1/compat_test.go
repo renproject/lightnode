@@ -5,6 +5,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"encoding/json"
 
@@ -15,7 +16,7 @@ import (
 
 var _ = Describe("Compat V0", func() {
 	It("should convert a QueryBlockState response into a QueryState response", func() {
-		stateResponse, err := v1.QueryStateResponseFromState(testutils.MockEngineState())
+		stateResponse, err := v1.QueryStateResponseFromState(testutils.MockBindings(logrus.New(), 0), testutils.MockEngineState())
 
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(stateResponse.State.Bitcoin.Gaslimit).Should(Equal("3"))

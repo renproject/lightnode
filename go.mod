@@ -22,6 +22,7 @@ require (
 	github.com/renproject/multichain v0.3.5
 	github.com/renproject/pack v0.2.9
 	github.com/renproject/phi v0.1.0
+	github.com/renproject/surge v1.2.6
 	github.com/sirupsen/logrus v1.6.0
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect

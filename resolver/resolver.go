@@ -419,7 +419,7 @@ func (resolver *Resolver) QueryState(ctx context.Context, id interface{}, params
 			v2AssetState[v] = state
 		}
 
-		shards, err := v1.QueryStateResponseFromState(v2AssetState)
+		shards, err := v1.QueryStateResponseFromState(resolver.bindings, v2AssetState)
 
 		if err != nil {
 			resolver.logger.Error("failed to cast to QueryFees: %v", err)
