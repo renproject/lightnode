@@ -241,7 +241,7 @@ func QueryStateResponseFromState(bindings binding.Bindings, state map[string]eng
 
 	}
 
-	dogecoinS, ok := state[string(multichain.DigiByte.NativeAsset())]
+	dogecoinS, ok := state[string(multichain.Dogecoin.NativeAsset())]
 	if ok {
 
 		if len(dogecoinS.Shards) == 0 {
