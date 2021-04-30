@@ -209,11 +209,16 @@ func MockEngineState() map[string]engine.XState {
 		DustAmount:    pack.NewU256FromU64(0),
 		Shards: []engine.XStateShard{
 			{
-				Shard:  [32]byte{},
+				Shard:  pack.Bytes32{},
 				PubKey: pkBytes,
 				Queue:  []engine.XStateShardQueueItem{},
 				State:  bitcoinShardStateP,
 			},
+		},
+		Fees: engine.XStateFees{
+			Unassigned: pack.NewU256FromU64(0),
+			Epochs:     []engine.XStateFeesEpoch{},
+			Nodes:      []engine.XStateFeesNode{},
 		},
 	}
 	accountState := engine.XState{
@@ -225,11 +230,16 @@ func MockEngineState() map[string]engine.XState {
 		DustAmount:    pack.NewU256FromU64(0),
 		Shards: []engine.XStateShard{
 			{
-				Shard:  [32]byte{},
+				Shard:  pack.Bytes32{},
 				PubKey: pkBytes,
 				Queue:  []engine.XStateShardQueueItem{},
 				State:  accountShardStateP,
 			},
+		},
+		Fees: engine.XStateFees{
+			Unassigned: pack.NewU256FromU64(0),
+			Epochs:     []engine.XStateFeesEpoch{},
+			Nodes:      []engine.XStateFeesNode{},
 		},
 	}
 
