@@ -18,12 +18,13 @@ require (
 	github.com/onsi/ginkgo v1.14.0
 	github.com/onsi/gomega v1.10.1
 	github.com/renproject/aw v0.4.1-0.20210413051002-6234359989ab
-	github.com/renproject/darknode v0.5.3-0.20210422065457-e137a784055f
+	github.com/renproject/darknode v0.5.3-0.20210429002533-5d7594595c62
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/multichain v0.3.7
 	github.com/renproject/pack v0.2.9
 	github.com/renproject/phi v0.1.0
+	github.com/renproject/surge v1.2.6
 	github.com/sirupsen/logrus v1.6.0
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect

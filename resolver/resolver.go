@@ -217,7 +217,7 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 			return res
 		}
 
-		if resp.Tx.Output.String() == pack.NewTyped().String() {
+		if !resp.Tx.Selector.IsIntrinsic() && resp.Tx.Output.String() == pack.NewTyped().String() {
 			// Transaction is still being processed
 			resp.TxStatus = tx.StatusExecuting
 		}
@@ -419,7 +419,7 @@ func (resolver *Resolver) QueryState(ctx context.Context, id interface{}, params
 			v2AssetState[v] = state
 		}
 
-		shards, err := v1.QueryStateResponseFromState(v2AssetState)
+		shards, err := v1.QueryStateResponseFromState(resolver.bindings, v2AssetState)
 
 		if err != nil {
 			resolver.logger.Error("failed to cast to QueryFees: %v", err)
