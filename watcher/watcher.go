@@ -189,6 +189,11 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 					return
 				}
 
+				if len(signatures) == 0 {
+					resultChan <- BurnLogResult{Error: fmt.Errorf("Burn signature not confirmed")}
+					return
+				}
+
 				result := BurnInfo{
 					Txid:        base58.Decode(signatures[0].Signature),
 					Amount:      pack.NewU256FromUint64(amount),
