@@ -22,6 +22,8 @@ import (
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
+
+	solanaRPC "github.com/dfuse-io/solana-go/rpc"
 )
 
 type MockBurnLogFetcher struct {
@@ -652,16 +654,17 @@ var _ = Describe("Watcher", func() {
 					RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
 					Confirmations: pack.U64(0),
 				}).
+				// Tests against solana localnet
 				WithChainOptions(multichain.Solana, binding.ChainOptions{
-					RPC:      pack.String("https://testnet.solana.com"),
-					Protocol: pack.String(""),
+					RPC:      pack.String("http://0.0.0.0:8899"),
+					Protocol: pack.String("DHpzwsdvAzq61PN9ZwQWg2hzwX8gYNfKAdsNKKtdKDux"),
 				})
 
 			bindings := binding.New(bindingsOpts)
-
-			gateways := bindings.EthereumGateways()
-			btcGateway := gateways[multichain.Ethereum][multichain.BTC]
-			burnLogFetcher := NewEthBurnLogFetcher(btcGateway)
+			solClient := solanaRPC.NewClient(bindingsOpts.Chains[multichain.Solana].RPC.String())
+			gateways := bindings.ContractGateways()
+			btcGateway := gateways[multichain.Solana][multichain.BTC]
+			burnLogFetcher := NewSolFetcher(solClient, string(btcGateway))
 
 			results, err := burnLogFetcher.FetchBurnLogs(ctx, 0, 0)
 			Expect(err).ToNot(HaveOccurred())
@@ -673,20 +676,24 @@ var _ = Describe("Watcher", func() {
 				Expect(r).To(BeEmpty())
 			}
 
-			results, err = burnLogFetcher.FetchBurnLogs(ctx, 23704992, 23704995)
+			results, err = burnLogFetcher.FetchBurnLogs(ctx, 0, 1)
 			Expect(err).ToNot(HaveOccurred())
+
+			log := BurnLogResult{}
 
 			Eventually(func() BurnLogResult {
 				for r := range results {
+					fmt.Printf("\n{%+v}\n", r)
+					log = r
 					return r
 				}
-				return BurnLogResult{}
-			}, 5*time.Second).Should(Equal(BurnLogResult{Result: BurnInfo{
-				Txid:        []byte{42, 187, 84, 27, 111, 181, 207, 26, 30, 239, 244, 76, 7, 157, 157, 29, 159, 155, 62, 12, 65, 112, 124, 110, 85, 132, 116, 128, 171, 68, 197, 65},
-				Amount:      pack.NewU256FromUint64(896853),
-				ToBytes:     []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-				Nonce:       [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 231},
-				BlockNumber: 23704993,
+				return log
+			}, 15*time.Second).Should(Equal(BurnLogResult{Result: BurnInfo{
+				Txid:        []byte{153, 140, 140, 107, 117, 200, 223, 173, 87, 21, 66, 66, 195, 145, 206, 26, 31, 162, 156, 70, 162, 119, 69, 189, 118, 56, 220, 204, 164, 153, 85, 146, 25, 254, 167, 101, 114, 99, 107, 10, 56, 104, 100, 123, 11, 66, 173, 43, 231, 154, 180, 231, 178, 26, 4, 31, 178, 83, 116, 237, 166, 7, 179, 15},
+				Amount:      pack.NewU256FromUint64(1000000000),
+				ToBytes:     []byte{111, 156, 83, 29, 221, 210, 44, 11, 79, 156, 112, 96, 116, 20, 53, 247, 21, 98, 180, 2, 95, 155, 124, 199, 196},
+				Nonce:       [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+				BlockNumber: 0,
 			}}))
 
 		})
