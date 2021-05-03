@@ -4,6 +4,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     services:
+      solana:
+        image: renbot/ren-solana:latest
+        ports:
+          - 8899:8899
       postgres:
         image: postgres:12.1
         env:
