@@ -335,8 +335,6 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		return
 	}
 
-	watcher.logger.Info("current : last -", currentHeight, lastHeight)
-
 	// Only advance by a set number of blocks at a time to prevent over-subscription
 	step := lastHeight + watcher.maxBlockAdvance
 	if step < currentHeight {

@@ -683,7 +683,6 @@ var _ = Describe("Watcher", func() {
 
 			Eventually(func() BurnLogResult {
 				for r := range results {
-					fmt.Printf("\n{%+v}\n", r)
 					log = r
 					return r
 				}
