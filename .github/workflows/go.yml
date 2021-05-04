@@ -62,19 +62,21 @@ jobs:
             ${{ runner.os }}-build-
             ${{ runner.os }}-
       - name: Install dependencies (Filecoin FFI)
+        # [ ! -d ".git" ] && git init &&  git add . && git commit -m "cached" && git remote add origin https://github.com/filecoin-project/filecoin-ffi.git && git pull origin master --allow-unrelated-histories
         run: |
           sudo apt-get update
           sudo apt install ocl-icd-opencl-dev
-          git submodule add https://github.com/filecoin-project/filecoin-ffi.git .extern/filecoin-ffi
-          cd .extern/filecoin-ffi
-          git checkout ${{env.FILECOIN_FFI_COMMIT}}
+          mkdir -p .extern
+          [ -f "./extern/filecoin-ffi/commit.hash"] && [ ${{env.FILECON_FFI_COMMIT}} != `cat ./extern/filecoin-ffi/commit.hash` ] && rm -rf ./.extern/filecoin-ffi
+          [ ! -d ".extern/filecoin-ffi" ] && git clone https://github.com/filecoin-project/filecoin-ffi.git .extern/filecoin-ffi && cd .extern/filecoin-ffi && git checkout ${{env.FILECOIN_FFI_COMMIT}}
           make
+          echo ${{env.FILECOIN_FFI_COMMIT}} > commit.hash
           cd ../..
           go mod edit -replace=github.com/filecoin-project/filecoin-ffi=./.extern/filecoin-ffi
       - name: Install dependencies (Solana FFI)
         run: |
           sudo apt install libudev-dev libssl-dev
-          git submodule add https://github.com/renproject/solana-ffi.git .extern/solana-ffi
+          [ ! -d ".extern/solana-ffi" ] && git clone https://github.com/renproject/solana-ffi.git .extern/solana-ffi
           cd .extern/solana-ffi
           git checkout ${{env.SOLANA_FFI_COMMIT}}
           go get -u github.com/xlab/c-for-go
