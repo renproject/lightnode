@@ -688,12 +688,14 @@ var _ = Describe("Watcher", func() {
 						Expect(err).ToNot(HaveOccurred())
 						continue
 					}
+					// We can't have reproducable signatures, so only check the other fields
+					r.Result.Txid = []byte{}
 					log = r
 					return r
 				}
 				return log
 			}, 15*time.Second).Should(Equal(BurnLogResult{Result: BurnInfo{
-				Txid:        []byte{153, 140, 140, 107, 117, 200, 223, 173, 87, 21, 66, 66, 195, 145, 206, 26, 31, 162, 156, 70, 162, 119, 69, 189, 118, 56, 220, 204, 164, 153, 85, 146, 25, 254, 167, 101, 114, 99, 107, 10, 56, 104, 100, 123, 11, 66, 173, 43, 231, 154, 180, 231, 178, 26, 4, 31, 178, 83, 116, 237, 166, 7, 179, 15},
+				Txid:        []byte{},
 				Amount:      pack.NewU256FromUint64(1000000000),
 				ToBytes:     []byte{111, 156, 83, 29, 221, 210, 44, 11, 79, 156, 112, 96, 116, 20, 53, 247, 21, 98, 180, 2, 95, 155, 124, 199, 196},
 				Nonce:       [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
