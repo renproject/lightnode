@@ -48,6 +48,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt install ocl-icd-opencl-dev
+          cd $GITHUB_WORKSPACE
           git submodule add https://github.com/filecoin-project/filecoin-ffi.git .extern/filecoin-ffi
           cd .extern/filecoin-ffi
           git checkout ${{ env.FILECOIN_FFI_COMMIT }}
@@ -56,6 +57,7 @@ jobs:
         if: steps.cache-extern.outputs.cache-hit != 'true'
         run: |
           sudo apt install libudev-dev libssl-dev
+          cd $GITHUB_WORKSPACE
           git submodule add https://github.com/renproject/solana-ffi.git .extern/solana-ffi
           cd .extern/solana-ffi
           git checkout ${{ env.SOLANA_FFI_COMMIT }}
