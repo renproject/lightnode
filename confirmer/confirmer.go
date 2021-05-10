@@ -170,7 +170,11 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 		}
 		_, err := confirmer.bindings.AccountLockInfo(ctx, lockChain, transaction.Selector.Asset(), input.Txid)
 		if err != nil {
-			confirmer.options.Logger.Errorf("[confirmer] cannot get output for account tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
+			if !strings.Contains(err.Error(), "insufficient confirmations") {
+				confirmer.options.Logger.Errorf("[confirmer] cannot get output for account tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
+			} else {
+				confirmer.options.Logger.Warnf("[confirmer] cannot get output for account tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
+			}
 			return false
 		}
 	default:
@@ -191,7 +195,11 @@ func (confirmer *Confirmer) burnTxConfirmed(ctx context.Context, transaction tx.
 
 	_, _, _, err := confirmer.bindings.AccountBurnInfo(ctx, burnChain, transaction.Selector.Asset(), nonce)
 	if err != nil {
-		confirmer.options.Logger.Errorf("[confirmer] cannot get burn info for tx=%v (%v): %v", transaction.Hash.String(), transaction.Selector.String(), err)
+		if !strings.Contains(err.Error(), "insufficient confirmations") {
+			confirmer.options.Logger.Errorf("[confirmer] cannot get burn info for tx=%v (%v): %v", transaction.Hash.String(), transaction.Selector.String(), err)
+		} else {
+			confirmer.options.Logger.Warnf("[confirmer] cannot get burn info for tx=%v (%v): %v", transaction.Hash.String(), transaction.Selector.String(), err)
+		}
 		return false
 	}
 	return true
