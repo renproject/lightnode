@@ -1,5 +1,6 @@
 ## 0.4.1
 - Update Multichain to v0.3.8
+- Add support for watching Solana burns
 
 ## 0.3.2
 
