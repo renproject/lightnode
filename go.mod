@@ -34,6 +34,6 @@ replace github.com/CosmWasm/go-cosmwasm => github.com/terra-project/go-cosmwasm 
 
 replace github.com/keybase/go-keychain => github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4
 
-replace github.com/filecoin-project/filecoin-ffi => /Users/yunshisun/.loki/src/multichain/chain/filecoin/filecoin-ffi
+replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
-replace github.com/renproject/solana-ffi => /Users/yunshisun/.loki/src/multichain/chain/solana/solana-ffi
+replace github.com/renproject/solana-ffi => ./extern/solana-ffi
