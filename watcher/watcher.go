@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/btcsuite/btcd/btcec"
@@ -63,7 +62,6 @@ func NewEthBurnLogFetcher(bindings *gatewaybinding.MintGatewayLogicV1) EthBurnLo
 // This will fetch the burn event logs using the ethereum bindings and emit them via a channel
 // We do this so that we can unit test the log handling without calling ethereum
 func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uint64) (chan BurnLogResult, error) {
-	log.Println("checking for burns from", from, to)
 	iter, err := fetcher.bindings.FilterLogBurn(
 		&bind.FilterOpts{
 			Context: ctx,
@@ -326,9 +324,8 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		watcher.logger.Errorf("[watcher] error loading last checked block number: %v", err)
 		return
 	}
-	log.Println("current height is", currentHeight, "last checked height is", lastHeight)
 
-	if currentHeight < lastHeight {
+	if currentHeight <= lastHeight {
 		watcher.logger.Warnf("[watcher] tried to process old blocks")
 		// Make sure we do not process old events. This could occur if there is
 		// an issue with the underlying blockchain node, for example if it needs
@@ -389,7 +386,6 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		}
 	}
 
-	log.Println("setting current height for", watcher.key(), "to", currentHeight)
 	if err := watcher.cache.Set(watcher.key(), currentHeight, 0).Err(); err != nil {
 		watcher.logger.Errorf("[watcher] error setting last checked block number in redis: %v", err)
 		return
