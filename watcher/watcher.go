@@ -148,70 +148,69 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 	resultChan := make(chan BurnLogResult)
 
 	go func() {
-		func() {
-			defer close(resultChan)
-			for i := from; i < to; i++ {
-				nonce := i + 1
+		defer close(resultChan)
+		for i := from; i < to; i++ {
+			// Nonce is 1 indexed number of burns on solana program
+			nonce := i + 1
 
-				b := make([]byte, 8)
-				binary.LittleEndian.PutUint64(b, i+1)
+			b := make([]byte, 8)
+			binary.LittleEndian.PutUint64(b, i+1)
 
-				var nonceBytes pack.Bytes32
-				copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
+			var nonceBytes pack.Bytes32
+			copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
 
-				programDerivedAddress := solana.ProgramDerivedAddress(b, multichain.Address(fetcher.gatewayAddress))
+			programDerivedAddress := solana.ProgramDerivedAddress(b, multichain.Address(fetcher.gatewayAddress))
 
-				programPubk, err := solanaSDK.PublicKeyFromBase58(string(programDerivedAddress))
-				if err != nil {
-					resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log account: %v", err)}
-					return
-				}
-
-				// Fetch account data at gateway registry's state
-				accountInfo, err := fetcher.client.GetAccountInfo(ctx, programPubk)
-				if err != nil {
-					resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log data for burn: %v err: %v", i, err)}
-					return
-				}
-				data := accountInfo.Value.Data
-
-				if len(data) != 41 {
-					resultChan <- BurnLogResult{Error: fmt.Errorf("deserializing burn log data: %v", err)}
-					return
-				}
-				amount := binary.LittleEndian.Uint64(data[:8])
-				recipientLen := uint8(data[8:9][0])
-				recipient := multichain.RawAddress(data[9 : 9+int(recipientLen)])
-
-				signatures, err := fetcher.client.GetConfirmedSignaturesForAddress2(ctx, programPubk, &solanaRPC.GetConfirmedSignaturesForAddress2Opts{})
-				if err != nil {
-					resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log txes: %v", err)}
-					return
-				}
-
-				if len(signatures) == 0 {
-					resultChan <- BurnLogResult{Error: fmt.Errorf("Burn signature not confirmed")}
-					return
-				}
-
-				result := BurnInfo{
-					Txid:        base58.Decode(signatures[0].Signature),
-					Amount:      pack.NewU256FromUint64(amount),
-					ToBytes:     recipient[:],
-					Nonce:       nonceBytes,
-					BlockNumber: pack.NewU64(i),
-				}
-
-				// Send the burn transaction to the resolver.
-				select {
-				case <-ctx.Done():
-					resultChan <- BurnLogResult{Error: ctx.Err()}
-					return
-				default:
-					resultChan <- BurnLogResult{Result: result}
-				}
+			programPubk, err := solanaSDK.PublicKeyFromBase58(string(programDerivedAddress))
+			if err != nil {
+				resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log account: %v", err)}
+				return
 			}
-		}()
+
+			// Fetch account data at gateway registry's state
+			accountInfo, err := fetcher.client.GetAccountInfo(ctx, programPubk)
+			if err != nil {
+				resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log data for burn: %v err: %v", i, err)}
+				return
+			}
+			data := accountInfo.Value.Data
+
+			if len(data) != 41 {
+				resultChan <- BurnLogResult{Error: fmt.Errorf("deserializing burn log data: expected data len 41, got %v", len(data))}
+				return
+			}
+			amount := binary.LittleEndian.Uint64(data[:8])
+			recipientLen := uint8(data[8:9][0])
+			recipient := multichain.RawAddress(data[9 : 9+int(recipientLen)])
+
+			signatures, err := fetcher.client.GetConfirmedSignaturesForAddress2(ctx, programPubk, &solanaRPC.GetConfirmedSignaturesForAddress2Opts{})
+			if err != nil {
+				resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log txes: %v", err)}
+				return
+			}
+
+			if len(signatures) == 0 {
+				resultChan <- BurnLogResult{Error: fmt.Errorf("Burn signature not confirmed")}
+				return
+			}
+
+			result := BurnInfo{
+				Txid:        base58.Decode(signatures[0].Signature),
+				Amount:      pack.NewU256FromUint64(amount),
+				ToBytes:     recipient[:],
+				Nonce:       nonceBytes,
+				BlockNumber: pack.NewU64(i),
+			}
+
+			// Send the burn transaction to the resolver.
+			select {
+			case <-ctx.Done():
+				resultChan <- BurnLogResult{Error: ctx.Err()}
+				return
+			default:
+				resultChan <- BurnLogResult{Result: result}
+			}
+		}
 	}()
 
 	return resultChan, nil
