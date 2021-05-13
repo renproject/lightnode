@@ -22,6 +22,8 @@ import (
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
+
+	solanaRPC "github.com/dfuse-io/solana-go/rpc"
 )
 
 type MockBurnLogFetcher struct {
@@ -145,8 +147,9 @@ var _ = Describe("Watcher", func() {
 		ethClients := bindings.EthereumClients()
 		ethClient := ethClients[multichain.Ethereum]
 		fetcher := NewMockBurnLogFetcher(burnIn)
+		heightFetcher := NewEthBlockHeightFetcher(ethClient)
 
-		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, fetcher, ethClient, mockResolver, client, pubk, interval, 1000, 6)
+		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, fetcher, heightFetcher, mockResolver, client, pubk, interval, 1000, 6)
 
 		return watcher, client, burnIn, mr
 	}
@@ -584,7 +587,7 @@ var _ = Describe("Watcher", func() {
 
 			gateways := bindings.EthereumGateways()
 			btcGateway := gateways[multichain.Ethereum][multichain.BTC]
-			burnLogFetcher := NewBurnLogFetcher(btcGateway)
+			burnLogFetcher := NewEthBurnLogFetcher(btcGateway)
 
 			results, err := burnLogFetcher.FetchBurnLogs(ctx, 0, 0)
 			Expect(err).ToNot(HaveOccurred())
@@ -640,6 +643,129 @@ var _ = Describe("Watcher", func() {
 					}
 				}
 			}
+		})
+		It("should detect a burn on Solana", func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			bindingsOpts := binding.DefaultOptions().WithNetwork("localnet").
+				WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
+					RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
+					Confirmations: pack.U64(0),
+				}).
+				// Tests against solana localnet
+				WithChainOptions(multichain.Solana, binding.ChainOptions{
+					RPC:      pack.String("http://0.0.0.0:8899"),
+					Protocol: pack.String("DHpzwsdvAzq61PN9ZwQWg2hzwX8gYNfKAdsNKKtdKDux"),
+				})
+
+			bindings := binding.New(bindingsOpts)
+			solClient := solanaRPC.NewClient(bindingsOpts.Chains[multichain.Solana].RPC.String())
+			gateways := bindings.ContractGateways()
+			btcGateway := gateways[multichain.Solana][multichain.BTC]
+			burnLogFetcher := NewSolFetcher(solClient, string(btcGateway))
+
+			results, err := burnLogFetcher.FetchBurnLogs(ctx, 0, 0)
+			Expect(err).ToNot(HaveOccurred())
+
+			// wait to see if the channel picks anything up
+			time.Sleep(time.Second)
+
+			for r := range results {
+				Expect(r).To(BeEmpty())
+			}
+
+			mr, err := miniredis.Run()
+			if err != nil {
+				panic(err)
+			}
+
+			client := redis.NewClient(&redis.Options{
+				Addr: mr.Addr(),
+			})
+
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+
+			selector := tx.Selector("BTC/fromSolana")
+
+			mockResolver := jsonrpcresolver.OkResponder()
+
+			pubk := id.NewPrivKey().PubKey()
+
+			if err != nil {
+				logger.Panicf("failed to create account client: %v", err)
+			}
+
+			results, err = burnLogFetcher.FetchBurnLogs(ctx, 1, 2)
+			Expect(err).ToNot(HaveOccurred())
+
+			watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, burnLogFetcher, burnLogFetcher, mockResolver, client, pubk, time.Second, 1000, 6)
+
+			go watcher.Run(ctx)
+
+			Eventually(func() string {
+				h := client.Get(fmt.Sprintf("BTC/fromSolana_%v", 1)).Val()
+				return h
+			}, 15*time.Second).Should(Equal("t9INi66uVw1uUQ/Q3xcdnn5GuqJUiC+q7Ilr9Xot3rk="))
+		})
+
+		It("should be able to call filter logs on Solana", func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			bindingsOpts := binding.DefaultOptions().
+				WithNetwork("localnet").
+				WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
+					RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
+					Confirmations: pack.U64(0),
+				}).
+				// Tests against solana localnet
+				WithChainOptions(multichain.Solana, binding.ChainOptions{
+					RPC:      pack.String("http://0.0.0.0:8899"),
+					Protocol: pack.String("DHpzwsdvAzq61PN9ZwQWg2hzwX8gYNfKAdsNKKtdKDux"),
+				})
+
+			bindings := binding.New(bindingsOpts)
+			solClient := solanaRPC.NewClient(bindingsOpts.Chains[multichain.Solana].RPC.String())
+			gateways := bindings.ContractGateways()
+			btcGateway := gateways[multichain.Solana][multichain.BTC]
+			burnLogFetcher := NewSolFetcher(solClient, string(btcGateway))
+
+			results, err := burnLogFetcher.FetchBurnLogs(ctx, 0, 0)
+			Expect(err).ToNot(HaveOccurred())
+
+			// wait to see if the channel picks anything up
+			time.Sleep(time.Second)
+
+			for r := range results {
+				Expect(r).To(BeEmpty())
+			}
+
+			results, err = burnLogFetcher.FetchBurnLogs(ctx, 1, 2)
+			Expect(err).ToNot(HaveOccurred())
+
+			log := BurnLogResult{}
+
+			Eventually(func() BurnLogResult {
+				for r := range results {
+					if r.Error != nil {
+						results, err = burnLogFetcher.FetchBurnLogs(ctx, 1, 2)
+						Expect(err).ToNot(HaveOccurred())
+						continue
+					}
+					// We can't have reproducable signatures, so only check the other fields
+					r.Result.Txid = []byte{}
+					log = r
+					return r
+				}
+				return log
+			}, 15*time.Second).Should(Equal(BurnLogResult{Result: BurnInfo{
+				Txid:        []byte{},
+				Amount:      pack.NewU256FromUint64(1000000000),
+				ToBytes:     []byte{111, 156, 83, 29, 221, 210, 44, 11, 79, 156, 112, 96, 116, 20, 53, 247, 21, 98, 180, 2, 95, 155, 124, 199, 196},
+				Nonce:       [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+				BlockNumber: 1,
+			}}))
+
 		})
 	})
 

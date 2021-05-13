@@ -3,7 +3,14 @@ on: [push]
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      FILECOIN_FFI_COMMIT: a62d00da59d1b0fb35f3a4ae854efa9441af892d
+      SOLANA_FFI_COMMIT: df7838d724f5eaf262ed77ed93b35b3f1f652bd3
     services:
+      solana:
+        image: renbot/ren-solana:latest
+        ports:
+          - 8899:8899
       postgres:
         image: postgres:12.1
         env:
@@ -28,27 +35,40 @@ jobs:
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-lightnode-${{ hashFiles('**/go.sum') }}
-      - name: Install dependencies (Filecoin FFI)
+
+      - name: Cache extern dependencies
+        id: cache-extern
+        uses: actions/cache@v2
+        env:
+          cache-name: cache-externs
+        with:
+          path: .extern
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ env.FILECOIN_FFI_COMMIT }}-${{ env.SOLANA_FFI_COMMIT }}
+      - name: Install dependency packages
         run: |
           sudo apt-get update
-          sudo apt install ocl-icd-opencl-dev
+          sudo apt-get install -y build-essential
+          sudo apt-get install -y jq mesa-opencl-icd ocl-icd-opencl-dev pkg-config libudev-dev
+      - name: Install dependencies (Filecoin FFI)
+        if: steps.cache-extern.outputs.cache-hit != 'true'
+        run: |
           git submodule add https://github.com/filecoin-project/filecoin-ffi.git .extern/filecoin-ffi
           cd .extern/filecoin-ffi
-          git checkout a62d00da59d1b0fb35f3a4ae854efa9441af892d
+          git checkout ${{ env.FILECOIN_FFI_COMMIT }}
           make
-          cd ../..
-          go mod edit -replace=github.com/filecoin-project/filecoin-ffi=./.extern/filecoin-ffi
-      - name: Install dependencies (Solana FFI)
+      - name: Replace submodule extern with cached extern
         run: |
-          sudo apt install libudev-dev libssl-dev
+          go mod edit -replace=github.com/filecoin-project/filecoin-ffi=./.extern/filecoin-ffi
+          go mod edit -replace=github.com/renproject/solana-ffi=./.extern/solana-ffi
+      - name: Install dependencies (Solana FFI)
+        if: steps.cache-extern.outputs.cache-hit != 'true'
+        run: |
           git submodule add https://github.com/renproject/solana-ffi.git .extern/solana-ffi
-          cd .extern/solana-ffi
-          git checkout 4bd204b6017173c1425468db8566f053abb49f0b
           go get -u github.com/xlab/c-for-go
+          cd .extern/solana-ffi
+          git checkout ${{ env.SOLANA_FFI_COMMIT }}
           make clean
           make
-          cd ../..
-          go mod edit -replace=github.com/renproject/solana-ffi=./.extern/solana-ffi
       - name: Get dependencies
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
