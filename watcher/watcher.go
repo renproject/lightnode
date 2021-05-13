@@ -150,11 +150,10 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 	go func() {
 		defer close(resultChan)
 		for i := from; i < to; i++ {
-			// Nonce is 1 indexed number of burns on solana program
-			nonce := i + 1
+			nonce := i
 
 			b := make([]byte, 8)
-			binary.LittleEndian.PutUint64(b, i+1)
+			binary.LittleEndian.PutUint64(b, i)
 
 			var nonceBytes pack.Bytes32
 			copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
@@ -251,7 +250,8 @@ func (fetcher SolFetcher) FetchBlockHeight(ctx context.Context) (uint64, error) 
 	if err = borsh.Deserialize(&gateway, accountData.Value.Data); err != nil {
 		return 0, fmt.Errorf("deserializing account data: %v", err)
 	}
-	return uint64(gateway.BurnCount), nil
+	// We increment the burnCount by 1, as internally its indexes start at 1
+	return uint64(gateway.BurnCount) + 1, nil
 }
 
 // Watcher watches for event logs for burn transactions. These transactions are
@@ -325,7 +325,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		return
 	}
 
-	if currentHeight < lastHeight {
+	if currentHeight <= lastHeight {
 		watcher.logger.Warnf("[watcher] tried to process old blocks")
 		// Make sure we do not process old events. This could occur if there is
 		// an issue with the underlying blockchain node, for example if it needs
@@ -347,7 +347,6 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 
 	// for Eth, avoid checking blocks that might have shuffled
 	if watcher.selector.Source() != multichain.Solana {
-		watcher.logger.Info("selector ", watcher.selector)
 		currentHeight -= watcher.confidenceInterval
 	}
 
@@ -415,6 +414,7 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, err
 		}
 		return targetBlockN, nil
 	}
+
 	return last, err
 }
 
