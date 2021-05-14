@@ -9,6 +9,8 @@ jobs:
     services:
       solana:
         image: renbot/ren-solana:latest
+        env:
+          DUMMY_MINT_AND_BURN: true
         ports:
           - 8899:8899
       postgres:
