@@ -417,13 +417,14 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, err
 func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes []byte, nonce pack.Bytes32, gpubkey pack.Bytes) (jsonrpc.ParamsSubmitTx, error) {
 	var version tx.Version
 	var to multichain.Address
+	var toDecoded []byte
 	var err error
 	burnChain := watcher.selector.Destination()
 	switch burnChain {
 	case multichain.Solana:
-		version, to, toBytes, err = watcher.handleAssetAddrSolana(toBytes)
+		version, to, toDecoded, err = watcher.handleAssetAddrSolana(toBytes)
 	default:
-		version, to , toBytes, err = watcher.handleAssetAddrSolana(toBytes)
+		version, to , toDecoded, err = watcher.handleAssetAddrSolana(toBytes)
 	}
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
@@ -433,7 +434,7 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes [
 	payload := pack.Bytes{}
 	phash := engine.Phash(payload)
 	nhash := engine.Nhash(nonce, txid, txindex)
-	ghash := engine.Ghash(watcher.selector, phash, toBytes, nonce)
+	ghash := engine.Ghash(watcher.selector, phash, toDecoded, nonce)
 	input, err := pack.Encode(engine.LockMintBurnReleaseInput{
 		Txid:    txid,
 		Txindex: txindex,
