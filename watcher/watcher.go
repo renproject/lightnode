@@ -424,7 +424,7 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes [
 	case multichain.Solana:
 		version, to, toDecoded, err = watcher.handleAssetAddrSolana(toBytes)
 	default:
-		version, to , toDecoded, err = watcher.handleAssetAddrSolana(toBytes)
+		version, to , toDecoded, err = watcher.handleAssetAddrEth(toBytes)
 	}
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
