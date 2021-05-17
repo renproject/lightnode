@@ -368,6 +368,8 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		amount := burn.Amount
 		to := burn.ToBytes
 
+		watcher.logger.Infof("[watcher] detected burn for %v  with nonce=%v", watcher.selector.String(), nonce)
+
 		// Send the burn transaction to the resolver.
 		params, err := watcher.burnToParams(burn.Txid, amount, to, nonce, watcher.gpubkey)
 		if err != nil {
@@ -427,7 +429,8 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes [
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
-	watcher.logger.Infof("[watcher] detected burn for %v (to=%v, amount=%v, nonce=%v)", watcher.selector.String(), string(to), amount, nonce)
+
+	watcher.logger.Infof("[watcher] burn parameters (to=%v, amount=%v, nonce=%v)", watcher.selector.String(), string(to), amount, nonce)
 
 	txindex := pack.U32(0)
 	payload := pack.Bytes{}
