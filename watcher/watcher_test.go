@@ -709,7 +709,7 @@ var _ = Describe("Watcher", func() {
 			Eventually(func() string {
 				h := client.Get(fmt.Sprintf("BTC/fromSolana_%v", 1)).Val()
 				return h
-			}, 15*time.Second).Should(Equal("t9INi66uVw1uUQ/Q3xcdnn5GuqJUiC+q7Ilr9Xot3rk="))
+			}, 60*time.Second).Should(Equal("t9INi66uVw1uUQ/Q3xcdnn5GuqJUiC+q7Ilr9Xot3rk="))
 		})
 
 		It("should be able to call filter logs on Solana", func() {
@@ -761,7 +761,7 @@ var _ = Describe("Watcher", func() {
 					return r
 				}
 				return log
-			}, 15*time.Second).Should(Equal(BurnLogResult{Result: BurnInfo{
+			}, 60*time.Second).Should(Equal(BurnLogResult{Result: BurnInfo{
 				Txid:        []byte{},
 				Amount:      pack.NewU256FromUint64(1000000000),
 				ToBytes:     []byte{111, 156, 83, 29, 221, 210, 44, 11, 79, 156, 112, 96, 116, 20, 53, 247, 21, 98, 180, 2, 95, 155, 124, 199, 196},
