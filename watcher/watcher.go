@@ -315,7 +315,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 	// Get current block number and last checked block number.
 	currentHeight, err := watcher.blockHeightFetcher.FetchBlockHeight(ctx)
 	if err != nil {
-		watcher.logger.Errorf("[watcher] error loading block header: %v", err)
+		watcher.logger.Warnf("[watcher] error loading block header: %v", err)
 		return
 	}
 
@@ -353,7 +353,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 	// Fetch logs
 	c, err := watcher.burnLogFetcher.FetchBurnLogs(ctx, lastHeight, currentHeight)
 	if err != nil {
-		watcher.logger.Errorf("[watcher] error fetching LogBurn events from=%v to=%v: %v", lastHeight, currentHeight, err)
+		watcher.logger.Warnf("[watcher] error fetching LogBurn events from=%v to=%v: %v", lastHeight, currentHeight, err)
 		return
 	}
 
