@@ -130,7 +130,7 @@ type SolFetcher struct {
 }
 
 func NewSolFetcher(client *solanaRPC.Client, gatewayAddress string) SolFetcher {
-	seeds := []byte("GatewayState")
+	seeds := []byte("GatewayStateV0.1.0")
 	programDerivedAddress := solana.ProgramDerivedAddress(pack.Bytes(seeds), multichain.Address(gatewayAddress))
 	programPubk, err := solanaSDK.PublicKeyFromBase58(string(programDerivedAddress))
 	if err != nil {
