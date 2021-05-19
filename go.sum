@@ -1505,9 +1505,13 @@ github.com/renproject/multichain v0.3.7 h1:JVqsa4q+beHc1tPzB4tUhQMtD5UgrwoA53k+f
 github.com/renproject/multichain v0.3.7/go.mod h1:m9P/43XkR2zbqiF3p9h3OZ2QzabkV4gfltBowP9vvCA=
 github.com/renproject/multichain v0.3.8 h1:5f2odqN5byJ0KHsMqExKq2NKuCxKnLkPnDkp9qzPSSY=
 github.com/renproject/multichain v0.3.8/go.mod h1:cYQKfs4YqlIfy0iZGLt8EAmWafQ72KMokpNOuBygS+c=
+github.com/renproject/multichain v0.3.9 h1:1JDB4zjC+sUJqCSiBZxiqQJSaI4tXlN9cJxju+gJYQk=
+github.com/renproject/multichain v0.3.9/go.mod h1:cYQKfs4YqlIfy0iZGLt8EAmWafQ72KMokpNOuBygS+c=
 github.com/renproject/pack v0.2.5/go.mod h1:pzX3Hc04RoPft89LaZJVp0xgngVGi90V7GvyC3mOGg4=
 github.com/renproject/pack v0.2.9 h1:tZzun5KH83CK5+ebn+jNWyoQV3k8ARjGEP6vK2x4VSQ=
 github.com/renproject/pack v0.2.9/go.mod h1:pzX3Hc04RoPft89LaZJVp0xgngVGi90V7GvyC3mOGg4=
+github.com/renproject/pack v0.2.10 h1:lJWJz5W66a9Engktf1A4d39fbIeBfrKQp40beibW6KY=
+github.com/renproject/pack v0.2.10/go.mod h1:pzX3Hc04RoPft89LaZJVp0xgngVGi90V7GvyC3mOGg4=
 github.com/renproject/phi v0.1.0 h1:ZOn7QeDribk/uV46OhQWcTLxyuLg7P+xR1Hfl5cOQuI=
 github.com/renproject/phi v0.1.0/go.mod h1:Hrxx2ONVpfByficRjyRd1trecalYr0lo7Z0akx8UXqg=
 github.com/renproject/secp256k1 v0.0.0-20210111035356-d34e0ef6ea88 h1:rzrMfIhoDLBCalf4tDNBCzvYqtMRO2AqBrPg/8JD6cA=

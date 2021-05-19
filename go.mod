@@ -21,8 +21,8 @@ require (
 	github.com/renproject/darknode v0.5.3-0.20210507062710-c7737570dd0e
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
-	github.com/renproject/multichain v0.3.8
-	github.com/renproject/pack v0.2.9
+	github.com/renproject/multichain v0.3.9
+	github.com/renproject/pack v0.2.10
 	github.com/renproject/phi v0.1.0
 	github.com/renproject/surge v1.2.6
 	github.com/sirupsen/logrus v1.6.0
