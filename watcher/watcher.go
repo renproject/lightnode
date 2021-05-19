@@ -402,17 +402,12 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, err
 	last, err := watcher.cache.Get(watcher.key()).Uint64()
 	// Initialise the pointer with current block number if it has not been yet.
 	if err == redis.Nil {
-		targetBlockN := currentBlockN - 1
-		// catch overflows
-		if targetBlockN > currentBlockN {
-			targetBlockN = 0
-		}
 		watcher.logger.Errorf("[watcher] last checked block number not initialised")
-		if err := watcher.cache.Set(watcher.key(), targetBlockN, 0).Err(); err != nil {
+		if err := watcher.cache.Set(watcher.key(), currentBlockN, 0).Err(); err != nil {
 			watcher.logger.Errorf("[watcher] cannot initialise last checked block in redis: %v", err)
 			return 0, err
 		}
-		return targetBlockN, nil
+		return currentBlockN, nil
 	}
 
 	return last, err

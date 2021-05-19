@@ -644,6 +644,7 @@ var _ = Describe("Watcher", func() {
 				}
 			}
 		})
+
 		It("should detect a burn on Solana", func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
@@ -698,6 +699,8 @@ var _ = Describe("Watcher", func() {
 
 			results, err = burnLogFetcher.FetchBurnLogs(ctx, 1, 2)
 			Expect(err).ToNot(HaveOccurred())
+			// We set the last checked block manually, because it will always start after the last checked burn
+			client.Set("BTC/fromSolana_lastCheckedBlock", 1, 0)
 
 			watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, burnLogFetcher, burnLogFetcher, mockResolver, client, pubk, time.Second, 1000, 6)
 
