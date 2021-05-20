@@ -430,7 +430,7 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes [
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
 
-	watcher.logger.Infof("[watcher] burn parameters (to=%v, amount=%v, nonce=%v)", watcher.selector.String(), string(to), amount, nonce)
+	watcher.logger.Infof("[watcher] burn parameters (to=%v, amount=%v, nonce=%v)", string(to), amount, nonce)
 
 	txindex := pack.U32(0)
 	payload := pack.Bytes{}
