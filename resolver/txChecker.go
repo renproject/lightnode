@@ -52,8 +52,30 @@ func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings
 			Amount: pack.MaxU256,
 		})
 	}
+	shardState, err := pack.Encode(engine.XStateShardAccount{
+		Nonce:   pack.NewU256([32]byte{}),
+		Gnonces: []engine.XStateShardGnonce{},
+	})
+	if err != nil {
+		panic(fmt.Sprintf("encoding shard state: %v", err))
+	}
 	contractState, err := pack.Encode(engine.XState{
+		LatestHeight:  pack.NewU256([32]byte{}),
+		GasCap:        pack.NewU256([32]byte{}),
+		GasLimit:      pack.NewU256([32]byte{}),
+		GasPrice:      pack.NewU256([32]byte{}),
+		MinimumAmount: pack.NewU256([32]byte{}),
+		DustAmount:    pack.NewU256([32]byte{}),
+		Shards: []engine.XStateShard{
+			{
+				Shard:  pack.Bytes32{},
+				PubKey: pack.Bytes{},
+				Queue:  []engine.XStateShardQueueItem{},
+				State:  shardState,
+			},
+		},
 		Minted: minted,
+		Fees:   engine.XStateFees{},
 	})
 	if err != nil {
 		panic(fmt.Sprintf("encoding contract state: %v", err))
