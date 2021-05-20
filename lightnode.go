@@ -111,7 +111,13 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
 
 	compatStore := v0.NewCompatStore(db, client)
-	verifier := resolver.NewVerifier(verifierBindings)
+	hostChains := map[multichain.Chain]bool{}
+	for _, selector := range options.Whitelist {
+		if selector.IsLock() && selector.IsMint() {
+			hostChains[selector.Destination()] = true
+		}
+	}
+	verifier := resolver.NewVerifier(hostChains, verifierBindings)
 	resolverI := resolver.New(logger, cacher, multiStore, db, serverOptions, compatStore, bindings, verifier)
 	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewValidator(verifierBindings, options.DistPubKey, compatStore, logger))
 	confirmer := confirmer.New(

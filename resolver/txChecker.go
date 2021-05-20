@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"runtime"
 	"sync"
 	"time"
@@ -14,6 +15,8 @@ import (
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
+	"github.com/renproject/multichain"
+	"github.com/renproject/pack"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -34,11 +37,34 @@ type Verifier interface {
 
 type verifier struct {
 	bindings binding.Bindings
+	contract *chainstate.Contract
 }
 
-func NewVerifier(bindings binding.Bindings) Verifier {
+func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings) Verifier {
+	// The verification for burn transactions uses the cross-chain contract to
+	// verify the minted amount. As we do not keep track of the latest block
+	// state inside the Lightnode, we assume the burned amount never exceeds the
+	// tracked minted amount by setting it to the maximum U256 value.
+	minted := make([]engine.XStateMinted, 0, len(hostChains))
+	for chain := range hostChains {
+		minted = append(minted, engine.XStateMinted{
+			Chain:  chain,
+			Amount: pack.MaxU256,
+		})
+	}
+	contractState, err := pack.Encode(engine.XState{
+		Minted: minted,
+	})
+	if err != nil {
+		panic(fmt.Sprintf("encoding contract state: %v", err))
+	}
+	contract := chainstate.Contract{
+		Address: "",
+		State:   pack.Typed(contractState.(pack.Struct)),
+	}
 	return verifier{
 		bindings: bindings,
+		contract: &contract,
 	}
 }
 
@@ -46,7 +72,7 @@ func (v verifier) VerifyTx(ctx context.Context, tx tx.Tx) error {
 	err := engine.XValidateLockMintBurnReleaseExtrinsicTx(chainstate.CodeContext{
 		Context:  ctx,
 		Bindings: v.bindings,
-	}, nil, tx)
+	}, v.contract, tx)
 	return err
 }
 
