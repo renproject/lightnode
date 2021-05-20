@@ -130,7 +130,7 @@ type SolFetcher struct {
 }
 
 func NewSolFetcher(client *solanaRPC.Client, gatewayAddress string) SolFetcher {
-	seeds := []byte("GatewayState")
+	seeds := []byte("GatewayStateV0.1.1")
 	programDerivedAddress := solana.ProgramDerivedAddress(pack.Bytes(seeds), multichain.Address(gatewayAddress))
 	programPubk, err := solanaSDK.PublicKeyFromBase58(string(programDerivedAddress))
 	if err != nil {
@@ -315,7 +315,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 	// Get current block number and last checked block number.
 	currentHeight, err := watcher.blockHeightFetcher.FetchBlockHeight(ctx)
 	if err != nil {
-		watcher.logger.Errorf("[watcher] error loading block header: %v", err)
+		watcher.logger.Warnf("[watcher] error loading block header: %v", err)
 		return
 	}
 
@@ -353,7 +353,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 	// Fetch logs
 	c, err := watcher.burnLogFetcher.FetchBurnLogs(ctx, lastHeight, currentHeight)
 	if err != nil {
-		watcher.logger.Errorf("[watcher] error fetching LogBurn events from=%v to=%v: %v", lastHeight, currentHeight, err)
+		watcher.logger.Warnf("[watcher] error fetching LogBurn events from=%v to=%v: %v", lastHeight, currentHeight, err)
 		return
 	}
 
@@ -368,7 +368,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		amount := burn.Amount
 		to := burn.ToBytes
 
-		watcher.logger.Infof("[watcher] detected burn for %v (to=%v, amount=%v, nonce=%v)", watcher.selector.String(), string(to), amount, nonce)
+		watcher.logger.Infof("[watcher] detected burn for %v  with nonce=%v", watcher.selector.String(), nonce)
 
 		// Send the burn transaction to the resolver.
 		params, err := watcher.burnToParams(burn.Txid, amount, to, nonce, watcher.gpubkey)
@@ -402,17 +402,12 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, err
 	last, err := watcher.cache.Get(watcher.key()).Uint64()
 	// Initialise the pointer with current block number if it has not been yet.
 	if err == redis.Nil {
-		targetBlockN := currentBlockN - 1
-		// catch overflows
-		if targetBlockN > currentBlockN {
-			targetBlockN = 0
-		}
 		watcher.logger.Errorf("[watcher] last checked block number not initialised")
-		if err := watcher.cache.Set(watcher.key(), targetBlockN, 0).Err(); err != nil {
+		if err := watcher.cache.Set(watcher.key(), currentBlockN, 0).Err(); err != nil {
 			watcher.logger.Errorf("[watcher] cannot initialise last checked block in redis: %v", err)
 			return 0, err
 		}
-		return targetBlockN, nil
+		return currentBlockN, nil
 	}
 
 	return last, err
@@ -420,35 +415,28 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, err
 
 // burnToParams constructs params for a SubmitTx request with given ref.
 func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes []byte, nonce pack.Bytes32, gpubkey pack.Bytes) (jsonrpc.ParamsSubmitTx, error) {
-
-	// For v0 burn, `to` can be base58 encoded
-	version := tx.Version1
-	to := string(toBytes)
-	switch watcher.selector.Asset() {
-	case multichain.BTC, multichain.BCH, multichain.ZEC:
-		decoder := AddressEncodeDecoder(watcher.selector.Asset().OriginChain(), watcher.network)
-		_, err := decoder.DecodeAddress(multichain.Address(to))
-		if err != nil {
-			to = base58.Encode(toBytes)
-			_, err = decoder.DecodeAddress(multichain.Address(to))
-			if err != nil {
-				return jsonrpc.ParamsSubmitTx{}, err
-			}
-			version = tx.Version0
-		}
+	var version tx.Version
+	var to multichain.Address
+	var toDecoded []byte
+	var err error
+	burnChain := watcher.selector.Source()
+	switch burnChain {
+	case multichain.Solana:
+		version, to, toDecoded, err = watcher.handleAssetAddrSolana(toBytes)
+	default:
+		version, to, toDecoded, err = watcher.handleAssetAddrEth(toBytes)
 	}
-
-	burnChain := watcher.selector.Destination()
-	toBytes, err := watcher.bindings.DecodeAddress(burnChain, multichain.Address(to))
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
+
+	watcher.logger.Infof("[watcher] burn parameters (to=%v, amount=%v, nonce=%v)", watcher.selector.String(), string(to), amount, nonce)
 
 	txindex := pack.U32(0)
 	payload := pack.Bytes{}
 	phash := engine.Phash(payload)
 	nhash := engine.Nhash(nonce, txid, txindex)
-	ghash := engine.Ghash(watcher.selector, phash, toBytes, nonce)
+	ghash := engine.Ghash(watcher.selector, phash, toDecoded, nonce)
 	input, err := pack.Encode(engine.LockMintBurnReleaseInput{
 		Txid:    txid,
 		Txindex: txindex,
@@ -487,6 +475,42 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes [
 	watcher.cache.Set(fmt.Sprintf("%s_%v", watcher.selector, pack.NewU256(nonce).String()), v0Hash.String(), 0)
 
 	return jsonrpc.ParamsSubmitTx{Tx: transaction}, nil
+}
+
+func (watcher Watcher) handleAssetAddrEth(toBytes []byte) (tx.Version, multichain.Address, []byte, error) {
+	// For v0 burn, `to` can be base58 encoded
+	version := tx.Version1
+	to := multichain.Address(toBytes)
+	switch watcher.selector.Asset() {
+	case multichain.BTC, multichain.BCH, multichain.ZEC:
+		decoder := AddressEncodeDecoder(watcher.selector.Asset().OriginChain(), watcher.network)
+		_, err := decoder.DecodeAddress(to)
+		if err != nil {
+			to = multichain.Address(base58.Encode(toBytes))
+			_, err = decoder.DecodeAddress(to)
+			if err != nil {
+				return "-1", "", nil, err
+			}
+			version = tx.Version0
+		}
+	}
+
+	burnChain := watcher.selector.Destination()
+	toBytes, err := watcher.bindings.DecodeAddress(burnChain, to)
+	if err != nil {
+		return "-1", "", nil, err
+	}
+
+	return version, to, toBytes, nil
+}
+
+func (watcher Watcher) handleAssetAddrSolana(toBytes []byte) (tx.Version, multichain.Address, []byte, error) {
+	encoder := AddressEncodeDecoder(watcher.selector.Asset().OriginChain(), watcher.network)
+	to, err := encoder.EncodeAddress(toBytes)
+	if err != nil {
+		return "-1", "", nil, fmt.Errorf("encoding raw asset address returned by solana: %v", err)
+	}
+	return tx.Version1, to, toBytes, nil
 }
 
 func AddressEncodeDecoder(chain multichain.Chain, network multichain.Network) multichain.AddressEncodeDecoder {
