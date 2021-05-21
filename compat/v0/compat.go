@@ -71,8 +71,9 @@ func QueryFeesResponseFromState(state map[string]engine.XState) (ResponseQueryFe
 	}
 	bitcoinCap := bitcoinS.GasCap
 	bitcoinLimit := bitcoinS.GasLimit
-
 	bitcoinUnderlying := U64{Int: big.NewInt(int64(bitcoinCap.Int().Uint64() * bitcoinLimit.Int().Uint64()))}
+	bitcoinMintFee := U64{Int: big.NewInt(int64(bitcoinS.MintFee))}
+	bitcoinBurnFee := U64{Int: big.NewInt(int64(bitcoinS.MintFee))}
 
 	zcashS, ok := state[string(multichain.Zcash.NativeAsset())]
 	if !ok {
@@ -83,6 +84,8 @@ func QueryFeesResponseFromState(state map[string]engine.XState) (ResponseQueryFe
 	zcashCap := zcashS.GasCap
 	zcashLimit := zcashS.GasLimit
 	zcashUnderlying := U64{Int: big.NewInt(int64(zcashCap.Int().Uint64() * zcashLimit.Int().Uint64()))}
+	zcashMintFee := U64{Int: big.NewInt(int64(zcashS.MintFee))}
+	zcashBurnFee := U64{Int: big.NewInt(int64(zcashS.MintFee))}
 
 	bitcoinCashS, ok := state[string(multichain.BitcoinCash.NativeAsset())]
 	if !ok {
@@ -91,35 +94,33 @@ func QueryFeesResponseFromState(state map[string]engine.XState) (ResponseQueryFe
 	}
 	bitcoinCashCap := bitcoinCashS.GasCap
 	bitcoinCashLimit := bitcoinCashS.GasLimit
-
 	bitcoinCashUnderlying := U64{Int: big.NewInt(int64(bitcoinCashCap.Int().Uint64() * bitcoinCashLimit.Int().Uint64()))}
-
-	mintFee := U64{Int: big.NewInt(25)}
-	burnFee := U64{Int: big.NewInt(10)}
+	bitcoinCashMintFee := U64{Int: big.NewInt(int64(bitcoinCashS.MintFee))}
+	bitcoinCashBurnFee := U64{Int: big.NewInt(int64(bitcoinCashS.MintFee))}
 
 	resp := ResponseQueryFees{
 		Btc: Fees{
 			Lock:    bitcoinUnderlying,
 			Release: bitcoinUnderlying,
 			Ethereum: MintAndBurnFees{
-				Mint: mintFee,
-				Burn: burnFee,
+				Mint: bitcoinMintFee,
+				Burn: bitcoinBurnFee,
 			},
 		},
 		Zec: Fees{
 			Lock:    zcashUnderlying,
 			Release: zcashUnderlying,
 			Ethereum: MintAndBurnFees{
-				Mint: mintFee,
-				Burn: burnFee,
+				Mint: zcashMintFee,
+				Burn: zcashBurnFee,
 			},
 		},
 		Bch: Fees{
 			Lock:    bitcoinCashUnderlying,
 			Release: bitcoinCashUnderlying,
 			Ethereum: MintAndBurnFees{
-				Mint: mintFee,
-				Burn: burnFee,
+				Mint: bitcoinCashMintFee,
+				Burn: bitcoinCashBurnFee,
 			},
 		},
 	}
