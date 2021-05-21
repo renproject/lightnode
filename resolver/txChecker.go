@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 
@@ -41,14 +42,21 @@ type verifier struct {
 }
 
 func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings) Verifier {
+	// Convert host chains map to sorted list.
+	chains := make([]string, 0, len(hostChains))
+	for chain := range hostChains {
+		chains = append(chains, string(chain))
+	}
+	sort.Strings(chains)
+
 	// The verification for burn transactions uses the cross-chain contract to
 	// verify the minted amount. As we do not keep track of the latest block
 	// state inside the Lightnode, we assume the burned amount never exceeds the
 	// tracked minted amount by setting it to the maximum U256 value.
-	minted := make([]engine.XStateMinted, 0, len(hostChains))
-	for chain := range hostChains {
+	minted := make([]engine.XStateMinted, 0, len(chains))
+	for _, chain := range chains {
 		minted = append(minted, engine.XStateMinted{
-			Chain:  chain,
+			Chain:  multichain.Chain(chain),
 			Amount: pack.MaxU256,
 		})
 	}
@@ -75,7 +83,11 @@ func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings
 			},
 		},
 		Minted: minted,
-		Fees:   engine.XStateFees{},
+		Fees: engine.XStateFees{
+			Unassigned: pack.NewU256([32]byte{}),
+			Epochs:     []engine.XStateFeesEpoch{},
+			Nodes:      []engine.XStateFeesNode{},
+		},
 	})
 	if err != nil {
 		panic(fmt.Sprintf("encoding contract state: %v", err))
