@@ -1,6 +1,7 @@
 ## 0.4.1
-- Update Multichain to v0.3.8
+- Update Multichain to v0.3.10
 - Add support for watching Solana burns
+- Pull cross-chain fees from RenVM state
 
 ## 0.3.2
 
