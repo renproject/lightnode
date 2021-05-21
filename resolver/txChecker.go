@@ -3,7 +3,9 @@ package resolver
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 
@@ -14,6 +16,8 @@ import (
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
+	"github.com/renproject/multichain"
+	"github.com/renproject/pack"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
@@ -34,11 +38,69 @@ type Verifier interface {
 
 type verifier struct {
 	bindings binding.Bindings
+	contract *chainstate.Contract
 }
 
-func NewVerifier(bindings binding.Bindings) Verifier {
+func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings) Verifier {
+	// Convert host chains map to sorted list.
+	chains := make([]string, 0, len(hostChains))
+	for chain := range hostChains {
+		chains = append(chains, string(chain))
+	}
+	sort.Strings(chains)
+
+	// The verification for burn transactions uses the cross-chain contract to
+	// verify the minted amount. As we do not keep track of the latest block
+	// state inside the Lightnode, we assume the burned amount never exceeds the
+	// tracked minted amount by setting it to the maximum U256 value.
+	minted := make([]engine.XStateMinted, 0, len(chains))
+	for _, chain := range chains {
+		minted = append(minted, engine.XStateMinted{
+			Chain:  multichain.Chain(chain),
+			Amount: pack.MaxU256,
+		})
+	}
+	shardState, err := pack.Encode(engine.XStateShardAccount{
+		Nonce:   pack.NewU256([32]byte{}),
+		Gnonces: []engine.XStateShardGnonce{},
+	})
+	if err != nil {
+		panic(fmt.Sprintf("encoding shard state: %v", err))
+	}
+	contractState, err := pack.Encode(engine.XState{
+		LatestHeight:  pack.NewU256([32]byte{}),
+		GasCap:        pack.NewU256([32]byte{}),
+		GasLimit:      pack.NewU256([32]byte{}),
+		GasPrice:      pack.NewU256([32]byte{}),
+		MinimumAmount: pack.NewU256([32]byte{}),
+		DustAmount:    pack.NewU256([32]byte{}),
+		MintFee:       0,
+		BurnFee:       0,
+		Shards: []engine.XStateShard{
+			{
+				Shard:  pack.Bytes32{},
+				PubKey: pack.Bytes{},
+				Queue:  []engine.XStateShardQueueItem{},
+				State:  shardState,
+			},
+		},
+		Minted: minted,
+		Fees: engine.XStateFees{
+			Unassigned: pack.NewU256([32]byte{}),
+			Epochs:     []engine.XStateFeesEpoch{},
+			Nodes:      []engine.XStateFeesNode{},
+		},
+	})
+	if err != nil {
+		panic(fmt.Sprintf("encoding contract state: %v", err))
+	}
+	contract := chainstate.Contract{
+		Address: "",
+		State:   pack.Typed(contractState.(pack.Struct)),
+	}
 	return verifier{
 		bindings: bindings,
+		contract: &contract,
 	}
 }
 
@@ -46,7 +108,7 @@ func (v verifier) VerifyTx(ctx context.Context, tx tx.Tx) error {
 	err := engine.XValidateLockMintBurnReleaseExtrinsicTx(chainstate.CodeContext{
 		Context:  ctx,
 		Bindings: v.bindings,
-	}, nil, tx)
+	}, v.contract, tx)
 	return err
 }
 
