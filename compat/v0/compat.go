@@ -73,7 +73,7 @@ func QueryFeesResponseFromState(state map[string]engine.XState) (ResponseQueryFe
 	bitcoinLimit := bitcoinS.GasLimit
 	bitcoinUnderlying := U64{Int: big.NewInt(int64(bitcoinCap.Int().Uint64() * bitcoinLimit.Int().Uint64()))}
 	bitcoinMintFee := U64{Int: big.NewInt(int64(bitcoinS.MintFee))}
-	bitcoinBurnFee := U64{Int: big.NewInt(int64(bitcoinS.MintFee))}
+	bitcoinBurnFee := U64{Int: big.NewInt(int64(bitcoinS.BurnFee))}
 
 	zcashS, ok := state[string(multichain.Zcash.NativeAsset())]
 	if !ok {
@@ -85,7 +85,7 @@ func QueryFeesResponseFromState(state map[string]engine.XState) (ResponseQueryFe
 	zcashLimit := zcashS.GasLimit
 	zcashUnderlying := U64{Int: big.NewInt(int64(zcashCap.Int().Uint64() * zcashLimit.Int().Uint64()))}
 	zcashMintFee := U64{Int: big.NewInt(int64(zcashS.MintFee))}
-	zcashBurnFee := U64{Int: big.NewInt(int64(zcashS.MintFee))}
+	zcashBurnFee := U64{Int: big.NewInt(int64(zcashS.BurnFee))}
 
 	bitcoinCashS, ok := state[string(multichain.BitcoinCash.NativeAsset())]
 	if !ok {
@@ -96,7 +96,7 @@ func QueryFeesResponseFromState(state map[string]engine.XState) (ResponseQueryFe
 	bitcoinCashLimit := bitcoinCashS.GasLimit
 	bitcoinCashUnderlying := U64{Int: big.NewInt(int64(bitcoinCashCap.Int().Uint64() * bitcoinCashLimit.Int().Uint64()))}
 	bitcoinCashMintFee := U64{Int: big.NewInt(int64(bitcoinCashS.MintFee))}
-	bitcoinCashBurnFee := U64{Int: big.NewInt(int64(bitcoinCashS.MintFee))}
+	bitcoinCashBurnFee := U64{Int: big.NewInt(int64(bitcoinCashS.BurnFee))}
 
 	resp := ResponseQueryFees{
 		Btc: Fees{
