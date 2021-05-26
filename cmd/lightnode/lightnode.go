@@ -270,6 +270,12 @@ func parseOptions() lightnode.Options {
 			},
 		}
 	}
+	if os.Getenv("RPC_POLYGON") != "" {
+		chains[multichain.Polygon] = binding.ChainOptions{
+			RPC:      pack.String(os.Getenv("RPC_POLYGON")),
+			Protocol: pack.String(os.Getenv("GATEWAY_POLYGON")),
+		}
+	}
 	if os.Getenv("RPC_SOLANA") != "" {
 		chains[multichain.Solana] = binding.ChainOptions{
 			RPC:      pack.String(os.Getenv("RPC_SOLANA")),
