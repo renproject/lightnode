@@ -1,7 +1,13 @@
+## 0.4.2
+
+- Add support for Polygon
+
 ## 0.4.1
+
 - Update Multichain to v0.3.10
 - Add support for watching Solana burns
 - Pull cross-chain fees from RenVM state
+- Add support for Fantom
 
 ## 0.3.2
 
