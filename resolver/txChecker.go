@@ -105,21 +105,12 @@ func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings
 }
 
 func (v verifier) VerifyTx(ctx context.Context, transaction tx.Tx) error {
-	switch {
-	case transaction.Selector.IsLock(),
-		transaction.Selector.IsMint(),
-		transaction.Selector.IsBurn(),
-		transaction.Selector.IsRelease():
-		return engine.XValidateLockMintBurnReleaseExtrinsicTx(chainstate.CodeContext{
-			Context:  ctx,
-			Bindings: v.bindings,
-		}, v.contract, transaction)
-	case transaction.Selector.IsClaimFees():
-		// Allow the Darknode to validate the transaction.
-		return nil
-	default:
-		return fmt.Errorf("unknown extrinsic: %v", transaction.Selector)
-	}
+	// The verifier assumes all transactions are lock/mint/burn/release
+	// transactions.
+	return engine.XValidateLockMintBurnReleaseExtrinsicTx(chainstate.CodeContext{
+		Context:  ctx,
+		Bindings: v.bindings,
+	}, v.contract, transaction)
 }
 
 // newTxChecker returns a new txchecker.
