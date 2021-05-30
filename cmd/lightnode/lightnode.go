@@ -224,6 +224,12 @@ func parseOptions() lightnode.Options {
 	}
 
 	chains := map[multichain.Chain]binding.ChainOptions{}
+	if os.Getenv("RPC_AVALANCHE") != "" {
+		chains[multichain.Avalanche] = binding.ChainOptions{
+			RPC:      pack.String(os.Getenv("RPC_AVALANCHE")),
+			Protocol: pack.String(os.Getenv("GATEWAY_AVALANCHE")),
+		}
+	}
 	if os.Getenv("RPC_BINANCE") != "" {
 		chains[multichain.BinanceSmartChain] = binding.ChainOptions{
 			RPC:      pack.String(os.Getenv("RPC_BINANCE")),
