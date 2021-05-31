@@ -161,7 +161,7 @@ var _ = Describe("Watcher", func() {
 			h2, err := heightFetcher.FetchBlockHeight(ctx)
 
 			if h1 == h2 || err != nil {
-				logger.Panic("eth client has stalled: %v", err)
+				logger.Panicf("eth client has stalled: %v", err)
 			}
 			live = true
 		}
