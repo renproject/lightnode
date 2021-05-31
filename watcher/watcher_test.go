@@ -157,11 +157,11 @@ var _ = Describe("Watcher", func() {
 		// Check if the ethereum client is progressing
 		if live == false {
 			h1, err := heightFetcher.FetchBlockHeight(ctx)
-			time.Sleep(2000)
+			time.Sleep(10 * time.Second)
 			h2, err := heightFetcher.FetchBlockHeight(ctx)
 
 			if h1 == h2 || err != nil {
-				panic(fmt.Sprintf("Eth client has stalled: {%v}", err))
+				logger.Panic("eth client has stalled: %v", err)
 			}
 			live = true
 		}
