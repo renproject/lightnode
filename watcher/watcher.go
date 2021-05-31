@@ -130,7 +130,7 @@ type SolFetcher struct {
 }
 
 func NewSolFetcher(client *solanaRPC.Client, gatewayAddress string) SolFetcher {
-	seeds := []byte("GatewayStateV0.1.1")
+	seeds := []byte("GatewayStateV0.1.2")
 	programDerivedAddress := solana.ProgramDerivedAddress(pack.Bytes(seeds), multichain.Address(gatewayAddress))
 	programPubk, err := solanaSDK.PublicKeyFromBase58(string(programDerivedAddress))
 	if err != nil {
@@ -402,7 +402,7 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, err
 	last, err := watcher.cache.Get(watcher.key()).Uint64()
 	// Initialise the pointer with current block number if it has not been yet.
 	if err == redis.Nil {
-		watcher.logger.Errorf("[watcher] last checked block number not initialised")
+		watcher.logger.Warnf("[watcher] last checked block number not initialised")
 		if err := watcher.cache.Set(watcher.key(), currentBlockN, 0).Err(); err != nil {
 			watcher.logger.Errorf("[watcher] cannot initialise last checked block in redis: %v", err)
 			return 0, err

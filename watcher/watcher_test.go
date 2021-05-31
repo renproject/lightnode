@@ -99,6 +99,11 @@ func (fetcher MockBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64
 	return x, nil
 }
 
+// Flag to check whether ethereum client is progressing
+// We need to wait a few seconds for new blocks,
+// so it is something we only want to do once
+var live = false
+
 var _ = Describe("Watcher", func() {
 	init := func(ctx context.Context, interval time.Duration, reliableResponder bool) (Watcher, *redis.Client, chan BurnLogResult, *miniredis.Miniredis) {
 		mr, err := miniredis.Run()
@@ -149,6 +154,18 @@ var _ = Describe("Watcher", func() {
 		fetcher := NewMockBurnLogFetcher(burnIn)
 		heightFetcher := NewEthBlockHeightFetcher(ethClient)
 
+		// Check if the ethereum client is progressing
+		if live == false {
+			h1, err := heightFetcher.FetchBlockHeight(ctx)
+			time.Sleep(10 * time.Second)
+			h2, err := heightFetcher.FetchBlockHeight(ctx)
+
+			if h1 == h2 || err != nil {
+				logger.Panicf("eth client has stalled: %v", err)
+			}
+			live = true
+		}
+
 		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, fetcher, heightFetcher, mockResolver, client, pubk, interval, 1000, 6)
 
 		return watcher, client, burnIn, mr
@@ -186,25 +203,30 @@ var _ = Describe("Watcher", func() {
 			// Wait for the block number to be picked up
 			time.Sleep(time.Second)
 
-			burnIn <- BurnLogResult{
-				Result: BurnInfo{
-					ToBytes: []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-					Amount:  pack.NewU256FromU64(10000),
-					Nonce:   pack.NewU256FromU64(0).Bytes32(),
-				},
-			}
+			go func() {
+				burnIn <- BurnLogResult{
+					Result: BurnInfo{
+						ToBytes: []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+						Amount:  pack.NewU256FromU64(10000),
+						Nonce:   pack.NewU256FromU64(0).Bytes32(),
+					},
+				}
+			}()
 
 			selector := tx.Selector("BTC/fromEthereum")
 			v0Hash := v0.BurnTxHash(selector, pack.NewU256FromU8(0))
 
 			Eventually(func() string {
+				fmt.Printf("{%v}", redisClient.Keys("*"))
+				fmt.Printf("{%v}", redisClient.Get("BTC/fromEthereum_lastCheckedBlock").Val())
 				h := redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", 0)).Val()
 				return h
-			}, 15*time.Second).Should(Equal(v0Hash.String()))
+			}, 15*time.Second, time.Second).Should(Equal(v0Hash.String()))
 		})
 
 		It("should not process burn events in the future or the past", func() {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+
 			defer cancel()
 			watcher, redisClient, burnIn, _ := init(ctx, time.Second, true)
 			defer redisClient.Close()
@@ -213,23 +235,27 @@ var _ = Describe("Watcher", func() {
 			// Wait for the block number to be picked up
 			time.Sleep(time.Second)
 
-			burnIn <- BurnLogResult{
-				Result: BurnInfo{
-					ToBytes:     []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-					Amount:      pack.NewU256FromU64(10000),
-					Nonce:       pack.NewU256FromU64(0).Bytes32(),
-					BlockNumber: pack.NewU64(1),
-				},
-			}
+			go func() {
 
-			burnIn <- BurnLogResult{
-				Result: BurnInfo{
-					ToBytes:     []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
-					Amount:      pack.NewU256FromU64(10000),
-					Nonce:       pack.NewU256FromU64(1).Bytes32(),
-					BlockNumber: pack.NewU64(uint64(time.Now().Unix() + 1000000)),
-				},
-			}
+				burnIn <- BurnLogResult{
+					Result: BurnInfo{
+						ToBytes:     []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+						Amount:      pack.NewU256FromU64(10000),
+						Nonce:       pack.NewU256FromU64(0).Bytes32(),
+						BlockNumber: pack.NewU64(1),
+					},
+				}
+
+				burnIn <- BurnLogResult{
+					Result: BurnInfo{
+						ToBytes:     []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
+						Amount:      pack.NewU256FromU64(10000),
+						Nonce:       pack.NewU256FromU64(1).Bytes32(),
+						BlockNumber: pack.NewU64(uint64(time.Now().Unix() + 1000000)),
+					},
+				}
+
+			}()
 
 			selector := tx.Selector("BTC/fromEthereum")
 			v0Hash := v0.BurnTxHash(selector, pack.NewU256FromU8(0))
@@ -238,7 +264,6 @@ var _ = Describe("Watcher", func() {
 
 			h := redisClient.Get(fmt.Sprintf("BTC/fromEthereum_%v", 0)).Val()
 			Expect(h).NotTo(Equal(v0Hash.String()))
-
 		})
 
 		It("should process logs in block batches", func() {
@@ -547,7 +572,7 @@ var _ = Describe("Watcher", func() {
 
 			// channels will block until read from, so we make this concurrent
 			go func() {
-				for range [1000]bool{} {
+				for range [100]bool{} {
 					burnIn <- BurnLogResult{
 						Result: BurnInfo{
 							ToBytes: []byte("miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6"),
@@ -763,7 +788,7 @@ var _ = Describe("Watcher", func() {
 				return log
 			}, 15*time.Second).Should(Equal(BurnLogResult{Result: BurnInfo{
 				Txid:        []byte{},
-				Amount:      pack.NewU256FromUint64(1000000000),
+				Amount:      pack.NewU256FromUint64(100000000),
 				ToBytes:     []byte{111, 156, 83, 29, 221, 210, 44, 11, 79, 156, 112, 96, 116, 20, 53, 247, 21, 98, 180, 2, 95, 155, 124, 199, 196},
 				Nonce:       [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 				BlockNumber: 1,

@@ -1,6 +1,7 @@
 ## 0.4.2
 
-- Add support for Polygon
+- Update Multichain to v0.3.11
+- Add support for Polygon + Avalanche
 
 ## 0.4.1
 
