@@ -104,12 +104,13 @@ func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings
 	}
 }
 
-func (v verifier) VerifyTx(ctx context.Context, tx tx.Tx) error {
-	err := engine.XValidateLockMintBurnReleaseExtrinsicTx(chainstate.CodeContext{
+func (v verifier) VerifyTx(ctx context.Context, transaction tx.Tx) error {
+	// The verifier assumes all transactions are lock/mint/burn/release
+	// transactions.
+	return engine.XValidateLockMintBurnReleaseExtrinsicTx(chainstate.CodeContext{
 		Context:  ctx,
 		Bindings: v.bindings,
-	}, v.contract, tx)
-	return err
+	}, v.contract, transaction)
 }
 
 // newTxChecker returns a new txchecker.

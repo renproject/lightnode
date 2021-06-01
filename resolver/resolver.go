@@ -476,7 +476,7 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 	}
 
 	reqWithResponder := lhttp.NewRequestWithResponder(ctx, id, method, params, query)
-	if method == jsonrpc.MethodSubmitTx {
+	if method == jsonrpc.MethodSubmitTx && params.(jsonrpc.ParamsSubmitTx).Tx.Selector.IsCrossChain() {
 		resolver.txCheckerRequests <- reqWithResponder
 	} else {
 		if ok := resolver.cacher.Send(reqWithResponder); !ok {
