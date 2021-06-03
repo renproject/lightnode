@@ -15,6 +15,7 @@ import (
 	"github.com/renproject/id"
 	. "github.com/renproject/lightnode/db"
 	. "github.com/renproject/lightnode/testutils"
+	"github.com/renproject/pack"
 
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/tx/txutil"
@@ -112,6 +113,29 @@ var _ = Describe("Lightnode db", func() {
 						newTransaction, err := db.Tx(transaction.Hash)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(transaction).Should(Equal(newTransaction))
+						return true
+					}
+
+					Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+				})
+
+				It("should be able to write tx and query by txid", func() {
+					sqlDB := init(dbname)
+					defer close(sqlDB)
+					db := New(sqlDB)
+
+					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+					test := func() bool {
+						Expect(db.Init()).Should(Succeed())
+						defer cleanUp(sqlDB)
+						transaction := txutil.RandomGoodTx(r)
+						transaction.Output = nil
+						txid, ok := transaction.Input.Get("txid").(pack.Bytes)
+						Expect(ok).To(Equal(true))
+						Expect(db.InsertTx(transaction)).Should(Succeed())
+						newTransaction, err := db.TxsByTxid(txid)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(transaction).Should(Equal(newTransaction[0]))
 						return true
 					}
 
