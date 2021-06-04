@@ -101,6 +101,42 @@ func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *
 	}
 }
 
+const (
+	MethodQueryTxByTxid = "ren_queryTxByTxid"
+)
+
+type ParamsQueryTxByTxid struct {
+	Txid pack.Bytes
+}
+
+func (resolver *Resolver) Fallback(ctx context.Context, id interface{}, method string, params interface{}, req *http.Request) jsonrpc.Response {
+	switch method {
+	case MethodQueryTxByTxid:
+		var parsedParams ParamsQueryTxByTxid
+		err := json.Unmarshal(params.(json.RawMessage), &parsedParams)
+		if err != nil {
+			return jsonrpc.NewResponse(id, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidParams,
+				Message: fmt.Sprintf("invalid params: %v", err),
+			})
+		}
+		return resolver.QueryTxByTxid(ctx, id, &parsedParams, req)
+	}
+	return jsonrpc.NewResponse(id, nil, nil)
+}
+
+// Custom rpc for fetching transactions by txid
+func (resolver *Resolver) QueryTxByTxid(ctx context.Context, id interface{}, params *ParamsQueryTxByTxid, req *http.Request) jsonrpc.Response {
+	txs, err := resolver.db.TxsByTxid(params.Txid)
+	if err != nil {
+		resolver.logger.Errorf("[responder] cannot get txs for txid: %v :%v", params.Txid, err)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to query txid", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	return jsonrpc.NewResponse(id, jsonrpc.ResponseQueryTxs{Txs: txs}, nil)
+}
+
 // QueryTx either returns a locally cached result for confirming txs,
 // or forwards and caches the request to the darknodes
 // It will also detect if a tx is a v1 or v0 tx, and cast the response

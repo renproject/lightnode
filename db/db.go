@@ -43,6 +43,9 @@ type DB interface {
 	// Txs returns transactions with the given pagination options.
 	Txs(offset, limit int) ([]tx.Tx, error)
 
+	// Txs returns transactions with the given pagination options.
+	TxsByTxid(id pack.Bytes) ([]tx.Tx, error)
+
 	// PendingTxs returns all pending transactions in the database which are not
 	// expired.
 	PendingTxs(expiry time.Duration) ([]tx.Tx, error)
@@ -175,6 +178,26 @@ func (db database) Tx(txHash id.Hash) (tx.Tx, error) {
 func (db database) Txs(offset, limit int) ([]tx.Tx, error) {
 	txs := make([]tx.Tx, 0, limit)
 	rows, err := db.db.Query(`SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs ORDER BY created_time ASC LIMIT $1 OFFSET $2;`, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Loop through rows and convert them to transactions.
+	for rows.Next() {
+		tx, err := rowToTx(rows)
+		if err != nil {
+			return nil, err
+		}
+		txs = append(txs, tx)
+	}
+	return txs, rows.Err()
+}
+
+// TxsById implements the DB interface.
+func (db database) TxsByTxid(txid pack.Bytes) ([]tx.Tx, error) {
+	txs := make([]tx.Tx, 0)
+	rows, err := db.db.Query(`SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs WHERE txid = $1;`, txid.String())
 	if err != nil {
 		return nil, err
 	}
