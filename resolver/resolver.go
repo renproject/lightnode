@@ -103,14 +103,57 @@ func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *
 
 const (
 	MethodQueryTxByTxid = "ren_queryTxByTxid"
+	MethodSubmitGateway = "ren_submitGateway"
+	MethodQueryGateway  = "ren_queryGateway"
+	MethodQueryGateways = "ren_queryGateways"
 )
 
 type ParamsQueryTxByTxid struct {
 	Txid pack.Bytes
 }
 
+type ParamsQueryGateway struct {
+	GatewayAddress string
+}
+
+type ParamsSubmitGateway struct {
+	Tx             tx.Tx
+	GatewayAddress string
+}
+
 func (resolver *Resolver) Fallback(ctx context.Context, id interface{}, method string, params interface{}, req *http.Request) jsonrpc.Response {
 	switch method {
+	case MethodSubmitGateway:
+		var parsedParams ParamsSubmitGateway
+		err := json.Unmarshal(params.(json.RawMessage), &parsedParams)
+		if err != nil {
+			return jsonrpc.NewResponse(id, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidParams,
+				Message: fmt.Sprintf("invalid params: %v", err),
+			})
+		}
+		return resolver.SubmitGateway(ctx, id, &parsedParams, req)
+	case MethodQueryGateway:
+		var parsedParams ParamsQueryGateway
+		err := json.Unmarshal(params.(json.RawMessage), &parsedParams)
+		if err != nil {
+			return jsonrpc.NewResponse(id, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidParams,
+				Message: fmt.Sprintf("invalid params: %v", err),
+			})
+		}
+		return resolver.QueryGateway(ctx, id, &parsedParams, req)
+		// TODO: do we need this? Can see it being abused somewhat
+	// case MethodQueryGateways:
+	// 	var parsedParams ParamsSubmitGateway
+	// 	err := json.Unmarshal(params.(json.RawMessage), &parsedParams)
+	// 	if err != nil {
+	// 		return jsonrpc.NewResponse(id, nil, &jsonrpc.Error{
+	// 			Code:    jsonrpc.ErrorCodeInvalidParams,
+	// 			Message: fmt.Sprintf("invalid params: %v", err),
+	// 		})
+	// 	}
+	// 	return resolver.SubmitGateway(ctx, id, &parsedParams, req)
 	case MethodQueryTxByTxid:
 		var parsedParams ParamsQueryTxByTxid
 		err := json.Unmarshal(params.(json.RawMessage), &parsedParams)
@@ -123,6 +166,31 @@ func (resolver *Resolver) Fallback(ctx context.Context, id interface{}, method s
 		return resolver.QueryTxByTxid(ctx, id, &parsedParams, req)
 	}
 	return jsonrpc.NewResponse(id, nil, nil)
+}
+
+// Custom rpc for storing gateway information
+// FIXME: this doesn't get validated, so is susceptible to DOS
+func (resolver *Resolver) SubmitGateway(ctx context.Context, id interface{}, params *ParamsSubmitGateway, req *http.Request) jsonrpc.Response {
+	err := resolver.db.InsertGateway(params.GatewayAddress, params.Tx)
+	if err != nil {
+		resolver.logger.Errorf("[responder] cannot insert gateway: %v :%v", params.GatewayAddress, err)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to query txid", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	return jsonrpc.NewResponse(id, jsonrpc.ResponseSubmitTx{}, nil)
+}
+
+// Custom rpc for fetching gateways by address
+func (resolver *Resolver) QueryGateway(ctx context.Context, id interface{}, params *ParamsQueryGateway, req *http.Request) jsonrpc.Response {
+	gateway, err := resolver.db.Gateway(params.GatewayAddress)
+	if err != nil {
+		resolver.logger.Errorf("[responder] cannot get gateway for gatewayAddress: %v :%v", params.GatewayAddress, err)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to query txid", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	return jsonrpc.NewResponse(id, jsonrpc.ResponseQueryTx{Tx: gateway}, nil)
 }
 
 // Custom rpc for fetching transactions by txid
