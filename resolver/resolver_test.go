@@ -237,7 +237,45 @@ var _ = Describe("Resolver", func() {
 		Expect(resp).ShouldNot(Equal(jsonrpc.Response{}))
 	})
 
-	It("should handle a request witout a specified ID", func() {
+	It("should handle queryTxByTxid tx", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, client := init(ctx)
+		defer cleanup()
+
+		// Use a v1 burn tx, as it will be persisted
+		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+		mocktx := txutil.RandomGoodTx(r)
+		mocktx.Selector = tx.Selector("BTC/fromEthereum")
+
+		// Submit tx to ensure that it can be queried against
+		params := jsonrpc.ParamsSubmitTx{
+			Tx: mocktx,
+		}
+
+		// hacky
+		// manually set an entry in redis so that we think a v1 burn
+		client.Set(mocktx.Hash.String(), mocktx.Hash.String(), 0)
+
+		// Submit so that it gets persisted in db
+		resp := resolver.SubmitTx(ctx, nil, &params, nil)
+
+		txid, ok := mocktx.Input.Get("txid").(pack.Bytes)
+		Expect(ok).To(Equal(true))
+
+		paramRaw, err := json.Marshal(&ParamsQueryTxByTxid{
+			Txid: txid,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		var raw json.RawMessage = paramRaw
+
+		resp = resolver.Fallback(ctx, nil, MethodQueryTxByTxid, raw, nil)
+
+		Expect(resp).ShouldNot(Equal(jsonrpc.Response{}))
+	})
+
+	It("should handle a request without a specified ID", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
