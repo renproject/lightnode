@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 
 	"github.com/renproject/darknode/binding"
@@ -20,13 +21,15 @@ type LightnodeValidator struct {
 	pubkey   *id.PubKey
 	store    v0.CompatStore
 	logger   logrus.FieldLogger
+	limiter  *LightnodeRateLimiter
 }
 
-func NewValidator(bindings binding.Bindings, pubkey *id.PubKey, store v0.CompatStore, logger logrus.FieldLogger) *LightnodeValidator {
+func NewValidator(bindings binding.Bindings, pubkey *id.PubKey, store v0.CompatStore, limiter *LightnodeRateLimiter, logger logrus.FieldLogger) *LightnodeValidator {
 	return &LightnodeValidator{
 		bindings: bindings,
 		pubkey:   pubkey,
 		store:    store,
+		limiter:  limiter,
 		logger:   logger,
 	}
 }
@@ -34,7 +37,21 @@ func NewValidator(bindings binding.Bindings, pubkey *id.PubKey, store v0.CompatS
 // The validator usually checks if the params are in the correct shape for a given method
 // We override the checker for certain methods here to cast invalid v0 params into v1 versions
 func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *http.Request, req jsonrpc.Request) (interface{}, jsonrpc.Response) {
+	ipString := r.Header.Get("x-forwarded-for")
+	if ipString != "" {
+		ipString = r.RemoteAddr
+	}
+	ip := net.ParseIP(ipString)
+
+	if !(validator.limiter.Allow(net.IP(ip))) {
+		return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
+			Code:    jsonrpc.ErrorCodeInvalidRequest,
+			Message: fmt.Sprintf("rate limit exceeded"),
+		})
+	}
+
 	switch req.Method {
+
 	case jsonrpc.MethodQueryTx:
 		// Check if the params deserializes to v1 queryTx
 		// to check if we need to do compat or not
