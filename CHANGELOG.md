@@ -1,7 +1,8 @@
 ## 0.4.2
 
-- Update Multichain to v0.3.11
+- Update Multichain to v0.3.12
 - Add support for Polygon + Avalanche
+- Add support for QueryTxByTxid
 
 ## 0.4.1
 
