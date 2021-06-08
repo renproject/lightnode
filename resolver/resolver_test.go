@@ -107,7 +107,8 @@ var _ = Describe("Resolver", func() {
 		pubkey, err := crypto.DecompressPubkey(pubkeyB)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		validator := NewValidator(bindings, (*id.PubKey)(pubkey), compatStore, logger)
+		limiter := NewRateLimiter(DefaultRateLimit())
+		validator := NewValidator(bindings, (*id.PubKey)(pubkey), compatStore, &limiter, logger)
 
 		mockVerifier := mockVerifier{}
 		resolver := New(logger, cacher, multiaddrStore, database, jsonrpc.Options{}, compatStore, bindings, mockVerifier)
@@ -180,7 +181,7 @@ var _ = Describe("Resolver", func() {
 		v0Hash := [32]byte{}
 		copy(v0Hash[:], v0HashBytes[:])
 
-		req, resp := validator.ValidateRequest(innerCtx, nil, jsonrpc.Request{
+		req, resp := validator.ValidateRequest(innerCtx, &http.Request{}, jsonrpc.Request{
 			Version: "2.0",
 			ID:      nil,
 			Method:  jsonrpc.MethodSubmitTx,
@@ -356,7 +357,7 @@ var _ = Describe("Resolver", func() {
 		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer innerCancel()
 
-		req, resp := validator.ValidateRequest(innerCtx, nil, jsonrpc.Request{
+		req, resp := validator.ValidateRequest(innerCtx, &http.Request{}, jsonrpc.Request{
 			Version: "2.0",
 			ID:      nil,
 			Method:  jsonrpc.MethodSubmitTx,

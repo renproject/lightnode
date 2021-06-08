@@ -6,7 +6,6 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
 	. "github.com/renproject/lightnode/resolver"
@@ -14,27 +13,25 @@ import (
 
 var _ = Describe("Rate Limiter", func() {
 	It("Should allow when 1 rate is set", func() {
-		logger := logrus.New()
 		conf := RateLimiterConf{
 			GlobalRate: rate.Limit(1),
 			IpRate:     rate.Limit(1),
 			Ttl:        time.Second,
 			MaxClients: 1,
 		}
-		limiter := NewRateLimiter(conf, logger)
+		limiter := NewRateLimiter(conf)
 		allowed := limiter.Allow(net.IPv4(0, 0, 0, 0))
 		Expect(allowed).To(BeTrue())
 	})
 
 	It("Should rate limit when rate is over global limit", func() {
-		logger := logrus.New()
 		conf := RateLimiterConf{
 			GlobalRate: rate.Limit(1),
 			IpRate:     rate.Limit(100),
 			Ttl:        time.Second,
 			MaxClients: 1,
 		}
-		limiter := NewRateLimiter(conf, logger)
+		limiter := NewRateLimiter(conf)
 		allowed := limiter.Allow(net.IPv4(0, 0, 0, 0))
 		Expect(allowed).To(BeTrue())
 		allowed = limiter.Allow(net.IPv4(0, 0, 0, 0))
@@ -42,14 +39,13 @@ var _ = Describe("Rate Limiter", func() {
 	})
 
 	It("Should rate limit when rate is over ip limit", func() {
-		logger := logrus.New()
 		conf := RateLimiterConf{
 			GlobalRate: rate.Limit(100),
 			IpRate:     rate.Limit(1),
 			Ttl:        time.Second,
 			MaxClients: 1,
 		}
-		limiter := NewRateLimiter(conf, logger)
+		limiter := NewRateLimiter(conf)
 		allowed := limiter.Allow(net.IPv4(0, 0, 0, 0))
 		Expect(allowed).To(BeTrue())
 		allowed = limiter.Allow(net.IPv4(0, 0, 0, 0))
@@ -59,14 +55,13 @@ var _ = Describe("Rate Limiter", func() {
 	})
 
 	It("Should rate limit when rate is over high ip limit", func() {
-		logger := logrus.New()
 		conf := RateLimiterConf{
 			GlobalRate: rate.Limit(1000),
 			IpRate:     rate.Limit(100),
 			Ttl:        time.Second,
 			MaxClients: 1,
 		}
-		limiter := NewRateLimiter(conf, logger)
+		limiter := NewRateLimiter(conf)
 		allowed := limiter.Allow(net.IPv4(0, 0, 0, 0))
 		Expect(allowed).To(BeTrue())
 		for i := 0; i < 101; i++ {
@@ -76,7 +71,6 @@ var _ = Describe("Rate Limiter", func() {
 	})
 
 	It("Should allow multiple ips", func() {
-		logger := logrus.New()
 		conf := RateLimiterConf{
 			GlobalRate: rate.Limit(5000),
 			IpRate:     rate.Limit(25),
@@ -89,7 +83,7 @@ var _ = Describe("Rate Limiter", func() {
 			net.IPv4(0, 0, 0, 2),
 			net.IPv4(0, 0, 0, 3),
 		}
-		limiter := NewRateLimiter(conf, logger)
+		limiter := NewRateLimiter(conf)
 		for _, ip := range ips {
 			iip := ip
 			go func() {
@@ -105,7 +99,6 @@ var _ = Describe("Rate Limiter", func() {
 	})
 
 	It("Should prune ips", func() {
-		logger := logrus.New()
 		conf := RateLimiterConf{
 			GlobalRate: rate.Limit(1000),
 			IpRate:     rate.Limit(25),
@@ -118,7 +111,7 @@ var _ = Describe("Rate Limiter", func() {
 			net.IPv4(0, 0, 0, 2),
 			net.IPv4(0, 0, 0, 3),
 		}
-		limiter := NewRateLimiter(conf, logger)
+		limiter := NewRateLimiter(conf)
 
 		for _, ip := range ips {
 			iip := ip
