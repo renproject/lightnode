@@ -9,7 +9,8 @@ RUN apt-get update && \
     ca-certificates \
     libgmp3-dev \
     libudev-dev \
-    libssl-dev && \
+    libssl-dev \
+    libhwloc-dev && \
     rm -rf /var/lib/apt/lists/*
 
 FROM renbot/multichain:latest as builder
@@ -26,7 +27,7 @@ WORKDIR /lightnode
 
 ARG GITHUB_TOKEN
 
-RUN apt-get update && apt-get install -y ocl-icd-opencl-dev libgmp3-dev libhwloc-dev
+RUN apt-get update && apt-get install -y ocl-icd-opencl-dev libgmp3-dev
 
 # Use GitHub personal access token to fetch dependencies.
 RUN git config --global url."https://${GITHUB_TOKEN}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
