@@ -83,6 +83,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	bindingsOpts := binding.DefaultOptions().
 		WithNetwork(options.Network)
 	for chain, chainOpts := range options.Chains {
+		chainOpts.MaxConfirmations = pack.MaxU64 // TODO: Eventually we will want to fetch this from the Darknode.
 		bindingsOpts = bindingsOpts.WithChainOptions(chain, chainOpts)
 	}
 	bindings := binding.New(bindingsOpts)
