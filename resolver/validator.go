@@ -38,12 +38,12 @@ func NewValidator(bindings binding.Bindings, pubkey *id.PubKey, store v0.CompatS
 // We override the checker for certain methods here to cast invalid v0 params into v1 versions
 func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *http.Request, req jsonrpc.Request) (interface{}, jsonrpc.Response) {
 	ipString := r.Header.Get("x-forwarded-for")
-	if ipString != "" {
+	if ipString == "" {
 		ipString = r.RemoteAddr
 	}
 	ip := net.ParseIP(ipString)
 
-	if !(validator.limiter.Allow(net.IP(ip))) {
+	if !(validator.limiter.Allow(req.Method, net.IP(ip))) {
 		return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
 			Code:    jsonrpc.ErrorCodeInvalidRequest,
 			Message: fmt.Sprintf("rate limit exceeded"),

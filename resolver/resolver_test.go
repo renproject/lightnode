@@ -107,7 +107,7 @@ var _ = Describe("Resolver", func() {
 		pubkey, err := crypto.DecompressPubkey(pubkeyB)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		limiter := NewRateLimiter(DefaultRateLimit())
+		limiter := NewRateLimiter(DefaultRateLimitConf())
 		validator := NewValidator(bindings, (*id.PubKey)(pubkey), compatStore, &limiter, logger)
 
 		mockVerifier := mockVerifier{}

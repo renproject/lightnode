@@ -9,18 +9,34 @@ import (
 )
 
 type RateLimiterConf struct {
-	GlobalRate rate.Limit
-	IpRate     rate.Limit
-	Ttl        time.Duration
-	MaxClients int
+	GlobalMethodRate map[string]rate.Limit
+	IpMethodRate     map[string]rate.Limit
+	Ttl              time.Duration
+	MaxClients       int
 }
 
-func DefaultRateLimit() RateLimiterConf {
+const (
+	LimiterDefaultGlobalRate = rate.Limit(1000)
+	LimiterDefaultIPRate     = rate.Limit(10)
+	LimiterDefaultTTL        = time.Minute
+	LimiterDefaultMaxClients = 1000
+)
+
+func DefaultRateLimitConf() RateLimiterConf {
 	return RateLimiterConf{
-		GlobalRate: 10000,
-		IpRate:     10,
-		Ttl:        time.Minute,
-		MaxClients: 1000,
+		GlobalMethodRate: map[string]rate.Limit{"fallback": LimiterDefaultGlobalRate},
+		IpMethodRate:     map[string]rate.Limit{"fallback": LimiterDefaultIPRate},
+		Ttl:              time.Minute,
+		MaxClients:       1000,
+	}
+}
+
+func NewRateLimitConf(global rate.Limit, ip rate.Limit, ttl time.Duration, maxClients int) RateLimiterConf {
+	return RateLimiterConf{
+		GlobalMethodRate: map[string]rate.Limit{"fallback": global},
+		IpMethodRate:     map[string]rate.Limit{"fallback": ip},
+		Ttl:              ttl,
+		MaxClients:       maxClients,
 	}
 }
 
@@ -28,18 +44,32 @@ type LightnodeRateLimiter struct {
 	mu   sync.RWMutex
 	conf RateLimiterConf
 
-	globalLimit *rate.Limiter
-	ipLimiters  map[string]*rate.Limiter
-	ipLastSeen  map[string]time.Time
-	maxClients  int
-	ttl         time.Duration
+	// Per method global limit
+	// will use "fallback" if method is not configured
+	globalLimit map[string]*rate.Limiter
+
+	// Per method, per ip limit
+	// will use "fallback" if method is not configured
+	ipLimiters map[string]map[string]*rate.Limiter
+	ipLastSeen map[string]time.Time
+	maxClients int
+	ttl        time.Duration
 }
 
 func NewRateLimiter(conf RateLimiterConf) LightnodeRateLimiter {
+	if conf.IpMethodRate == nil {
+		conf.IpMethodRate = make(map[string]rate.Limit)
+	}
+
+	globalLimits := make(map[string]*rate.Limiter)
+	for method, r := range conf.GlobalMethodRate {
+		globalLimits[method] = rate.NewLimiter(r, int(r))
+	}
+
 	return LightnodeRateLimiter{
 		conf:        conf,
-		globalLimit: rate.NewLimiter(conf.GlobalRate, int(conf.GlobalRate)),
-		ipLimiters:  make(map[string]*rate.Limiter),
+		globalLimit: globalLimits,
+		ipLimiters:  make(map[string]map[string]*rate.Limiter),
 		ipLastSeen:  make(map[string]time.Time),
 		maxClients:  conf.MaxClients,
 		ttl:         conf.Ttl,
@@ -48,25 +78,43 @@ func NewRateLimiter(conf RateLimiterConf) LightnodeRateLimiter {
 
 // Checks if the ip has an available limit, and increment if so
 // Returns true if below limit, false otherwise
-func (limiter *LightnodeRateLimiter) Allow(ip net.IP) bool {
+func (limiter *LightnodeRateLimiter) Allow(method string, ip net.IP) bool {
 	limiter.mu.Lock()
-	defer limiter.mu.Unlock()
-	// We prune when we are tracking too many ips
-	// FIXME: do we want to return false here?
-	if len(limiter.ipLimiters) > limiter.maxClients {
-		limiter.Prune()
-	}
 
-	if !limiter.globalLimit.Allow() {
+	// We prune when we are tracking too many ips
+	if len(limiter.ipLimiters) > limiter.maxClients {
+		limiter.mu.Unlock()
+		limiter.Prune()
+		return false
+	}
+	defer limiter.mu.Unlock()
+
+	globalMethod := method
+	// if we have a per-method limit set
+	_, ok := limiter.conf.GlobalMethodRate[method]
+	if !ok {
+		globalMethod = "fallback"
+	}
+	if !limiter.globalLimit[globalMethod].Allow() {
 		return false
 	}
 
-	limit, ok := limiter.ipLimiters[ip.String()]
+	// if we have a per-method limit set
+	methodLimit, ok := limiter.conf.IpMethodRate[method]
+	if !ok {
+		method = "fallback"
+		methodLimit = limiter.conf.IpMethodRate[method]
+	}
+	limit, ok := limiter.ipLimiters[method][ip.String()]
 	limiter.ipLastSeen[ip.String()] = time.Now()
 
 	if !ok {
-		limiter.ipLimiters[ip.String()] = rate.NewLimiter(limiter.conf.IpRate, int(limiter.conf.IpRate))
-		return true
+		if limiter.ipLimiters[method] == nil {
+			limiter.ipLimiters[method] = make(map[string]*rate.Limiter)
+		}
+		il := rate.NewLimiter(methodLimit, int(methodLimit))
+		limiter.ipLimiters[method][ip.String()] = il
+		return il.Allow()
 	}
 
 	return limit.Allow()
