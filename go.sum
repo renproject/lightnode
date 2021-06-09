@@ -1596,8 +1596,10 @@ github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 h1:OdAsTTz6O
 github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/renproject/aw v0.4.1-0.20210604011747-50d6a643dc76 h1:pp21sp4scg61RYRgPCsB1h4Wn6GoX6BDMB5/jVgLLF0=
 github.com/renproject/aw v0.4.1-0.20210604011747-50d6a643dc76/go.mod h1:WzE3LgCNZSMCwg8tObbLXz+AvZQ0zRW3jNgWqg6dEyQ=
-github.com/renproject/darknode v0.5.3-0.20210607041649-eb88efa30d37 h1:c/qta7Gl5MoKnvqQ900RuPO3uByITvGKdU8PgmNF840=
-github.com/renproject/darknode v0.5.3-0.20210607041649-eb88efa30d37/go.mod h1:DI+b6iCSyXmbp/eGNYOuUmAbMZhvOSHB5VYzDj2I6lU=
+github.com/renproject/darknode v0.5.3-0.20210609061849-9fb0b314cb42 h1:2HZW3hVx6QpEMLRSNlogKgI6QCaEO+HwKuFRSJEJVBc=
+github.com/renproject/darknode v0.5.3-0.20210609061849-9fb0b314cb42/go.mod h1:DI+b6iCSyXmbp/eGNYOuUmAbMZhvOSHB5VYzDj2I6lU=
+github.com/renproject/darknode v0.5.3-0.20210609070652-5801d91cca63 h1:yTZQVuHzKkGZum9508vYs+1ubPkjsyCdNAja2KEwlgI=
+github.com/renproject/darknode v0.5.3-0.20210609070652-5801d91cca63/go.mod h1:DI+b6iCSyXmbp/eGNYOuUmAbMZhvOSHB5VYzDj2I6lU=
 github.com/renproject/hyperdrive v0.4.5 h1:mBZk8c9zZOuQd/etJRK1EXyYaC/S+w8QxaDjjP/rbmI=
 github.com/renproject/hyperdrive v0.4.5/go.mod h1:ck1cKJ0M95xwfO0vuEj7ifDjNVYFrPvat5INU70wbUc=
 github.com/renproject/id v0.4.2 h1:XseNDPPCJtsZjIWR7Qgf+zxy0Gt5xsLrfwpQxJt5wFQ=

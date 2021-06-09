@@ -18,7 +18,7 @@ require (
 	github.com/onsi/ginkgo v1.14.0
 	github.com/onsi/gomega v1.10.1
 	github.com/renproject/aw v0.4.1-0.20210604011747-50d6a643dc76
-	github.com/renproject/darknode v0.5.3-0.20210607041649-eb88efa30d37
+	github.com/renproject/darknode v0.5.3-0.20210609070652-5801d91cca63
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/multichain v0.3.12
