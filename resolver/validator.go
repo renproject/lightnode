@@ -44,6 +44,7 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 	ip := net.ParseIP(ipString)
 
 	if !(validator.limiter.Allow(req.Method, net.IP(ip))) {
+		validator.logger.Warn("Rate limit exceeded for ip:", ipString)
 		return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
 			Code:    jsonrpc.ErrorCodeInvalidRequest,
 			Message: fmt.Sprintf("rate limit exceeded"),

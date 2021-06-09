@@ -27,7 +27,7 @@ func DefaultRateLimitConf() RateLimiterConf {
 		GlobalMethodRate: map[string]rate.Limit{"fallback": LimiterDefaultGlobalRate},
 		IpMethodRate:     map[string]rate.Limit{"fallback": LimiterDefaultIPRate},
 		Ttl:              time.Minute,
-		MaxClients:       1000,
+		MaxClients:       LimiterDefaultMaxClients,
 	}
 }
 

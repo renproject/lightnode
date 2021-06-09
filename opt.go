@@ -82,6 +82,7 @@ func DefaultOptions() Options {
 		LimiterTTL:                DefaultLimiterTTL,
 		LimiterGlobalRates:        DefaultLimiterGlobalRates,
 		LimiterIPRates:            DefaultLimiterIPRates,
+		LimiterMaxClients:         DefaultLimiterMaxClients,
 	}
 }
 

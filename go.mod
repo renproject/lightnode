@@ -18,7 +18,7 @@ require (
 	github.com/onsi/ginkgo v1.14.0
 	github.com/onsi/gomega v1.10.1
 	github.com/renproject/aw v0.4.1-0.20210604011747-50d6a643dc76
-	github.com/renproject/darknode v0.5.3-0.20210604070812-2f5079d3007d
+	github.com/renproject/darknode v0.5.3-0.20210609085023-c07d1eab7a0d
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/multichain v0.3.12
@@ -26,8 +26,12 @@ require (
 	github.com/renproject/phi v0.1.0
 	github.com/renproject/surge v1.2.6
 	github.com/sirupsen/logrus v1.7.0
+	github.com/supranational/blst v0.1.1 // indirect
+	github.com/tendermint/tendermint v0.33.8 // indirect
+	github.com/wangjia184/sortedset v0.0.0-20160527075905-f5d03557ba30 // indirect
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
+	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
 
 replace github.com/cosmos/ledger-cosmos-go => github.com/terra-project/ledger-terra-go v0.11.1-terra

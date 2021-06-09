@@ -2,23 +2,30 @@ package resolver
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 	"net/url"
 
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
+	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	v1 "github.com/renproject/lightnode/compat/v1"
 	"github.com/renproject/lightnode/db"
 	lhttp "github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
+	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 	"github.com/renproject/phi"
+	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
 )
 
@@ -168,10 +175,67 @@ func (resolver *Resolver) Fallback(ctx context.Context, id interface{}, method s
 	return jsonrpc.NewResponse(id, nil, nil)
 }
 
+func (resolver *Resolver) validateGateway(gateway string, tx tx.Tx, input engine.LockMintBurnReleaseInput) error {
+	if tx.Selector.IsBurn() {
+		return fmt.Errorf("Cannot store gateways for burn txes")
+	}
+
+	if tx.Selector.Asset().OriginChain().IsUTXOBased() {
+		script, err := engine.UTXOGatewayPubKeyScript(tx.Selector.Asset().OriginChain(), tx.Selector.Asset(), input.Gpubkey, input.Ghash)
+		if err != nil {
+			return fmt.Errorf("unable to determine script for UTXO lock: %v", err)
+		}
+		if script.String() != gateway {
+			return fmt.Errorf("gateway address mismatch: %v != %v", script.String(), gateway)
+		}
+	}
+
+	if tx.Selector.Asset().OriginChain().IsAccountBased() {
+		pubKey := id.PubKey{}
+		if err := surge.FromBinary(&pubKey, input.Gpubkey); err != nil {
+			return fmt.Errorf("decompressing gpubkey: %v", err)
+		}
+		ghashPrivKey, err := crypto.ToECDSA(input.Ghash.Bytes())
+		if err != nil {
+			return fmt.Errorf("converting ghash to ecdsa: %v", err)
+		}
+		ghashPubKey := (*id.PubKey)(&ghashPrivKey.PublicKey)
+		toPubKey := &ecdsa.PublicKey{
+			Curve: secp256k1.S256(),
+			X:     &big.Int{},
+			Y:     &big.Int{},
+		}
+		toPubKey.X, toPubKey.Y = toPubKey.Add(pubKey.X, pubKey.Y, ghashPubKey.X, ghashPubKey.Y)
+		toExpected, err := resolver.bindings.AddressFromPubKey(tx.Selector.Source(), (*id.PubKey)(toPubKey))
+		if err != nil {
+			return fmt.Errorf("addressing gpubkey: %v", err)
+		}
+		if multichain.Address(gateway) != toExpected {
+			return fmt.Errorf("expected to %v, got %v", toExpected, gateway)
+		}
+	}
+	return nil
+}
+
 // Custom rpc for storing gateway information
 // NOTE: should be heavily rate-limited
 func (resolver *Resolver) SubmitGateway(ctx context.Context, id interface{}, params *ParamsSubmitGateway, req *http.Request) jsonrpc.Response {
-	err := resolver.db.InsertGateway(params.Gateway, params.Tx)
+	input := engine.LockMintBurnReleaseInput{}
+	err := pack.Decode(&input, params.Tx.Input)
+	if err != nil {
+		resolver.logger.Errorf("[responder] failed decode gateway information: %v :%v", params.Gateway, err)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidRequest, "Incorrect gateway tx", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	err = resolver.validateGateway(params.Gateway, params.Tx, input)
+	if err != nil {
+		resolver.logger.Errorf("[responder] failed to validate gateway information: %v :%v", params.Gateway, err)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidRequest, "Incorrect gateway tx", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	err = resolver.db.InsertGateway(params.Gateway, params.Tx)
 	if err != nil {
 		resolver.logger.Errorf("[responder] cannot insert gateway: %v :%v", params.Gateway, err)
 		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to query txid", nil)
