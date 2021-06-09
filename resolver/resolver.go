@@ -113,12 +113,12 @@ type ParamsQueryTxByTxid struct {
 }
 
 type ParamsQueryGateway struct {
-	GatewayAddress string
+	Gateway string
 }
 
 type ParamsSubmitGateway struct {
-	Tx             tx.Tx
-	GatewayAddress string
+	Tx      tx.Tx
+	Gateway string
 }
 
 func (resolver *Resolver) Fallback(ctx context.Context, id interface{}, method string, params interface{}, req *http.Request) jsonrpc.Response {
@@ -169,11 +169,11 @@ func (resolver *Resolver) Fallback(ctx context.Context, id interface{}, method s
 }
 
 // Custom rpc for storing gateway information
-// FIXME: this doesn't get validated, so is susceptible to DOS
+// NOTE: should be heavily rate-limited
 func (resolver *Resolver) SubmitGateway(ctx context.Context, id interface{}, params *ParamsSubmitGateway, req *http.Request) jsonrpc.Response {
-	err := resolver.db.InsertGateway(params.GatewayAddress, params.Tx)
+	err := resolver.db.InsertGateway(params.Gateway, params.Tx)
 	if err != nil {
-		resolver.logger.Errorf("[responder] cannot insert gateway: %v :%v", params.GatewayAddress, err)
+		resolver.logger.Errorf("[responder] cannot insert gateway: %v :%v", params.Gateway, err)
 		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to query txid", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	}
@@ -183,9 +183,9 @@ func (resolver *Resolver) SubmitGateway(ctx context.Context, id interface{}, par
 
 // Custom rpc for fetching gateways by address
 func (resolver *Resolver) QueryGateway(ctx context.Context, id interface{}, params *ParamsQueryGateway, req *http.Request) jsonrpc.Response {
-	gateway, err := resolver.db.Gateway(params.GatewayAddress)
+	gateway, err := resolver.db.Gateway(params.Gateway)
 	if err != nil {
-		resolver.logger.Errorf("[responder] cannot get gateway for gatewayAddress: %v :%v", params.GatewayAddress, err)
+		resolver.logger.Errorf("[responder] cannot get gateway for gatewayAddress: %v :%v", params.Gateway, err)
 		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to query txid", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	}
