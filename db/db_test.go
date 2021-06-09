@@ -56,7 +56,7 @@ var _ = Describe("Lightnode db", func() {
 	}
 
 	cleanUp := func(db *sql.DB) {
-		dropTxs := "DROP TABLE IF EXISTS txs;"
+		dropTxs := "DROP TABLE IF EXISTS txs; DROP TABLE IF EXISTS gateways;"
 		_, err := db.Exec(dropTxs)
 		Expect(err).NotTo(HaveOccurred())
 	}
