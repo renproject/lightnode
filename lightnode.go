@@ -123,7 +123,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		}
 	}
 	verifier := resolver.NewVerifier(hostChains, verifierBindings)
-	resolverI := resolver.New(logger, cacher, multiStore, db, serverOptions, versionStore, bindings, verifier)
+	resolverI := resolver.New(logger, cacher, multiStore, db, serverOptions, versionStore, gpubkeyStore, bindings, verifier)
 	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewValidator(verifierBindings, options.DistPubKey, versionStore, gpubkeyStore, logger))
 	confirmer := confirmer.New(
 		confirmer.DefaultOptions().

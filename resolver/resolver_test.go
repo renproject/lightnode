@@ -111,7 +111,7 @@ var _ = Describe("Resolver", func() {
 		validator := NewValidator(bindings, (*id.PubKey)(pubkey), versionStore, gpubkeyStore, logger)
 
 		mockVerifier := mockVerifier{}
-		resolver := New(logger, cacher, multiaddrStore, database, jsonrpc.Options{}, versionStore, bindings, mockVerifier)
+		resolver := New(logger, cacher, multiaddrStore, database, jsonrpc.Options{}, versionStore, gpubkeyStore, bindings, mockVerifier)
 
 		return resolver, validator, client
 	}
