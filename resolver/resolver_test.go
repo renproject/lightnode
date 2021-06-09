@@ -12,27 +12,27 @@ import (
 	"os"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	"github.com/alicebob/miniredis/v2"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/go-redis/redis/v7"
-	_ "github.com/mattn/go-sqlite3"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"github.com/renproject/id"
-	v0 "github.com/renproject/lightnode/compat/v0"
-	. "github.com/renproject/lightnode/resolver"
-	"github.com/renproject/multichain"
-
 	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/tx/txutil"
+	"github.com/renproject/id"
 	"github.com/renproject/kv"
+	v0 "github.com/renproject/lightnode/compat/v0"
+	v1 "github.com/renproject/lightnode/compat/v1"
 	"github.com/renproject/lightnode/db"
+	. "github.com/renproject/lightnode/resolver"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
+	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
 )
@@ -99,7 +99,8 @@ var _ = Describe("Resolver", func() {
 		cacher := testutils.NewMockCacher()
 		go cacher.Run(ctx)
 
-		compatStore := v0.NewCompatStore(database, client)
+		versionStore := v0.NewCompatStore(database, client)
+		gpubkeyStore := v1.NewCompatStore(database, client)
 
 		pubkeyB, err := base64.URLEncoding.DecodeString("AiF7_2ykZmts2wzZKJ5D-J1scRM2Pm2jJ84W_K4PQaGl")
 		Expect(err).ShouldNot(HaveOccurred())
@@ -107,10 +108,10 @@ var _ = Describe("Resolver", func() {
 		pubkey, err := crypto.DecompressPubkey(pubkeyB)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		validator := NewValidator(bindings, (*id.PubKey)(pubkey), compatStore, logger)
+		validator := NewValidator(bindings, (*id.PubKey)(pubkey), versionStore, gpubkeyStore, logger)
 
 		mockVerifier := mockVerifier{}
-		resolver := New(logger, cacher, multiaddrStore, database, jsonrpc.Options{}, compatStore, bindings, mockVerifier)
+		resolver := New(logger, cacher, multiaddrStore, database, jsonrpc.Options{}, versionStore, bindings, mockVerifier)
 
 		return resolver, validator, client
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/cacher"
 	v0 "github.com/renproject/lightnode/compat/v0"
+	v1 "github.com/renproject/lightnode/compat/v1"
 	"github.com/renproject/lightnode/confirmer"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/dispatcher"
@@ -113,7 +114,8 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
 	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
 
-	compatStore := v0.NewCompatStore(db, client)
+	versionStore := v0.NewCompatStore(db, client)
+	gpubkeyStore := v1.NewCompatStore(db, client)
 	hostChains := map[multichain.Chain]bool{}
 	for _, selector := range options.Whitelist {
 		if selector.IsLock() && selector.IsMint() {
@@ -121,8 +123,8 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		}
 	}
 	verifier := resolver.NewVerifier(hostChains, verifierBindings)
-	resolverI := resolver.New(logger, cacher, multiStore, db, serverOptions, compatStore, bindings, verifier)
-	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewValidator(verifierBindings, options.DistPubKey, compatStore, logger))
+	resolverI := resolver.New(logger, cacher, multiStore, db, serverOptions, versionStore, bindings, verifier)
+	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewValidator(verifierBindings, options.DistPubKey, versionStore, gpubkeyStore, logger))
 	confirmer := confirmer.New(
 		confirmer.DefaultOptions().
 			WithLogger(logger).
@@ -155,7 +157,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 			}
 			burnLogFetcher := watcher.NewEthBurnLogFetcher(bindings)
 			blockHeightFetcher := watcher.NewEthBlockHeightFetcher(ethClients[chain])
-			watchers[chain][selector.Asset()] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, burnLogFetcher, blockHeightFetcher, resolverI, client, options.DistPubKey, options.WatcherPollRate, options.WatcherMaxBlockAdvance, options.WatcherConfidenceInterval)
+			watchers[chain][selector.Asset()] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, burnLogFetcher, blockHeightFetcher, resolverI, client, options.WatcherPollRate, options.WatcherMaxBlockAdvance, options.WatcherConfidenceInterval)
 			logger.Info("watching", selector)
 		}
 	}
@@ -174,7 +176,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 			watchers[chain] = map[multichain.Asset]watcher.Watcher{}
 		}
 		solanaFetcher := watcher.NewSolFetcher(solClient, string(bindings))
-		watchers[chain][selector.Asset()] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, solanaFetcher, solanaFetcher, resolverI, client, options.DistPubKey, options.WatcherPollRate, options.WatcherMaxBlockAdvance, options.WatcherConfidenceInterval)
+		watchers[chain][selector.Asset()] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, solanaFetcher, solanaFetcher, resolverI, client, options.WatcherPollRate, options.WatcherMaxBlockAdvance, options.WatcherConfidenceInterval)
 		logger.Info("watching ", selector)
 		logger.Info("at ", bindings)
 	}

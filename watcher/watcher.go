@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/btcsuite/btcd/btcec"
 	"github.com/btcsuite/btcd/chaincfg"
 	solanaSDK "github.com/dfuse-io/solana-go"
 	solanaRPC "github.com/dfuse-io/solana-go/rpc"
@@ -21,7 +20,6 @@ import (
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/bitcoin"
@@ -259,7 +257,6 @@ func (fetcher SolFetcher) FetchBlockHeight(ctx context.Context) (uint64, error) 
 type Watcher struct {
 	network            multichain.Network
 	logger             logrus.FieldLogger
-	gpubkey            pack.Bytes
 	selector           tx.Selector
 	bindings           binding.Bindings
 	burnLogFetcher     BurnLogFetcher
@@ -272,12 +269,10 @@ type Watcher struct {
 }
 
 // NewWatcher returns a new Watcher.
-func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector tx.Selector, bindings binding.Bindings, burnLogFetcher BurnLogFetcher, blockHeightFetcher BlockHeightFetcher, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey, pollInterval time.Duration, maxBlockAdvance uint64, confidenceInterval uint64) Watcher {
-	gpubkey := (*btcec.PublicKey)(distPubKey).SerializeCompressed()
+func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector tx.Selector, bindings binding.Bindings, burnLogFetcher BurnLogFetcher, blockHeightFetcher BlockHeightFetcher, resolver jsonrpc.Resolver, cache redis.Cmdable, pollInterval time.Duration, maxBlockAdvance uint64, confidenceInterval uint64) Watcher {
 	return Watcher{
 		logger:             logger,
 		network:            network,
-		gpubkey:            gpubkey,
 		selector:           selector,
 		bindings:           bindings,
 		burnLogFetcher:     burnLogFetcher,
@@ -371,7 +366,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		watcher.logger.Infof("[watcher] detected burn for %v  with nonce=%v", watcher.selector.String(), nonce)
 
 		// Send the burn transaction to the resolver.
-		params, err := watcher.burnToParams(burn.Txid, amount, to, nonce, watcher.gpubkey)
+		params, err := watcher.burnToParams(burn.Txid, amount, to, nonce)
 		if err != nil {
 			watcher.logger.Errorf("[watcher] cannot get params from burn transaction (to=%v, amount=%v, nonce=%v): %v", to, amount, nonce, err)
 			continue
@@ -414,7 +409,7 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, err
 }
 
 // burnToParams constructs params for a SubmitTx request with given ref.
-func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes []byte, nonce pack.Bytes32, gpubkey pack.Bytes) (jsonrpc.ParamsSubmitTx, error) {
+func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes []byte, nonce pack.Bytes32) (jsonrpc.ParamsSubmitTx, error) {
 	var version tx.Version
 	var to multichain.Address
 	var toDecoded []byte
@@ -446,7 +441,7 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes [
 		To:      pack.String(to),
 		Nonce:   nonce,
 		Nhash:   nhash,
-		Gpubkey: gpubkey,
+		Gpubkey: pack.Bytes{},
 		Ghash:   ghash,
 	})
 	if err != nil {
