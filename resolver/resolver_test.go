@@ -26,6 +26,7 @@ import (
 
 	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/binding"
+	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/tx/txutil"
@@ -271,7 +272,7 @@ var _ = Describe("Resolver", func() {
 		Expect(err).NotTo(HaveOccurred())
 		var raw json.RawMessage = paramRaw
 
-		resp = resolver.Fallback(ctx, nil, MethodQueryTxByTxid, raw, nil)
+		resp = resolver.Fallback(ctx, nil, MethodQueryTxsByTxid, raw, nil)
 
 		Expect(resp).ShouldNot(Equal(jsonrpc.Response{}))
 	})
@@ -390,5 +391,78 @@ var _ = Describe("Resolver", func() {
 		resp := resolver.SubmitTx(innerCtx, nil, &params, nil)
 
 		Expect(resp.Error).Should(BeZero())
+	})
+
+	It("should submit gateway txs", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, _ := init(ctx)
+		defer cleanup()
+
+		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+
+		mocktx := txutil.RandomGoodTx(r)
+		mocktx.Selector = tx.Selector("BTC/toEthereum")
+
+		input := engine.LockMintBurnReleaseInput{}
+		err := pack.Decode(&input, mocktx.Input)
+		Expect(err).NotTo(HaveOccurred())
+
+		script, err := engine.UTXOGatewayPubKeyScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
+
+		Expect(err).NotTo(HaveOccurred())
+
+		// Submit tx to ensure that it can be queried against
+		params := ParamsSubmitGateway{
+			Gateway: script.String(),
+			Tx:      mocktx,
+		}
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		resp := resolver.SubmitGateway(innerCtx, nil, &params, nil)
+
+		Expect(resp.Error).Should(BeZero())
+	})
+
+	It("should handle queryGateways", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, _ := init(ctx)
+		defer cleanup()
+
+		// Use a v1 burn tx, as it will be persisted
+		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+		mocktx := txutil.RandomGoodTx(r)
+		mocktx.Selector = tx.Selector("BTC/fromEthereum")
+
+		input := engine.LockMintBurnReleaseInput{}
+		err := pack.Decode(&input, mocktx.Input)
+		Expect(err).NotTo(HaveOccurred())
+
+		script, err := engine.UTXOGatewayPubKeyScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Submit tx to ensure that it can be queried against
+		params := ParamsSubmitGateway{
+			Gateway: script.String(),
+			Tx:      mocktx,
+		}
+
+		// Submit so that it gets persisted in db
+		resp := resolver.SubmitGateway(ctx, nil, &params, nil)
+
+		paramRaw, err := json.Marshal(&ParamsQueryGateway{
+			Gateway: script.String(),
+		})
+		Expect(err).NotTo(HaveOccurred())
+		var raw json.RawMessage = paramRaw
+
+		resp = resolver.Fallback(ctx, nil, MethodQueryGateway, raw, nil)
+
+		Expect(resp).ShouldNot(Equal(jsonrpc.Response{}))
 	})
 })

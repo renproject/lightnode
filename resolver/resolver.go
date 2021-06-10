@@ -109,10 +109,9 @@ func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *
 }
 
 const (
-	MethodQueryTxByTxid = "ren_queryTxByTxid"
-	MethodSubmitGateway = "ren_submitGateway"
-	MethodQueryGateway  = "ren_queryGateway"
-	MethodQueryGateways = "ren_queryGateways"
+	MethodQueryTxsByTxid = "ren_queryTxsByTxid"
+	MethodSubmitGateway  = "ren_submitGateway"
+	MethodQueryGateway   = "ren_queryGateway"
 )
 
 type ParamsQueryTxByTxid struct {
@@ -150,18 +149,7 @@ func (resolver *Resolver) Fallback(ctx context.Context, id interface{}, method s
 			})
 		}
 		return resolver.QueryGateway(ctx, id, &parsedParams, req)
-		// TODO: do we need this? Can see it being abused somewhat
-	// case MethodQueryGateways:
-	// 	var parsedParams ParamsSubmitGateway
-	// 	err := json.Unmarshal(params.(json.RawMessage), &parsedParams)
-	// 	if err != nil {
-	// 		return jsonrpc.NewResponse(id, nil, &jsonrpc.Error{
-	// 			Code:    jsonrpc.ErrorCodeInvalidParams,
-	// 			Message: fmt.Sprintf("invalid params: %v", err),
-	// 		})
-	// 	}
-	// 	return resolver.SubmitGateway(ctx, id, &parsedParams, req)
-	case MethodQueryTxByTxid:
+	case MethodQueryTxsByTxid:
 		var parsedParams ParamsQueryTxByTxid
 		err := json.Unmarshal(params.(json.RawMessage), &parsedParams)
 		if err != nil {
