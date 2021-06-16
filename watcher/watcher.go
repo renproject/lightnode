@@ -166,7 +166,7 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 				return
 			}
 
-			// Fetch account data at gateway registry's state
+			// Fetch account data at gateway's state
 			accountInfo, err := fetcher.client.GetAccountInfo(ctx, programPubk)
 			if err != nil {
 				resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log data for burn: %v err: %v", i, err)}
@@ -174,13 +174,14 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 			}
 			data := accountInfo.Value.Data
 
-			if len(data) != 41 {
-				resultChan <- BurnLogResult{Error: fmt.Errorf("deserializing burn log data: expected data len 41, got %v", len(data))}
+			if len(data) != 65 {
+				resultChan <- BurnLogResult{Error: fmt.Errorf("deserializing burn log data: expected data len 65, got %v", len(data))}
 				return
 			}
-			amount := binary.LittleEndian.Uint64(data[:8])
-			recipientLen := uint8(data[8:9][0])
-			recipient := multichain.RawAddress(data[9 : 9+int(recipientLen)])
+			amount := [32]byte{}
+			copy(amount[:], data[0:32])
+			recipientLen := uint8(data[32:33][0])
+			recipient := multichain.RawAddress(data[33 : 33+int(recipientLen)])
 
 			signatures, err := fetcher.client.GetConfirmedSignaturesForAddress2(ctx, programPubk, &solanaRPC.GetConfirmedSignaturesForAddress2Opts{})
 			if err != nil {
@@ -195,7 +196,7 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 
 			result := BurnInfo{
 				Txid:        base58.Decode(signatures[0].Signature),
-				Amount:      pack.NewU256FromUint64(amount),
+				Amount:      pack.NewU256(amount),
 				ToBytes:     recipient[:],
 				Nonce:       nonceBytes,
 				BlockNumber: pack.NewU64(i),
