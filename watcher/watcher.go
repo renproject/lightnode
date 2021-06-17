@@ -26,6 +26,8 @@ import (
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/bitcoin"
 	"github.com/renproject/multichain/chain/bitcoincash"
+	"github.com/renproject/multichain/chain/digibyte"
+	"github.com/renproject/multichain/chain/dogecoin"
 	"github.com/renproject/multichain/chain/filecoin"
 	"github.com/renproject/multichain/chain/solana"
 	"github.com/renproject/multichain/chain/terra"
@@ -519,10 +521,10 @@ func (watcher Watcher) handleAssetAddrSolana(toBytes []byte) (tx.Version, multic
 func AddressEncodeDecoder(chain multichain.Chain, network multichain.Network) multichain.AddressEncodeDecoder {
 	switch chain {
 	case multichain.Bitcoin, multichain.DigiByte, multichain.Dogecoin:
-		params := NetParams(network, chain)
+		params := NetParams(chain, network)
 		return bitcoin.NewAddressEncodeDecoder(params)
 	case multichain.BitcoinCash:
-		params := NetParams(network, chain)
+		params := NetParams(chain, network)
 		return bitcoincash.NewAddressEncodeDecoder(params)
 	case multichain.Filecoin:
 		return filecoin.NewAddressEncodeDecoder()
@@ -547,16 +549,34 @@ func ZcashNetParams(network multichain.Network) *zcash.Params {
 	}
 }
 
-func NetParams(network multichain.Network, chain multichain.Chain) *chaincfg.Params {
+func NetParams(chain multichain.Chain, net multichain.Network) *chaincfg.Params {
 	switch chain {
-	case multichain.Bitcoin, multichain.BitcoinCash, multichain.DigiByte, multichain.Dogecoin:
-		switch network {
-		case multichain.NetworkMainnet:
-			return &chaincfg.MainNetParams
+	case multichain.Bitcoin, multichain.BitcoinCash:
+		switch net {
 		case multichain.NetworkDevnet, multichain.NetworkTestnet:
 			return &chaincfg.TestNet3Params
+		case multichain.NetworkMainnet:
+			return &chaincfg.MainNetParams
 		default:
 			return &chaincfg.RegressionNetParams
+		}
+	case multichain.DigiByte:
+		switch net {
+		case multichain.NetworkDevnet, multichain.NetworkTestnet:
+			return &digibyte.TestnetParams
+		case multichain.NetworkMainnet:
+			return &digibyte.MainNetParams
+		default:
+			return &digibyte.RegressionNetParams
+		}
+	case multichain.Dogecoin:
+		switch net {
+		case multichain.NetworkDevnet, multichain.NetworkTestnet:
+			return &dogecoin.TestNetParams
+		case multichain.NetworkMainnet:
+			return &dogecoin.MainNetParams
+		default:
+			return &dogecoin.RegressionNetParams
 		}
 	default:
 		panic(fmt.Errorf("cannot get network params: unknown chain %v", chain))
