@@ -26,7 +26,9 @@ import (
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/bitcoin"
 	"github.com/renproject/multichain/chain/bitcoincash"
+	"github.com/renproject/multichain/chain/filecoin"
 	"github.com/renproject/multichain/chain/solana"
+	"github.com/renproject/multichain/chain/terra"
 	"github.com/renproject/multichain/chain/zcash"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
@@ -522,6 +524,10 @@ func AddressEncodeDecoder(chain multichain.Chain, network multichain.Network) mu
 	case multichain.BitcoinCash:
 		params := NetParams(network, chain)
 		return bitcoincash.NewAddressEncodeDecoder(params)
+	case multichain.Filecoin:
+		return filecoin.NewAddressEncodeDecoder()
+	case multichain.Terra:
+		return terra.NewAddressEncodeDecoder()
 	case multichain.Zcash:
 		params := ZcashNetParams(network)
 		return zcash.NewAddressEncodeDecoder(params)
