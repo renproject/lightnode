@@ -641,13 +641,16 @@ var _ = Describe("Watcher", func() {
 			}}))
 		})
 
-		It("should encode and decode addresses", func() {
+		FIt("should encode and decode addresses", func() {
 			validTestnetAddrs := []multichain.Address{
 				"miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6",
 				"bchtest:qq0j3wgesd5de3tuhkka25yjh2xselqvmvpxvx7863",
 				"t28Tc2BUTHifXthexsohy89umGdqMWLSUqw",
+				"nXYwuk6dEF3Sm3jPgWjxz8brY6ArSzjvqz",
+				"t14wczuvodunv3xzexobzywpbj6qpr6jwdrbkrmbq",
+				"terra1ru5tjxvrdrwv2l9a4h24py4635x0crxmehw5hh",
 			}
-			chains := []multichain.Chain{multichain.Bitcoin, multichain.BitcoinCash, multichain.Zcash}
+			chains := []multichain.Chain{multichain.Bitcoin, multichain.BitcoinCash, multichain.Zcash, multichain.Dogecoin, multichain.Filecoin, multichain.Terra}
 			networks := []multichain.Network{multichain.NetworkDevnet, multichain.NetworkMainnet, multichain.NetworkLocalnet}
 			for i := range chains {
 				for j := range networks {
