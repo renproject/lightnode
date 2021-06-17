@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -16,18 +15,18 @@ import (
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/binding"
+	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/darknode/tx"
 	"github.com/renproject/id"
 	"github.com/renproject/lightnode"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
+	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
 )
 
@@ -55,7 +54,7 @@ func main() {
 
 	ctx := context.Background()
 
-	// Fetch and apply the first successfull exposed config from bootstrap nodes
+	// Fetch and apply the first successfully exposed config from bootstrap nodes
 	conf, err := getConfigFromBootstrap(ctx, logger, options.BootstrapAddrs)
 	if err != nil {
 		logger.Fatalf("failed to fetch config from any bootstrap node")
@@ -68,8 +67,19 @@ func main() {
 		options.Chains[chain] = chainOpt
 	}
 
+	// Fetch block state from first bootstrap node and use the public key
+	state, err := fetchBlockState(context.Background(), addrToUrl(options.BootstrapAddrs[0], logger), logger, time.Minute)
+	if err != nil {
+		logger.Fatalf("failed to fetch block state from bootstrap node")
+	}
+	pub, err := parsePubkey(state)
+	if err != nil {
+		logger.Fatalf("failed to parse public key from block state")
+	}
+	options = options.WithDistPubKey(&pub)
+
 	// Run Lightnode.
-	node := lightnode.New(options, ctx, logger, sqlDB, client)
+	node := lightnode.New(options, ctx, logger, sqlDB, client.Conn())
 	node.Run(ctx)
 }
 
@@ -105,7 +115,7 @@ func fetchConfig(ctx context.Context, url string, logger logrus.FieldLogger, tim
 	var resp jsonrpc.ResponseQueryConfig
 	params, err := json.Marshal(jsonrpc.ParamsQueryConfig{})
 	if err != nil {
-		logger.Errorf("[config] cannot marshal query peers params: %v", err)
+		logger.Errorf("[config] cannot marshal query config params: %v", err)
 		return resp, err
 	}
 	client := http.NewClient(timeout)
@@ -135,6 +145,63 @@ func fetchConfig(ctx context.Context, url string, logger logrus.FieldLogger, tim
 	}
 
 	return resp, nil
+}
+
+func fetchBlockState(ctx context.Context, url string, logger logrus.FieldLogger, timeout time.Duration) (jsonrpc.ResponseQueryBlockState, error) {
+	var resp jsonrpc.ResponseQueryBlockState
+	params, err := json.Marshal(jsonrpc.ParamsQueryBlockState{})
+	if err != nil {
+		logger.Errorf("[config] cannot marshal query block state params: %v", err)
+		return resp, err
+	}
+	client := http.NewClient(timeout)
+
+	request := jsonrpc.Request{
+		Version: "2.0",
+		ID:      rand.Int31(),
+		Method:  jsonrpc.MethodQueryBlockState,
+		Params:  params,
+	}
+
+	response, err := client.SendRequest(ctx, url, request, nil)
+	if err != nil {
+		logger.Errorf("[config] error calling queryConfig: %v", err)
+		return resp, err
+	}
+
+	raw, err := json.Marshal(response.Result)
+	if err != nil {
+		logger.Errorf("[config] error marshaling queryConfig result: %v", err)
+		return resp, err
+	}
+
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		logger.Warnf("[config] cannot unmarshal queryConfig result from %v: %v", url, err)
+		return resp, err
+	}
+
+	return resp, nil
+}
+
+func parsePubkey(response jsonrpc.ResponseQueryBlockState) (id.PubKey, error) {
+	systemContract := response.State.Get("System")
+	if systemContract == nil {
+		return id.PubKey{}, fmt.Errorf("system contract is nil")
+	}
+
+	var state engine.SystemState
+	if err := pack.Decode(&state, systemContract); err != nil {
+		return id.PubKey{}, err
+	}
+	if len(state.Shards.Primary) < 1 {
+		return id.PubKey{}, fmt.Errorf("nil primary shard")
+	}
+	shard := state.Shards.Primary[0]
+	var pub id.PubKey
+	if err := surge.FromBinary(&pub, shard.PubKey); err != nil {
+		return id.PubKey{}, err
+	}
+	return pub, nil
 }
 
 func initLogger(name string, network multichain.Network) logrus.FieldLogger {
@@ -175,8 +242,7 @@ func initRedis() *redis.Client {
 
 func parseOptions() lightnode.Options {
 	options := lightnode.DefaultOptions().
-		WithNetwork(parseNetwork("HEROKU_APP_NAME")).
-		WithDistPubKey(parsePubKey("PUB_KEY"))
+		WithNetwork(parseNetwork("HEROKU_APP_NAME"))
 
 	// We only want to override the default options if the environment variable
 	// has been specified.
@@ -344,26 +410,4 @@ func parseAddresses(name string) []wire.Address {
 		addrs[i] = addr
 	}
 	return addrs
-}
-
-func parsePubKey(name string) *id.PubKey {
-	pubKeyString := os.Getenv(name)
-	keyBytes, err := hex.DecodeString(pubKeyString)
-	if err != nil {
-		panic(fmt.Sprintf("invalid distributed public key %v: %v", pubKeyString, err))
-	}
-	key, err := crypto.DecompressPubkey(keyBytes)
-	if err != nil {
-		panic(fmt.Sprintf("invalid distributed public key %v: %v", pubKeyString, err))
-	}
-	return (*id.PubKey)(key)
-}
-
-func parseWhitelist(name string) []tx.Selector {
-	whitelistStrings := strings.Split(os.Getenv(name), ",")
-	whitelist := make([]tx.Selector, len(whitelistStrings))
-	for i := range whitelist {
-		whitelist[i] = tx.Selector(whitelistStrings[i])
-	}
-	return whitelist
 }
