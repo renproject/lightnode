@@ -660,15 +660,10 @@ var _ = Describe("Watcher", func() {
 					// If network is mainnet, fail to decode addresses
 					// otherwise pass
 					if networks[j] == multichain.NetworkMainnet && chains[i].IsUTXOBased() {
+						// TODO: Test mainnet addresses for UTXO chains.
 						Expect(err).To(HaveOccurred())
 					} else {
-						if i == 1 && j == 2 {
-							// bcash has a different format for Localnet and Devnet
-							// so it should fail when network is localnet, but pass when it is Devnet
-							Expect(err).To(HaveOccurred())
-						} else {
-							Expect(err).NotTo(HaveOccurred())
-						}
+						Expect(err).NotTo(HaveOccurred())
 					}
 				}
 			}
