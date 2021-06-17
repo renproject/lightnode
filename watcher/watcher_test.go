@@ -645,26 +645,25 @@ var _ = Describe("Watcher", func() {
 			validTestnetAddrs := []multichain.Address{
 				"miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6",
 				"bchtest:qq0j3wgesd5de3tuhkka25yjh2xselqvmvpxvx7863",
+				"t5d726GyG6Ejzu4nansAxgLY4VR5bMwDFD",
+				"nXYwuk6dEF3Sm3jPgWjxz8brY6ArSzjvqz",
+				"t14wczuvodunv3xzexobzywpbj6qpr6jwdrbkrmbq",
+				"terra1ru5tjxvrdrwv2l9a4h24py4635x0crxmehw5hh",
 				"t28Tc2BUTHifXthexsohy89umGdqMWLSUqw",
 			}
-			chains := []multichain.Chain{multichain.Bitcoin, multichain.BitcoinCash, multichain.Zcash}
-			networks := []multichain.Network{multichain.NetworkDevnet, multichain.NetworkMainnet, multichain.NetworkLocalnet}
+			chains := []multichain.Chain{multichain.Bitcoin, multichain.BitcoinCash, multichain.DigiByte, multichain.Dogecoin, multichain.Filecoin, multichain.Terra, multichain.Zcash}
+			networks := []multichain.Network{multichain.NetworkTestnet, multichain.NetworkMainnet}
 			for i := range chains {
 				for j := range networks {
 					decoder := AddressEncodeDecoder(chains[i], networks[j])
 					_, err := decoder.DecodeAddress(validTestnetAddrs[i])
 					// If network is mainnet, fail to decode addresses
 					// otherwise pass
-					if j == 1 {
+					if networks[j] == multichain.NetworkMainnet && chains[i].IsUTXOBased() {
+						// TODO: Test mainnet addresses for UTXO chains.
 						Expect(err).To(HaveOccurred())
 					} else {
-						if i == 1 && j == 2 {
-							// bcash has a different format for Localnet and Devnet
-							// so it should fail when network is localnet, but pass when it is Devnet
-							Expect(err).To(HaveOccurred())
-						} else {
-							Expect(err).NotTo(HaveOccurred())
-						}
+						Expect(err).NotTo(HaveOccurred())
 					}
 				}
 			}
