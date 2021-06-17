@@ -548,12 +548,17 @@ func ZcashNetParams(network multichain.Network) *zcash.Params {
 }
 
 func NetParams(network multichain.Network, chain multichain.Chain) *chaincfg.Params {
-	switch network {
-	case multichain.NetworkMainnet:
-		return &chaincfg.MainNetParams
-	case multichain.NetworkDevnet, multichain.NetworkTestnet:
-		return &chaincfg.TestNet3Params
+	switch chain {
+	case multichain.Bitcoin, multichain.BitcoinCash, multichain.DigiByte, multichain.Dogecoin:
+		switch network {
+		case multichain.NetworkMainnet:
+			return &chaincfg.MainNetParams
+		case multichain.NetworkDevnet, multichain.NetworkTestnet:
+			return &chaincfg.TestNet3Params
+		default:
+			return &chaincfg.RegressionNetParams
+		}
 	default:
-		return &chaincfg.RegressionNetParams
+		panic(fmt.Errorf("cannot get network params: unknown chain %v", chain))
 	}
 }
