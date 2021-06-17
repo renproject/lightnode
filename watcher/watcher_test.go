@@ -641,7 +641,7 @@ var _ = Describe("Watcher", func() {
 			}}))
 		})
 
-		FIt("should encode and decode addresses", func() {
+		It("should encode and decode addresses", func() {
 			validTestnetAddrs := []multichain.Address{
 				"miMi2VET41YV1j6SDNTeZoPBbmH8B4nEx6",
 				"bchtest:qq0j3wgesd5de3tuhkka25yjh2xselqvmvpxvx7863",
