@@ -163,7 +163,7 @@ func (resolver *Resolver) Fallback(ctx context.Context, id interface{}, method s
 	return jsonrpc.NewResponse(id, nil, nil)
 }
 
-func (resolver *Resolver) validateGateway(gateway string, tx tx.Tx, input engine.LockMintBurnReleaseInput) error {
+func (resolver *Resolver) validateGateway(gateway string, tx tx.Tx, input PartialLockMintBurnReleaseInput) error {
 	if tx.Selector.IsBurn() {
 		return fmt.Errorf("Cannot store gateways for burn txes")
 	}
@@ -205,10 +205,22 @@ func (resolver *Resolver) validateGateway(gateway string, tx tx.Tx, input engine
 	return nil
 }
 
+// PartialLockMintBurnReleaseInput is a subset of engine.LockMintBurnReleaseInput
+// that is required to generate a gateway address
+type PartialLockMintBurnReleaseInput struct {
+	Payload pack.Bytes   `json:"payload"`
+	Phash   pack.Bytes32 `json:"phash"`
+	To      pack.String  `json:"to"`
+	Nonce   pack.Bytes32 `json:"nonce"`
+	Nhash   pack.Bytes32 `json:"nhash"`
+	Gpubkey pack.Bytes   `json:"gpubkey"`
+	Ghash   pack.Bytes32 `json:"ghash"`
+}
+
 // Custom rpc for storing gateway information
 // NOTE: should be heavily rate-limited
 func (resolver *Resolver) SubmitGateway(ctx context.Context, id interface{}, params *ParamsSubmitGateway, req *http.Request) jsonrpc.Response {
-	input := engine.LockMintBurnReleaseInput{}
+	input := PartialLockMintBurnReleaseInput{}
 	err := pack.Decode(&input, params.Tx.Input)
 	if err != nil {
 		resolver.logger.Errorf("[responder] failed decode gateway information: %v :%v", params.Gateway, err)
@@ -226,7 +238,7 @@ func (resolver *Resolver) SubmitGateway(ctx context.Context, id interface{}, par
 	err = resolver.db.InsertGateway(params.Gateway, params.Tx)
 	if err != nil {
 		resolver.logger.Errorf("[responder] cannot insert gateway: %v :%v", params.Gateway, err)
-		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to query txid", nil)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to insert gateway", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	}
 
