@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/jsonrpc"
@@ -37,17 +38,44 @@ func NewValidator(bindings binding.Bindings, pubkey *id.PubKey, store v0.CompatS
 // The validator usually checks if the params are in the correct shape for a given method
 // We override the checker for certain methods here to cast invalid v0 params into v1 versions
 func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *http.Request, req jsonrpc.Request) (interface{}, jsonrpc.Response) {
+	// We rate limit in the validator, as it is the earliest entry point we can hook into
+	// for range
 	ipString := r.Header.Get("x-forwarded-for")
 	if ipString == "" {
 		ipString = r.RemoteAddr
+	} else if ipStrings := strings.Split(ipString, ","); len(ipStrings) > 0 {
+		ipString = ipStrings[len(ipStrings)-1]
+		// if there is a trailling comma, or the x-forwarded-for header is malformed,
+		// skip parsing
+		if ipString == "" {
+			return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidRequest,
+				Message: fmt.Sprintf("could not determine ip for %v", strings.Join(ipStrings, ",")),
+			})
+		}
 	}
 	ip := net.ParseIP(ipString)
+	// If we fail to parse a "plain" ip, we check if it is in host:port format
+	// This can't be done in an easy split manner due to ipv6.
+	// We also skip requiring an ip if we haven't picked up a string yet to
+	// allow for testing, as we should always have a value from r.RemoteAddr
+	// in an actual server
+	if ip == nil && ipString != "" {
+		ip2, _, err := net.SplitHostPort(ipString)
+		ip = net.ParseIP(ip2)
+		if err != nil {
+			return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidRequest,
+				Message: fmt.Sprintf("could not determine ip for %v", ipString),
+			})
+		}
+	}
 
 	if !(validator.limiter.Allow(req.Method, net.IP(ip))) {
 		validator.logger.Warn("Rate limit exceeded for ip:", ipString)
 		return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
 			Code:    jsonrpc.ErrorCodeInvalidRequest,
-			Message: fmt.Sprintf("rate limit exceeded"),
+			Message: fmt.Sprintf("rate limit exceeded for %v", ipString),
 		})
 	}
 

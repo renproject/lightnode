@@ -507,4 +507,103 @@ var _ = Describe("Resolver", func() {
 
 		Expect(resp).ShouldNot(Equal(jsonrpc.Response{}))
 	})
+
+	It("should rate limit", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, validator, _ := init(ctx)
+		defer cleanup()
+
+		params := testutils.MockBurnParamSubmitTxV0BTC()
+		paramsJSON, err := json.Marshal(params)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(params).ShouldNot(Equal([]byte{}))
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		ipString := "127.0.0.1"
+
+		httpRequest := &http.Request{
+			Header:     map[string][]string{},
+			RemoteAddr: ipString,
+		}
+
+		req, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
+			Version: "2.0",
+			ID:      nil,
+			Method:  jsonrpc.MethodSubmitTx,
+			Params:  paramsJSON,
+		})
+		// Response will only exist for errors
+		Expect(resp).Should(Equal(jsonrpc.Response{}))
+		Expect((req).(*jsonrpc.ParamsSubmitTx).Tx.Hash).ShouldNot(BeEmpty())
+
+		Eventually(func() jsonrpc.Response {
+			_, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
+				Version: "2.0",
+				ID:      nil,
+				Method:  jsonrpc.MethodSubmitTx,
+				Params:  paramsJSON,
+			})
+			return resp
+		}).Should(Equal(
+			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidRequest,
+				Message: fmt.Sprintf("rate limit exceeded for %v", ipString),
+			}),
+		))
+
+		ipString = "8.8.8.8"
+		httpRequest.Header.Add("x-forwarded-for", ipString)
+		Eventually(func() jsonrpc.Response {
+			_, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
+				Version: "2.0",
+				ID:      nil,
+				Method:  jsonrpc.MethodSubmitTx,
+				Params:  paramsJSON,
+			})
+			return resp
+		}).Should(Equal(
+			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidRequest,
+				Message: fmt.Sprintf("rate limit exceeded for %v", ipString),
+			}),
+		))
+
+		ipString = "1.1.1.1,9.9.9.9"
+		httpRequest.Header.Set("x-forwarded-for", ipString)
+		Eventually(func() jsonrpc.Response {
+			_, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
+				Version: "2.0",
+				ID:      nil,
+				Method:  jsonrpc.MethodSubmitTx,
+				Params:  paramsJSON,
+			})
+			return resp
+		}).Should(Equal(
+			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidRequest,
+				Message: fmt.Sprintf("rate limit exceeded for %v", "9.9.9.9"),
+			}),
+		))
+
+		ipString = "1.1.1.1,9.9.9.9,,,"
+		httpRequest.Header.Set("x-forwarded-for", ipString)
+		Eventually(func() jsonrpc.Response {
+			_, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
+				Version: "2.0",
+				ID:      nil,
+				Method:  jsonrpc.MethodSubmitTx,
+				Params:  paramsJSON,
+			})
+			return resp
+		}).Should(Equal(
+			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidRequest,
+				Message: fmt.Sprintf("could not determine ip for %v", ipString),
+			}),
+		))
+	})
 })
