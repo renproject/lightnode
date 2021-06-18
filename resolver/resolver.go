@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/btcsuite/btcutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	"github.com/renproject/darknode/binding"
@@ -22,7 +23,9 @@ import (
 	"github.com/renproject/lightnode/db"
 	lhttp "github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
+	"github.com/renproject/lightnode/watcher"
 	"github.com/renproject/multichain"
+	"github.com/renproject/multichain/chain/zcash"
 	"github.com/renproject/pack"
 	"github.com/renproject/phi"
 	"github.com/renproject/surge"
@@ -30,6 +33,7 @@ import (
 )
 
 type Resolver struct {
+	network           multichain.Network
 	logger            logrus.FieldLogger
 	txCheckerRequests chan lhttp.RequestWithResponder
 	multiStore        store.MultiAddrStore
@@ -40,13 +44,14 @@ type Resolver struct {
 	bindings          binding.Bindings
 }
 
-func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, db db.DB,
+func New(network multichain.Network, logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, db db.DB,
 	serverOptions jsonrpc.Options, compatStore v0.CompatStore, bindings binding.Bindings, verifier Verifier) *Resolver {
 	requests := make(chan lhttp.RequestWithResponder, 128)
 	txChecker := newTxChecker(logger, requests, verifier, db)
 	go txChecker.Run()
 
 	return &Resolver{
+		network:           network,
 		logger:            logger,
 		txCheckerRequests: requests,
 		multiStore:        multiStore,
@@ -169,12 +174,28 @@ func (resolver *Resolver) validateGateway(gateway string, tx tx.Tx, input Partia
 	}
 
 	if tx.Selector.Asset().OriginChain().IsUTXOBased() {
-		script, err := engine.UTXOGatewayPubKeyScript(tx.Selector.Asset().OriginChain(), tx.Selector.Asset(), input.Gpubkey, input.Ghash)
+		script, err := engine.UTXOGatewayScript(tx.Selector.Asset().OriginChain(), tx.Selector.Asset(), input.Gpubkey, input.Ghash)
 		if err != nil {
 			return fmt.Errorf("unable to determine script for UTXO lock: %v", err)
 		}
-		if script.String() != gateway {
-			return fmt.Errorf("gateway address mismatch: %v != %v", script.String(), gateway)
+
+		scriptAddressStr := ""
+		if tx.Selector.Asset().OriginChain() == multichain.Zcash {
+			scriptAddress, err := zcash.NewAddressScriptHash(script, watcher.ZcashNetParams(resolver.network))
+			if err != nil {
+				return fmt.Errorf("unable to generate zcash address for UTXOGatewayScript: %v", err)
+			}
+			scriptAddressStr = scriptAddress.EncodeAddress()
+		} else {
+			scriptAddress, err := btcutil.NewAddressScriptHash(script, watcher.NetParams(tx.Selector.Asset().OriginChain(), resolver.network))
+			if err != nil {
+				return fmt.Errorf("unable to generate address for UTXOGatewayScript: %v", err)
+			}
+			scriptAddressStr = scriptAddress.EncodeAddress()
+		}
+
+		if scriptAddressStr != gateway {
+			return fmt.Errorf("gateway address mismatch: %v != %v", scriptAddressStr, gateway)
 		}
 	}
 

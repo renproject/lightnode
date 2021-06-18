@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/btcsuite/btcutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/go-redis/redis/v7"
 	_ "github.com/mattn/go-sqlite3"
@@ -22,7 +23,9 @@ import (
 	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	. "github.com/renproject/lightnode/resolver"
+	"github.com/renproject/lightnode/watcher"
 	"github.com/renproject/multichain"
+	"github.com/renproject/multichain/chain/zcash"
 
 	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/binding"
@@ -112,7 +115,7 @@ var _ = Describe("Resolver", func() {
 		validator := NewValidator(bindings, (*id.PubKey)(pubkey), compatStore, &limiter, logger)
 
 		mockVerifier := mockVerifier{}
-		resolver := New(logger, cacher, multiaddrStore, database, jsonrpc.Options{}, compatStore, bindings, mockVerifier)
+		resolver := New(multichain.NetworkTestnet, logger, cacher, multiaddrStore, database, jsonrpc.Options{}, compatStore, bindings, mockVerifier)
 
 		return resolver, validator, client
 	}
@@ -393,7 +396,7 @@ var _ = Describe("Resolver", func() {
 		Expect(resp.Error).Should(BeZero())
 	})
 
-	It("should submit gateway txs", func() {
+	It("should submit gateway txs for btc", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -409,13 +412,52 @@ var _ = Describe("Resolver", func() {
 		err := pack.Decode(&input, mocktx.Input)
 		Expect(err).NotTo(HaveOccurred())
 
-		script, err := engine.UTXOGatewayPubKeyScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
+		script, err := engine.UTXOGatewayScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
 
+		Expect(err).NotTo(HaveOccurred())
+
+		scriptAddress, err := btcutil.NewAddressScriptHash(script, watcher.NetParams(mocktx.Selector.Asset().OriginChain(), multichain.NetworkTestnet))
 		Expect(err).NotTo(HaveOccurred())
 
 		// Submit tx to ensure that it can be queried against
 		params := ParamsSubmitGateway{
-			Gateway: script.String(),
+			Gateway: scriptAddress.EncodeAddress(),
+			Tx:      mocktx,
+		}
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		resp := resolver.SubmitGateway(innerCtx, nil, &params, nil)
+
+		Expect(resp.Error).Should(BeZero())
+	})
+
+	It("should submit gateway txs for zec", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, _ := init(ctx)
+		defer cleanup()
+
+		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+
+		mocktx := txutil.RandomGoodTx(r)
+		mocktx.Selector = tx.Selector("ZEC/toEthereum")
+
+		input := engine.LockMintBurnReleaseInput{}
+		err := pack.Decode(&input, mocktx.Input)
+		Expect(err).NotTo(HaveOccurred())
+
+		script, err := engine.UTXOGatewayScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
+		Expect(err).NotTo(HaveOccurred())
+
+		scriptAddress, err := zcash.NewAddressScriptHash(script, watcher.ZcashNetParams(multichain.NetworkTestnet))
+		Expect(err).NotTo(HaveOccurred())
+
+		// Submit tx to ensure that it can be queried against
+		params := ParamsSubmitGateway{
+			Gateway: scriptAddress.EncodeAddress(),
 			Tx:      mocktx,
 		}
 
