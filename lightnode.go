@@ -20,7 +20,6 @@ import (
 	"github.com/renproject/lightnode/updater"
 	"github.com/renproject/lightnode/watcher"
 	"github.com/renproject/multichain"
-	"github.com/renproject/pack"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 
@@ -83,7 +82,6 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	bindingsOpts := binding.DefaultOptions().
 		WithNetwork(options.Network)
 	for chain, chainOpts := range options.Chains {
-		chainOpts.MaxConfirmations = pack.MaxU64 // TODO: Eventually we will want to fetch this from the Darknode.
 		bindingsOpts = bindingsOpts.WithChainOptions(chain, chainOpts)
 	}
 	bindings := binding.New(bindingsOpts)
@@ -100,7 +98,6 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		WithNetwork(options.Network)
 	for chain, chainOpts := range options.Chains {
 		chainOpts.Confirmations = 0
-		chainOpts.MaxConfirmations = pack.MaxU64 // TODO: Eventually we will want to fetch this from the Darknode.
 		verifierBindingsOpts = verifierBindingsOpts.WithChainOptions(chain, chainOpts)
 	}
 	verifierBindings := binding.New(verifierBindingsOpts)

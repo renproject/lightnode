@@ -64,6 +64,7 @@ func main() {
 
 	for chain, chainOpt := range options.Chains {
 		chainOpt.Confirmations = conf.Confirmations[chain]
+		chainOpt.MaxConfirmations = conf.MaxConfirmations[chain]
 		options.Chains[chain] = chainOpt
 	}
 
