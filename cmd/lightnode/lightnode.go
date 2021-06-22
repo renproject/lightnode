@@ -193,6 +193,9 @@ func parseOptions() lightnode.Options {
 	if os.Getenv("MAX_PAGE_SIZE") != "" {
 		options = options.WithMaxBatchSize(parseInt("MAX_PAGE_SIZE"))
 	}
+	if os.Getenv("MAX_GATEWAY_COUNT") != "" {
+		options = options.WithMaxGatewayCount(parseInt("MAX_GATEWAY_COUNT"))
+	}
 	if os.Getenv("SERVER_TIMEOUT") != "" {
 		options = options.WithServerTimeout(parseTime("SERVER_TIMEOUT"))
 	}

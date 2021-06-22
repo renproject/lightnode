@@ -83,7 +83,7 @@ var _ = Describe("Compat V0", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		sqlDB, err := sql.Open("sqlite3", "./test.db")
-		database := db.New(sqlDB)
+		database := db.New(sqlDB, 0)
 		store := v0.NewCompatStore(database, client)
 
 		return store, client, bindings, (*id.PubKey)(pubkey)
