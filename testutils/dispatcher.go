@@ -9,11 +9,12 @@ import (
 )
 
 type MockDispatcher struct {
+	Fail bool
 }
 
-func NewMockDispatcher() phi.Task {
+func NewMockDispatcher(fail bool) phi.Task {
 	return phi.New(
-		&MockDispatcher{},
+		&MockDispatcher{Fail: fail},
 		phi.Options{
 			Cap: 128,
 		},
@@ -25,6 +26,10 @@ func (dispatcher *MockDispatcher) Handle(_ phi.Task, message phi.Message) {
 	msg, ok := message.(http.RequestWithResponder)
 	if !ok {
 		panic(fmt.Errorf("unexpected message type %T", message))
+	}
+
+	if dispatcher.Fail {
+		msg.RespondWithErr(1, fmt.Errorf("set to fail"))
 	}
 
 	msg.Responder <- jsonrpc.Response{}

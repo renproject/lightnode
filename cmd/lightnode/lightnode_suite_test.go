@@ -1,4 +1,4 @@
-package submitter_test
+package main
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestSubmitter(t *testing.T) {
+func TestWatcher(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Submitter Suite")
+	RunSpecs(t, "Lightnode CLI Suite")
 }

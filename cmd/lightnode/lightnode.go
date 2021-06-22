@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/url"
@@ -15,13 +15,20 @@ import (
 
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+	"golang.org/x/time/rate"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/go-redis/redis/v7"
-	"github.com/renproject/darknode"
-	"github.com/renproject/darknode/addr"
+	"github.com/renproject/aw/wire"
+	"github.com/renproject/darknode/binding"
+	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/tx"
+	"github.com/renproject/id"
 	"github.com/renproject/lightnode"
+	"github.com/renproject/lightnode/http"
+	"github.com/renproject/multichain"
+	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
 )
 
@@ -30,25 +37,10 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	// Parse Lightnode options from environment variables.
-	name := os.Getenv("HEROKU_APP_NAME")
-	options := lightnode.Options{
-		Network:           parseNetwork(name),
-		Key:               parsePriKey(),
-		DisPubkey:         parsePubKey(),
-		Port:              os.Getenv("PORT"),
-		ProtocolAddr:      os.Getenv("PROTOCOL_ADDRESS"),
-		Cap:               parseInt("CAP"),
-		MaxBatchSize:      parseInt("MAX_BATCH_SIZE"),
-		ServerTimeout:     parseTime("SERVER_TIMEOUT"),
-		ClientTimeout:     parseTime("CLIENT_TIMEOUT"),
-		TTL:               parseTime("TTL"),
-		UpdaterPollRate:   parseTime("UPDATER_POLL_RATE"),
-		ConfirmerPollRate: parseTime("CONFIRMER_POLL_RATE"),
-		BootstrapAddrs:    parseAddresses(),
-	}
+	options := parseOptions()
 
 	// Initialise logger and attach Sentry hook.
-	logger := initLogger(options.Network)
+	logger := initLogger(os.Getenv("HEROKU_APP_NAME"), options.Network)
 
 	// Initialise the database.
 	driver, dbURL := os.Getenv("DATABASE_DRIVER"), os.Getenv("DATABASE_URL")
@@ -62,17 +54,94 @@ func main() {
 	client := initRedis()
 	defer client.Close()
 
-	// Run Lightnode.
 	ctx := context.Background()
-	node := lightnode.New(ctx, options, logger, sqlDB, client)
+
+	// Fetch and apply the first successfull exposed config from bootstrap nodes
+	conf, err := getConfigFromBootstrap(ctx, logger, options.BootstrapAddrs)
+	if err != nil {
+		logger.Fatalf("failed to fetch config from any bootstrap node")
+	}
+
+	options.Whitelist = conf.Whitelist
+
+	for chain, chainOpt := range options.Chains {
+		chainOpt.Confirmations = conf.Confirmations[chain]
+		options.Chains[chain] = chainOpt
+	}
+
+	// Run Lightnode.
+	node := lightnode.New(options, ctx, logger, sqlDB, client)
 	node.Run(ctx)
 }
 
-func initLogger(network darknode.Network) logrus.FieldLogger {
+func getConfigFromBootstrap(ctx context.Context, logger logrus.FieldLogger, addrs []wire.Address) (jsonrpc.ResponseQueryConfig, error) {
+	for i, addr := range addrs {
+		conf, err := fetchConfig(ctx, addrToUrl(addr, logger), logger, time.Minute)
+		if i == len(addrs)-1 && err != nil {
+			return conf, err
+		}
+
+		if err == nil {
+			return conf, nil
+		}
+	}
+	return jsonrpc.ResponseQueryConfig{}, fmt.Errorf("Could not load config from darknodes")
+}
+
+func addrToUrl(addr wire.Address, logger logrus.FieldLogger) string {
+	addrParts := strings.Split(addr.Value, ":")
+	if len(addrParts) != 2 {
+		logger.Errorf("[config] invalid address value=%v", addr.Value)
+		return ""
+	}
+	port, err := strconv.Atoi(addrParts[1])
+	if err != nil {
+		logger.Errorf("[config] invalid port=%v", addr)
+		return ""
+	}
+	return fmt.Sprintf("http://%s:%v", addrParts[0], port+1)
+}
+
+func fetchConfig(ctx context.Context, url string, logger logrus.FieldLogger, timeout time.Duration) (jsonrpc.ResponseQueryConfig, error) {
+	var resp jsonrpc.ResponseQueryConfig
+	params, err := json.Marshal(jsonrpc.ParamsQueryConfig{})
+	if err != nil {
+		logger.Errorf("[config] cannot marshal query peers params: %v", err)
+		return resp, err
+	}
+	client := http.NewClient(timeout)
+
+	request := jsonrpc.Request{
+		Version: "2.0",
+		ID:      rand.Int31(),
+		Method:  jsonrpc.MethodQueryConfig,
+		Params:  params,
+	}
+
+	response, err := client.SendRequest(ctx, url, request, nil)
+	if err != nil {
+		logger.Errorf("[config] error calling queryConfig: %v", err)
+		return resp, err
+	}
+
+	raw, err := json.Marshal(response.Result)
+	if err != nil {
+		logger.Errorf("[config] error marshaling queryConfig result: %v", err)
+		return resp, err
+	}
+
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		logger.Warnf("[config] cannot unmarshal queryConfig result from %v: %v", url, err)
+		return resp, err
+	}
+
+	return resp, nil
+}
+
+func initLogger(name string, network multichain.Network) logrus.FieldLogger {
 	logger := logrus.New()
 	sentryURL := os.Getenv("SENTRY_URL")
-	name := os.Getenv("HEROKU_APP_NAME")
-	if network != darknode.Devnet {
+	if network != multichain.NetworkLocalnet {
 		tags := map[string]string{
 			"name": name,
 		}
@@ -105,23 +174,158 @@ func initRedis() *redis.Client {
 	})
 }
 
-func parseNetwork(appName string) darknode.Network {
+func parseOptions() lightnode.Options {
+	options := lightnode.DefaultOptions().
+		WithNetwork(parseNetwork("HEROKU_APP_NAME")).
+		WithDistPubKey(parsePubKey("PUB_KEY"))
+
+	// We only want to override the default options if the environment variable
+	// has been specified.
+	if os.Getenv("PORT") != "" {
+		options = options.WithPort(os.Getenv("PORT"))
+	}
+	if os.Getenv("CAP") != "" {
+		options = options.WithCap(parseInt("CAP"))
+	}
+	if os.Getenv("MAX_BATCH_SIZE") != "" {
+		options = options.WithMaxBatchSize(parseInt("MAX_BATCH_SIZE"))
+	}
+	if os.Getenv("MAX_PAGE_SIZE") != "" {
+		options = options.WithMaxBatchSize(parseInt("MAX_PAGE_SIZE"))
+	}
+	if os.Getenv("SERVER_TIMEOUT") != "" {
+		options = options.WithServerTimeout(parseTime("SERVER_TIMEOUT"))
+	}
+	if os.Getenv("CLIENT_TIMEOUT") != "" {
+		options = options.WithClientTimeout(parseTime("CLIENT_TIMEOUT"))
+	}
+	if os.Getenv("TTL") != "" {
+		options = options.WithTTL(parseTime("TTL"))
+	}
+	if os.Getenv("UPDATER_POLL_RATE") != "" {
+		options = options.WithUpdaterPollRate(parseTime("UPDATER_POLL_RATE"))
+	}
+	if os.Getenv("CONFIRMER_POLL_RATE") != "" {
+		options = options.WithConfirmerPollRate(parseTime("CONFIRMER_POLL_RATE"))
+	}
+	if os.Getenv("WATCHER_POLL_RATE") != "" {
+		options = options.WithWatcherPollRate(parseTime("WATCHER_POLL_RATE"))
+	}
+	if os.Getenv("WATCHER_MAX_BLOCK_ADVANCE") != "" {
+		options = options.WithWatcherMaxBlockAdvance(uint64(parseInt("WATCHER_MAX_BLOCK_ADVANCE")))
+	}
+	if os.Getenv("WATCHER_CONFIDENCE_INTERVAL") != "" {
+		options = options.WithWatcherMaxBlockAdvance(uint64(parseInt("WATCHER_CONFIDENCE_INTERVAL")))
+	}
+	if os.Getenv("EXPIRY") != "" {
+		options = options.WithTransactionExpiry(parseTime("EXPIRY"))
+	}
+	if os.Getenv("ADDRESSES") != "" {
+		options = options.WithBootstrapAddrs(parseAddresses("ADDRESSES"))
+	}
+
+	if os.Getenv("LIMITER_TTL") != "" {
+		options = options.WithLimiterTTL(parseTime("LIMITER_TTL"))
+	}
+	if os.Getenv("LIMITER_IP_RATE") != "" {
+		options = options.WithLimiterIPRates(parseRates("LIMITER_IP_RATE"))
+	}
+	if os.Getenv("LIMITER_GLOBAL_RATE") != "" {
+		options = options.WithLimiterGlobalRates(parseRates("LIMITER_GLOBAL_RATE"))
+	}
+
+	chains := map[multichain.Chain]binding.ChainOptions{}
+	if os.Getenv("RPC_AVALANCHE") != "" {
+		chains[multichain.Avalanche] = binding.ChainOptions{
+			RPC:      pack.String(os.Getenv("RPC_AVALANCHE")),
+			Protocol: pack.String(os.Getenv("GATEWAY_AVALANCHE")),
+		}
+	}
+	if os.Getenv("RPC_BINANCE") != "" {
+		chains[multichain.BinanceSmartChain] = binding.ChainOptions{
+			RPC:      pack.String(os.Getenv("RPC_BINANCE")),
+			Protocol: pack.String(os.Getenv("GATEWAY_BINANCE")),
+		}
+	}
+	if os.Getenv("RPC_BITCOIN") != "" {
+		chains[multichain.Bitcoin] = binding.ChainOptions{
+			RPC: pack.String(os.Getenv("RPC_BITCOIN")),
+		}
+	}
+	if os.Getenv("RPC_BITCOIN_CASH") != "" {
+		chains[multichain.BitcoinCash] = binding.ChainOptions{
+			RPC: pack.String(os.Getenv("RPC_BITCOIN_CASH")),
+		}
+	}
+	if os.Getenv("RPC_DIGIBYTE") != "" {
+		chains[multichain.DigiByte] = binding.ChainOptions{
+			RPC: pack.String(os.Getenv("RPC_DIGIBYTE")),
+		}
+	}
+	if os.Getenv("RPC_DOGECOIN") != "" {
+		chains[multichain.Dogecoin] = binding.ChainOptions{
+			RPC: pack.String(os.Getenv("RPC_DOGECOIN")),
+		}
+	}
+	if os.Getenv("RPC_ETHEREUM") != "" {
+		chains[multichain.Ethereum] = binding.ChainOptions{
+			RPC:      pack.String(os.Getenv("RPC_ETHEREUM")),
+			Protocol: pack.String(os.Getenv("GATEWAY_ETHEREUM")),
+		}
+	}
+	if os.Getenv("RPC_FANTOM") != "" {
+		chains[multichain.Fantom] = binding.ChainOptions{
+			RPC:      pack.String(os.Getenv("RPC_FANTOM")),
+			Protocol: pack.String(os.Getenv("GATEWAY_FANTOM")),
+		}
+	}
+	if os.Getenv("RPC_FILECOIN") != "" {
+		chains[multichain.Filecoin] = binding.ChainOptions{
+			RPC: pack.String(os.Getenv("RPC_FILECOIN")),
+			Extras: map[pack.String]pack.String{
+				"authToken": pack.String(os.Getenv("EXTRAS_FILECOIN_AUTH")),
+			},
+		}
+	}
+	if os.Getenv("RPC_POLYGON") != "" {
+		chains[multichain.Polygon] = binding.ChainOptions{
+			RPC:      pack.String(os.Getenv("RPC_POLYGON")),
+			Protocol: pack.String(os.Getenv("GATEWAY_POLYGON")),
+		}
+	}
+	if os.Getenv("RPC_SOLANA") != "" {
+		chains[multichain.Solana] = binding.ChainOptions{
+			RPC:      pack.String(os.Getenv("RPC_SOLANA")),
+			Protocol: pack.String(os.Getenv("GATEWAY_SOLANA")),
+		}
+	}
+	if os.Getenv("RPC_TERRA") != "" {
+		chains[multichain.Terra] = binding.ChainOptions{
+			RPC: pack.String(os.Getenv("RPC_TERRA")),
+		}
+	}
+	if os.Getenv("RPC_ZCASH") != "" {
+		chains[multichain.Zcash] = binding.ChainOptions{
+			RPC: pack.String(os.Getenv("RPC_ZCASH")),
+		}
+	}
+	options = options.WithChains(chains)
+
+	return options
+}
+
+func parseNetwork(name string) multichain.Network {
+	appName := os.Getenv(name)
 	if strings.Contains(appName, "devnet") {
-		return darknode.Devnet
+		return multichain.NetworkDevnet
 	}
 	if strings.Contains(appName, "testnet") {
-		return darknode.Testnet
-	}
-	if strings.Contains(appName, "chaosnet") {
-		return darknode.Chaosnet
-	}
-	if strings.Contains(appName, "localnet") {
-		return darknode.Localnet
+		return multichain.NetworkTestnet
 	}
 	if strings.Contains(appName, "mainnet") {
-		return darknode.Mainnet
+		return multichain.NetworkMainnet
 	}
-	panic("unsupported network")
+	return multichain.NetworkLocalnet
 }
 
 func parseInt(name string) int {
@@ -140,39 +344,54 @@ func parseTime(name string) time.Duration {
 	return time.Duration(duration) * time.Second
 }
 
-func parseAddresses() addr.MultiAddresses {
-	addrs := strings.Split(os.Getenv("ADDRESSES"), ",")
-	multis := make([]addr.MultiAddress, len(addrs))
-	for i := range multis {
-		multi, err := addr.NewMultiAddressFromString(addrs[i])
+func parseAddresses(name string) []wire.Address {
+	addrStrings := strings.Split(os.Getenv(name), ",")
+	addrs := make([]wire.Address, len(addrStrings))
+	for i := range addrs {
+		addr, err := wire.DecodeString(addrStrings[i])
 		if err != nil {
-			panic(fmt.Sprintf("invalid bootstrap address : fail to parse from string `%v`", addrs[i]))
+			panic(fmt.Sprintf("invalid bootstrap address %v: %v", addrStrings[i], err))
 		}
-		multis[i] = multi
+		addrs[i] = addr
 	}
-	return multis
+	return addrs
 }
 
-func parsePriKey() *ecdsa.PrivateKey {
-	keyBytes, err := hex.DecodeString(os.Getenv("PRI_KEY"))
-	if err != nil {
-		panic(fmt.Sprintf("invalid private key string from the env variable, err = %v", err))
+func parseRates(name string) map[string]rate.Limit {
+	rateStrings := strings.Split(os.Getenv(name), ",")
+	rates := make(map[string]rate.Limit)
+	for i := range rateStrings {
+		methodRate := strings.Split(rateStrings[i], ":")
+		if len(methodRate) != 2 {
+			panic(fmt.Sprintf("invalid rate pair %v", rateStrings[i]))
+		}
+		parsedRate, err := strconv.Atoi(methodRate[1])
+		if err != nil {
+			panic(fmt.Sprintf("invalid rate pair %v: %v", rateStrings[i], err))
+		}
+		rates[methodRate[0]] = rate.Limit(parsedRate)
 	}
-	key, err := crypto.ToECDSA(keyBytes)
-	if err != nil {
-		panic(fmt.Sprintf("invalid private key for lightnode account, err = %v", err))
-	}
-	return key
+	return rates
 }
 
-func parsePubKey() *ecdsa.PublicKey {
-	keyBytes, err := hex.DecodeString(os.Getenv("PUB_KEY"))
+func parsePubKey(name string) *id.PubKey {
+	pubKeyString := os.Getenv(name)
+	keyBytes, err := hex.DecodeString(pubKeyString)
 	if err != nil {
-		panic(fmt.Sprintf("invalid public key string from the env variable, err = %v", err))
+		panic(fmt.Sprintf("invalid distributed public key %v: %v", pubKeyString, err))
 	}
 	key, err := crypto.DecompressPubkey(keyBytes)
 	if err != nil {
-		panic(fmt.Sprintf("invalid distribute public key, err = %v", err))
+		panic(fmt.Sprintf("invalid distributed public key %v: %v", pubKeyString, err))
 	}
-	return key
+	return (*id.PubKey)(key)
+}
+
+func parseWhitelist(name string) []tx.Selector {
+	whitelistStrings := strings.Split(os.Getenv(name), ",")
+	whitelist := make([]tx.Selector, len(whitelistStrings))
+	for i := range whitelist {
+		whitelist[i] = tx.Selector(whitelistStrings[i])
+	}
+	return whitelist
 }

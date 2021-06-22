@@ -2,67 +2,82 @@ package db
 
 import (
 	"database/sql"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
+	"encoding/base64"
 	"fmt"
 	"math/big"
 	"time"
 
-	"github.com/renproject/darknode/abi"
+	"github.com/renproject/darknode/engine"
+	"github.com/renproject/darknode/tx"
+	"github.com/renproject/id"
+	"github.com/renproject/pack"
 )
 
-type TxStatus int8
+type TxStatus uint8
 
 const (
 	TxStatusNil TxStatus = iota
 	TxStatusConfirming
 	TxStatusConfirmed
-	// TxStatusDispatched
 	TxStatusSubmitted
+)
+
+type GatewayStatus uint8
+
+const (
+	GatewayStatusNil GatewayStatus = iota
+	GatewayStatusEmpty
+	GatewayStatusUsed
 )
 
 type Scannable interface {
 	Scan(dest ...interface{}) error
 }
 
-// DB is an storage adapter building on top of a sql database. It is the place
-// where all txs details are stored. We can query details of a particular txs or
-// update its status.
+// DB is a storage adapter (built on top of a SQL database) that stores all
+// transaction details.
 type DB interface {
-
-	// Initialize the database. Init should be called once the db object is created.
+	// Initialise the database. Init should be called once the database object
+	// is created.
 	Init() error
 
-	// InsertTx inserts the tx into the database.
-	InsertTx(tx abi.Tx, tag abi.B32, gaas bool) error
+	// InsertTx inserts the transaction into the database.
+	InsertTx(tx tx.Tx) error
 
-	// Tx gets the details of the tx with given txHash. It returns an `sql.ErrNoRows`
-	// if tx cannot be found.
-	Tx(hash abi.B32, transformed bool) (abi.Tx, error)
+	// Tx gets the details of the transaction with the given hash. It returns an
+	// `sql.ErrNoRows` if the transaction cannot be found.
+	Tx(hash id.Hash) (tx.Tx, error)
 
-	// Txs returns txs with the given tag.
-	Txs(tag abi.B32, page, pageSize uint64) (abi.Txs, error)
+	// Txs returns transactions with the given pagination options.
+	Txs(offset, limit int) ([]tx.Tx, error)
 
-	// ShiftIns returns shiftIn txs with given status and are not expired.
-	ShiftIns(status TxStatus, expiry time.Duration, contract string) (abi.Txs, error)
+	// Txs returns transactions with the given pagination options.
+	TxsByTxid(id pack.Bytes) ([]tx.Tx, error)
 
-	// PendingTxs returns all pending txs in the database which are not expired.
-	PendingTxs(expiry time.Duration) ([]abi.Tx, error)
+	// PendingTxs returns all pending transactions in the database which are not
+	// expired.
+	PendingTxs(expiry time.Duration) ([]tx.Tx, error)
 
-	// UnsubmittedTxs returns the txs with payload which have reached enough
-	// confirmations and been sent to darknodes.
-	UnsubmittedTxs(expiry time.Duration) ([]abi.B32, error)
+	// TxStatus returns the current status of the transaction with the given
+	// hash.
+	TxStatus(hash id.Hash) (TxStatus, error)
 
-	// TxStatus returns the current status of the tx with given has.
-	TxStatus(hash abi.B32) (TxStatus, error)
+	// UpdateStatus updates the status of the given transaction. The status
+	// cannot be updated to a previous status.
+	UpdateStatus(hash id.Hash, status TxStatus) error
 
-	// UpdateStatus updates the status of given tx. Please noted the status cannot
-	// be updated to an previous status.
-	UpdateStatus(hash abi.B32, status TxStatus) error
-
-	// Prune deletes tx which are expired.
+	// Prune deletes transactions which have expired.
 	Prune(expiry time.Duration) error
+
+	// InsertGateway inserts the gateway into the database.
+	InsertGateway(address string, tx tx.Tx) error
+
+	// Gateway gets the details of the gateway with the given gateway address. It returns an
+	// `sql.ErrNoRows` if the gateway cannot be found.
+	Gateway(address string) (tx.Tx, error)
+
+	// Gateways returns gateways with the given pagination options.
+	Gateways(offset, limit int) ([]tx.Tx, error)
 }
 
 type database struct {
@@ -76,623 +91,452 @@ func New(db *sql.DB) DB {
 	}
 }
 
-// Init creates the tables for storing txs if it does not exist. Multiple calls
-// of this function will only create the tables once and not return an error.
-// TODO: Decide approach for versioning database tables.
-func (db database) Init() error {
-
-	// Create the shift_in table if not exist.
-	shiftIn := `CREATE TABLE IF NOT EXISTS shift_in (
-    hash                 CHAR(64) NOT NULL PRIMARY KEY,
-    status               INT,
-    gaas                 BOOL DEFAULT FALSE,
-    created_time         INT,
-    contract             VARCHAR(255),
-    p                    VARCHAR,
-    token                CHAR(40),
-    toAddr               CHAR(40),
-    n                    CHAR(64),
-    utxo_hash            CHAR(64),
-	utxo_vout            INT,
-	tag0                 CHAR(64)
-);`
-	_, err := db.db.Exec(shiftIn)
-	if err != nil {
-		return err
+// A gateway is a partial Tx that does not have deposits
+// We store it in order to be able to re-create the parameters needed to finish a mint
+func (db database) InsertGateway(address string, tx tx.Tx) error {
+	payload, ok := tx.Input.Get("payload").(pack.Bytes)
+	if !ok {
+		return fmt.Errorf("unexpected type for payload: expected pack.Bytes, got %v", tx.Input.Get("payload").Type())
+	}
+	phash, ok := tx.Input.Get("phash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for phash: expected pack.Bytes32, got %v", tx.Input.Get("phash").Type())
+	}
+	to, ok := tx.Input.Get("to").(pack.String)
+	if !ok {
+		return fmt.Errorf("unexpected type for to: expected pack.String, got %v", tx.Input.Get("to").Type())
+	}
+	nonce, ok := tx.Input.Get("nonce").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for nonce: expected pack.Bytes32, got %v", tx.Input.Get("nonce").Type())
+	}
+	nhash, ok := tx.Input.Get("nhash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for nhash: expected pack.Bytes32, got %v", tx.Input.Get("nhash").Type())
+	}
+	gpubkey, ok := tx.Input.Get("gpubkey").(pack.Bytes)
+	if !ok {
+		return fmt.Errorf("unexpected type for gpubkey: expected pack.Bytes, got %v", tx.Input.Get("gpubkey").Type())
+	}
+	ghash, ok := tx.Input.Get("ghash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for ghash: expected pack.Bytes32, got %v", tx.Input.Get("ghash").Type())
 	}
 
-	// Create the shift_in_autogen table if not exist.
-	shiftInAutogen := `CREATE TABLE IF NOT EXISTS shift_in_autogen (
-    hash                 CHAR(64) NOT NULL PRIMARY KEY REFERENCES shift_in(hash) ON DELETE CASCADE,
-    ghash                CHAR(64),
-	nhash                CHAR(64),
-	sighash              CHAR(64),
-	phash                CHAR(64),
-	amount               VARCHAR,
-	utxo                 VARCHAR
-);`
-	_, err = db.db.Exec(shiftInAutogen)
-	if err != nil {
-		return err
-	}
+	script := `INSERT INTO gateways
+(gateway_address, status, created_time, selector, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`
+	_, err := db.db.Exec(script,
+		address,
+		GatewayStatusEmpty,
+		time.Now().Unix(),
+		tx.Selector.String(),
+		payload.String(),
+		phash.String(),
+		to.String(),
+		nonce.String(),
+		nhash.String(),
+		gpubkey.String(),
+		ghash.String(),
+		tx.Version.String(),
+	)
 
-	// Create the shift_out table if not exist.
-	shiftOut := `CREATE TABLE IF NOT EXISTS shift_out (
-    hash                 CHAR(64) NOT NULL PRIMARY KEY,
-    status               INT,
-    created_time         INT,
-    contract             VARCHAR(255), 
-    ref                  VARCHAR, 
-    toAddr               VARCHAR(255),
-	amount               VARCHAR,
-	tag0                 CHAR(64)
-);`
-	_, err = db.db.Exec(shiftOut)
 	return err
 }
 
-// InsertTx implements the `DB` interface.
-func (db database) InsertTx(tx abi.Tx, tag abi.B32, gaas bool) error {
-	if abi.IsShiftIn(tx.To) {
-		if err := db.insertShiftIn(tx, tag, gaas); err != nil {
-			return err
-		}
-		return db.insertShiftInAutogen(tx)
-	} else {
-		return db.insertShiftOut(tx, tag)
+// Returns the gateway information for a given address
+func (db database) Gateway(address string) (tx.Tx, error) {
+	script := "SELECT gateway_address, selector, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM gateways WHERE gateway_address = $1"
+	row := db.db.QueryRow(script, address)
+	err := row.Err()
+	if err != nil {
+		return tx.Tx{}, err
 	}
+	return rowToGateway(row)
 }
 
-// Tx implements the `DB` interface.
-func (db database) Tx(hash abi.B32, transformed bool) (abi.Tx, error) {
-	tx, err := db.shiftIn(hash, transformed)
-	if err == sql.ErrNoRows {
-		return db.shiftOut(hash, transformed)
-	}
-	return tx, err
-}
-
-// Txs implements the `DB` interface.
-func (db database) Txs(tag abi.B32, page, pageSize uint64) (abi.Txs, error) {
-	txs := make(abi.Txs, 0, pageSize)
-	shifts, err := db.db.Query(`SELECT hash, contract, p, token, toAddr, n, utxo_hash, utxo_vout, ref, amount FROM (
-		SELECT hash, created_time, contract, p, token, toAddr, n, utxo_hash, utxo_vout, tag0, '' AS ref, '' AS amount FROM shift_in UNION
-		SELECT hash, created_time, contract, '' as p, '' AS token, toAddr, '' AS n, '' AS utxo_hash, 0 AS utxo_vout, tag0, ref, amount FROM shift_out
-	) AS shifts WHERE tag0 = $1 ORDER BY created_time ASC LIMIT $2 OFFSET $3;`, hex.EncodeToString(tag[:]), pageSize, page*pageSize)
+// Returns a page of stored gateway information
+func (db database) Gateways(offset, limit int) ([]tx.Tx, error) {
+	gateways := make([]tx.Tx, 0, limit)
+	rows, err := db.db.Query(`SELECT selector, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs ORDER BY created_time ASC LIMIT $1 OFFSET $2;`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
-	defer shifts.Close()
+	defer rows.Close()
 
-	// Loop through rows and convert them to txs.
-	for shifts.Next() {
-		tx, err := rowToShift(shifts)
+	// Loop through rows and convert them to transactions.
+	for rows.Next() {
+		tx, err := rowToGateway(rows)
+		if err != nil {
+			return nil, err
+		}
+		gateways = append(gateways, tx)
+	}
+	return gateways, rows.Err()
+}
+
+func rowToGateway(row Scannable) (tx.Tx, error) {
+	var gatewayAddress, selector, payloadStr, phashStr, toStr, nonceStr, nhashStr, gpubkeyStr, ghashStr, version string
+	if err := row.Scan(&gatewayAddress, &selector, &payloadStr, &phashStr, &toStr, &nonceStr, &nhashStr, &gpubkeyStr, &ghashStr, &version); err != nil {
+		return tx.Tx{}, err
+	}
+
+	payload, err := decodeBytes(payloadStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding payload %v: %v", payloadStr, err)
+	}
+	phash, err := decodeBytes32(phashStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding phash %v: %v", phashStr, err)
+	}
+	nonce, err := decodeBytes32(nonceStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding nonce %v: %v", nonceStr, err)
+	}
+	nhash, err := decodeBytes32(nhashStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding nhash %v: %v", nhashStr, err)
+	}
+	gpubkey, err := decodeBytes(gpubkeyStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding gpubkey %v: %v", gpubkeyStr, err)
+	}
+	ghash, err := decodeBytes32(ghashStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding ghash %v: %v", ghashStr, err)
+	}
+	input, err := pack.Encode(
+		engine.LockMintBurnReleaseInput{
+			Payload: payload,
+			Phash:   phash,
+			To:      pack.String(toStr),
+			Nonce:   nonce,
+			Nhash:   nhash,
+			Gpubkey: gpubkey,
+			Ghash:   ghash,
+		},
+	)
+	if err != nil {
+		return tx.Tx{}, err
+	}
+
+	return tx.Tx{
+		Selector: tx.Selector(selector),
+		Input:    pack.Typed(input.(pack.Struct)),
+	}, err
+}
+
+// Init creates the tables for storing transactions if they do not already
+// exist. The tables will only be created the first time this function is called
+// and any future calls will not return an error.
+func (db database) Init() error {
+	script := `CREATE TABLE IF NOT EXISTS txs (
+		hash               VARCHAR NOT NULL PRIMARY KEY,
+		status             SMALLINT,
+		created_time       BIGINT,
+		selector           VARCHAR(255),
+		txid               VARCHAR,
+		txindex            BIGINT,
+		amount             VARCHAR(100),
+		payload            VARCHAR,
+		phash              VARCHAR,
+		to_address         VARCHAR,
+		nonce              VARCHAR,
+		nhash              VARCHAR,
+		gpubkey            VARCHAR,
+		ghash              VARCHAR,
+		version            VARCHAR
+	);
+CREATE TABLE IF NOT EXISTS gateways (
+		gateway_address    VARCHAR NOT NULL PRIMARY KEY,
+		status             SMALLINT,
+		created_time       BIGINT,
+		selector           VARCHAR(255),
+		payload            VARCHAR,
+		phash              VARCHAR,
+		to_address         VARCHAR,
+		nonce              VARCHAR,
+		nhash              VARCHAR,
+		gpubkey            VARCHAR,
+		ghash              VARCHAR,
+		version            VARCHAR
+);
+`
+	_, err := db.db.Exec(script)
+	return err
+}
+
+// InsertTx implements the DB interface.
+func (db database) InsertTx(tx tx.Tx) error {
+	txid, ok := tx.Input.Get("txid").(pack.Bytes)
+	if !ok {
+		return fmt.Errorf("unexpected type for txid: expected pack.Bytes, got %v", tx.Input.Get("txid").Type())
+	}
+	txindex, ok := tx.Input.Get("txindex").(pack.U32)
+	if !ok {
+		return fmt.Errorf("unexpected type for txindex: expected pack.U32, got %v", tx.Input.Get("txindex").Type())
+	}
+	amount, ok := tx.Input.Get("amount").(pack.U256)
+	if !ok {
+		return fmt.Errorf("unexpected type for amount: expected pack.U256, got %v", tx.Input.Get("amount").Type())
+	}
+	payload, ok := tx.Input.Get("payload").(pack.Bytes)
+	if !ok {
+		return fmt.Errorf("unexpected type for payload: expected pack.Bytes, got %v", tx.Input.Get("payload").Type())
+	}
+	phash, ok := tx.Input.Get("phash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for phash: expected pack.Bytes32, got %v", tx.Input.Get("phash").Type())
+	}
+	to, ok := tx.Input.Get("to").(pack.String)
+	if !ok {
+		return fmt.Errorf("unexpected type for to: expected pack.String, got %v", tx.Input.Get("to").Type())
+	}
+	nonce, ok := tx.Input.Get("nonce").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for nonce: expected pack.Bytes32, got %v", tx.Input.Get("nonce").Type())
+	}
+	nhash, ok := tx.Input.Get("nhash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for nhash: expected pack.Bytes32, got %v", tx.Input.Get("nhash").Type())
+	}
+	gpubkey, ok := tx.Input.Get("gpubkey").(pack.Bytes)
+	if !ok {
+		return fmt.Errorf("unexpected type for gpubkey: expected pack.Bytes, got %v", tx.Input.Get("gpubkey").Type())
+	}
+	ghash, ok := tx.Input.Get("ghash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for ghash: expected pack.Bytes32, got %v", tx.Input.Get("ghash").Type())
+	}
+
+	script := `INSERT INTO txs (hash, status, created_time, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);`
+	_, err := db.db.Exec(script,
+		tx.Hash.String(),
+		TxStatusConfirming,
+		time.Now().Unix(),
+		tx.Selector.String(),
+		txid.String(),
+		txindex.String(),
+		amount.String(),
+		payload.String(),
+		phash.String(),
+		to.String(),
+		nonce.String(),
+		nhash.String(),
+		gpubkey.String(),
+		ghash.String(),
+		tx.Version.String(),
+	)
+
+	return err
+}
+
+// Tx implements the DB interface.
+func (db database) Tx(txHash id.Hash) (tx.Tx, error) {
+	script := "SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs WHERE hash = $1"
+	row := db.db.QueryRow(script, txHash.String())
+	err := row.Err()
+	if err != nil {
+		return tx.Tx{}, err
+	}
+	return rowToTx(row)
+}
+
+// Txs implements the DB interface.
+func (db database) Txs(offset, limit int) ([]tx.Tx, error) {
+	txs := make([]tx.Tx, 0, limit)
+	rows, err := db.db.Query(`SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs ORDER BY created_time ASC LIMIT $1 OFFSET $2;`, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Loop through rows and convert them to transactions.
+	for rows.Next() {
+		tx, err := rowToTx(rows)
 		if err != nil {
 			return nil, err
 		}
 		txs = append(txs, tx)
 	}
-	return txs, shifts.Err()
+	return txs, rows.Err()
 }
 
-// PendingTxs implements the `DB` interface.
-func (db database) PendingTxs(expiry time.Duration) ([]abi.Tx, error) {
-	txs := make(abi.Txs, 0, 128)
-	shiftIns, err := db.db.Query(`SELECT hash, contract, p, token, toAddr, n, utxo_hash, utxo_vout FROM shift_in 
-	WHERE status = $1 AND $2 - created_time < $3;`, TxStatusConfirming, time.Now().Unix(), int64(expiry.Seconds()))
+// TxsById implements the DB interface.
+func (db database) TxsByTxid(txid pack.Bytes) ([]tx.Tx, error) {
+	txs := make([]tx.Tx, 0)
+	rows, err := db.db.Query(`SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs WHERE txid = $1;`, txid.String())
 	if err != nil {
 		return nil, err
 	}
-	defer shiftIns.Close()
+	defer rows.Close()
 
-	// Loop through rows and convert them to txs.
-	for shiftIns.Next() {
-		tx, err := rowToShiftIn(shiftIns)
+	// Loop through rows and convert them to transactions.
+	for rows.Next() {
+		tx, err := rowToTx(rows)
 		if err != nil {
 			return nil, err
 		}
 		txs = append(txs, tx)
 	}
-	if shiftIns.Err() != nil {
-		return nil, err
-	}
+	return txs, rows.Err()
+}
 
-	// Get pending shiftOuts txs from the db.
-	shiftOuts, err := db.db.Query(`SELECT hash, contract, ref, toAddr, amount FROM shift_out 
-		WHERE status = $1 AND $2 - created_time < $3`, TxStatusConfirming, time.Now().Unix(), int64(expiry.Seconds()))
+// PendingTxs implements the DB interface.
+func (db database) PendingTxs(expiry time.Duration) ([]tx.Tx, error) {
+	txs := make([]tx.Tx, 0, 128)
+
+	// Get pending transactions from the database.
+	rows, err := db.db.Query(`SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs
+		WHERE status = $1 AND $2 - created_time < $3;`, TxStatusConfirming, time.Now().Unix(), int64(expiry.Seconds()))
 	if err != nil {
 		return nil, err
 	}
-	defer shiftOuts.Close()
+	defer rows.Close()
 
-	for shiftOuts.Next() {
-		tx, err := rowToShiftOut(shiftOuts, false)
+	for rows.Next() {
+		transaction, err := rowToTx(rows)
 		if err != nil {
 			return nil, err
 		}
-		txs = append(txs, tx)
+		txs = append(txs, transaction)
 	}
-	return txs, shiftOuts.Err()
+	return txs, rows.Err()
 }
 
-// TxsWithStatus implements the `DB` interface.
-func (db database) ShiftIns(status TxStatus, expiry time.Duration, contract string) (abi.Txs, error) {
-	txs := make(abi.Txs, 0, 128)
-
-	// Check if a particular contract address if provided.
-	contractCons := ""
-	if contract != "" {
-		contractCons = fmt.Sprintf("AND toAddr = '%v'", contract)
-	}
-	script := fmt.Sprintf(`SELECT hash, contract, p, token, toAddr, n, utxo_hash, utxo_vout FROM shift_in 
-    WHERE status = $1 AND $2 - created_time < %v %v;`, int64(expiry.Seconds()), contractCons)
-
-	// Get pending shiftIn txs from db.
-	shiftIns, err := db.db.Query(script, status, time.Now().Unix())
-	if err != nil {
-		return nil, err
-	}
-	defer shiftIns.Close()
-
-	// Loop through rows and convert them to txs.
-	for shiftIns.Next() {
-		tx, err := rowToShiftIn(shiftIns)
-		if err != nil {
-			return nil, err
-		}
-		tx, err = db.autogen(tx)
-		if err != nil {
-			return nil, err
-		}
-		txs = append(txs, tx)
-	}
-
-	return txs, shiftIns.Err()
-}
-
-// UnsubmittedTxs implements the `DB` interface.
-func (db database) UnsubmittedTxs(expiry time.Duration) ([]abi.B32, error) {
-	hashes := make([]abi.B32, 0)
-
-	// Get txs which haven't been submitted
-	shiftIns, err := db.db.Query(`SELECT hash FROM shift_in 
-		WHERE status = $1 AND $2 - created_time < $3 AND gaas=TRUE;`, TxStatusConfirmed, time.Now().Unix(), int64(expiry.Seconds()))
-	if err != nil {
-		return nil, err
-	}
-	defer shiftIns.Close()
-
-	for shiftIns.Next() {
-		var hash string
-		if err := shiftIns.Scan(&hash); err != nil {
-			return nil, err
-		}
-		txHash, err := stringToB32(hash)
-		if err != nil {
-			return nil, err
-		}
-		hashes = append(hashes, txHash)
-	}
-	return hashes, shiftIns.Err()
-}
-
-// TxStatus implements the `DB` interface.
-func (db database) TxStatus(hash abi.B32) (TxStatus, error) {
+// TxStatus implements the DB interface.
+func (db database) TxStatus(txHash id.Hash) (TxStatus, error) {
 	var status int
-	err := db.db.QueryRow(`SELECT status FROM shift_in WHERE hash = $1;`,
-		hex.EncodeToString(hash[:])).Scan(&status)
-	if err == sql.ErrNoRows {
-		err = db.db.QueryRow(`SELECT status FROM shift_out WHERE hash = $1;`,
-			hex.EncodeToString(hash[:])).Scan(&status)
+	err := db.db.QueryRow(`SELECT status FROM txs WHERE hash = $1;`, txHash.String()).Scan(&status)
+	if err != nil {
+		return TxStatusNil, err
 	}
 	return TxStatus(status), err
 }
 
-// UpdateStatus implements the `DB` interface.
-func (db database) UpdateStatus(hash abi.B32, status TxStatus) error {
-	_, err := db.db.Exec("UPDATE shift_in SET status = $1 WHERE hash = $2 AND status < $1;", status, hex.EncodeToString(hash[:]))
+// UpdateStatus implements the DB interface.
+func (db database) UpdateStatus(txHash id.Hash, status TxStatus) error {
+	r, err := db.db.Exec("UPDATE txs SET status = $1 WHERE hash = $2 AND status < $1;", status, txHash.String())
+	updated, err := r.RowsAffected()
 	if err != nil {
 		return err
 	}
-	_, err = db.db.Exec("UPDATE shift_out SET status = $1 WHERE hash = $2 AND status < $1;", status, hex.EncodeToString(hash[:]))
+	if updated != 1 {
+		return fmt.Errorf("failed to update tx %s status correctly - updated %v txs", txHash, updated)
+	}
 	return err
 }
 
 // Prune deletes txs which have expired based on the given expiry.
 func (db database) Prune(expiry time.Duration) error {
-	_, err := db.db.Exec("DELETE FROM shift_in WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
-	if err != nil {
-		return err
-	}
-
-	_, err = db.db.Exec("DELETE FROM shift_out WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
+	_, err := db.db.Exec("DELETE FROM txs WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
 	return err
 }
 
-// Inserts the original request received from user into the shift_in table.
-func (db database) insertShiftIn(tx abi.Tx, tag abi.B32, gaas bool) error {
-	p := tx.In.Get("p")
-	if p.IsNil() {
-		return errors.New("invalid tx, missing parameter p")
+func rowToTx(row Scannable) (tx.Tx, error) {
+	var hash, selector, txidStr, amountStr, payloadStr, phashStr, toStr, nonceStr, nhashStr, gpubkeyStr, ghashStr, version string
+	var txindex int
+	if err := row.Scan(&hash, &selector, &txidStr, &txindex, &amountStr, &payloadStr, &phashStr, &toStr, &nonceStr, &nhashStr, &gpubkeyStr, &ghashStr, &version); err != nil {
+		return tx.Tx{}, err
 	}
-	pVal, err := json.Marshal(p.Value)
+
+	txID, err := decodeBytes(txidStr)
 	if err != nil {
-		return err
+		return tx.Tx{}, fmt.Errorf("decoding txid %v: %v", txidStr, err)
 	}
-	token, ok := tx.In.Get("token").Value.(abi.ExtEthCompatAddress)
-	if !ok {
-		return fmt.Errorf("unexpected type for token, expected abi.ExtEthCompatAddress, got %v", tx.In.Get("token").Value.Type())
-	}
-	to, ok := tx.In.Get("to").Value.(abi.ExtEthCompatAddress)
-	if !ok {
-		return fmt.Errorf("unexpected type for to, expected abi.ExtEthCompatAddress, got %v", tx.In.Get("to").Value.Type())
-	}
-	n, ok := tx.In.Get("n").Value.(abi.B32)
-	if !ok {
-		return fmt.Errorf("unexpected type for n, expected abi.B32, got %v", tx.In.Get("n").Value.Type())
-	}
-	utxo, ok := tx.In.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
-	if !ok {
-		return fmt.Errorf("unexpected type for utxo, expected abi.ExtTypeBtcCompatUTXO, got %v", tx.In.Get("utxo").Value.Type())
-	}
-
-	script := `INSERT INTO shift_in (hash, status, gaas, created_time, contract, p, token, toAddr, n, utxo_hash, utxo_vout, tag0)
-VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);`
-	_, err = db.db.Exec(script,
-		hex.EncodeToString(tx.Hash[:]),
-		gaas,
-		time.Now().Unix(),
-		tx.To,
-		hex.EncodeToString(pVal),
-		hex.EncodeToString(token[:]),
-		hex.EncodeToString(to[:]),
-		hex.EncodeToString(n[:]),
-		hex.EncodeToString(utxo.TxHash[:]),
-		utxo.VOut.Int.Int64(),
-		hex.EncodeToString(tag[:]),
-	)
-
-	return err
-}
-
-// Inserts extra fields generated by lightnode into shift_in_autogen table.
-func (db database) insertShiftInAutogen(tx abi.Tx) error {
-	ghash, ok := tx.Autogen.Get("ghash").Value.(abi.B32)
-	if !ok {
-		return fmt.Errorf("unexpected type for ghash, expected abi.B32, got %v", tx.Autogen.Get("ghash").Value.Type())
-	}
-	nhash, ok := tx.Autogen.Get("nhash").Value.(abi.B32)
-	if !ok {
-		return fmt.Errorf("unexpected type for nhash, expected abi.B32, got %v", tx.Autogen.Get("nhash").Value.Type())
-	}
-	sighash, ok := tx.Autogen.Get("sighash").Value.(abi.B32)
-	if !ok {
-		return fmt.Errorf("unexpected type for sighash, expected abi.B32, got %v", tx.Autogen.Get("sighash").Value.Type())
-	}
-	phash, ok := tx.Autogen.Get("phash").Value.(abi.B32)
-	if !ok {
-		return fmt.Errorf("unexpected nil value for phash argument in tx = %v", tx.Hash.String())
-	}
-	amount, ok := tx.Autogen.Get("amount").Value.(abi.U256)
-	if !ok {
-		return fmt.Errorf("unexpected type for amount, expected abi.U256, got %v", tx.In.Get("amount").Value.Type())
-	}
-	utxo, ok := tx.Autogen.Get("utxo").Value.(abi.ExtBtcCompatUTXO)
-	if !ok {
-		return fmt.Errorf("unexpected type for utxo, expected abi.ExtTypeBtcCompatUTXO, got %v", tx.In.Get("utxo").Value.Type())
-	}
-	utxoBytes, err := utxo.MarshalBinary()
+	amount, err := decodeU256(amountStr)
 	if err != nil {
-		panic(err)
+		return tx.Tx{}, fmt.Errorf("decoding amount %v: %v", amount, err)
 	}
-
-	script := `INSERT INTO shift_in_autogen (hash, ghash, nhash, sighash, phash, amount, utxo)
-VALUES ($1, $2, $3, $4, $5, $6, $7);`
-	_, err = db.db.Exec(script,
-		hex.EncodeToString(tx.Hash[:]),
-		hex.EncodeToString(ghash[:]),
-		hex.EncodeToString(nhash[:]),
-		hex.EncodeToString(sighash[:]),
-		hex.EncodeToString(phash[:]),
-		amount.Int.String(),
-		hex.EncodeToString(utxoBytes),
-	)
-
-	return err
-}
-
-// InsertShiftOut stores a shift out tx to the database.
-func (db database) insertShiftOut(tx abi.Tx, tag abi.B32) error {
-	ref, ok := tx.In.Get("ref").Value.(abi.U64)
-	if !ok {
-		return fmt.Errorf("unexpected type for ref, expected abi.U64, got %v", tx.In.Get("ref").Value.Type())
-	}
-	to, ok := tx.In.Get("to").Value.(abi.B)
-	if !ok {
-		return fmt.Errorf("unexpected type for to, expected abi.B, got %v", tx.In.Get("to").Value.Type())
-	}
-	amount, ok := tx.In.Get("amount").Value.(abi.U256)
-	if !ok {
-		return fmt.Errorf("unexpected type for amount, expected abi.U256, got %v", tx.In.Get("amount").Value.Type())
-	}
-
-	script := `INSERT INTO shift_out (hash, status, created_time, contract, ref, toAddr, amount, tag0)
-VALUES ($1, 1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING;`
-	_, err := db.db.Exec(script,
-		hex.EncodeToString(tx.Hash[:]),
-		time.Now().Unix(),
-		tx.To,
-		ref.Int.String(),
-		hex.EncodeToString(to),
-		amount.Int.String(),
-		hex.EncodeToString(tag[:]),
-	)
-	return err
-}
-
-// ShiftIn returns the shift in tx with the given hash.
-func (db database) shiftIn(txHash abi.B32, transformed bool) (abi.Tx, error) {
-	script := "SELECT hash, contract, p, token, toAddr, n, utxo_hash, utxo_vout FROM shift_in WHERE hash = $1"
-	row := db.db.QueryRow(script, hex.EncodeToString(txHash[:]))
-	tx, err := rowToShiftIn(row)
+	payload, err := decodeBytes(payloadStr)
 	if err != nil {
-		return abi.Tx{}, err
+		return tx.Tx{}, fmt.Errorf("decoding payload %v: %v", payloadStr, err)
 	}
-	if transformed {
-		return db.autogen(tx)
-	}
-	return tx, nil
-}
-
-// ShiftOut returns the shift out tx with the given hash.
-func (db database) shiftOut(txHash abi.B32, transformed bool) (abi.Tx, error) {
-	script := "SELECT hash, contract, ref, toAddr, amount FROM shift_out WHERE hash = $1"
-	row := db.db.QueryRow(script, hex.EncodeToString(txHash[:]))
-	return rowToShiftOut(row, transformed)
-}
-
-func rowToShift(row Scannable) (abi.Tx, error) {
-	var hashStr, p, contract, token, to, n, utxoHash, amountStr, refStr string
-	var utxoVout int
-	if err := row.Scan(&hashStr, &contract, &p, &token, &to, &n, &utxoHash, &utxoVout, &amountStr, &refStr); err != nil {
-		return abi.Tx{}, err
-	}
-
-	if refStr != "" {
-		return shiftOutTx(hashStr, contract, to, amountStr, refStr, false)
-	}
-	return shiftInTx(hashStr, p, contract, token, to, n, utxoHash, utxoVout)
-}
-
-// scan data from the returned row and parse it into a abi.Tx.
-func rowToShiftIn(row Scannable) (abi.Tx, error) {
-	var hashStr, p, contract, token, to, n, utxoHash string
-	var utxoVout int
-	if err := row.Scan(&hashStr, &contract, &p, &token, &to, &n, &utxoHash, &utxoVout); err != nil {
-		return abi.Tx{}, err
-	}
-
-	return shiftInTx(hashStr, p, contract, token, to, n, utxoHash, utxoVout)
-}
-
-func shiftInTx(hashStr, p, contract, token, to, n, utxoHash string, utxoVout int) (abi.Tx, error) {
-	tx := abi.Tx{}
-	hash, err := stringToB32(hashStr)
+	phash, err := decodeBytes32(phashStr)
 	if err != nil {
-		return abi.Tx{}, err
+		return tx.Tx{}, fmt.Errorf("decoding phash %v: %v", phashStr, err)
 	}
-	tx.Hash = hash
-	tx.To = abi.Address(contract)
-
-	// Decode all the parameters
-	pArg, err := decodePayload(p)
+	nonce, err := decodeBytes32(nonceStr)
 	if err != nil {
-		return abi.Tx{}, err
+		return tx.Tx{}, fmt.Errorf("decoding nonce %v: %v", nonceStr, err)
 	}
-	tx.In.Set(pArg)
-
-	tokenArg, err := decodeEthAddress("token", token)
+	nhash, err := decodeBytes32(nhashStr)
 	if err != nil {
-		return abi.Tx{}, err
+		return tx.Tx{}, fmt.Errorf("decoding nhash %v: %v", nhashStr, err)
 	}
-	tx.In.Set(tokenArg)
-
-	toArg, err := decodeEthAddress("to", to)
+	gpubkey, err := decodeBytes(gpubkeyStr)
 	if err != nil {
-		return abi.Tx{}, err
+		return tx.Tx{}, fmt.Errorf("decoding gpubkey %v: %v", gpubkeyStr, err)
 	}
-	tx.In.Set(toArg)
-
-	nArg, err := decodeB32("n", n)
+	ghash, err := decodeBytes32(ghashStr)
 	if err != nil {
-		return abi.Tx{}, err
+		return tx.Tx{}, fmt.Errorf("decoding ghash %v: %v", ghashStr, err)
 	}
-	tx.In.Set(nArg)
-
-	utxoHashArg, err := decodeB32("utxo", utxoHash)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	utxoArg := abi.Arg{
-		Name: "utxo",
-		Type: abi.ExtTypeBtcCompatUTXO,
-		Value: abi.ExtBtcCompatUTXO{
-			TxHash: utxoHashArg.Value.(abi.B32),
-			VOut:   abi.U32{Int: big.NewInt(int64(utxoVout))},
+	input, err := pack.Encode(
+		engine.LockMintBurnReleaseInput{
+			Txid:    txID,
+			Txindex: pack.U32(txindex),
+			Amount:  amount,
+			Payload: payload,
+			Phash:   phash,
+			To:      pack.String(toStr),
+			Nonce:   nonce,
+			Nhash:   nhash,
+			Gpubkey: gpubkey,
+			Ghash:   ghash,
 		},
+	)
+	if err != nil {
+		return tx.Tx{}, err
 	}
-	tx.In.Set(utxoArg)
-	return tx, nil
+
+	if version == tx.Version0.String() {
+		// we have to construct the tx manually because tx.NewTx
+		// only produces v1 txes
+		transaction := tx.Tx{
+			Version:  tx.Version(version),
+			Selector: tx.Selector(selector),
+			Input:    pack.Typed(input.(pack.Struct)),
+		}
+		hash32, err := decodeBytes32(hash)
+		transaction.Hash = [32]byte(hash32)
+
+		return transaction, err
+	} else {
+		return tx.NewTx(tx.Selector(selector), pack.Typed(input.(pack.Struct)))
+	}
 }
 
-// Get extra data generated by the lightnode and add to the given tx.
-func (db database) autogen(tx abi.Tx) (abi.Tx, error) {
-	var phash, ghash, nhash, sighash, amountStr, utxoStr string
+func decodeStruct(name, value string) (pack.Struct, error) {
+	val, err := decodeBytes32(value)
+	if err != nil {
+		return pack.Struct{}, err
+	}
+	return pack.NewStruct(name, val), nil
+}
 
-	script := "SELECT phash, ghash, nhash, sighash, amount, utxo FROM shift_in_autogen WHERE hash = $1"
-	err := db.db.QueryRow(script, hex.EncodeToString(tx.Hash[:])).Scan(
-		&phash, &ghash, &nhash, &sighash, &amountStr, &utxoStr)
+func decodeBytes32(str string) (pack.Bytes32, error) {
+	var res pack.Bytes32
+	b, err := decodeBytes(str)
 	if err != nil {
-		return abi.Tx{}, err
+		return pack.Bytes32{}, err
 	}
-	// Decode other inputs
-	phashArg, err := decodeB32("phash", phash)
+	copy(res[:], b)
+	return res, nil
+}
+
+func decodeBytes(str string) (pack.Bytes, error) {
+	res, err := base64.RawURLEncoding.DecodeString(str)
 	if err != nil {
-		return abi.Tx{}, err
+		return pack.Bytes{}, err
 	}
-	ghashArg, err := decodeB32("ghash", ghash)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	nhashArg, err := decodeB32("nhash", nhash)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	sighashArg, err := decodeB32("sighash", sighash)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	amount, ok := big.NewInt(0).SetString(amountStr, 10)
+	return res, nil
+}
+
+func decodeU256(str string) (pack.U256, error) {
+	amount, ok := new(big.Int).SetString(str, 10)
 	if !ok {
-		return abi.Tx{}, fmt.Errorf("fail to parse big number [%v]", amountStr)
+		return pack.U256{}, fmt.Errorf("invalid string")
 	}
-	amountArg := abi.Arg{
-		Name:  "amount",
-		Type:  abi.TypeU256,
-		Value: abi.U256{Int: amount},
-	}
-	utxoBytes, err := hex.DecodeString(utxoStr)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	var utxo abi.ExtBtcCompatUTXO
-	if err := utxo.UnmarshalBinary(utxoBytes); err != nil {
-		return abi.Tx{}, err
-	}
-	utxoArg := abi.Arg{
-		Name:  "utxo",
-		Type:  abi.ExtTypeBtcCompatUTXO,
-		Value: utxo,
-	}
-	tx.Autogen.Set(phashArg)
-	tx.Autogen.Set(ghashArg)
-	tx.Autogen.Set(nhashArg)
-	tx.Autogen.Set(sighashArg)
-	tx.Autogen.Set(amountArg)
-	tx.Autogen.Set(utxoArg)
-	return tx, nil
-}
-
-func rowToShiftOut(row Scannable, transformed bool) (abi.Tx, error) {
-	var hashStr, contract, to, amountStr, refStr string
-	if err := row.Scan(&hashStr, &contract, &refStr, &to, &amountStr); err != nil {
-		return abi.Tx{}, err
-	}
-
-	return shiftOutTx(hashStr, contract, to, amountStr, refStr, transformed)
-}
-
-func shiftOutTx(hashStr, contract, to, amountStr, refStr string, transformed bool) (abi.Tx, error) {
-	hash, err := stringToB32(hashStr)
-	if err != nil {
-		return abi.Tx{}, err
-	}
-	tx := abi.Tx{
-		Hash: hash,
-		To:   abi.Address(contract),
-	}
-
-	ref, ok := big.NewInt(0).SetString(refStr, 10)
-	if !ok {
-		return abi.Tx{}, fmt.Errorf("fail to parse big number [%v]", refStr)
-	}
-	refArg := abi.Arg{
-		Name:  "ref",
-		Type:  abi.TypeU64,
-		Value: abi.U64{Int: ref},
-	}
-	tx.In.Set(refArg)
-
-	if transformed {
-		toBytes, err := hex.DecodeString(to)
-		if err != nil {
-			return abi.Tx{}, err
-		}
-		toArg := abi.Arg{
-			Name:  "to",
-			Type:  abi.TypeB,
-			Value: abi.B(toBytes),
-		}
-		tx.In.Set(toArg)
-
-		amount, ok := big.NewInt(0).SetString(amountStr, 10)
-		if !ok {
-			return abi.Tx{}, fmt.Errorf("fail to parse big number [%v]", amountStr)
-		}
-
-		amountArg := abi.Arg{
-			Name:  "amount",
-			Type:  abi.TypeU256,
-			Value: abi.U256{Int: amount},
-		}
-		tx.In.Set(amountArg)
-	}
-
-	return tx, nil
-}
-
-func decodePayload(p string) (abi.Arg, error) {
-	var pVal abi.ExtEthCompatPayload
-	data, err := hex.DecodeString(p)
-	if err != nil {
-		return abi.Arg{}, err
-	}
-	if err := json.Unmarshal(data, &pVal); err != nil {
-		return abi.Arg{}, err
-	}
-	return abi.Arg{
-		Name:  "p",
-		Type:  abi.ExtTypeEthCompatPayload,
-		Value: pVal,
-	}, nil
-}
-
-// decodeB32 decodes the value into a RenVM B32 argument.
-func decodeB32(name, value string) (abi.Arg, error) {
-	val, err := stringToB32(value)
-	if err != nil {
-		return abi.Arg{}, err
-	}
-	return abi.Arg{
-		Name:  name,
-		Type:  abi.TypeB32,
-		Value: val,
-	}, nil
-}
-
-// stringToB32 decoding the hex string into a RenVM B32 object.
-func stringToB32(str string) (abi.B32, error) {
-	decoded, err := hex.DecodeString(str)
-	if err != nil {
-		return abi.B32{}, err
-	}
-	var val abi.B32
-	copy(val[:], decoded)
-	return val, nil
-}
-
-// decodeEthAddress decodes the value into a RenVM ExtTypeEthCompatAddress
-// argument.
-func decodeEthAddress(name, value string) (abi.Arg, error) {
-	decoded, err := hex.DecodeString(value)
-	if err != nil {
-		return abi.Arg{}, err
-	}
-	var val abi.ExtEthCompatAddress
-	copy(val[:], decoded)
-	return abi.Arg{
-		Name:  name,
-		Type:  abi.ExtTypeEthCompatAddress,
-		Value: val,
-	}, nil
+	return pack.NewU256FromInt(amount), nil
 }

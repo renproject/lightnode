@@ -10,8 +10,9 @@ import (
 	"time"
 
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/darknode/testutil"
-	"github.com/renproject/lightnode/store"
+	"github.com/renproject/darknode/tx/txutil"
+	"github.com/renproject/id"
+	"github.com/renproject/pack"
 )
 
 // ChanWriter is a io.Writer which writes all messages to an output channel.
@@ -35,41 +36,6 @@ func (cl ChanWriter) Write(p []byte) (n int, err error) {
 	}
 }
 
-func RandomAddressHandler(store store.MultiAddrStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		addrs := store.RandomAddresses(5)
-		addrsString := make([]string, len(addrs))
-		for i := range addrsString {
-			addrsString[i] = addrs[i].String()
-		}
-		queryRes := jsonrpc.ResponseQueryPeers{
-			Peers: addrsString,
-		}
-		response := jsonrpc.Response{
-			Version: "2.0",
-			ID:      0,
-			Result:  queryRes,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(response); err != nil {
-			panic(err)
-		}
-	}
-}
-
-// PanicHandler returns a simple `http.HandlerFunc` which panics.
-func PanicHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		panic("intentionally panic here")
-	}
-}
-
-// NilHandler don't do anything with the request which causing EOF error.
-func NilHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-	}
-}
-
 func SimpleHandler(alwaysSuccess bool, requests chan jsonrpc.Request) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request jsonrpc.Request
@@ -84,7 +50,7 @@ func SimpleHandler(alwaysSuccess bool, requests chan jsonrpc.Request) http.Handl
 				},
 			}
 			if err := json.NewEncoder(w).Encode(response); err != nil {
-				panic(fmt.Sprintf("fail to write response back, err = %v", err))
+				panic(fmt.Sprintf("failed to write response: %v", err))
 			}
 		}
 		if requests != nil {
@@ -190,18 +156,19 @@ func RandomRequest(method string) jsonrpc.Request {
 		Method:  method,
 		Params:  nil,
 	}
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	var params interface{}
 	switch method {
 	// Blocks
 	case jsonrpc.MethodQueryBlock:
-		height := testutil.RandomU64()
+		height := pack.U64(0).Generate(r, 1).Interface().(pack.U64)
 		params = jsonrpc.ParamsQueryBlock{
 			BlockHeight: &height,
 		}
 	case jsonrpc.MethodQueryBlocks:
-		height := testutil.RandomU64()
-		n := testutil.RandomU64()
+		height := pack.U64(0).Generate(r, 1).Interface().(pack.U64)
+		n := pack.U64(0).Generate(r, 1).Interface().(pack.U64)
 		params = jsonrpc.ParamsQueryBlocks{
 			BlockHeight: &height,
 			N:           &n,
@@ -210,11 +177,11 @@ func RandomRequest(method string) jsonrpc.Request {
 	// Transactions
 	case jsonrpc.MethodSubmitTx:
 		params = jsonrpc.ParamsSubmitTx{
-			Tx: testutil.RandomTransformTx().Tx,
+			Tx: txutil.RandomGoodTx(r),
 		}
 	case jsonrpc.MethodQueryTx:
 		params = jsonrpc.ParamsQueryTx{
-			TxHash: testutil.RandomB32(),
+			TxHash: id.Hash{},
 		}
 
 	// Peers

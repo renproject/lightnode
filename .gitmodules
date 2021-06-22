@@ -1,0 +1,6 @@
+[submodule "extern/filecoin-ffi"]
+	path = extern/filecoin-ffi
+	url = https://github.com/filecoin-project/filecoin-ffi.git
+[submodule "extern/solana-ffi"]
+	path = extern/solana-ffi
+	url = https://github.com/renproject/solana-ffi.git

@@ -2,7 +2,7 @@ package dispatcher_test
 
 import (
 	"context"
-	"net/http/httptest"
+	"fmt"
 	"net/url"
 	"time"
 
@@ -10,18 +10,22 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/testutils"
 
-	"github.com/renproject/darknode/addr"
+	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/jsonrpc/jsonrpcresolver"
+	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/dispatcher"
 	"github.com/renproject/lightnode/http"
+	"github.com/renproject/lightnode/store"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 )
 
-func initDispatcher(ctx context.Context, bootstrapAddrs addr.MultiAddresses, timeout time.Duration) phi.Sender {
+func initDispatcher(ctx context.Context, bootstrapAddrs []wire.Address, timeout time.Duration) phi.Sender {
 	opts := phi.Options{Cap: 10}
 	logger := logrus.New()
-	multiStore := NewStore(bootstrapAddrs)
+	table := kv.NewTable(kv.NewMemDB(kv.JSONCodec), "addresses")
+	multiStore := store.New(table, bootstrapAddrs)
 	dispatcher := dispatcher.New(logger, timeout, multiStore, opts)
 
 	go dispatcher.Run(ctx)
@@ -29,12 +33,15 @@ func initDispatcher(ctx context.Context, bootstrapAddrs addr.MultiAddresses, tim
 	return dispatcher
 }
 
-func initDarknodes(n int) []*MockDarknode {
+func initDarknodes(ctx context.Context, n int) []*MockDarknode {
 	dns := make([]*MockDarknode, n)
-	store := NewStore(nil)
+	store := store.New(kv.NewTable(kv.NewMemDB(kv.JSONCodec), "multi"), nil)
 	for i := 0; i < n; i++ {
-		server := httptest.NewServer(SimpleHandler(true, nil))
-		dns[i] = NewMockDarknode(server, store)
+		server := jsonrpc.NewServer(jsonrpc.DefaultOptions(), jsonrpcresolver.OkResponder(), jsonrpc.NewValidator())
+		url := fmt.Sprintf("0.0.0.0:%v", 3333+i)
+		go server.Listen(ctx, url)
+
+		dns[i] = NewMockDarknode(url, store)
 	}
 	return dns
 }
@@ -45,15 +52,14 @@ var _ = Describe("Dispatcher", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			darknodes := initDarknodes(13)
-			multis := make([]addr.MultiAddress, 13)
+			darknodes := initDarknodes(ctx, 13)
+			multis := make([]wire.Address, 13)
 			for i := range multis {
 				multis[i] = darknodes[i].Me
-				defer darknodes[i].Close()
 			}
 			dispatcher := initDispatcher(ctx, multis, time.Second)
 
-			for method, _ := range jsonrpc.RPCs {
+			for method := range jsonrpc.RPCs {
 				id, params := ValidRequest(method)
 				req := http.NewRequestWithResponder(ctx, id, method, params, url.Values{})
 				Expect(dispatcher.Send(req)).To(BeTrue())

@@ -1,14 +1,16 @@
 package cacher
 
 import (
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 
+	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
+	v1 "github.com/renproject/lightnode/compat/v1"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
+	"github.com/renproject/pack"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/sha3"
@@ -66,39 +68,11 @@ func (cacher *Cacher) Handle(_ phi.Task, message phi.Message) {
 
 	switch msg.Method {
 	case jsonrpc.MethodSubmitTx:
-	case jsonrpc.MethodQueryTx:
-		params := msg.Params.(jsonrpc.ParamsQueryTx)
-
-		// Retrieve transaction status from the database.
-		status, err := cacher.db.TxStatus(params.TxHash)
-		if err != nil {
-			// Send the request to the Darknodes if we do not have it in our
-			// database.
-			if err == sql.ErrNoRows {
-				break
-			}
-			cacher.logger.Errorf("[cacher] cannot get tx status from db: %v", err)
-			msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
-			return
-		}
-
-		// If the transaction has not reached sufficient confirmations (i.e. the
-		// Darknodes do not yet know about the transaction), respond with a
-		// custom confirming status.
-		if status != db.TxStatusConfirmed {
-			tx, err := cacher.db.Tx(params.TxHash, true)
-			if err == nil {
-				msg.Responder <- jsonrpc.Response{
-					Version: "2.0",
-					ID:      msg.ID,
-					Result: jsonrpc.ResponseQueryTx{
-						Tx:       tx,
-						TxStatus: "confirming",
-					},
-				}
-				return
-			}
-		}
+	// case jsonrpc.MethodQueryTx:
+	// We used to perform custom logic here to determine whether a
+	// tx should be fetched from the db or requested from the darknode.
+	// This logic has been moved to the resolver for compatability reasons
+	// The cacher will only be called when the darknode itself is queried
 	default:
 		darknodeID := msg.Query.Get("id")
 		response, cached := cacher.get(reqID, darknodeID)
@@ -142,7 +116,48 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 
 	go func() {
 		response := <-responder
-		cacher.insert(id, msg.Query.Get("id"), response)
+		// QueryTx has an intermediary state where it has not yet been executed
+		// don't cache if we don't have output
+		skipCache := func() bool {
+			if msg.Method == jsonrpc.MethodQueryTx && response.Error == nil {
+				raw, err := json.Marshal(response.Result)
+				// no need to handle errors here as it will be handled by the resolver
+				if err != nil {
+					cacher.logger.Warnf("failed to marshal queryTx response: %v", err)
+					return true
+				}
+				var tx jsonrpc.ResponseQueryTx
+				err = json.Unmarshal(raw, &tx)
+				if err != nil {
+					cacher.logger.Warnf("failed to unmarshal queryTx response: %v", err)
+					return true
+				}
+
+				if !tx.Tx.Selector.IsCrossChain() {
+					return false
+				}
+
+				if tx.Tx.Output.String() == pack.NewTyped().String() {
+					return true
+				}
+
+				var output engine.LockMintBurnReleaseOutput
+				err = pack.Decode(&output, tx.Tx.Output)
+				if err != nil {
+					cacher.logger.Warnf("failed to decode tx output: %v", err)
+					return false
+				}
+				if output.Revert.Equal("") {
+					v1TxOutput := v1.TxOutputFromV2QueryTxOutput(output)
+					tx.Tx.Output = v1TxOutput
+					response = jsonrpc.NewResponse(msg.ID, tx, nil)
+				}
+			}
+			return false
+		}
+		if !skipCache() {
+			cacher.insert(id, msg.Query.Get("id"), response)
+		}
 		msg.Responder <- response
 	}()
 }
