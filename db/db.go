@@ -22,6 +22,14 @@ const (
 	TxStatusSubmitted
 )
 
+type GatewayStatus uint8
+
+const (
+	GatewayStatusNil GatewayStatus = iota
+	GatewayStatusEmpty
+	GatewayStatusUsed
+)
+
 type Scannable interface {
 	Scan(dest ...interface{}) error
 }
@@ -60,6 +68,16 @@ type DB interface {
 
 	// Prune deletes transactions which have expired.
 	Prune(expiry time.Duration) error
+
+	// InsertGateway inserts the gateway into the database.
+	InsertGateway(address string, tx tx.Tx) error
+
+	// Gateway gets the details of the gateway with the given gateway address. It returns an
+	// `sql.ErrNoRows` if the gateway cannot be found.
+	Gateway(address string) (tx.Tx, error)
+
+	// Gateways returns gateways with the given pagination options.
+	Gateways(offset, limit int) ([]tx.Tx, error)
 }
 
 type database struct {
@@ -71,6 +89,141 @@ func New(db *sql.DB) DB {
 	return database{
 		db: db,
 	}
+}
+
+// A gateway is a partial Tx that does not have deposits
+// We store it in order to be able to re-create the parameters needed to finish a mint
+func (db database) InsertGateway(address string, tx tx.Tx) error {
+	payload, ok := tx.Input.Get("payload").(pack.Bytes)
+	if !ok {
+		return fmt.Errorf("unexpected type for payload: expected pack.Bytes, got %v", tx.Input.Get("payload").Type())
+	}
+	phash, ok := tx.Input.Get("phash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for phash: expected pack.Bytes32, got %v", tx.Input.Get("phash").Type())
+	}
+	to, ok := tx.Input.Get("to").(pack.String)
+	if !ok {
+		return fmt.Errorf("unexpected type for to: expected pack.String, got %v", tx.Input.Get("to").Type())
+	}
+	nonce, ok := tx.Input.Get("nonce").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for nonce: expected pack.Bytes32, got %v", tx.Input.Get("nonce").Type())
+	}
+	nhash, ok := tx.Input.Get("nhash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for nhash: expected pack.Bytes32, got %v", tx.Input.Get("nhash").Type())
+	}
+	gpubkey, ok := tx.Input.Get("gpubkey").(pack.Bytes)
+	if !ok {
+		return fmt.Errorf("unexpected type for gpubkey: expected pack.Bytes, got %v", tx.Input.Get("gpubkey").Type())
+	}
+	ghash, ok := tx.Input.Get("ghash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for ghash: expected pack.Bytes32, got %v", tx.Input.Get("ghash").Type())
+	}
+
+	script := `INSERT INTO gateways
+(gateway_address, status, created_time, selector, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`
+	_, err := db.db.Exec(script,
+		address,
+		GatewayStatusEmpty,
+		time.Now().Unix(),
+		tx.Selector.String(),
+		payload.String(),
+		phash.String(),
+		to.String(),
+		nonce.String(),
+		nhash.String(),
+		gpubkey.String(),
+		ghash.String(),
+		tx.Version.String(),
+	)
+
+	return err
+}
+
+// Returns the gateway information for a given address
+func (db database) Gateway(address string) (tx.Tx, error) {
+	script := "SELECT gateway_address, selector, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM gateways WHERE gateway_address = $1"
+	row := db.db.QueryRow(script, address)
+	err := row.Err()
+	if err != nil {
+		return tx.Tx{}, err
+	}
+	return rowToGateway(row)
+}
+
+// Returns a page of stored gateway information
+func (db database) Gateways(offset, limit int) ([]tx.Tx, error) {
+	gateways := make([]tx.Tx, 0, limit)
+	rows, err := db.db.Query(`SELECT selector, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs ORDER BY created_time ASC LIMIT $1 OFFSET $2;`, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Loop through rows and convert them to transactions.
+	for rows.Next() {
+		tx, err := rowToGateway(rows)
+		if err != nil {
+			return nil, err
+		}
+		gateways = append(gateways, tx)
+	}
+	return gateways, rows.Err()
+}
+
+func rowToGateway(row Scannable) (tx.Tx, error) {
+	var gatewayAddress, selector, payloadStr, phashStr, toStr, nonceStr, nhashStr, gpubkeyStr, ghashStr, version string
+	if err := row.Scan(&gatewayAddress, &selector, &payloadStr, &phashStr, &toStr, &nonceStr, &nhashStr, &gpubkeyStr, &ghashStr, &version); err != nil {
+		return tx.Tx{}, err
+	}
+
+	payload, err := decodeBytes(payloadStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding payload %v: %v", payloadStr, err)
+	}
+	phash, err := decodeBytes32(phashStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding phash %v: %v", phashStr, err)
+	}
+	nonce, err := decodeBytes32(nonceStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding nonce %v: %v", nonceStr, err)
+	}
+	nhash, err := decodeBytes32(nhashStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding nhash %v: %v", nhashStr, err)
+	}
+	gpubkey, err := decodeBytes(gpubkeyStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding gpubkey %v: %v", gpubkeyStr, err)
+	}
+	ghash, err := decodeBytes32(ghashStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding ghash %v: %v", ghashStr, err)
+	}
+	input, err := pack.Encode(
+		engine.LockMintBurnReleaseInput{
+			Payload: payload,
+			Phash:   phash,
+			To:      pack.String(toStr),
+			Nonce:   nonce,
+			Nhash:   nhash,
+			Gpubkey: gpubkey,
+			Ghash:   ghash,
+		},
+	)
+	if err != nil {
+		return tx.Tx{}, err
+	}
+
+	return tx.Tx{
+		Selector: tx.Selector(selector),
+		Input:    pack.Typed(input.(pack.Struct)),
+	}, err
 }
 
 // Init creates the tables for storing transactions if they do not already
@@ -93,7 +246,22 @@ func (db database) Init() error {
 		gpubkey            VARCHAR,
 		ghash              VARCHAR,
 		version            VARCHAR
-	);`
+	);
+CREATE TABLE IF NOT EXISTS gateways (
+		gateway_address    VARCHAR NOT NULL PRIMARY KEY,
+		status             SMALLINT,
+		created_time       BIGINT,
+		selector           VARCHAR(255),
+		payload            VARCHAR,
+		phash              VARCHAR,
+		to_address         VARCHAR,
+		nonce              VARCHAR,
+		nhash              VARCHAR,
+		gpubkey            VARCHAR,
+		ghash              VARCHAR,
+		version            VARCHAR
+);
+`
 	_, err := db.db.Exec(script)
 	return err
 }

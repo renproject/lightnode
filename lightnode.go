@@ -123,8 +123,14 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		}
 	}
 	verifier := resolver.NewVerifier(hostChains, verifierBindings)
-	resolverI := resolver.New(logger, cacher, multiStore, db, serverOptions, versionStore, gpubkeyStore, bindings, verifier)
-	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewValidator(verifierBindings, options.DistPubKey, versionStore, gpubkeyStore, logger))
+	resolverI := resolver.New(options.Network, logger, cacher, multiStore, db, serverOptions, versionStore, gpubkeyStore, bindings, verifier)
+	limiter := resolver.NewRateLimiter(resolver.RateLimiterConf{
+		GlobalMethodRate: options.LimiterGlobalRates,
+		IpMethodRate:     options.LimiterIPRates,
+		Ttl:              options.LimiterTTL,
+		MaxClients:       options.LimiterMaxClients,
+	})
+	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewValidator(verifierBindings, options.DistPubKey, versionStore, gpubkeyStore, &limiter, logger))
 	confirmer := confirmer.New(
 		confirmer.DefaultOptions().
 			WithLogger(logger).

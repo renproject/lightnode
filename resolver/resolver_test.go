@@ -15,12 +15,15 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	. "github.com/renproject/lightnode/resolver"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/btcsuite/btcutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/binding"
+	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/tx/txutil"
@@ -29,10 +32,11 @@ import (
 	v0 "github.com/renproject/lightnode/compat/v0"
 	v1 "github.com/renproject/lightnode/compat/v1"
 	"github.com/renproject/lightnode/db"
-	. "github.com/renproject/lightnode/resolver"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
+	"github.com/renproject/lightnode/watcher"
 	"github.com/renproject/multichain"
+	"github.com/renproject/multichain/chain/zcash"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
 )
@@ -108,10 +112,11 @@ var _ = Describe("Resolver", func() {
 		pubkey, err := crypto.DecompressPubkey(pubkeyB)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		validator := NewValidator(bindings, (*id.PubKey)(pubkey), versionStore, gpubkeyStore, logger)
+		limiter := NewRateLimiter(DefaultRateLimitConf())
+		validator := NewValidator(bindings, (*id.PubKey)(pubkey), versionStore, gpubkeyStore, &limiter, logger)
 
 		mockVerifier := mockVerifier{}
-		resolver := New(logger, cacher, multiaddrStore, database, jsonrpc.Options{}, versionStore, gpubkeyStore, bindings, mockVerifier)
+		resolver := New(multichain.NetworkTestnet, logger, cacher, multiaddrStore, database, jsonrpc.Options{}, versionStore, gpubkeyStore, bindings, mockVerifier)
 
 		return resolver, validator, client
 	}
@@ -181,7 +186,7 @@ var _ = Describe("Resolver", func() {
 		v0Hash := [32]byte{}
 		copy(v0Hash[:], v0HashBytes[:])
 
-		req, resp := validator.ValidateRequest(innerCtx, nil, jsonrpc.Request{
+		req, resp := validator.ValidateRequest(innerCtx, &http.Request{}, jsonrpc.Request{
 			Version: "2.0",
 			ID:      nil,
 			Method:  jsonrpc.MethodSubmitTx,
@@ -271,7 +276,7 @@ var _ = Describe("Resolver", func() {
 		Expect(err).NotTo(HaveOccurred())
 		var raw json.RawMessage = paramRaw
 
-		resp = resolver.Fallback(ctx, nil, MethodQueryTxByTxid, raw, nil)
+		resp = resolver.Fallback(ctx, nil, MethodQueryTxsByTxid, raw, nil)
 
 		Expect(resp).ShouldNot(Equal(jsonrpc.Response{}))
 	})
@@ -357,7 +362,7 @@ var _ = Describe("Resolver", func() {
 		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer innerCancel()
 
-		req, resp := validator.ValidateRequest(innerCtx, nil, jsonrpc.Request{
+		req, resp := validator.ValidateRequest(innerCtx, &http.Request{}, jsonrpc.Request{
 			Version: "2.0",
 			ID:      nil,
 			Method:  jsonrpc.MethodSubmitTx,
@@ -390,5 +395,216 @@ var _ = Describe("Resolver", func() {
 		resp := resolver.SubmitTx(innerCtx, nil, &params, nil)
 
 		Expect(resp.Error).Should(BeZero())
+	})
+
+	It("should submit gateway txs for btc", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, _ := init(ctx)
+		defer cleanup()
+
+		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+
+		mocktx := txutil.RandomGoodTx(r)
+		mocktx.Selector = tx.Selector("BTC/toEthereum")
+
+		input := engine.LockMintBurnReleaseInput{}
+		err := pack.Decode(&input, mocktx.Input)
+		Expect(err).NotTo(HaveOccurred())
+
+		script, err := engine.UTXOGatewayScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
+
+		Expect(err).NotTo(HaveOccurred())
+
+		scriptAddress, err := btcutil.NewAddressScriptHash(script, watcher.NetParams(mocktx.Selector.Asset().OriginChain(), multichain.NetworkTestnet))
+		Expect(err).NotTo(HaveOccurred())
+
+		// Submit tx to ensure that it can be queried against
+		params := ParamsSubmitGateway{
+			Gateway: scriptAddress.EncodeAddress(),
+			Tx:      mocktx,
+		}
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		resp := resolver.SubmitGateway(innerCtx, nil, &params, nil)
+
+		Expect(resp.Error).Should(BeZero())
+	})
+
+	It("should submit gateway txs for zec", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, _ := init(ctx)
+		defer cleanup()
+
+		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+
+		mocktx := txutil.RandomGoodTx(r)
+		mocktx.Selector = tx.Selector("ZEC/toEthereum")
+
+		input := engine.LockMintBurnReleaseInput{}
+		err := pack.Decode(&input, mocktx.Input)
+		Expect(err).NotTo(HaveOccurred())
+
+		script, err := engine.UTXOGatewayScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
+		Expect(err).NotTo(HaveOccurred())
+
+		scriptAddress, err := zcash.NewAddressScriptHash(script, watcher.ZcashNetParams(multichain.NetworkTestnet))
+		Expect(err).NotTo(HaveOccurred())
+
+		// Submit tx to ensure that it can be queried against
+		params := ParamsSubmitGateway{
+			Gateway: scriptAddress.EncodeAddress(),
+			Tx:      mocktx,
+		}
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		resp := resolver.SubmitGateway(innerCtx, nil, &params, nil)
+
+		Expect(resp.Error).Should(BeZero())
+	})
+
+	It("should handle queryGateways", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, _ := init(ctx)
+		defer cleanup()
+
+		// Use a v1 burn tx, as it will be persisted
+		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+		mocktx := txutil.RandomGoodTx(r)
+		mocktx.Selector = tx.Selector("BTC/fromEthereum")
+
+		input := engine.LockMintBurnReleaseInput{}
+		err := pack.Decode(&input, mocktx.Input)
+		Expect(err).NotTo(HaveOccurred())
+
+		script, err := engine.UTXOGatewayPubKeyScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Submit tx to ensure that it can be queried against
+		params := ParamsSubmitGateway{
+			Gateway: script.String(),
+			Tx:      mocktx,
+		}
+
+		// Submit so that it gets persisted in db
+		resp := resolver.SubmitGateway(ctx, nil, &params, nil)
+
+		paramRaw, err := json.Marshal(&ParamsQueryGateway{
+			Gateway: script.String(),
+		})
+		Expect(err).NotTo(HaveOccurred())
+		var raw json.RawMessage = paramRaw
+
+		resp = resolver.Fallback(ctx, nil, MethodQueryGateway, raw, nil)
+
+		Expect(resp).ShouldNot(Equal(jsonrpc.Response{}))
+	})
+
+	It("should rate limit", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, validator, _ := init(ctx)
+		defer cleanup()
+
+		params := testutils.MockBurnParamSubmitTxV0BTC()
+		paramsJSON, err := json.Marshal(params)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(params).ShouldNot(Equal([]byte{}))
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		ipString := "127.0.0.1"
+
+		httpRequest := &http.Request{
+			Header:     map[string][]string{},
+			RemoteAddr: ipString,
+		}
+
+		req, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
+			Version: "2.0",
+			ID:      nil,
+			Method:  jsonrpc.MethodSubmitTx,
+			Params:  paramsJSON,
+		})
+		// Response will only exist for errors
+		Expect(resp).Should(Equal(jsonrpc.Response{}))
+		Expect((req).(*jsonrpc.ParamsSubmitTx).Tx.Hash).ShouldNot(BeEmpty())
+
+		Eventually(func() jsonrpc.Response {
+			_, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
+				Version: "2.0",
+				ID:      nil,
+				Method:  jsonrpc.MethodSubmitTx,
+				Params:  paramsJSON,
+			})
+			return resp
+		}).Should(Equal(
+			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidRequest,
+				Message: fmt.Sprintf("rate limit exceeded for %v", ipString),
+			}),
+		))
+
+		ipString = "8.8.8.8"
+		httpRequest.Header.Add("x-forwarded-for", ipString)
+		Eventually(func() jsonrpc.Response {
+			_, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
+				Version: "2.0",
+				ID:      nil,
+				Method:  jsonrpc.MethodSubmitTx,
+				Params:  paramsJSON,
+			})
+			return resp
+		}).Should(Equal(
+			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidRequest,
+				Message: fmt.Sprintf("rate limit exceeded for %v", ipString),
+			}),
+		))
+
+		ipString = "1.1.1.1,9.9.9.9"
+		httpRequest.Header.Set("x-forwarded-for", ipString)
+		Eventually(func() jsonrpc.Response {
+			_, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
+				Version: "2.0",
+				ID:      nil,
+				Method:  jsonrpc.MethodSubmitTx,
+				Params:  paramsJSON,
+			})
+			return resp
+		}).Should(Equal(
+			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidRequest,
+				Message: fmt.Sprintf("rate limit exceeded for %v", "9.9.9.9"),
+			}),
+		))
+
+		ipString = "1.1.1.1,9.9.9.9,,,"
+		httpRequest.Header.Set("x-forwarded-for", ipString)
+		Eventually(func() jsonrpc.Response {
+			_, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
+				Version: "2.0",
+				ID:      nil,
+				Method:  jsonrpc.MethodSubmitTx,
+				Params:  paramsJSON,
+			})
+			return resp
+		}).Should(Equal(
+			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidRequest,
+				Message: fmt.Sprintf("could not determine ip for %v", ipString),
+			}),
+		))
 	})
 })

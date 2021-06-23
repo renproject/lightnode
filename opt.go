@@ -8,7 +8,9 @@ import (
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/id"
 	"github.com/renproject/lightnode/confirmer"
+	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/multichain"
+	"golang.org/x/time/rate"
 )
 
 // Enumerate default options.
@@ -27,6 +29,10 @@ var (
 	DefaultWatcherConfidenceInterval = uint64(6)
 	DefaultTransactionExpiry         = confirmer.DefaultExpiry
 	DefaultBootstrapAddrs            = []wire.Address{}
+	DefaultLimiterIPRates            = map[string]rate.Limit{"fallback": resolver.LimiterDefaultIPRate}
+	DefaultLimiterGlobalRates        = map[string]rate.Limit{"fallback": resolver.LimiterDefaultGlobalRate}
+	DefaultLimiterTTL                = resolver.LimiterDefaultTTL
+	DefaultLimiterMaxClients         = resolver.LimiterDefaultMaxClients
 )
 
 // Options to configure the precise behaviour of the Lightnode.
@@ -49,6 +55,10 @@ type Options struct {
 	BootstrapAddrs            []wire.Address
 	Chains                    map[multichain.Chain]binding.ChainOptions
 	Whitelist                 []tx.Selector
+	LimiterGlobalRates        map[string]rate.Limit
+	LimiterIPRates            map[string]rate.Limit
+	LimiterTTL                time.Duration
+	LimiterMaxClients         int
 }
 
 // DefaultOptions returns new options with default configurations that should
@@ -57,6 +67,7 @@ func DefaultOptions() Options {
 	return Options{
 		Port:                      DefaultPort,
 		Cap:                       DefaultCap,
+		BootstrapAddrs:            DefaultBootstrapAddrs,
 		MaxBatchSize:              DefaultMaxBatchSize,
 		MaxPageSize:               DefaultMaxPageSize,
 		ServerTimeout:             DefaultServerTimeout,
@@ -68,7 +79,10 @@ func DefaultOptions() Options {
 		WatcherMaxBlockAdvance:    DefaultWatcherMaxBlockAdvance,
 		WatcherConfidenceInterval: DefaultWatcherConfidenceInterval,
 		TransactionExpiry:         DefaultTransactionExpiry,
-		BootstrapAddrs:            DefaultBootstrapAddrs,
+		LimiterTTL:                DefaultLimiterTTL,
+		LimiterGlobalRates:        DefaultLimiterGlobalRates,
+		LimiterIPRates:            DefaultLimiterIPRates,
+		LimiterMaxClients:         DefaultLimiterMaxClients,
 	}
 }
 
@@ -180,5 +194,29 @@ func (opts Options) WithChains(chains map[multichain.Chain]binding.ChainOptions)
 // WithWhitelist is used to whitelist certain selectors inside the Darknode.
 func (opts Options) WithWhitelist(whitelist []tx.Selector) Options {
 	opts.Whitelist = whitelist
+	return opts
+}
+
+// WithLimiterGlobalRate is used to set global rate limits for specific methods
+func (opts Options) WithLimiterGlobalRates(rates map[string]rate.Limit) Options {
+	opts.LimiterGlobalRates = rates
+	return opts
+}
+
+// WithLimiterIpRate is used to set per-ip rate limits for specific methods
+func (opts Options) WithLimiterIPRates(rates map[string]rate.Limit) Options {
+	opts.LimiterIPRates = rates
+	return opts
+}
+
+// WithLimiterTTL used to whitelist certain selectors inside the Darknode.
+func (opts Options) WithLimiterTTL(ttl time.Duration) Options {
+	opts.LimiterTTL = ttl
+	return opts
+}
+
+// WithLimiterMaxClients used to whitelist certain selectors inside the Darknode.
+func (opts Options) WithLimiterMaxClients(maxClients int) Options {
+	opts.LimiterMaxClients = maxClients
 	return opts
 }

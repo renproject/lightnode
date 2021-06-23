@@ -1,3 +1,11 @@
+## 0.4.4
+
+- Partial transaction persistence for gateway recovery
+
+## 0.4.3
+
+- Fix network params for watcher
+
 ## 0.4.2
 
 - Update Multichain to v0.3.12

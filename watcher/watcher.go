@@ -24,7 +24,11 @@ import (
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/bitcoin"
 	"github.com/renproject/multichain/chain/bitcoincash"
+	"github.com/renproject/multichain/chain/digibyte"
+	"github.com/renproject/multichain/chain/dogecoin"
+	"github.com/renproject/multichain/chain/filecoin"
 	"github.com/renproject/multichain/chain/solana"
+	"github.com/renproject/multichain/chain/terra"
 	"github.com/renproject/multichain/chain/zcash"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
@@ -128,7 +132,7 @@ type SolFetcher struct {
 }
 
 func NewSolFetcher(client *solanaRPC.Client, gatewayAddress string) SolFetcher {
-	seeds := []byte("GatewayStateV0.1.2")
+	seeds := []byte("GatewayStateV0.1.4")
 	programDerivedAddress := solana.ProgramDerivedAddress(pack.Bytes(seeds), multichain.Address(gatewayAddress))
 	programPubk, err := solanaSDK.PublicKeyFromBase58(string(programDerivedAddress))
 	if err != nil {
@@ -164,7 +168,7 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 				return
 			}
 
-			// Fetch account data at gateway registry's state
+			// Fetch account data at gateway's state
 			accountInfo, err := fetcher.client.GetAccountInfo(ctx, programPubk)
 			if err != nil {
 				resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log data for burn: %v err: %v", i, err)}
@@ -172,13 +176,14 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 			}
 			data := accountInfo.Value.Data
 
-			if len(data) != 41 {
-				resultChan <- BurnLogResult{Error: fmt.Errorf("deserializing burn log data: expected data len 41, got %v", len(data))}
+			if len(data) != 65 {
+				resultChan <- BurnLogResult{Error: fmt.Errorf("deserializing burn log data: expected data len 65, got %v", len(data))}
 				return
 			}
-			amount := binary.LittleEndian.Uint64(data[:8])
-			recipientLen := uint8(data[8:9][0])
-			recipient := multichain.RawAddress(data[9 : 9+int(recipientLen)])
+			amount := [32]byte{}
+			copy(amount[:], data[0:32])
+			recipientLen := uint8(data[32:33][0])
+			recipient := multichain.RawAddress(data[33 : 33+int(recipientLen)])
 
 			signatures, err := fetcher.client.GetConfirmedSignaturesForAddress2(ctx, programPubk, &solanaRPC.GetConfirmedSignaturesForAddress2Opts{})
 			if err != nil {
@@ -193,7 +198,7 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 
 			result := BurnInfo{
 				Txid:        base58.Decode(signatures[0].Signature),
-				Amount:      pack.NewU256FromUint64(amount),
+				Amount:      pack.NewU256(amount),
 				ToBytes:     recipient[:],
 				Nonce:       nonceBytes,
 				BlockNumber: pack.NewU64(i),
@@ -511,11 +516,15 @@ func (watcher Watcher) handleAssetAddrSolana(toBytes []byte) (tx.Version, multic
 func AddressEncodeDecoder(chain multichain.Chain, network multichain.Network) multichain.AddressEncodeDecoder {
 	switch chain {
 	case multichain.Bitcoin, multichain.DigiByte, multichain.Dogecoin:
-		params := NetParams(network, chain)
+		params := NetParams(chain, network)
 		return bitcoin.NewAddressEncodeDecoder(params)
 	case multichain.BitcoinCash:
-		params := NetParams(network, chain)
+		params := NetParams(chain, network)
 		return bitcoincash.NewAddressEncodeDecoder(params)
+	case multichain.Filecoin:
+		return filecoin.NewAddressEncodeDecoder()
+	case multichain.Terra:
+		return terra.NewAddressEncodeDecoder()
 	case multichain.Zcash:
 		params := ZcashNetParams(network)
 		return zcash.NewAddressEncodeDecoder(params)
@@ -535,16 +544,34 @@ func ZcashNetParams(network multichain.Network) *zcash.Params {
 	}
 }
 
-func NetParams(network multichain.Network, chain multichain.Chain) *chaincfg.Params {
+func NetParams(chain multichain.Chain, net multichain.Network) *chaincfg.Params {
 	switch chain {
 	case multichain.Bitcoin, multichain.BitcoinCash:
-		switch network {
-		case multichain.NetworkMainnet:
-			return &chaincfg.MainNetParams
+		switch net {
 		case multichain.NetworkDevnet, multichain.NetworkTestnet:
 			return &chaincfg.TestNet3Params
+		case multichain.NetworkMainnet:
+			return &chaincfg.MainNetParams
 		default:
 			return &chaincfg.RegressionNetParams
+		}
+	case multichain.DigiByte:
+		switch net {
+		case multichain.NetworkDevnet, multichain.NetworkTestnet:
+			return &digibyte.TestnetParams
+		case multichain.NetworkMainnet:
+			return &digibyte.MainNetParams
+		default:
+			return &digibyte.RegressionNetParams
+		}
+	case multichain.Dogecoin:
+		switch net {
+		case multichain.NetworkDevnet, multichain.NetworkTestnet:
+			return &dogecoin.TestNetParams
+		case multichain.NetworkMainnet:
+			return &dogecoin.MainNetParams
+		default:
+			return &dogecoin.RegressionNetParams
 		}
 	default:
 		panic(fmt.Errorf("cannot get network params: unknown chain %v", chain))
