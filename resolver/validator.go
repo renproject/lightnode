@@ -81,7 +81,6 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 			Message: fmt.Sprintf("rate limit exceeded for %v", ipString),
 		})
 	}
-
 	switch req.Method {
 
 	case jsonrpc.MethodQueryTx:

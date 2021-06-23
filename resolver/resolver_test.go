@@ -12,33 +12,34 @@ import (
 	"os"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
-	"github.com/btcsuite/btcutil"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/go-redis/redis/v7"
 	_ "github.com/mattn/go-sqlite3"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/id"
-	v0 "github.com/renproject/lightnode/compat/v0"
 	. "github.com/renproject/lightnode/resolver"
-	"github.com/renproject/lightnode/watcher"
-	"github.com/renproject/multichain"
-	"github.com/renproject/multichain/chain/zcash"
 
+	"github.com/alicebob/miniredis/v2"
+	"github.com/btcsuite/btcutil"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/go-redis/redis/v7"
 	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/tx/txutil"
+	"github.com/renproject/id"
 	"github.com/renproject/kv"
+	"github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
+	"github.com/renproject/lightnode/watcher"
+	"github.com/renproject/multichain"
+	"github.com/renproject/multichain/chain/zcash"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
 )
 
 type mockVerifier struct{}
@@ -93,9 +94,10 @@ var _ = Describe("Resolver", func() {
 				Confirmations: pack.U64(0),
 			}).
 			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
-				Confirmations: pack.U64(0),
-				Protocol:      pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+				RPC:              pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
+				Confirmations:    pack.U64(0),
+				Protocol:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+				MaxConfirmations: pack.MaxU64,
 			})
 
 		bindings := binding.New(bindingsOpts)
@@ -111,7 +113,9 @@ var _ = Describe("Resolver", func() {
 		pubkey, err := crypto.DecompressPubkey(pubkeyB)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		limiter := NewRateLimiter(DefaultRateLimitConf())
+		limiterConf := DefaultRateLimitConf()
+		limiterConf.IpMethodRate["fallback"] = rate.Limit(1)
+		limiter := NewRateLimiter(limiterConf)
 		validator := NewValidator(multichain.NetworkTestnet, bindings, (*id.PubKey)(pubkey), compatStore, &limiter, logger)
 
 		mockVerifier := mockVerifier{}
@@ -529,7 +533,6 @@ var _ = Describe("Resolver", func() {
 			Header:     map[string][]string{},
 			RemoteAddr: ipString,
 		}
-
 		req, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
 			Version: "2.0",
 			ID:      nil,
