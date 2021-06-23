@@ -442,9 +442,10 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings bindi
 		var nonce pack.Bytes32
 		copy(nonce[:], pack.NewU256FromInt(ref.Int).Bytes())
 
-		client := bindings.EthCompatClient(multichain.Ethereum)
-		options := bindings.ChainOption(multichain.Ethereum)
-		gatewayBinding := bindings.GatewayBinding(multichain.Ethereum, selector.Asset())
+		binding := bindings.(*binding.Binding)
+		client := binding.EthereumClient(multichain.Ethereum)
+		options := binding.ChainOption(multichain.Ethereum)
+		gatewayBinding := binding.EthereumGateway(multichain.Ethereum, selector.Asset())
 
 		details, err := gatewayBinding.GetBurn(&bind.CallOpts{}, ref.Int)
 		if err != nil {
