@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -14,14 +15,15 @@ import (
 
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
-	"golang.org/x/time/rate"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
+	"github.com/renproject/darknode/tx"
 	"github.com/renproject/id"
 	"github.com/renproject/lightnode"
 	"github.com/renproject/lightnode/http"
@@ -29,6 +31,7 @@ import (
 	"github.com/renproject/pack"
 	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
 )
 
 func main() {
@@ -423,8 +426,6 @@ func parseAddresses(name string) []wire.Address {
 	}
 	return addrs
 }
-<<<<<<< HEAD
-=======
 
 func parseRates(name string) map[string]rate.Limit {
 	rateStrings := strings.Split(os.Getenv(name), ",")
@@ -464,4 +465,3 @@ func parseWhitelist(name string) []tx.Selector {
 	}
 	return whitelist
 }
->>>>>>> release/0.4.5

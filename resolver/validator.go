@@ -27,11 +27,7 @@ type LightnodeValidator struct {
 	limiter  *LightnodeRateLimiter
 }
 
-<<<<<<< HEAD
-func NewValidator(network multichain.Network, bindings binding.Bindings, pubkey *id.PubKey, store v0.CompatStore, logger logrus.FieldLogger) *LightnodeValidator {
-=======
-func NewValidator(bindings binding.Bindings, pubkey *id.PubKey, store v0.CompatStore, limiter *LightnodeRateLimiter, logger logrus.FieldLogger) *LightnodeValidator {
->>>>>>> release/0.4.5
+func NewValidator(network multichain.Network, bindings binding.Bindings, pubkey *id.PubKey, store v0.CompatStore, limiter *LightnodeRateLimiter, logger logrus.FieldLogger) *LightnodeValidator {
 	return &LightnodeValidator{
 		network:  network,
 		bindings: bindings,
