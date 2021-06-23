@@ -107,7 +107,7 @@ var _ = Describe("Resolver", func() {
 		pubkey, err := crypto.DecompressPubkey(pubkeyB)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		validator := NewValidator(bindings, (*id.PubKey)(pubkey), compatStore, logger)
+		validator := NewValidator(multichain.NetworkTestnet, bindings, (*id.PubKey)(pubkey), compatStore, logger)
 
 		mockVerifier := mockVerifier{}
 		resolver := New(logger, cacher, multiaddrStore, database, jsonrpc.Options{}, compatStore, bindings, mockVerifier)

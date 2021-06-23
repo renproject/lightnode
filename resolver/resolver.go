@@ -60,11 +60,6 @@ func (resolver *Resolver) QueryBlocks(ctx context.Context, id interface{}, param
 }
 
 func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *jsonrpc.ParamsSubmitTx, req *http.Request) jsonrpc.Response {
-	// When a v0 burn tx gets submitted via RPC, we have to wait for the watcher to detect it before submitting
-	// because it does not have sufficient data to create a valid v1 tx hash
-	// (it just contains a ref to the burn event height + the v0 selector,
-	// and the contract doesn't have a way to query by event height, and can't really filter either)
-	//
 	// As such, we will just respond with the v0 hash so that renjs-v1 can continue as normal, but
 	// we won't actually submit to the darknodes
 	emptyParams := jsonrpc.ParamsSubmitTx{}

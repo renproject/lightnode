@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"os"
@@ -18,10 +17,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode/binding"
-	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/id"
-	v0 "github.com/renproject/lightnode/compat/v0"
+	"github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/multichain"
@@ -69,9 +67,10 @@ var _ = Describe("Compat V0", func() {
 		})
 
 		bindingsOpts.WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
-			Confirmations: pack.U64(0),
-			Protocol:      pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+			RPC:              pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
+			Confirmations:    pack.U64(0),
+			Protocol:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+			MaxConfirmations: pack.MaxU64,
 		})
 
 		bindings := binding.New(bindingsOpts)
@@ -116,17 +115,21 @@ var _ = Describe("Compat V0", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
+		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
 		Expect(err).ShouldNot(HaveOccurred())
-		hash, err := hex.DecodeString("ec5a011106c04a4019587c192409ca92faa518639569ccebd3c025c283b80fe9")
-		hash32 := [32]byte{}
-		copy(hash32[:], hash[:])
-		Expect(v1).Should(Equal(jsonrpc.ParamsSubmitTx{
-			Tx: tx.Tx{
-				Selector: tx.Selector("BTC/fromEthereum"),
-				Input:    pack.NewTyped("v0hash", pack.NewBytes32(hash32)),
-			},
-		}))
+
+		Expect(v1.Tx.Version).Should(Equal(tx.Version1))
+		Expect(v1.Tx.Selector).Should(Equal(tx.Selector("BTC/fromEthereum")))
+		Expect(v1.Tx.Input.Get("txid")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("txindex")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("amount")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("payload")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("phash")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("to")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("nonce")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("nhash")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("gpubkey")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("ghash")).ShouldNot(BeNil())
 	})
 
 	It("should convert a v0 BTC ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
@@ -135,7 +138,7 @@ var _ = Describe("Compat V0", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
+		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// should have a key for the utxo
@@ -172,7 +175,7 @@ var _ = Describe("Compat V0", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
+		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// should have a key for the utxo
@@ -209,7 +212,7 @@ var _ = Describe("Compat V0", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
+		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// should have a key for the utxo

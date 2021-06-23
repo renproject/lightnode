@@ -11,19 +11,22 @@ import (
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
+	"github.com/renproject/multichain"
 	"github.com/sirupsen/logrus"
 )
 
 // The lightnode Validator checks requests and also casts in case of compat changes
 type LightnodeValidator struct {
+	network  multichain.Network
 	bindings binding.Bindings
 	pubkey   *id.PubKey
 	store    v0.CompatStore
 	logger   logrus.FieldLogger
 }
 
-func NewValidator(bindings binding.Bindings, pubkey *id.PubKey, store v0.CompatStore, logger logrus.FieldLogger) *LightnodeValidator {
+func NewValidator(network multichain.Network, bindings binding.Bindings, pubkey *id.PubKey, store v0.CompatStore, logger logrus.FieldLogger) *LightnodeValidator {
 	return &LightnodeValidator{
+		network:  network,
 		bindings: bindings,
 		pubkey:   pubkey,
 		store:    store,
@@ -78,7 +81,7 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 
 		var params v0.ParamsSubmitTx
 		if err := json.Unmarshal(req.Params, &params); err == nil {
-			castParams, err := v0.V1TxParamsFromTx(ctx, params, validator.bindings, validator.pubkey, validator.store)
+			castParams, err := v0.V1TxParamsFromTx(ctx, params, validator.bindings, validator.pubkey, validator.store, validator.network)
 			if err != nil {
 				validator.logger.Errorf("[validator]: failed to validate compat tx submission: %v", err)
 				return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
