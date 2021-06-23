@@ -1,3 +1,17 @@
+## 0.4.5
+- Compat layer for v0 burns
+- Use connection pool for redis interaction 
+- Fetch public key and max confirmations from darknode when booting
+- Fix incorrect `amount` field for v0 compat mint
+
+## 0.4.4
+
+- Partial transaction persistence for gateway recovery
+
+## 0.4.3
+
+- Fix network params for watcher
+
 ## 0.4.2
 
 - Update Multichain to v0.3.12

@@ -2,27 +2,38 @@ package resolver
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 	"net/url"
 
+	"github.com/btcsuite/btcutil"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
+	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	v1 "github.com/renproject/lightnode/compat/v1"
 	"github.com/renproject/lightnode/db"
 	lhttp "github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
+	"github.com/renproject/lightnode/watcher"
+	"github.com/renproject/multichain"
+	"github.com/renproject/multichain/chain/zcash"
 	"github.com/renproject/pack"
 	"github.com/renproject/phi"
+	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
 )
 
 type Resolver struct {
+	network           multichain.Network
 	logger            logrus.FieldLogger
 	txCheckerRequests chan lhttp.RequestWithResponder
 	multiStore        store.MultiAddrStore
@@ -33,13 +44,14 @@ type Resolver struct {
 	bindings          binding.Bindings
 }
 
-func New(logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, db db.DB,
+func New(network multichain.Network, logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, db db.DB,
 	serverOptions jsonrpc.Options, compatStore v0.CompatStore, bindings binding.Bindings, verifier Verifier) *Resolver {
 	requests := make(chan lhttp.RequestWithResponder, 128)
 	txChecker := newTxChecker(logger, requests, verifier, db)
 	go txChecker.Run()
 
 	return &Resolver{
+		network:           network,
 		logger:            logger,
 		txCheckerRequests: requests,
 		multiStore:        multiStore,
@@ -97,16 +109,47 @@ func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *
 }
 
 const (
-	MethodQueryTxByTxid = "ren_queryTxByTxid"
+	MethodQueryTxsByTxid = "ren_queryTxsByTxid"
+	MethodSubmitGateway  = "ren_submitGateway"
+	MethodQueryGateway   = "ren_queryGateway"
 )
 
 type ParamsQueryTxByTxid struct {
 	Txid pack.Bytes
 }
 
+type ParamsQueryGateway struct {
+	Gateway string
+}
+
+type ParamsSubmitGateway struct {
+	Tx      tx.Tx
+	Gateway string
+}
+
 func (resolver *Resolver) Fallback(ctx context.Context, id interface{}, method string, params interface{}, req *http.Request) jsonrpc.Response {
 	switch method {
-	case MethodQueryTxByTxid:
+	case MethodSubmitGateway:
+		var parsedParams ParamsSubmitGateway
+		err := json.Unmarshal(params.(json.RawMessage), &parsedParams)
+		if err != nil {
+			return jsonrpc.NewResponse(id, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidParams,
+				Message: fmt.Sprintf("invalid params: %v", err),
+			})
+		}
+		return resolver.SubmitGateway(ctx, id, &parsedParams, req)
+	case MethodQueryGateway:
+		var parsedParams ParamsQueryGateway
+		err := json.Unmarshal(params.(json.RawMessage), &parsedParams)
+		if err != nil {
+			return jsonrpc.NewResponse(id, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidParams,
+				Message: fmt.Sprintf("invalid params: %v", err),
+			})
+		}
+		return resolver.QueryGateway(ctx, id, &parsedParams, req)
+	case MethodQueryTxsByTxid:
 		var parsedParams ParamsQueryTxByTxid
 		err := json.Unmarshal(params.(json.RawMessage), &parsedParams)
 		if err != nil {
@@ -118,6 +161,116 @@ func (resolver *Resolver) Fallback(ctx context.Context, id interface{}, method s
 		return resolver.QueryTxByTxid(ctx, id, &parsedParams, req)
 	}
 	return jsonrpc.NewResponse(id, nil, nil)
+}
+
+func (resolver *Resolver) validateGateway(gateway string, tx tx.Tx, input PartialLockMintBurnReleaseInput) error {
+	if tx.Selector.IsBurn() {
+		return fmt.Errorf("Cannot store gateways for burn txes")
+	}
+
+	if tx.Selector.Asset().OriginChain().IsUTXOBased() {
+		script, err := engine.UTXOGatewayScript(tx.Selector.Asset().OriginChain(), tx.Selector.Asset(), input.Gpubkey, input.Ghash)
+		if err != nil {
+			return fmt.Errorf("unable to determine script for UTXO lock: %v", err)
+		}
+
+		scriptAddressStr := ""
+		if tx.Selector.Asset().OriginChain() == multichain.Zcash {
+			scriptAddress, err := zcash.NewAddressScriptHash(script, watcher.ZcashNetParams(resolver.network))
+			if err != nil {
+				return fmt.Errorf("unable to generate zcash address for UTXOGatewayScript: %v", err)
+			}
+			scriptAddressStr = scriptAddress.EncodeAddress()
+		} else {
+			scriptAddress, err := btcutil.NewAddressScriptHash(script, watcher.NetParams(tx.Selector.Asset().OriginChain(), resolver.network))
+			if err != nil {
+				return fmt.Errorf("unable to generate address for UTXOGatewayScript: %v", err)
+			}
+			scriptAddressStr = scriptAddress.EncodeAddress()
+		}
+
+		if scriptAddressStr != gateway {
+			return fmt.Errorf("gateway address mismatch: %v != %v", scriptAddressStr, gateway)
+		}
+	}
+
+	if tx.Selector.Asset().OriginChain().IsAccountBased() {
+		pubKey := id.PubKey{}
+		if err := surge.FromBinary(&pubKey, input.Gpubkey); err != nil {
+			return fmt.Errorf("decompressing gpubkey: %v", err)
+		}
+		ghashPrivKey, err := crypto.ToECDSA(input.Ghash.Bytes())
+		if err != nil {
+			return fmt.Errorf("converting ghash to ecdsa: %v", err)
+		}
+		ghashPubKey := (*id.PubKey)(&ghashPrivKey.PublicKey)
+		toPubKey := &ecdsa.PublicKey{
+			Curve: secp256k1.S256(),
+			X:     &big.Int{},
+			Y:     &big.Int{},
+		}
+		toPubKey.X, toPubKey.Y = toPubKey.Add(pubKey.X, pubKey.Y, ghashPubKey.X, ghashPubKey.Y)
+		toExpected, err := resolver.bindings.AddressFromPubKey(tx.Selector.Source(), (*id.PubKey)(toPubKey))
+		if err != nil {
+			return fmt.Errorf("addressing gpubkey: %v", err)
+		}
+		if multichain.Address(gateway) != toExpected {
+			return fmt.Errorf("expected to %v, got %v", toExpected, gateway)
+		}
+	}
+	return nil
+}
+
+// PartialLockMintBurnReleaseInput is a subset of engine.LockMintBurnReleaseInput
+// that is required to generate a gateway address
+type PartialLockMintBurnReleaseInput struct {
+	Payload pack.Bytes   `json:"payload"`
+	Phash   pack.Bytes32 `json:"phash"`
+	To      pack.String  `json:"to"`
+	Nonce   pack.Bytes32 `json:"nonce"`
+	Nhash   pack.Bytes32 `json:"nhash"`
+	Gpubkey pack.Bytes   `json:"gpubkey"`
+	Ghash   pack.Bytes32 `json:"ghash"`
+}
+
+// Custom rpc for storing gateway information
+// NOTE: should be heavily rate-limited
+func (resolver *Resolver) SubmitGateway(ctx context.Context, id interface{}, params *ParamsSubmitGateway, req *http.Request) jsonrpc.Response {
+	input := PartialLockMintBurnReleaseInput{}
+	err := pack.Decode(&input, params.Tx.Input)
+	if err != nil {
+		resolver.logger.Errorf("[responder] failed decode gateway information: %v :%v", params.Gateway, err)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidRequest, "Incorrect gateway tx", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	err = resolver.validateGateway(params.Gateway, params.Tx, input)
+	if err != nil {
+		resolver.logger.Errorf("[responder] failed to validate gateway information: %v :%v", params.Gateway, err)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidRequest, "Incorrect gateway tx", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	err = resolver.db.InsertGateway(params.Gateway, params.Tx)
+	if err != nil {
+		resolver.logger.Errorf("[responder] cannot insert gateway: %v :%v", params.Gateway, err)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to insert gateway", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	return jsonrpc.NewResponse(id, jsonrpc.ResponseSubmitTx{}, nil)
+}
+
+// Custom rpc for fetching gateways by address
+func (resolver *Resolver) QueryGateway(ctx context.Context, id interface{}, params *ParamsQueryGateway, req *http.Request) jsonrpc.Response {
+	gateway, err := resolver.db.Gateway(params.Gateway)
+	if err != nil {
+		resolver.logger.Errorf("[responder] cannot get gateway for gatewayAddress: %v :%v", params.Gateway, err)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to query txid", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	return jsonrpc.NewResponse(id, jsonrpc.ResponseQueryTx{Tx: gateway}, nil)
 }
 
 // Custom rpc for fetching transactions by txid

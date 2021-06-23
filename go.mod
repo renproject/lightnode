@@ -5,7 +5,7 @@ go 1.15
 require (
 	github.com/alicebob/miniredis/v2 v2.14.3
 	github.com/btcsuite/btcd v0.21.0-beta
-	github.com/consensys/gurvy v0.3.8 // indirect
+	github.com/btcsuite/btcutil v1.0.2
 	github.com/dfuse-io/solana-go v0.2.0
 	github.com/dgryski/go-farm v0.0.0-20191112170834-c2139c5d712b // indirect
 	github.com/ethereum/go-ethereum v1.10.3
@@ -28,6 +28,7 @@ require (
 	github.com/renproject/surge v1.2.6
 	github.com/sirupsen/logrus v1.7.0
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
+	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324
 )
 
 replace github.com/cosmos/ledger-cosmos-go => github.com/terra-project/ledger-terra-go v0.11.1-terra

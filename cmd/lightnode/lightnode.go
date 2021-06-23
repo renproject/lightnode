@@ -14,6 +14,7 @@ import (
 
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+	"golang.org/x/time/rate"
 
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/go-redis/redis/v7"
@@ -290,6 +291,16 @@ func parseOptions() lightnode.Options {
 		options = options.WithBootstrapAddrs(parseAddresses("ADDRESSES"))
 	}
 
+	if os.Getenv("LIMITER_TTL") != "" {
+		options = options.WithLimiterTTL(parseTime("LIMITER_TTL"))
+	}
+	if os.Getenv("LIMITER_IP_RATE") != "" {
+		options = options.WithLimiterIPRates(parseRates("LIMITER_IP_RATE"))
+	}
+	if os.Getenv("LIMITER_GLOBAL_RATE") != "" {
+		options = options.WithLimiterGlobalRates(parseRates("LIMITER_GLOBAL_RATE"))
+	}
+
 	chains := map[multichain.Chain]binding.ChainOptions{}
 	if os.Getenv("RPC_AVALANCHE") != "" {
 		chains[multichain.Avalanche] = binding.ChainOptions{
@@ -412,3 +423,45 @@ func parseAddresses(name string) []wire.Address {
 	}
 	return addrs
 }
+<<<<<<< HEAD
+=======
+
+func parseRates(name string) map[string]rate.Limit {
+	rateStrings := strings.Split(os.Getenv(name), ",")
+	rates := make(map[string]rate.Limit)
+	for i := range rateStrings {
+		methodRate := strings.Split(rateStrings[i], ":")
+		if len(methodRate) != 2 {
+			panic(fmt.Sprintf("invalid rate pair %v", rateStrings[i]))
+		}
+		parsedRate, err := strconv.Atoi(methodRate[1])
+		if err != nil {
+			panic(fmt.Sprintf("invalid rate pair %v: %v", rateStrings[i], err))
+		}
+		rates[methodRate[0]] = rate.Limit(parsedRate)
+	}
+	return rates
+}
+
+func parsePubKey(name string) *id.PubKey {
+	pubKeyString := os.Getenv(name)
+	keyBytes, err := hex.DecodeString(pubKeyString)
+	if err != nil {
+		panic(fmt.Sprintf("invalid distributed public key %v: %v", pubKeyString, err))
+	}
+	key, err := crypto.DecompressPubkey(keyBytes)
+	if err != nil {
+		panic(fmt.Sprintf("invalid distributed public key %v: %v", pubKeyString, err))
+	}
+	return (*id.PubKey)(key)
+}
+
+func parseWhitelist(name string) []tx.Selector {
+	whitelistStrings := strings.Split(os.Getenv(name), ",")
+	whitelist := make([]tx.Selector, len(whitelistStrings))
+	for i := range whitelist {
+		whitelist[i] = tx.Selector(whitelistStrings[i])
+	}
+	return whitelist
+}
+>>>>>>> release/0.4.5

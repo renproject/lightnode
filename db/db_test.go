@@ -56,7 +56,7 @@ var _ = Describe("Lightnode db", func() {
 	}
 
 	cleanUp := func(db *sql.DB) {
-		dropTxs := "DROP TABLE IF EXISTS txs;"
+		dropTxs := "DROP TABLE IF EXISTS txs; DROP TABLE IF EXISTS gateways;"
 		_, err := db.Exec(dropTxs)
 		Expect(err).NotTo(HaveOccurred())
 	}
@@ -85,15 +85,18 @@ var _ = Describe("Lightnode db", func() {
 
 					// Tables should not exist before creation.
 					Expect(CheckTableExistence(dbname, "txs", sqlDB)).Should(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "gateways", sqlDB)).Should(HaveOccurred())
 
 					// Tables should exist after creation.
 					Expect(db.Init()).To(Succeed())
 					Expect(CheckTableExistence(dbname, "txs", sqlDB)).NotTo(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "gateways", sqlDB)).NotTo(HaveOccurred())
 
 					// Multiple calls of the creation function should not have
 					// any effect on the existing tables.
 					Expect(db.Init()).To(Succeed())
 					Expect(CheckTableExistence(dbname, "txs", sqlDB)).NotTo(HaveOccurred())
+					Expect(CheckTableExistence(dbname, "gateways", sqlDB)).NotTo(HaveOccurred())
 				})
 			})
 
@@ -113,6 +116,31 @@ var _ = Describe("Lightnode db", func() {
 						newTransaction, err := db.Tx(transaction.Hash)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(transaction).Should(Equal(newTransaction))
+						return true
+					}
+
+					Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+				})
+
+				It("should be able to read and write gateways", func() {
+					sqlDB := init(dbname)
+					defer close(sqlDB)
+					db := New(sqlDB)
+
+					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+					test := func() bool {
+						Expect(db.Init()).Should(Succeed())
+						defer cleanUp(sqlDB)
+						transaction := txutil.RandomGoodTx(r)
+						transaction.Output = nil
+						gatewayAddress := "address"
+						Expect(db.InsertGateway(gatewayAddress, transaction)).Should(Succeed())
+						newTransaction, err := db.Gateway(gatewayAddress)
+						Expect(err).NotTo(HaveOccurred())
+						// We only store a partial tx
+						Expect(transaction).ShouldNot(Equal(newTransaction))
+						// Selector should still match
+						Expect(newTransaction.Selector).Should(Equal(transaction.Selector))
 						return true
 					}
 
