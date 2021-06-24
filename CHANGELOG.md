@@ -1,8 +1,8 @@
 ## 0.4.5
-- Compat layer for v0 burns
-- Use connection pool for redis interaction 
-- Fetch public key and max confirmations from darknode when booting
-- Fix incorrect `amount` field for v0 compat mint
+- Update compatibility layer for v0 burns
+- Use connection pool for Redis interaction
+- Fetch public key and max confirmations from Darknode when booting
+- Fix incorrect `amount` field for v0 mints
 
 ## 0.4.4
 
