@@ -115,7 +115,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
 
 	versionStore := v0.NewCompatStore(db, client)
-	gpubkeyStore := v1.NewCompatStore(db, client)
+	gpubkeyStore := v1.NewCompatStore(client)
 	hostChains := map[multichain.Chain]bool{}
 	for _, selector := range options.Whitelist {
 		if selector.IsLock() && selector.IsMint() {

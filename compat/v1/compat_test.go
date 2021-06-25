@@ -2,12 +2,10 @@ package v1_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
-	"os"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -19,7 +17,6 @@ import (
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/tx"
 	v1 "github.com/renproject/lightnode/compat/v1"
-	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
@@ -31,21 +28,11 @@ var _ = Describe("Compat V0", func() {
 		mr, err := miniredis.Run()
 		Expect(err).ToNot(HaveOccurred())
 
-		sqlDB, err := sql.Open("sqlite3", "./test.db")
-		database := db.New(sqlDB)
 		client := redis.NewClient(&redis.Options{
 			Addr: mr.Addr(),
 		})
-		return v1.NewCompatStore(database, client)
+		return v1.NewCompatStore(client)
 	}
-
-	BeforeSuite(func() {
-		os.Remove("./test.db")
-	})
-
-	AfterSuite(func() {
-		os.Remove("./test.db")
-	})
 
 	It("should convert a QueryBlockState response into a QueryState response", func() {
 		stateResponse, err := v1.QueryStateResponseFromState(testutils.MockBindings(logrus.New(), 0), testutils.MockEngineState())

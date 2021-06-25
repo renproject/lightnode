@@ -104,7 +104,7 @@ var _ = Describe("Resolver", func() {
 		go cacher.Run(ctx)
 
 		versionStore := v0.NewCompatStore(database, client)
-		gpubkeyStore := v1.NewCompatStore(database, client)
+		gpubkeyStore := v1.NewCompatStore(client)
 
 		pubkeyB, err := base64.URLEncoding.DecodeString("AiF7_2ykZmts2wzZKJ5D-J1scRM2Pm2jJ84W_K4PQaGl")
 		Expect(err).ShouldNot(HaveOccurred())

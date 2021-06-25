@@ -8,7 +8,6 @@ import (
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/id"
-	"github.com/renproject/lightnode/db"
 	"github.com/renproject/pack"
 )
 
@@ -18,13 +17,11 @@ type GpubkeyCompatStore interface {
 }
 
 type Store struct {
-	db     db.DB
 	client redis.Cmdable
 }
 
-func NewCompatStore(db db.DB, client redis.Cmdable) *Store {
+func NewCompatStore(client redis.Cmdable) *Store {
 	return &Store{
-		db:     db,
 		client: client,
 	}
 }
