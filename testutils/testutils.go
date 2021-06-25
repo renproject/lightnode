@@ -277,7 +277,7 @@ func MockParamSubmitTxV0BTC() v0.ParamsSubmitTx {
 }
 
 func MockBurnParamSubmitTxV0BTC() v0.ParamsSubmitTx {
-	jsonStr := `{"tx":{"to":"BTC0Eth2Btc","in":[{"name":"ref","type":"u64","value":"5851"}]},"tags":[]}`
+	jsonStr := `{"tx":{"to":"BTC0Eth2Btc","in":[{"name":"ref","type":"u64","value":"3"}]},"tags":[]}`
 
 	var params v0.ParamsSubmitTx
 	err := json.Unmarshal([]byte(jsonStr), &params)

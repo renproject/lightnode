@@ -435,6 +435,27 @@ func MintTxHash(sel tx.Selector, ghash pack.Bytes32, txid pack.Bytes, txindex pa
 // otherwise will construct a v1 tx using v0 parameters, and persist a mapping
 // so that a v0 queryTX can find them
 func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings binding.Bindings, pubkey *id.PubKey, store CompatStore, network multichain.Network) (jsonrpc.ParamsSubmitTx, error) {
+	// We first do some validation to the v0 params to prevent people DDOSing
+	// us by sending random v0 txs.
+	if err := ValidateV0Tx(params.Tx); err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
+
+	// Check if we have constructed the parameters previously
+	v1tx, err := store.GetV1TxFromTx(params.Tx)
+	if err == nil {
+		// We have persisted this tx before, so let's use it
+		return jsonrpc.ParamsSubmitTx{
+			Tx: v1tx,
+		}, err
+	}
+	if err != nil && err != ErrNotFound {
+		// If there are errors with persistence, we won't be able to handle the tx
+		// at a later state, so return an error early on
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
+
+
 	// If it's a burn tx, we convert the tx to a v1 transaction and submit it
 	if params.Tx.In.Get("utxo").Value == nil {
 		selector := tx.Selector(fmt.Sprintf("%s/fromEthereum", params.Tx.To[0:3]))
@@ -446,7 +467,10 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings bindi
 		client := binding.EthereumClient(multichain.Ethereum)
 		options := binding.ChainOption(multichain.Ethereum)
 		gatewayBinding := binding.EthereumGateway(multichain.Ethereum, selector.Asset())
-
+		tokenAddr, err := bindings.TokenAddressFromAsset(multichain.Ethereum, selector.Asset())
+		if err != nil {
+			return jsonrpc.ParamsSubmitTx{}, err
+		}
 		details, err := gatewayBinding.GetBurn(&bind.CallOpts{}, ref.Int)
 		if err != nil {
 			return jsonrpc.ParamsSubmitTx{}, err
@@ -497,9 +521,15 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings bindi
 		}
 
 		phash := engine.Phash(payload)
-		nhash := engine.Nhash(nonce, txid, 0)
-		pubkbytes := crypto.CompressPubkey((*ecdsa.PublicKey)(pubkey))
-		ghash := engine.Ghash(selector, phash, toDecode, nonce)
+		nhash, err := engine.V0Nhash(nonce, txid, 0)
+		if err != nil {
+			return jsonrpc.ParamsSubmitTx{}, err
+		}
+		ghash, err := engine.V0Ghash(tokenAddr[:], phash, toDecode, nonce)
+		if err != nil {
+			return jsonrpc.ParamsSubmitTx{}, err
+		}
+
 		input, err := pack.Encode(engine.LockMintBurnReleaseInput{
 			Txid:    txid,
 			Txindex: 0,
@@ -509,7 +539,6 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings bindi
 			To:      pack.String(to),
 			Nonce:   nonce,
 			Nhash:   nhash,
-			Gpubkey: pubkbytes,
 			Ghash:   ghash,
 		})
 		if err != nil {
@@ -517,7 +546,7 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings bindi
 		}
 
 		transaction := tx.Tx{
-			Version:  tx.Version1,
+			Version:  tx.Version0,
 			Selector: selector,
 			Input:    pack.Typed(input.(pack.Struct)),
 		}
@@ -527,19 +556,6 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings bindi
 		}
 
 		return jsonrpc.ParamsSubmitTx{Tx: transaction}, nil
-	}
-
-	v1tx, err := store.GetV1TxFromTx(params.Tx)
-	if err == nil {
-		// We have persisted this tx before, so let's use it
-		return jsonrpc.ParamsSubmitTx{
-			Tx: v1tx,
-		}, err
-	}
-	if err != nil && err != ErrNotFound {
-		// If there are errors with persistence, we won't be able to handle the tx
-		// at a later state, so return an error early on
-		return jsonrpc.ParamsSubmitTx{}, err
 	}
 
 	utxo := params.Tx.In.Get("utxo").Value.(ExtBtcCompatUTXO)

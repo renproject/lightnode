@@ -9,6 +9,7 @@ import (
 	"os"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/renproject/lightnode/resolver"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -88,6 +89,28 @@ var _ = Describe("Compat V0", func() {
 		return store, client, bindings, (*id.PubKey)(pubkey)
 	}
 
+	initVerifier := func()resolver.Verifier {
+		hostChains := map[multichain.Chain]bool{
+			multichain.Ethereum: true,
+		}
+		bindingsOpts := binding.DefaultOptions().
+			WithNetwork(multichain.NetworkTestnet).
+			WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
+				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
+				Confirmations: pack.U64(0),
+			}).
+			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
+				RPC:              "https://multichain-staging.renproject.io/testnet/kovan",
+				Confirmations:    pack.U64(0),
+				Protocol:         "0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455",
+				MaxConfirmations: pack.MaxU64,
+			})
+
+		bindings := binding.New(bindingsOpts)
+		verifier := resolver.NewVerifier(hostChains, bindings)
+		return verifier
+	}
+
 	BeforeSuite(func() {
 		os.Remove("./test.db")
 	})
@@ -109,7 +132,7 @@ var _ = Describe("Compat V0", func() {
 		Expect(shardsResponse.Shards[0].Gateways[0].PubKey).Should(Equal("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"))
 	})
 
-	It("should convert a v0 BTC Burn ParamsSubmitTx into an empty v1 ParamsSubmitTx", func() {
+	FIt("should convert a v0 BTC Burn ParamsSubmitTx into an empty v1 ParamsSubmitTx", func() {
 		params := testutils.MockBurnParamSubmitTxV0BTC()
 		store, _, bindings, pubkey := init(params, false)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -117,6 +140,9 @@ var _ = Describe("Compat V0", func() {
 
 		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
 		Expect(err).ShouldNot(HaveOccurred())
+
+		verifier := initVerifier()
+		Expect(verifier.VerifyTx(context.Background(), v1.Tx)).Should(Succeed())
 
 		Expect(v1.Tx.Version).Should(Equal(tx.Version1))
 		Expect(v1.Tx.Selector).Should(Equal(tx.Selector("BTC/fromEthereum")))

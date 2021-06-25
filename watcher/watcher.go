@@ -87,7 +87,6 @@ func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64,
 				nonce := iter.Event.N.Uint64()
 				var nonceBytes pack.Bytes32
 				copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
-
 				result := BurnInfo{
 					Txid:        iter.Event.Raw.TxHash.Bytes(),
 					Amount:      pack.NewU256FromInt(iter.Event.Amount),
@@ -372,6 +371,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		nonce := burn.Nonce
 		amount := burn.Amount
 		to := burn.ToBytes
+
 
 		watcher.logger.Infof("[watcher] detected burn for %v  with nonce=%v", watcher.selector.String(), nonce)
 

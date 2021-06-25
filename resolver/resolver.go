@@ -72,18 +72,6 @@ func (resolver *Resolver) QueryBlocks(ctx context.Context, id interface{}, param
 }
 
 func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *jsonrpc.ParamsSubmitTx, req *http.Request) jsonrpc.Response {
-	// As such, we will just respond with the v0 hash so that renjs-v1 can continue as normal, but
-	// we won't actually submit to the darknodes
-	emptyParams := jsonrpc.ParamsSubmitTx{}
-	if params.Tx.Hash == emptyParams.Tx.Hash {
-		hash, ok := params.Tx.Input.Get("v0hash").(pack.Bytes32)
-		if !ok {
-			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "missing v0hash", nil)
-			return jsonrpc.NewResponse(id, nil, &jsonErr)
-		}
-
-		return jsonrpc.NewResponse(id, v0.ResponseSubmitTx{Tx: v0.Tx{Hash: v0.B32(hash)}}, nil)
-	}
 	response := resolver.handleMessage(ctx, id, jsonrpc.MethodSubmitTx, *params, req, true)
 	if params.Tx.Version != tx.Version0 {
 		return response
