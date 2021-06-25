@@ -142,8 +142,7 @@ var _ = Describe("Watcher", func() {
 			logger.Panicf("bad bindings: %v", err)
 		}
 
-		ethClients := bindings.EthereumClients()
-		ethClient := ethClients[multichain.Ethereum]
+		ethClient := bindings.EthereumClient(multichain.Ethereum)
 		fetcher := NewMockBurnLogFetcher(burnIn)
 		heightFetcher := NewEthBlockHeightFetcher(ethClient)
 
@@ -603,8 +602,7 @@ var _ = Describe("Watcher", func() {
 
 			bindings := binding.New(bindingsOpts)
 
-			gateways := bindings.EthereumGateways()
-			btcGateway := gateways[multichain.Ethereum][multichain.BTC]
+			btcGateway := bindings.EthereumGateway(multichain.Ethereum, multichain.BTC)
 			burnLogFetcher := NewEthBurnLogFetcher(btcGateway)
 
 			results, err := burnLogFetcher.FetchBurnLogs(ctx, 0, 0)
@@ -678,8 +676,7 @@ var _ = Describe("Watcher", func() {
 
 			bindings := binding.New(bindingsOpts)
 			solClient := solanaRPC.NewClient(bindingsOpts.Chains[multichain.Solana].RPC.String())
-			gateways := bindings.ContractGateways()
-			btcGateway := gateways[multichain.Solana][multichain.BTC]
+			btcGateway := bindings.ContractGateway(multichain.Solana, multichain.BTC)
 			burnLogFetcher := NewSolFetcher(solClient, string(btcGateway))
 
 			results, err := burnLogFetcher.FetchBurnLogs(ctx, 0, 0)
@@ -740,8 +737,7 @@ var _ = Describe("Watcher", func() {
 
 			bindings := binding.New(bindingsOpts)
 			solClient := solanaRPC.NewClient(bindingsOpts.Chains[multichain.Solana].RPC.String())
-			gateways := bindings.ContractGateways()
-			btcGateway := gateways[multichain.Solana][multichain.BTC]
+			btcGateway := bindings.ContractGateway(multichain.Solana, multichain.BTC)
 			burnLogFetcher := NewSolFetcher(solClient, string(btcGateway))
 
 			results, err := burnLogFetcher.FetchBurnLogs(ctx, 0, 0)
