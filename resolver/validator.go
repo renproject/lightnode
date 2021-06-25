@@ -156,6 +156,7 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 					})
 				}
 				req.Params = raw
+				break
 			}
 		}
 
