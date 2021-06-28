@@ -8,7 +8,6 @@ import (
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/darknode/tx"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/cacher"
 	v0 "github.com/renproject/lightnode/compat/v0"
