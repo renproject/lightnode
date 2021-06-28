@@ -40,12 +40,13 @@ type Resolver struct {
 	cacher            phi.Task
 	db                db.DB
 	serverOptions     jsonrpc.Options
-	compatStore       v0.CompatStore
+	versionStore      v0.CompatStore
+	gpubkeyStore      v1.GpubkeyCompatStore
 	bindings          binding.Bindings
 }
 
 func New(network multichain.Network, logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, db db.DB,
-	serverOptions jsonrpc.Options, compatStore v0.CompatStore, bindings binding.Bindings, verifier Verifier) *Resolver {
+	serverOptions jsonrpc.Options, versionStore v0.CompatStore, gpubkeyStore v1.GpubkeyCompatStore, bindings binding.Bindings, verifier Verifier) *Resolver {
 	requests := make(chan lhttp.RequestWithResponder, 128)
 	txChecker := newTxChecker(logger, requests, verifier, db)
 	go txChecker.Run()
@@ -58,7 +59,8 @@ func New(network multichain.Network, logger logrus.FieldLogger, cacher phi.Task,
 		cacher:            cacher,
 		db:                db,
 		serverOptions:     serverOptions,
-		compatStore:       compatStore,
+		versionStore:      versionStore,
+		gpubkeyStore:      gpubkeyStore,
 		bindings:          bindings,
 	}
 }
@@ -302,7 +304,7 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 
 	// check if tx is v0 or v1 due to its presence in the mapping store
 	// We have to encode as non-url safe because that's the format v0 uses
-	txhash, err := resolver.compatStore.GetV1HashFromHash(v0txhash)
+	txhash, err := resolver.versionStore.GetV1HashFromHash(v0txhash)
 	if err != v0.ErrNotFound {
 		if err != nil {
 			resolver.logger.Errorf("[responder] cannot get v0-v1 tx mapping from store: %v", err)
@@ -313,6 +315,12 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 		resolver.logger.Debugf("[responder] found v0 tx mapping - v1: %s", txhash)
 		params.TxHash = [32]byte(txhash)
 		v0tx = true
+	}
+
+	if newHash, err := resolver.gpubkeyStore.UpdatedHash(params.TxHash); err == nil {
+		// A gpubkey compat hash exists in the cache, so we use that to perform
+		// the query instead.
+		params.TxHash = newHash
 	}
 
 	// Retrieve transaction status from the database.
