@@ -149,7 +149,6 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		}
 		chain := selector.Source()
 		asset := selector.Asset()
-		selector := tx.Selector(fmt.Sprintf("%v/from%v", asset, chain))
 		if watchers[chain] == nil {
 			watchers[chain] = map[multichain.Asset]watcher.Watcher{}
 		}
