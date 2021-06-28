@@ -144,6 +144,9 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	chains := map[multichain.Chain]bool{}
 	assets := map[multichain.Asset]bool{}
 	for _, selector := range options.Whitelist {
+		if !selector.IsCrossChain() {
+			continue
+		}
 		if selector.IsBurn() && selector.IsRelease() {
 			chains[selector.Source()] = true
 		}
