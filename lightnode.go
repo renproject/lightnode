@@ -64,7 +64,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	opts := phi.Options{Cap: options.Cap}
 
 	// Initialise the database.
-	db := db.New(sqlDB)
+	db := db.New(sqlDB, options.MaxGatewayCount)
 	if err := db.Init(); err != nil {
 		logger.Panicf("failed to initialise db: %v", err)
 	}
