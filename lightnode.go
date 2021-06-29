@@ -8,10 +8,10 @@ import (
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/jsonrpc"
-	"github.com/renproject/darknode/tx"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/cacher"
 	v0 "github.com/renproject/lightnode/compat/v0"
+	v1 "github.com/renproject/lightnode/compat/v1"
 	"github.com/renproject/lightnode/confirmer"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/dispatcher"
@@ -113,7 +113,8 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
 	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
 
-	compatStore := v0.NewCompatStore(db, client)
+	versionStore := v0.NewCompatStore(db, client)
+	gpubkeyStore := v1.NewCompatStore(client)
 	hostChains := map[multichain.Chain]bool{}
 	for _, selector := range options.Whitelist {
 		if selector.IsLock() && selector.IsMint() {
@@ -121,14 +122,14 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		}
 	}
 	verifier := resolver.NewVerifier(hostChains, verifierBindings)
-	resolverI := resolver.New(options.Network, logger, cacher, multiStore, db, serverOptions, compatStore, bindings, verifier)
+	resolverI := resolver.New(options.Network, logger, cacher, multiStore, db, serverOptions, versionStore, gpubkeyStore, bindings, verifier)
 	limiter := resolver.NewRateLimiter(resolver.RateLimiterConf{
 		GlobalMethodRate: options.LimiterGlobalRates,
 		IpMethodRate:     options.LimiterIPRates,
 		Ttl:              options.LimiterTTL,
 		MaxClients:       options.LimiterMaxClients,
 	})
-	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewValidator(verifierBindings, options.DistPubKey, compatStore, &limiter, logger))
+	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewValidator(verifierBindings, options.DistPubKey, versionStore, gpubkeyStore, &limiter, logger))
 	confirmer := confirmer.New(
 		confirmer.DefaultOptions().
 			WithLogger(logger).
@@ -139,50 +140,31 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		bindings,
 	)
 
-	whitelistMap := map[tx.Selector]bool{}
-	for _, i := range options.Whitelist {
-		whitelistMap[i] = true
-	}
-
 	watchers := map[multichain.Chain]map[multichain.Asset]watcher.Watcher{}
-
-	// Ethereum watchers
-	ethGateways := bindings.EthereumGateways()
-	ethClients := bindings.EthereumClients()
-	for chain, contracts := range ethGateways {
-		for asset, bindings := range contracts {
-			selector := tx.Selector(fmt.Sprintf("%v/from%v", asset, chain))
-			if !whitelistMap[selector] {
-				logger.Info("not watching", selector)
-				continue
-			}
-			if watchers[chain] == nil {
-				watchers[chain] = map[multichain.Asset]watcher.Watcher{}
-			}
-			burnLogFetcher := watcher.NewEthBurnLogFetcher(bindings)
-			blockHeightFetcher := watcher.NewEthBlockHeightFetcher(ethClients[chain])
-			watchers[chain][selector.Asset()] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, burnLogFetcher, blockHeightFetcher, resolverI, client, options.DistPubKey, options.WatcherPollRate, options.WatcherMaxBlockAdvance, options.WatcherConfidenceInterval)
-			logger.Info("watching", selector)
-		}
-	}
-
-	// Solana watchers
-	solanaGateways := bindings.ContractGateways()[multichain.Solana]
 	solClient := solanaRPC.NewClient(bindingsOpts.Chains[multichain.Solana].RPC.String())
-	for asset, bindings := range solanaGateways {
-		chain := multichain.Solana
-		selector := tx.Selector(fmt.Sprintf("%v/from%v", asset, chain))
-		if !whitelistMap[selector] {
-			logger.Info("not watching ", selector)
+	for _, selector := range options.Whitelist {
+		if !selector.IsBurn() || !selector.IsRelease() {
 			continue
 		}
+		chain := selector.Source()
+		asset := selector.Asset()
 		if watchers[chain] == nil {
 			watchers[chain] = map[multichain.Asset]watcher.Watcher{}
 		}
-		solanaFetcher := watcher.NewSolFetcher(solClient, string(bindings))
-		watchers[chain][selector.Asset()] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, solanaFetcher, solanaFetcher, resolverI, client, options.DistPubKey, options.WatcherPollRate, options.WatcherMaxBlockAdvance, options.WatcherConfidenceInterval)
-		logger.Info("watching ", selector)
-		logger.Info("at ", bindings)
+		if _, ok := watchers[chain][asset]; ok {
+			continue
+		}
+		var burnLogFetcher watcher.BurnLogFetcher
+		var blockHeightFetcher watcher.BlockHeightFetcher
+		if chain == multichain.Solana {
+			burnLogFetcher = watcher.NewSolFetcher(solClient, string(bindings.ContractGateway(chain, asset)))
+			blockHeightFetcher = watcher.NewSolFetcher(solClient, string(bindings.ContractGateway(chain, asset)))
+		} else {
+			burnLogFetcher = watcher.NewEthBurnLogFetcher(bindings.EthereumGateway(chain, asset))
+			blockHeightFetcher = watcher.NewEthBlockHeightFetcher(bindings.EthereumClient(chain))
+		}
+		watchers[chain][selector.Asset()] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, burnLogFetcher, blockHeightFetcher, resolverI, client, options.WatcherPollRate, options.WatcherMaxBlockAdvance, options.WatcherConfidenceInterval)
+		logger.Info("watching", selector)
 	}
 
 	return Lightnode{

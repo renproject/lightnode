@@ -1,6 +1,7 @@
 ## 0.4.4
 
 - Partial transaction persistence for gateway recovery
+- Compatibility updates for empty gpubkey
 
 ## 0.4.3
 
