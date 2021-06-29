@@ -85,7 +85,7 @@ func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings
 		Minted: minted,
 		Fees: engine.XStateFees{
 			Unassigned: pack.NewU256([32]byte{}),
-			Unclaimed:  pack.U256{},
+			Unclaimed:  pack.NewU256([32]byte{}),
 			Epochs:     []engine.XStateFeesEpoch{},
 			Nodes:      []engine.XStateFeesNode{},
 			HostChains: []engine.XStateFeesHostChains{},

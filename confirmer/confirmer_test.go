@@ -10,10 +10,10 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/id"
 	. "github.com/renproject/lightnode/confirmer"
 
 	"github.com/renproject/darknode/tx/txutil"
+	"github.com/renproject/id"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/sirupsen/logrus"
@@ -42,7 +42,7 @@ var _ = Describe("Confirmer", func() {
 			sqlDB.SetMaxOpenConns(1)
 			defer cleanUp(sqlDB)
 
-			database := db.New(sqlDB)
+			database := db.New(sqlDB, 0)
 			Expect(database.Init()).To(Succeed())
 
 			maxAttempts := 2
@@ -99,7 +99,7 @@ var _ = Describe("Confirmer", func() {
 
 			defer cleanUp(sqlDB)
 
-			database := db.New(sqlDB)
+			database := db.New(sqlDB, 0)
 			Expect(database.Init()).To(Succeed())
 
 			maxAttempts := 2

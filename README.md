@@ -1,10 +1,6 @@
 # `🚀 lightnode`
 
-<<<<<<< Updated upstream
 ![](https://github.com/renproject/lightnode/workflows/go/badge.svg)
-=======
-![](https://github.com/renproject//workflows/go/badge.svg)
->>>>>>> Stashed changes
 [![Coverage Status](https://coveralls.io/repos/github/renproject/lightnode/badge.svg?branch=master)](https://coveralls.io/github/renproject/lightnode?branch=master)
 
 A node used for querying Darknodes using JSON-RPC 2.0 interfaces. Featuring query caching (for performance) as well as retrying for failed requests (for reliability).

@@ -17,7 +17,6 @@ import (
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/jsonrpc/jsonrpcresolver"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
@@ -125,12 +124,6 @@ var _ = Describe("Watcher", func() {
 			mockResolver = jsonrpcresolver.RandomResponder()
 		}
 
-		pubk := id.NewPrivKey().PubKey()
-
-		if err != nil {
-			logger.Panicf("failed to create account client: %v", err)
-		}
-
 		burnIn := make(chan BurnLogResult)
 		bindingsOpts := binding.DefaultOptions().
 			WithNetwork("localnet").
@@ -165,7 +158,7 @@ var _ = Describe("Watcher", func() {
 			live = true
 		}
 
-		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, fetcher, heightFetcher, mockResolver, client, pubk, interval, 1000, 6)
+		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, fetcher, heightFetcher, mockResolver, client, interval, 1000, 6)
 
 		return watcher, client, burnIn, mr
 	}
@@ -712,18 +705,12 @@ var _ = Describe("Watcher", func() {
 
 			mockResolver := jsonrpcresolver.OkResponder()
 
-			pubk := id.NewPrivKey().PubKey()
-
-			if err != nil {
-				logger.Panicf("failed to create account client: %v", err)
-			}
-
 			results, err = burnLogFetcher.FetchBurnLogs(ctx, 1, 2)
 			Expect(err).ToNot(HaveOccurred())
 			// We set the last checked block manually, because it will always start after the last checked burn
 			client.Set("BTC/fromSolana_lastCheckedBlock", 1, 0)
 
-			watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, burnLogFetcher, burnLogFetcher, mockResolver, client, pubk, time.Second, 1000, 6)
+			watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, burnLogFetcher, burnLogFetcher, mockResolver, client, time.Second, 1000, 6)
 
 			go watcher.Run(ctx)
 
