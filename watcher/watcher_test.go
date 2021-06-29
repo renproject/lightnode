@@ -17,7 +17,6 @@ import (
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/jsonrpc/jsonrpcresolver"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
@@ -125,12 +124,6 @@ var _ = Describe("Watcher", func() {
 			mockResolver = jsonrpcresolver.RandomResponder()
 		}
 
-		pubk := id.NewPrivKey().PubKey()
-
-		if err != nil {
-			logger.Panicf("failed to create account client: %v", err)
-		}
-
 		burnIn := make(chan BurnLogResult)
 		bindingsOpts := binding.DefaultOptions().
 			WithNetwork("localnet").
@@ -149,8 +142,7 @@ var _ = Describe("Watcher", func() {
 			logger.Panicf("bad bindings: %v", err)
 		}
 
-		ethClients := bindings.EthereumClients()
-		ethClient := ethClients[multichain.Ethereum]
+		ethClient := bindings.EthereumClient(multichain.Ethereum)
 		fetcher := NewMockBurnLogFetcher(burnIn)
 		heightFetcher := NewEthBlockHeightFetcher(ethClient)
 
@@ -166,7 +158,7 @@ var _ = Describe("Watcher", func() {
 			live = true
 		}
 
-		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, fetcher, heightFetcher, mockResolver, client, pubk, interval, 1000, 6)
+		watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, fetcher, heightFetcher, mockResolver, client, interval, 1000, 6)
 
 		return watcher, client, burnIn, mr
 	}
@@ -610,8 +602,7 @@ var _ = Describe("Watcher", func() {
 
 			bindings := binding.New(bindingsOpts)
 
-			gateways := bindings.EthereumGateways()
-			btcGateway := gateways[multichain.Ethereum][multichain.BTC]
+			btcGateway := bindings.EthereumGateway(multichain.Ethereum, multichain.BTC)
 			burnLogFetcher := NewEthBurnLogFetcher(btcGateway)
 
 			results, err := burnLogFetcher.FetchBurnLogs(ctx, 0, 0)
@@ -685,8 +676,7 @@ var _ = Describe("Watcher", func() {
 
 			bindings := binding.New(bindingsOpts)
 			solClient := solanaRPC.NewClient(bindingsOpts.Chains[multichain.Solana].RPC.String())
-			gateways := bindings.ContractGateways()
-			btcGateway := gateways[multichain.Solana][multichain.BTC]
+			btcGateway := bindings.ContractGateway(multichain.Solana, multichain.BTC)
 			burnLogFetcher := NewSolFetcher(solClient, string(btcGateway))
 
 			results, err := burnLogFetcher.FetchBurnLogs(ctx, 0, 0)
@@ -715,18 +705,12 @@ var _ = Describe("Watcher", func() {
 
 			mockResolver := jsonrpcresolver.OkResponder()
 
-			pubk := id.NewPrivKey().PubKey()
-
-			if err != nil {
-				logger.Panicf("failed to create account client: %v", err)
-			}
-
 			results, err = burnLogFetcher.FetchBurnLogs(ctx, 1, 2)
 			Expect(err).ToNot(HaveOccurred())
 			// We set the last checked block manually, because it will always start after the last checked burn
 			client.Set("BTC/fromSolana_lastCheckedBlock", 1, 0)
 
-			watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, burnLogFetcher, burnLogFetcher, mockResolver, client, pubk, time.Second, 1000, 6)
+			watcher := NewWatcher(logger, multichain.NetworkDevnet, selector, bindings, burnLogFetcher, burnLogFetcher, mockResolver, client, time.Second, 1000, 6)
 
 			go watcher.Run(ctx)
 
@@ -753,8 +737,7 @@ var _ = Describe("Watcher", func() {
 
 			bindings := binding.New(bindingsOpts)
 			solClient := solanaRPC.NewClient(bindingsOpts.Chains[multichain.Solana].RPC.String())
-			gateways := bindings.ContractGateways()
-			btcGateway := gateways[multichain.Solana][multichain.BTC]
+			btcGateway := bindings.ContractGateway(multichain.Solana, multichain.BTC)
 			burnLogFetcher := NewSolFetcher(solClient, string(btcGateway))
 
 			results, err := burnLogFetcher.FetchBurnLogs(ctx, 0, 0)

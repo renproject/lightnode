@@ -74,8 +74,6 @@ func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings
 		GasPrice:      pack.NewU256([32]byte{}),
 		MinimumAmount: pack.NewU256([32]byte{}),
 		DustAmount:    pack.NewU256([32]byte{}),
-		MintFee:       0,
-		BurnFee:       0,
 		Shards: []engine.XStateShard{
 			{
 				Shard:  pack.Bytes32{},
@@ -89,6 +87,7 @@ func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings
 			Unassigned: pack.NewU256([32]byte{}),
 			Epochs:     []engine.XStateFeesEpoch{},
 			Nodes:      []engine.XStateFeesNode{},
+			HostChains: []engine.XStateFeesHostChains{},
 		},
 	})
 	if err != nil {
