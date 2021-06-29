@@ -35,7 +35,7 @@ var (
 )
 
 func ValidateAddress(addr Address) error {
-	switch addr{
+	switch addr {
 	case IntrinsicBTC0Btc2Eth.Address,
 		IntrinsicZEC0Zec2Eth.Address,
 		IntrinsicBCH0Bch2Eth.Address,

@@ -372,7 +372,6 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		amount := burn.Amount
 		to := burn.ToBytes
 
-
 		watcher.logger.Infof("[watcher] detected burn for %v  with nonce=%v", watcher.selector.String(), nonce)
 
 		// Send the burn transaction to the resolver.

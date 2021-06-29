@@ -110,7 +110,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
 	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
 
-	compatStore := v0.NewCompatStore(db, client)
+	compatStore := v0.NewCompatStore(db, client, options.TransactionExpiry)
 	hostChains := map[multichain.Chain]bool{}
 	for _, selector := range options.Whitelist {
 		if selector.IsLock() && selector.IsMint() {

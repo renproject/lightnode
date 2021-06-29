@@ -80,7 +80,7 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 		<-ctx.Done()
 	}()
 
-	txs, err := confirmer.database.PendingTxs(24 * time.Hour)
+	txs, err := confirmer.database.PendingTxs(72 * time.Hour)
 	if err != nil {
 		confirmer.options.Logger.Errorf("[confirmer] failed to read pending txs from database: %v", err)
 		return

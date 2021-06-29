@@ -105,7 +105,7 @@ var _ = Describe("Resolver", func() {
 		cacher := testutils.NewMockCacher()
 		go cacher.Run(ctx)
 
-		compatStore := v0.NewCompatStore(database, client)
+		compatStore := v0.NewCompatStore(database, client, time.Hour)
 
 		pubkeyB, err := base64.URLEncoding.DecodeString("AiF7_2ykZmts2wzZKJ5D-J1scRM2Pm2jJ84W_K4PQaGl")
 		Expect(err).ShouldNot(HaveOccurred())

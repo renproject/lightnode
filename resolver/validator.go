@@ -126,7 +126,7 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 
 		var params v0.ParamsSubmitTx
 		if err := json.Unmarshal(req.Params, &params); err == nil {
-			castParams, err := v0.V1TxParamsFromTx(ctx, params, validator.bindings, validator.pubkey, validator.store, validator.network)
+			castParams, err := v0.V1TxParamsFromTx(ctx, params, validator.bindings.(*binding.Binding), validator.pubkey, validator.store, validator.network)
 			if err != nil {
 				validator.logger.Errorf("[validator]: failed to validate compat tx submission: %v", err)
 				return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{

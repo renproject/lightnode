@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"os"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/renproject/lightnode/resolver"
@@ -50,10 +53,10 @@ var _ = Describe("Compat V0", func() {
 		}
 
 		bindingsOpts := binding.DefaultOptions().
-			WithNetwork("testnet")
+			WithNetwork(multichain.NetworkLocalnet)
 
 		bindingsOpts.WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
-			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
+			RPC:           pack.String("http://0.0.0.0:18443"),
 			Confirmations: pack.U64(0),
 		})
 
@@ -68,15 +71,15 @@ var _ = Describe("Compat V0", func() {
 		})
 
 		bindingsOpts.WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-			RPC:              pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
+			RPC:              pack.String("http://0.0.0.0:8545"),
 			Confirmations:    pack.U64(0),
-			Protocol:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+			Protocol:         pack.String("0x0Bb909b7c3817F8fB7188e8fbaA2763028956E30"),
 			MaxConfirmations: pack.MaxU64,
 		})
 
 		bindings := binding.New(bindingsOpts)
 
-		pubkeyB, err := base64.URLEncoding.DecodeString("AiF7_2ykZmts2wzZKJ5D-J1scRM2Pm2jJ84W_K4PQaGl")
+		pubkeyB, err := base64.URLEncoding.DecodeString("AnbyLhl6mDMSj-K6-F_KCOCsI5Qc3wW-I3-b9-HpNdhl")
 		Expect(err).ShouldNot(HaveOccurred())
 
 		pubkey, err := crypto.DecompressPubkey(pubkeyB)
@@ -84,25 +87,25 @@ var _ = Describe("Compat V0", func() {
 
 		sqlDB, err := sql.Open("sqlite3", "./test.db")
 		database := db.New(sqlDB)
-		store := v0.NewCompatStore(database, client)
+		store := v0.NewCompatStore(database, client, time.Hour)
 
 		return store, client, bindings, (*id.PubKey)(pubkey)
 	}
 
-	initVerifier := func()resolver.Verifier {
+	initVerifier := func() resolver.Verifier {
 		hostChains := map[multichain.Chain]bool{
 			multichain.Ethereum: true,
 		}
 		bindingsOpts := binding.DefaultOptions().
-			WithNetwork(multichain.NetworkTestnet).
+			WithNetwork(multichain.NetworkLocalnet).
 			WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
-				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
+				RPC:           pack.String("http://0.0.0.0:18443"),
 				Confirmations: pack.U64(0),
 			}).
 			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-				RPC:              "https://multichain-staging.renproject.io/testnet/kovan",
+				RPC:              "http://0.0.0.0:8545",
 				Confirmations:    pack.U64(0),
-				Protocol:         "0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455",
+				Protocol:         "0x0Bb909b7c3817F8fB7188e8fbaA2763028956E30",
 				MaxConfirmations: pack.MaxU64,
 			})
 
@@ -140,11 +143,16 @@ var _ = Describe("Compat V0", func() {
 
 		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
 		Expect(err).ShouldNot(HaveOccurred())
+		raw, err := json.Marshal(v1)
+		if err != nil {
+			panic(err)
+		}
+		log.Print("new tx = ", string(raw))
 
 		verifier := initVerifier()
 		Expect(verifier.VerifyTx(context.Background(), v1.Tx)).Should(Succeed())
 
-		Expect(v1.Tx.Version).Should(Equal(tx.Version1))
+		Expect(v1.Tx.Version).Should(Equal(tx.Version0))
 		Expect(v1.Tx.Selector).Should(Equal(tx.Selector("BTC/fromEthereum")))
 		Expect(v1.Tx.Input.Get("txid")).ShouldNot(BeNil())
 		Expect(v1.Tx.Input.Get("txindex")).ShouldNot(BeNil())

@@ -761,7 +761,8 @@ func (arg *Arg) UnmarshalBinary(data []byte) error {
 	return err
 }
 
-// ValidateV0Tx does some basic validation with v0 submitTx.
+// ValidateV0Tx check the tx has a valid contract address and has all the
+// required input fields.
 func ValidateV0Tx(tx Tx) error {
 	// Validate the contract address
 	contract, ok := Intrinsics[tx.To]
