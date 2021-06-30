@@ -68,7 +68,11 @@ func main() {
 
 	for chain, chainOpt := range options.Chains {
 		chainOpt.Confirmations = conf.Confirmations[chain]
-		chainOpt.MaxConfirmations = conf.MaxConfirmations[chain]
+		if conf.MaxConfirmations[chain] != 0 {
+			chainOpt.MaxConfirmations = conf.MaxConfirmations[chain]
+		} else {
+			chainOpt.MaxConfirmations = pack.MaxU64
+		}
 		options.Chains[chain] = chainOpt
 	}
 
@@ -99,7 +103,7 @@ func getConfigFromBootstrap(ctx context.Context, logger logrus.FieldLogger, addr
 			return conf, nil
 		}
 	}
-	return jsonrpc.ResponseQueryConfig{}, fmt.Errorf("Could not load config from darknodes")
+	return jsonrpc.ResponseQueryConfig{}, fmt.Errorf("could not load config from darknodes")
 }
 
 func addrToUrl(addr wire.Address, logger logrus.FieldLogger) string {
