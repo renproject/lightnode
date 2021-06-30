@@ -2,7 +2,6 @@ package v0
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -409,7 +408,7 @@ func BurnTxHash(sel tx.Selector, ref pack.U256) B32 {
 	return v0HashB32
 }
 
-// MintTxHash creates V0 MintTxHash from params avaialble in V1
+// MintTxHash creates V0 MintTxHash from params available in V1
 func MintTxHash(sel tx.Selector, ghash pack.Bytes32, txid pack.Bytes, txindex pack.U32) B32 {
 	// copy passed txid so that it doesn't modify the passed value...
 	// v1 txid is reversed, so un-reverse it
@@ -459,16 +458,20 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *bind
 
 	// Convert the v0 tx to v1 transaction
 	if IsShiftIn(params.Tx.To) {
-		v1Tx, err = V1TxFromV0Mint(ctx, params.Tx, bindings, pubkey)
-		if err != nil {
-			return jsonrpc.ParamsSubmitTx{}, err
-		}
+		v1Tx, err = V1TxFromV0Mint(ctx, params.Tx, bindings)
 	} else {
-		v1Tx, err = V1TxFromV0Burn(ctx, params.Tx, bindings, pubkey, network)
-		if err != nil {
-			return jsonrpc.ParamsSubmitTx{}, err
-		}
+		v1Tx, err = V1TxFromV0Burn(ctx, params.Tx, bindings, network)
 	}
+	if err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
+
+	// Calculate tx hash for v0 tx
+	txHash, err := V0TxHashFromTx(params.Tx)
+	if err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
+	copy(params.Tx.Hash[:], txHash[:])
 
 	// Store the v0/v1 mapping in the CompatStore
 	v1Params := jsonrpc.ParamsSubmitTx{
@@ -543,7 +546,7 @@ func NetParams(chain multichain.Chain, net multichain.Network) *chaincfg.Params 
 	}
 }
 
-func V1TxFromV0Mint(ctx context.Context, v0tx Tx, bindings *binding.Binding, pubkey *id.PubKey) (tx.Tx, error) {
+func V1TxFromV0Mint(ctx context.Context, v0tx Tx, bindings *binding.Binding) (tx.Tx, error) {
 	selector := tx.Selector(fmt.Sprintf("%s/fromEthereum", v0tx.To[0:3]))
 	utxo := v0tx.In.Get("utxo").Value.(ExtBtcCompatUTXO)
 	vout := utxo.VOut.Int.Uint64()
@@ -575,7 +578,6 @@ func V1TxFromV0Mint(ctx context.Context, v0tx Tx, bindings *binding.Binding, pub
 	copy(c[:], nonceBytes)
 	nonce := pack.NewBytes32(c)
 	nhash := engine.Nhash(nonce, txid, txindex)
-	pubkbytes := crypto.CompressPubkey((*ecdsa.PublicKey)(pubkey))
 	minter := common.HexToAddress(string(to))
 	ghash := engine.Ghash(selector, phash, minter[:], nonce)
 	input, err := pack.Encode(engine.LockMintBurnReleaseInput{
@@ -587,7 +589,6 @@ func V1TxFromV0Mint(ctx context.Context, v0tx Tx, bindings *binding.Binding, pub
 		To:      to,
 		Nonce:   nonce,
 		Nhash:   nhash,
-		Gpubkey: pack.NewBytes(pubkbytes),
 		Ghash:   ghash,
 	})
 	if err != nil {
@@ -597,7 +598,7 @@ func V1TxFromV0Mint(ctx context.Context, v0tx Tx, bindings *binding.Binding, pub
 	return tx.NewTx(selector, pack.Typed(input.(pack.Struct)))
 }
 
-func V1TxFromV0Burn(ctx context.Context, v0tx Tx, bindings *binding.Binding, pubkey *id.PubKey, network multichain.Network) (tx.Tx, error) {
+func V1TxFromV0Burn(ctx context.Context, v0tx Tx, bindings *binding.Binding, network multichain.Network) (tx.Tx, error) {
 	selector := tx.Selector(fmt.Sprintf("%s/fromEthereum", v0tx.To[0:3]))
 	ref := v0tx.In.Get("ref").Value.(U64)
 	var nonce pack.Bytes32
@@ -641,6 +642,7 @@ func V1TxFromV0Burn(ctx context.Context, v0tx Tx, bindings *binding.Binding, pub
 	if iter.Error() != nil {
 		return tx.Tx{}, err
 	}
+
 	amount := pack.NewU256FromInt(details.Amount)
 	payload := details.Payload
 	toBytes := details.To
@@ -658,7 +660,6 @@ func V1TxFromV0Burn(ctx context.Context, v0tx Tx, bindings *binding.Binding, pub
 	phash := engine.Phash(payload)
 	nhash := engine.Nhash(nonce, txid, 0)
 	ghash := engine.Ghash(selector, phash, toDecode[:], nonce)
-	pubkbytes := crypto.CompressPubkey((*ecdsa.PublicKey)(pubkey))
 
 	input, err := pack.Encode(engine.LockMintBurnReleaseInput{
 		Txid:    txid,
@@ -670,10 +671,32 @@ func V1TxFromV0Burn(ctx context.Context, v0tx Tx, bindings *binding.Binding, pub
 		Nonce:   nonce,
 		Nhash:   nhash,
 		Ghash:   ghash,
-		Gpubkey: pubkbytes,
 	})
 	if err != nil {
 		return tx.Tx{}, err
 	}
 	return tx.NewTx(selector, pack.Typed(input.(pack.Struct)))
+}
+
+func V0TxHashFromTx(tx Tx) (B32, error){
+	var hash B32
+	if IsShiftIn(tx.To) {
+		payload := pack.NewBytes(tx.In.Get("p").Value.(ExtEthCompatPayload).Value[:])
+		phash := engine.Phash(payload)
+		tokenAddr := tx.In.Get("token").Value.(ExtEthCompatAddress)
+		to := tx.In.Get("to").Value.(ExtEthCompatAddress)
+		n := tx.In.Get("n").Value.(B32)
+		var nonce pack.Bytes32
+		copy(nonce[:], n[:])
+		ghash, err := engine.V0Ghash(tokenAddr[:], phash, to[:], nonce)
+		if err != nil {
+			return B32{}, err
+		}
+		utxo := tx.In.Get("utxo").Value.(ExtBtcCompatUTXO)
+		copy(hash[:], crypto.Keccak256([]byte(fmt.Sprintf("txHash_%s_%s_%s_%d", tx.To, ghash, utxo.TxHash, utxo.VOut.Int.Int64()))))
+	} else {
+		ref := tx.In.Get("ref").Value.(U64)
+		copy(hash[:], crypto.Keccak256([]byte(fmt.Sprintf("txHash_%s_%d", tx.To, ref.Int.Int64()))))
+	}
+	return hash, nil
 }

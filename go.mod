@@ -6,12 +6,10 @@ require (
 	github.com/alicebob/miniredis/v2 v2.14.3
 	github.com/btcsuite/btcd v0.21.0-beta
 	github.com/btcsuite/btcutil v1.0.2
-	github.com/consensys/gurvy v0.3.8 // indirect
 	github.com/dfuse-io/solana-go v0.2.0
 	github.com/dgryski/go-farm v0.0.0-20191112170834-c2139c5d712b // indirect
 	github.com/ethereum/go-ethereum v1.10.3
 	github.com/evalphobia/logrus_sentry v0.8.2
-	github.com/filecoin-project/filecoin-ffi v0.30.4-0.20210602090844-8b97bd8230b7 // indirect
 	github.com/go-redis/redis/v7 v7.2.0
 	github.com/google/go-cmp v0.5.4
 	github.com/jbenet/go-base58 v0.0.0-20150317085156-6237cf65f3a6
