@@ -477,8 +477,15 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *bind
 	v1Params := jsonrpc.ParamsSubmitTx{
 		Tx: v1Tx,
 	}
-	err = store.PersistTxMappings(params.Tx, v1Tx)
-	return v1Params, err
+	if err := store.PersistTxMappings(params.Tx, v1Tx); err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
+
+	// We change the version version0 to indicate this tx is converted from a
+	// v0 transaction, so that when resolver tries to resolve this tx, it knows
+	// to return an v0 format response to the user.
+	v1Params.Tx.Version = tx.Version0
+	return v1Params, nil
 }
 
 func AddressEncodeDecoder(chain multichain.Chain, network multichain.Network) multichain.AddressEncodeDecoder {
