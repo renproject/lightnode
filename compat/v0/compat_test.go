@@ -129,11 +129,12 @@ var _ = Describe("Compat V0", func() {
 
 		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
 		Expect(err).ShouldNot(HaveOccurred())
+		Expect(v1.Tx.Version).Should(Equal(tx.Version0))
+		v1.Tx.Version = tx.Version1
 
 		verifier := initVerifier()
 		Expect(verifier.VerifyTx(context.Background(), v1.Tx)).Should(Succeed())
 
-		Expect(v1.Tx.Version).Should(Equal(tx.Version1))
 		Expect(v1.Tx.Selector).Should(Equal(tx.Selector("BTC/fromEthereum")))
 		Expect(v1.Tx.Input.Get("txid")).ShouldNot(BeNil())
 		Expect(v1.Tx.Input.Get("txindex")).ShouldNot(BeNil())
@@ -177,7 +178,7 @@ var _ = Describe("Compat V0", func() {
 		Expect(keys).Should(ContainElement(v0Hash.String()))
 
 		// v1 hash should be correct
-		v1Hash, err := tx.NewTxHash(v1.Tx.Version, v1.Tx.Selector, v1.Tx.Input)
+		v1Hash, err := tx.NewTxHash(tx.Version1, v1.Tx.Selector, v1.Tx.Input)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(hash).To(Equal(v1Hash.String()))
 	})
@@ -213,7 +214,7 @@ var _ = Describe("Compat V0", func() {
 		Expect(keys).Should(ContainElement(v0Hash.String()))
 
 		// v1 hash should be correct
-		v1Hash, err := tx.NewTxHash(v1.Tx.Version, v1.Tx.Selector, v1.Tx.Input)
+		v1Hash, err := tx.NewTxHash(tx.Version1, v1.Tx.Selector, v1.Tx.Input)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(hash).To(Equal(v1Hash.String()))
 	})
@@ -249,7 +250,7 @@ var _ = Describe("Compat V0", func() {
 		Expect(keys).Should(ContainElement(v0Hash.String()))
 
 		// v1 hash should be correct
-		v1Hash, err := tx.NewTxHash(v1.Tx.Version, v1.Tx.Selector, v1.Tx.Input)
+		v1Hash, err := tx.NewTxHash(tx.Version1, v1.Tx.Selector, v1.Tx.Input)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(hash).To(Equal(v1Hash.String()))
 	})
