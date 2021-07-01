@@ -88,7 +88,7 @@ func main() {
 	options = options.WithDistPubKey(&pub)
 
 	// Run Lightnode.
-	node := lightnode.New(options, ctx, logger, sqlDB, client.Conn())
+	node := lightnode.New(options, ctx, logger, sqlDB, client)
 	node.Run(ctx)
 }
 
@@ -243,9 +243,11 @@ func initRedis() *redis.Client {
 	}
 	redisPassword, _ := redisURL.User.Password()
 	return redis.NewClient(&redis.Options{
-		Addr:     redisURL.Host,
-		Password: redisPassword,
-		DB:       0, // Use default DB.
+		Addr:               redisURL.Host,
+		Password:           redisPassword,
+		DB:                 0, // Use default DB.
+		MaxRetries:         5,
+		PoolSize:           15,
 	})
 }
 
