@@ -19,6 +19,7 @@ var (
 	DefaultCap                       = 128
 	DefaultMaxBatchSize              = 10
 	DefaultMaxPageSize               = 10
+	DefaultMaxGatewayCount           = 10000
 	DefaultServerTimeout             = 15 * time.Second
 	DefaultClientTimeout             = 15 * time.Second
 	DefaultTTL                       = 3 * time.Second
@@ -43,6 +44,7 @@ type Options struct {
 	Cap                       int
 	MaxBatchSize              int
 	MaxPageSize               int
+	MaxGatewayCount           int
 	ServerTimeout             time.Duration
 	ClientTimeout             time.Duration
 	TTL                       time.Duration
@@ -70,6 +72,7 @@ func DefaultOptions() Options {
 		BootstrapAddrs:            DefaultBootstrapAddrs,
 		MaxBatchSize:              DefaultMaxBatchSize,
 		MaxPageSize:               DefaultMaxPageSize,
+		MaxGatewayCount:           DefaultMaxGatewayCount,
 		ServerTimeout:             DefaultServerTimeout,
 		ClientTimeout:             DefaultClientTimeout,
 		TTL:                       DefaultTTL,
@@ -218,5 +221,11 @@ func (opts Options) WithLimiterTTL(ttl time.Duration) Options {
 // WithLimiterMaxClients used to whitelist certain selectors inside the Darknode.
 func (opts Options) WithLimiterMaxClients(maxClients int) Options {
 	opts.LimiterMaxClients = maxClients
+	return opts
+}
+
+// WithMaxGatewayCount is used to set the max number of gateways that can be persisted
+func (opts Options) WithMaxGatewayCount(maxGatewayCount int) Options {
+	opts.MaxGatewayCount = maxGatewayCount
 	return opts
 }

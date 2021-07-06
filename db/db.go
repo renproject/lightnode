@@ -78,17 +78,29 @@ type DB interface {
 
 	// Gateways returns gateways with the given pagination options.
 	Gateways(offset, limit int) ([]tx.Tx, error)
+
+	// GatewayCount returns the number of gateways persisted
+	GatewayCount() (int, error)
+
+	// GatewayCount returns the number of gateways persisted
+	MaxGatewayCount() int
 }
 
 type database struct {
-	db *sql.DB
+	db              *sql.DB
+	maxGatewayCount int
 }
 
 // New creates a new DB instance.
-func New(db *sql.DB) DB {
+func New(db *sql.DB, maxGatewayCount int) DB {
 	return database{
-		db: db,
+		db:              db,
+		maxGatewayCount: maxGatewayCount,
 	}
+}
+
+func (db database) MaxGatewayCount() int {
+	return db.maxGatewayCount
 }
 
 // A gateway is a partial Tx that does not have deposits
@@ -153,6 +165,19 @@ func (db database) Gateway(address string) (tx.Tx, error) {
 		return tx.Tx{}, err
 	}
 	return rowToGateway(row)
+}
+
+// GatewayCount returns the number of gateways persisted
+func (db database) GatewayCount() (int, error) {
+	var count int
+	row := db.db.QueryRow("SELECT COUNT(*) FROM gateways;")
+
+	err := row.Scan(&count)
+	if err != nil {
+		return -1, err
+	}
+
+	return count, err
 }
 
 // Returns a page of stored gateway information

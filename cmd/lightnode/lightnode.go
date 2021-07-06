@@ -68,7 +68,11 @@ func main() {
 
 	for chain, chainOpt := range options.Chains {
 		chainOpt.Confirmations = conf.Confirmations[chain]
-		chainOpt.MaxConfirmations = conf.MaxConfirmations[chain]
+		if conf.MaxConfirmations[chain] != 0 {
+			chainOpt.MaxConfirmations = conf.MaxConfirmations[chain]
+		} else {
+			chainOpt.MaxConfirmations = pack.MaxU64
+		}
 		options.Chains[chain] = chainOpt
 	}
 
@@ -84,7 +88,7 @@ func main() {
 	options = options.WithDistPubKey(&pub)
 
 	// Run Lightnode.
-	node := lightnode.New(options, ctx, logger, sqlDB, client.Conn())
+	node := lightnode.New(options, ctx, logger, sqlDB, client)
 	node.Run(ctx)
 }
 
@@ -99,7 +103,7 @@ func getConfigFromBootstrap(ctx context.Context, logger logrus.FieldLogger, addr
 			return conf, nil
 		}
 	}
-	return jsonrpc.ResponseQueryConfig{}, fmt.Errorf("Could not load config from darknodes")
+	return jsonrpc.ResponseQueryConfig{}, fmt.Errorf("could not load config from darknodes")
 }
 
 func addrToUrl(addr wire.Address, logger logrus.FieldLogger) string {
@@ -239,9 +243,11 @@ func initRedis() *redis.Client {
 	}
 	redisPassword, _ := redisURL.User.Password()
 	return redis.NewClient(&redis.Options{
-		Addr:     redisURL.Host,
-		Password: redisPassword,
-		DB:       0, // Use default DB.
+		Addr:               redisURL.Host,
+		Password:           redisPassword,
+		DB:                 0, // Use default DB.
+		MaxRetries:         5,
+		PoolSize:           15,
 	})
 }
 
@@ -262,6 +268,9 @@ func parseOptions() lightnode.Options {
 	}
 	if os.Getenv("MAX_PAGE_SIZE") != "" {
 		options = options.WithMaxBatchSize(parseInt("MAX_PAGE_SIZE"))
+	}
+	if os.Getenv("MAX_GATEWAY_COUNT") != "" {
+		options = options.WithMaxGatewayCount(parseInt("MAX_GATEWAY_COUNT"))
 	}
 	if os.Getenv("SERVER_TIMEOUT") != "" {
 		options = options.WithServerTimeout(parseTime("SERVER_TIMEOUT"))

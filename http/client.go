@@ -71,6 +71,7 @@ func (c Client) send(r *http.Request) (jsonrpc.Response, error) {
 	if err != nil {
 		return jsonrpc.Response{}, err
 	}
+	defer response.Body.Close()
 	var resp jsonrpc.Response
 	err = json.NewDecoder(response.Body).Decode(&resp)
 	return resp, err

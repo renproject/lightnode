@@ -40,12 +40,13 @@ type Resolver struct {
 	cacher            phi.Task
 	db                db.DB
 	serverOptions     jsonrpc.Options
-	compatStore       v0.CompatStore
+	versionStore      v0.CompatStore
+	gpubkeyStore      v1.GpubkeyCompatStore
 	bindings          binding.Bindings
 }
 
 func New(network multichain.Network, logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, db db.DB,
-	serverOptions jsonrpc.Options, compatStore v0.CompatStore, bindings binding.Bindings, verifier Verifier) *Resolver {
+	serverOptions jsonrpc.Options, versionStore v0.CompatStore, gpubkeyStore v1.GpubkeyCompatStore, bindings binding.Bindings, verifier Verifier) *Resolver {
 	requests := make(chan lhttp.RequestWithResponder, 128)
 	txChecker := newTxChecker(logger, requests, verifier, db)
 	go txChecker.Run()
@@ -58,7 +59,8 @@ func New(network multichain.Network, logger logrus.FieldLogger, cacher phi.Task,
 		cacher:            cacher,
 		db:                db,
 		serverOptions:     serverOptions,
-		compatStore:       compatStore,
+		versionStore:      versionStore,
+		gpubkeyStore:      gpubkeyStore,
 		bindings:          bindings,
 	}
 }
@@ -72,26 +74,21 @@ func (resolver *Resolver) QueryBlocks(ctx context.Context, id interface{}, param
 }
 
 func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *jsonrpc.ParamsSubmitTx, req *http.Request) jsonrpc.Response {
-	// As such, we will just respond with the v0 hash so that renjs-v1 can continue as normal, but
-	// we won't actually submit to the darknodes
-	emptyParams := jsonrpc.ParamsSubmitTx{}
-	if params.Tx.Hash == emptyParams.Tx.Hash {
-		hash, ok := params.Tx.Input.Get("v0hash").(pack.Bytes32)
-		if !ok {
-			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "missing v0hash", nil)
-			return jsonrpc.NewResponse(id, nil, &jsonErr)
-		}
-
-		return jsonrpc.NewResponse(id, v0.ResponseSubmitTx{Tx: v0.Tx{Hash: v0.B32(hash)}}, nil)
+	// Check if the tx is a v1 tx or v0 tx.
+	txVersion := params.Tx.Version
+	if params.Tx.Version == tx.Version0{
+		// We need to always make sure the tx to submit is a v1 tx as
+		// darknode won't accept v0 tx.
+		params.Tx.Version = tx.Version1
 	}
 	response := resolver.handleMessage(ctx, id, jsonrpc.MethodSubmitTx, *params, req, true)
-	if params.Tx.Version != tx.Version0 {
+
+	if txVersion != tx.Version0 {
 		return response
 	}
 	if response.Error != nil {
 		return response
 	}
-
 	v0tx, err := v0.TxFromV1Tx(params.Tx, false, resolver.bindings)
 	if err != nil {
 		resolver.logger.Errorf("[responder] cannot convert v1 tx to v0, %v", err)
@@ -251,6 +248,32 @@ func (resolver *Resolver) SubmitGateway(ctx context.Context, id interface{}, par
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	}
 
+	_, err = resolver.db.Gateway(params.Gateway)
+	if err != nil && err != sql.ErrNoRows {
+		resolver.logger.Errorf("[responder] cannot check gateway existence: %v, %v", params.Gateway, err)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to insert gateway", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	// If we have an existing gateway, return a successful response
+	if err == nil {
+		return jsonrpc.NewResponse(id, jsonrpc.ResponseSubmitTx{}, nil)
+	}
+
+	count, err := resolver.db.GatewayCount()
+	if err != nil {
+		resolver.logger.Errorf("[responder] cannot get gateway count: %v", err)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to insert gateway", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
+	// Check if we exceed max gateways before insterting
+	if count > resolver.db.MaxGatewayCount() {
+		resolver.logger.Errorf("[responder] max number of gateways reached: %v", err)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to insert gateway", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+
 	err = resolver.db.InsertGateway(params.Gateway, params.Tx)
 	if err != nil {
 		resolver.logger.Errorf("[responder] cannot insert gateway: %v :%v", params.Gateway, err)
@@ -297,7 +320,7 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 
 	// check if tx is v0 or v1 due to its presence in the mapping store
 	// We have to encode as non-url safe because that's the format v0 uses
-	txhash, err := resolver.compatStore.GetV1HashFromHash(v0txhash)
+	txhash, err := resolver.versionStore.GetV1HashFromHash(v0txhash)
 	if err != v0.ErrNotFound {
 		if err != nil {
 			resolver.logger.Errorf("[responder] cannot get v0-v1 tx mapping from store: %v", err)
@@ -308,6 +331,12 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 		resolver.logger.Debugf("[responder] found v0 tx mapping - v1: %s", txhash)
 		params.TxHash = [32]byte(txhash)
 		v0tx = true
+	}
+
+	if newHash, err := resolver.gpubkeyStore.UpdatedHash(params.TxHash); err == nil {
+		// A gpubkey compat hash exists in the cache, so we use that to perform
+		// the query instead.
+		params.TxHash = newHash
 	}
 
 	// Retrieve transaction status from the database.

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/resolver"
@@ -31,6 +30,7 @@ import (
 	"github.com/renproject/id"
 	"github.com/renproject/kv"
 	"github.com/renproject/lightnode/compat/v0"
+	"github.com/renproject/lightnode/compat/v1"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
@@ -67,7 +67,7 @@ var _ = Describe("Resolver", func() {
 		sqlDB, err := sql.Open("sqlite3", "./resolver_test.db")
 		Expect(err).NotTo(HaveOccurred())
 
-		database := db.New(sqlDB)
+		database := db.New(sqlDB, 10)
 		Expect(database.Init()).Should(Succeed())
 
 		mr, err := miniredis.Run()
@@ -105,7 +105,8 @@ var _ = Describe("Resolver", func() {
 		cacher := testutils.NewMockCacher()
 		go cacher.Run(ctx)
 
-		compatStore := v0.NewCompatStore(database, client)
+		versionStore := v0.NewCompatStore(database, client, time.Hour)
+		gpubkeyStore := v1.NewCompatStore(client)
 
 		pubkeyB, err := base64.URLEncoding.DecodeString("AiF7_2ykZmts2wzZKJ5D-J1scRM2Pm2jJ84W_K4PQaGl")
 		Expect(err).ShouldNot(HaveOccurred())
@@ -113,13 +114,13 @@ var _ = Describe("Resolver", func() {
 		pubkey, err := crypto.DecompressPubkey(pubkeyB)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		limiterConf := DefaultRateLimitConf()
-		limiterConf.IpMethodRate["fallback"] = rate.Limit(1)
-		limiter := NewRateLimiter(limiterConf)
-		validator := NewValidator(multichain.NetworkTestnet, bindings, (*id.PubKey)(pubkey), compatStore, &limiter, logger)
+		rateLimitConf := DefaultRateLimitConf()
+		rateLimitConf.IpMethodRate["fallback"] = rate.Limit(1)
+		limiter := NewRateLimiter(rateLimitConf)
+		validator := NewValidator(multichain.NetworkTestnet, bindings, (*id.PubKey)(pubkey), versionStore, gpubkeyStore, &limiter, logger)
 
 		mockVerifier := mockVerifier{}
-		resolver := New(multichain.NetworkTestnet, logger, cacher, multiaddrStore, database, jsonrpc.Options{}, compatStore, bindings, mockVerifier)
+		resolver := New(multichain.NetworkTestnet, logger, cacher, multiaddrStore, database, jsonrpc.Options{}, versionStore, gpubkeyStore, bindings, mockVerifier)
 
 		return resolver, validator, client
 	}
@@ -181,13 +182,8 @@ var _ = Describe("Resolver", func() {
 		paramsJSON, err := json.Marshal(params)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		// It's a bit of a pain to make this robustly calculatable, so lets use the mock
-		// v0 tx's v0 hash directly
-		v0HashString := "fEwRnmZAjz6uzPZFGwYSa4OK8xtHVl2nsncCHvV0aKE="
-		v0HashBytes, err := base64.StdEncoding.DecodeString(v0HashString)
+		v0Hash, err := v0.V0TxHashFromTx(params.Tx)
 		Expect(err).ShouldNot(HaveOccurred())
-		v0Hash := [32]byte{}
-		copy(v0Hash[:], v0HashBytes[:])
 
 		req, resp := validator.ValidateRequest(innerCtx, &http.Request{}, jsonrpc.Request{
 			Version: "2.0",
@@ -201,15 +197,17 @@ var _ = Describe("Resolver", func() {
 		resp = resolver.SubmitTx(ctx, nil, (req).(*jsonrpc.ParamsSubmitTx), nil)
 		Expect(resp.Error).Should(BeNil())
 
-		hashS, err := client.Get(v0HashString).Result()
+		hashS, err := client.Get(v0Hash.String()).Result()
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(hashS).ShouldNot(Equal(nil))
 
 		submission := (req).(*jsonrpc.ParamsSubmitTx)
 		Expect(submission.Tx.Hash).NotTo(Equal(pack.Bytes32{}))
 
+		var txHash id.Hash
+		copy(txHash[:], v0Hash[:])
 		resp = resolver.QueryTx(ctx, nil, &jsonrpc.ParamsQueryTx{
-			TxHash: v0Hash,
+			TxHash: txHash,
 		}, nil)
 
 		Expect(resp).ShouldNot(Equal(jsonrpc.Response{}))
@@ -471,6 +469,86 @@ var _ = Describe("Resolver", func() {
 		resp := resolver.SubmitGateway(innerCtx, nil, &params, nil)
 
 		Expect(resp.Error).Should(BeZero())
+	})
+
+	It("should successfully submit duplicate gateway txs for zec", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, _ := init(ctx)
+		defer cleanup()
+
+		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+
+		mocktx := txutil.RandomGoodTx(r)
+		mocktx.Selector = tx.Selector("ZEC/toEthereum")
+
+		input := engine.LockMintBurnReleaseInput{}
+		err := pack.Decode(&input, mocktx.Input)
+		Expect(err).NotTo(HaveOccurred())
+
+		script, err := engine.UTXOGatewayScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
+		Expect(err).NotTo(HaveOccurred())
+
+		scriptAddress, err := zcash.NewAddressScriptHash(script, watcher.ZcashNetParams(multichain.NetworkTestnet))
+		Expect(err).NotTo(HaveOccurred())
+
+		// Submit tx to ensure that it can be queried against
+		params := ParamsSubmitGateway{
+			Gateway: scriptAddress.EncodeAddress(),
+			Tx:      mocktx,
+		}
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		resolver.SubmitGateway(innerCtx, nil, &params, nil)
+		resp := resolver.SubmitGateway(innerCtx, nil, &params, nil)
+
+		Expect(resp.Error).Should(BeZero())
+	})
+
+	It("should fail to submit more than max gateways for zec", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, _ := init(ctx)
+		defer cleanup()
+
+		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+		i := 0
+		Eventually(func() string {
+			mocktx := txutil.RandomGoodTx(r)
+			mocktx.Selector = tx.Selector("ZEC/toEthereum")
+
+			input := engine.LockMintBurnReleaseInput{}
+			err := pack.Decode(&input, mocktx.Input)
+			Expect(err).NotTo(HaveOccurred())
+
+			script, err := engine.UTXOGatewayScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
+			Expect(err).NotTo(HaveOccurred())
+
+			scriptAddress, err := zcash.NewAddressScriptHash(script, watcher.ZcashNetParams(multichain.NetworkTestnet))
+			Expect(err).NotTo(HaveOccurred())
+
+			// Submit tx to ensure that it can be queried against
+			params := ParamsSubmitGateway{
+				Gateway: scriptAddress.EncodeAddress(),
+				Tx:      mocktx,
+			}
+
+			innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer innerCancel()
+
+			resolver.SubmitGateway(innerCtx, nil, &params, nil)
+			resp := resolver.SubmitGateway(innerCtx, nil, &params, nil)
+			if resp.Error != nil {
+				return resp.Error.Message
+			}
+			i++
+			return ""
+		}).Should(Equal("failed to insert gateway"))
+		Expect(i).To(Equal(11))
 	})
 
 	It("should handle queryGateways", func() {
