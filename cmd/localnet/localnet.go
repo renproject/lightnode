@@ -32,7 +32,7 @@ func main() {
 
 	flag.Parse()
 
-	if *flagPort == ""{
+	if *flagPort == "" {
 		panic("Please provide the port number using --port")
 	}
 	var config darknode.Options
@@ -72,7 +72,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		<- ctx.Done()
+		<-ctx.Done()
 		db.Close()
 	}()
 
@@ -80,17 +80,17 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		<- ctx.Done()
+		<-ctx.Done()
 		redisServer.Close()
 	}()
 
 	node := lightnode.New(options, ctx, logrus.New(), db, redisClient)
 	go node.Run(ctx)
-	<- ctx.Done()
+	<-ctx.Done()
 	wg.Wait()
 }
 
-func initSQLITE(dir string ) *sql.DB {
+func initSQLITE(dir string) *sql.DB {
 	if err := os.MkdirAll(dir, 0766); err != nil {
 		panic(err)
 	}

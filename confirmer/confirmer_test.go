@@ -10,10 +10,10 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/id"
 	. "github.com/renproject/lightnode/confirmer"
 
 	"github.com/renproject/darknode/tx/txutil"
+	"github.com/renproject/id"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/sirupsen/logrus"

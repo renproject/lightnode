@@ -29,8 +29,8 @@ import (
 	"github.com/renproject/darknode/tx/txutil"
 	"github.com/renproject/id"
 	"github.com/renproject/kv"
-	v0 "github.com/renproject/lightnode/compat/v0"
-	v1 "github.com/renproject/lightnode/compat/v1"
+	"github.com/renproject/lightnode/compat/v0"
+	"github.com/renproject/lightnode/compat/v1"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
@@ -39,6 +39,7 @@ import (
 	"github.com/renproject/multichain/chain/zcash"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
 )
 
 type mockVerifier struct{}
@@ -93,9 +94,10 @@ var _ = Describe("Resolver", func() {
 				Confirmations: pack.U64(0),
 			}).
 			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
-				Confirmations: pack.U64(0),
-				Protocol:      pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+				RPC:              pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
+				Confirmations:    pack.U64(0),
+				Protocol:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+				MaxConfirmations: pack.MaxU64,
 			})
 
 		bindings := binding.New(bindingsOpts)
@@ -103,7 +105,7 @@ var _ = Describe("Resolver", func() {
 		cacher := testutils.NewMockCacher()
 		go cacher.Run(ctx)
 
-		versionStore := v0.NewCompatStore(database, client)
+		versionStore := v0.NewCompatStore(database, client, time.Hour)
 		gpubkeyStore := v1.NewCompatStore(client)
 
 		pubkeyB, err := base64.URLEncoding.DecodeString("AiF7_2ykZmts2wzZKJ5D-J1scRM2Pm2jJ84W_K4PQaGl")
@@ -112,8 +114,10 @@ var _ = Describe("Resolver", func() {
 		pubkey, err := crypto.DecompressPubkey(pubkeyB)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		limiter := NewRateLimiter(DefaultRateLimitConf())
-		validator := NewValidator(bindings, (*id.PubKey)(pubkey), versionStore, gpubkeyStore, &limiter, logger)
+		rateLimitConf := DefaultRateLimitConf()
+		rateLimitConf.IpMethodRate["fallback"] = rate.Limit(1)
+		limiter := NewRateLimiter(rateLimitConf)
+		validator := NewValidator(multichain.NetworkTestnet, bindings, (*id.PubKey)(pubkey), versionStore, gpubkeyStore, &limiter, logger)
 
 		mockVerifier := mockVerifier{}
 		resolver := New(multichain.NetworkTestnet, logger, cacher, multiaddrStore, database, jsonrpc.Options{}, versionStore, gpubkeyStore, bindings, mockVerifier)
@@ -178,13 +182,8 @@ var _ = Describe("Resolver", func() {
 		paramsJSON, err := json.Marshal(params)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		// It's a bit of a pain to make this robustly calculatable, so lets use the mock
-		// v0 tx's v0 hash directly
-		v0HashString := "fEwRnmZAjz6uzPZFGwYSa4OK8xtHVl2nsncCHvV0aKE="
-		v0HashBytes, err := base64.StdEncoding.DecodeString(v0HashString)
+		v0Hash, err := v0.V0TxHashFromTx(params.Tx)
 		Expect(err).ShouldNot(HaveOccurred())
-		v0Hash := [32]byte{}
-		copy(v0Hash[:], v0HashBytes[:])
 
 		req, resp := validator.ValidateRequest(innerCtx, &http.Request{}, jsonrpc.Request{
 			Version: "2.0",
@@ -198,15 +197,17 @@ var _ = Describe("Resolver", func() {
 		resp = resolver.SubmitTx(ctx, nil, (req).(*jsonrpc.ParamsSubmitTx), nil)
 		Expect(resp.Error).Should(BeNil())
 
-		hashS, err := client.Get(v0HashString).Result()
+		hashS, err := client.Get(v0Hash.String()).Result()
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(hashS).ShouldNot(Equal(nil))
 
 		submission := (req).(*jsonrpc.ParamsSubmitTx)
 		Expect(submission.Tx.Hash).NotTo(Equal(pack.Bytes32{}))
 
+		var txHash id.Hash
+		copy(txHash[:], v0Hash[:])
 		resp = resolver.QueryTx(ctx, nil, &jsonrpc.ParamsQueryTx{
-			TxHash: v0Hash,
+			TxHash: txHash,
 		}, nil)
 
 		Expect(resp).ShouldNot(Equal(jsonrpc.Response{}))
@@ -610,7 +611,6 @@ var _ = Describe("Resolver", func() {
 			Header:     map[string][]string{},
 			RemoteAddr: ipString,
 		}
-
 		req, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
 			Version: "2.0",
 			ID:      nil,

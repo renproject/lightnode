@@ -7,9 +7,9 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"golang.org/x/time/rate"
-
 	. "github.com/renproject/lightnode/resolver"
+
+	"golang.org/x/time/rate"
 )
 
 var _ = Describe("Rate Limiter", func() {

@@ -20,7 +20,6 @@ import (
 	"github.com/renproject/lightnode/updater"
 	"github.com/renproject/lightnode/watcher"
 	"github.com/renproject/multichain"
-	"github.com/renproject/pack"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
 
@@ -44,7 +43,7 @@ type Lightnode struct {
 }
 
 // New constructs a new Lightnode.
-func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB *sql.DB, client *redis.Client) Lightnode {
+func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB *sql.DB, client redis.Cmdable) Lightnode {
 	switch options.Network {
 	case multichain.NetworkMainnet, multichain.NetworkTestnet, multichain.NetworkDevnet, multichain.NetworkLocalnet:
 	default:
@@ -83,7 +82,6 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	bindingsOpts := binding.DefaultOptions().
 		WithNetwork(options.Network)
 	for chain, chainOpts := range options.Chains {
-		chainOpts.MaxConfirmations = pack.MaxU64 // TODO: Eventually we will want to fetch this from the Darknode.
 		bindingsOpts = bindingsOpts.WithChainOptions(chain, chainOpts)
 	}
 	bindings := binding.New(bindingsOpts)
@@ -100,7 +98,6 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		WithNetwork(options.Network)
 	for chain, chainOpts := range options.Chains {
 		chainOpts.Confirmations = 0
-		chainOpts.MaxConfirmations = pack.MaxU64 // TODO: Eventually we will want to fetch this from the Darknode.
 		verifierBindingsOpts = verifierBindingsOpts.WithChainOptions(chain, chainOpts)
 	}
 	verifierBindings := binding.New(verifierBindingsOpts)
@@ -113,7 +110,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
 	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
 
-	versionStore := v0.NewCompatStore(db, client)
+	versionStore := v0.NewCompatStore(db, client, options.TransactionExpiry)
 	gpubkeyStore := v1.NewCompatStore(client)
 	hostChains := map[multichain.Chain]bool{}
 	for _, selector := range options.Whitelist {
@@ -129,7 +126,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		Ttl:              options.LimiterTTL,
 		MaxClients:       options.LimiterMaxClients,
 	})
-	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewValidator(verifierBindings, options.DistPubKey, versionStore, gpubkeyStore, &limiter, logger))
+	server := jsonrpc.NewServer(serverOptions, resolverI, resolver.NewValidator(options.Network, verifierBindings, options.DistPubKey, versionStore, gpubkeyStore, &limiter, logger))
 	confirmer := confirmer.New(
 		confirmer.DefaultOptions().
 			WithLogger(logger).

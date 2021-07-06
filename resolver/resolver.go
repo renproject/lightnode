@@ -74,31 +74,21 @@ func (resolver *Resolver) QueryBlocks(ctx context.Context, id interface{}, param
 }
 
 func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *jsonrpc.ParamsSubmitTx, req *http.Request) jsonrpc.Response {
-	// When a v0 burn tx gets submitted via RPC, we have to wait for the watcher to detect it before submitting
-	// because it does not have sufficient data to create a valid v1 tx hash
-	// (it just contains a ref to the burn event height + the v0 selector,
-	// and the contract doesn't have a way to query by event height, and can't really filter either)
-	//
-	// As such, we will just respond with the v0 hash so that renjs-v1 can continue as normal, but
-	// we won't actually submit to the darknodes
-	emptyParams := jsonrpc.ParamsSubmitTx{}
-	if params.Tx.Hash == emptyParams.Tx.Hash {
-		hash, ok := params.Tx.Input.Get("v0hash").(pack.Bytes32)
-		if !ok {
-			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "missing v0hash", nil)
-			return jsonrpc.NewResponse(id, nil, &jsonErr)
-		}
-
-		return jsonrpc.NewResponse(id, v0.ResponseSubmitTx{Tx: v0.Tx{Hash: v0.B32(hash)}}, nil)
+	// Check if the tx is a v1 tx or v0 tx.
+	txVersion := params.Tx.Version
+	if params.Tx.Version == tx.Version0{
+		// We need to always make sure the tx to submit is a v1 tx as
+		// darknode won't accept v0 tx.
+		params.Tx.Version = tx.Version1
 	}
 	response := resolver.handleMessage(ctx, id, jsonrpc.MethodSubmitTx, *params, req, true)
-	if params.Tx.Version != tx.Version0 {
+
+	if txVersion != tx.Version0 {
 		return response
 	}
 	if response.Error != nil {
 		return response
 	}
-
 	v0tx, err := v0.TxFromV1Tx(params.Tx, false, resolver.bindings)
 	if err != nil {
 		resolver.logger.Errorf("[responder] cannot convert v1 tx to v0, %v", err)

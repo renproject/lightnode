@@ -13,14 +13,16 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/id"
-	v0 "github.com/renproject/lightnode/compat/v0"
-	v1 "github.com/renproject/lightnode/compat/v1"
+	"github.com/renproject/lightnode/compat/v0"
+	"github.com/renproject/lightnode/compat/v1"
+	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
 )
 
 // The lightnode Validator checks requests and also casts in case of compat changes
 type LightnodeValidator struct {
+	network      multichain.Network
 	bindings     binding.Bindings
 	pubkey       *id.PubKey
 	versionStore v0.CompatStore
@@ -29,8 +31,9 @@ type LightnodeValidator struct {
 	logger       logrus.FieldLogger
 }
 
-func NewValidator(bindings binding.Bindings, pubkey *id.PubKey, versionStore v0.CompatStore, gpubkeyStore v1.GpubkeyCompatStore, limiter *LightnodeRateLimiter, logger logrus.FieldLogger) *LightnodeValidator {
+func NewValidator(network multichain.Network, bindings binding.Bindings, pubkey *id.PubKey, versionStore v0.CompatStore, gpubkeyStore v1.GpubkeyCompatStore, limiter *LightnodeRateLimiter, logger logrus.FieldLogger) *LightnodeValidator {
 	return &LightnodeValidator{
+		network:      network,
 		bindings:     bindings,
 		pubkey:       pubkey,
 		versionStore: versionStore,
@@ -83,7 +86,6 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 			Message: fmt.Sprintf("rate limit exceeded for %v", ipString),
 		})
 	}
-
 	switch req.Method {
 
 	case jsonrpc.MethodQueryTx:
@@ -166,7 +168,7 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 
 		var params v0.ParamsSubmitTx
 		if err := json.Unmarshal(req.Params, &params); err == nil {
-			castParams, err := v0.V1TxParamsFromTx(ctx, params, validator.bindings, validator.pubkey, validator.versionStore)
+			castParams, err := v0.V1TxParamsFromTx(ctx, params, validator.bindings.(*binding.Binding), validator.pubkey, validator.versionStore, validator.network)
 			if err != nil {
 				validator.logger.Errorf("[validator] upgrading tx params: %v", err)
 				return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
@@ -175,6 +177,12 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 				})
 			}
 			raw, err := json.Marshal(castParams)
+			if err != nil {
+				return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
+					Code:    jsonrpc.ErrorCodeInvalidParams,
+					Message: fmt.Sprintf("invalid params: %v", err),
+				})
+			}
 			req.Params = raw
 		}
 	}
