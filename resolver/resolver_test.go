@@ -29,8 +29,8 @@ import (
 	"github.com/renproject/darknode/tx/txutil"
 	"github.com/renproject/id"
 	"github.com/renproject/kv"
-	"github.com/renproject/lightnode/compat/v0"
-	"github.com/renproject/lightnode/compat/v1"
+	v0 "github.com/renproject/lightnode/compat/v0"
+	v1 "github.com/renproject/lightnode/compat/v1"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
@@ -345,6 +345,37 @@ var _ = Describe("Resolver", func() {
 		defer innerCancel()
 
 		resp := resolver.QueryConfig(innerCtx, "", &params, &req)
+		Expect(resp.Error).Should(BeZero())
+	})
+
+	It("should query v0 burn txs", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, validator, _ := init(ctx)
+		defer cleanup()
+
+		params := v0.ParamsQueryTx{
+			TxHash: [32]byte{1},
+		}
+		paramsJSON, err := json.Marshal(params)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(params).ShouldNot(Equal([]byte{}))
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		req, resp := validator.ValidateRequest(innerCtx, &http.Request{}, jsonrpc.Request{
+			Version: "2.0",
+			ID:      nil,
+			Method:  jsonrpc.MethodQueryTx,
+			Params:  paramsJSON,
+		})
+		// Response will only exist for errors
+		Expect(resp).Should(Equal(jsonrpc.Response{}))
+		Expect((req).(*jsonrpc.ParamsQueryTx).TxHash).ShouldNot(BeEmpty())
+
+		resp = resolver.QueryTx(ctx, nil, (req).(*jsonrpc.ParamsQueryTx), nil)
 		Expect(resp.Error).Should(BeZero())
 	})
 
