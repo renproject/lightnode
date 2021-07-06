@@ -186,9 +186,9 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 
 			signatures, err := fetcher.client.GetSignaturesForAddress(ctx, burnLogPubk, &solanaRPC.GetSignaturesForAddressOpts{})
 			if err != nil {
-				legacySignatures, err := fetcher.client.GetConfirmedSignaturesForAddress2(ctx, burnLogPubk, &solanaRPC.GetConfirmedSignaturesForAddress2Opts{})
-				if err != nil {
-					resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log txes: %v", err)}
+				legacySignatures, err2 := fetcher.client.GetConfirmedSignaturesForAddress2(ctx, burnLogPubk, &solanaRPC.GetConfirmedSignaturesForAddress2Opts{})
+				if err2 != nil {
+					resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log txes: (current: %v) (legacy: %v)", err, err2)}
 					return
 				}
 				signatures = solanaRPC.GetSignaturesForAddressResult(legacySignatures)
