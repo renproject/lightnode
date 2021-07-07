@@ -694,7 +694,7 @@ var _ = Describe("Resolver", func() {
 				Params:  paramsJSON,
 			})
 			return resp
-		}).Should(Equal(
+		}, time.Second*5, time.Millisecond*5).Should(Equal(
 			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
 				Code:    jsonrpc.ErrorCodeInvalidRequest,
 				Message: fmt.Sprintf("rate limit exceeded for %v", "9.9.9.9"),
