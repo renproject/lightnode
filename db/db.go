@@ -49,7 +49,7 @@ type DB interface {
 	Tx(hash id.Hash) (tx.Tx, error)
 
 	// Txs returns transactions with the given pagination options.
-	Txs(offset, limit int) ([]tx.Tx, error)
+	Txs(offset, limit int, latest bool) ([]tx.Tx, error)
 
 	// Txs returns transactions with the given pagination options.
 	TxsByTxid(id pack.Bytes) ([]tx.Tx, error)
@@ -183,7 +183,8 @@ func (db database) GatewayCount() (int, error) {
 // Returns a page of stored gateway information
 func (db database) Gateways(offset, limit int) ([]tx.Tx, error) {
 	gateways := make([]tx.Tx, 0, limit)
-	rows, err := db.db.Query(`SELECT selector, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs ORDER BY created_time ASC LIMIT $1 OFFSET $2;`, limit, offset)
+
+	rows, err := db.db.Query(`SELECT gateway_address, selector, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM gateways ORDER BY created_time DESC LIMIT $1 OFFSET $2;`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -368,9 +369,17 @@ func (db database) Tx(txHash id.Hash) (tx.Tx, error) {
 }
 
 // Txs implements the DB interface.
-func (db database) Txs(offset, limit int) ([]tx.Tx, error) {
+func (db database) Txs(offset, limit int, latest bool) ([]tx.Tx, error) {
 	txs := make([]tx.Tx, 0, limit)
-	rows, err := db.db.Query(`SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs ORDER BY created_time ASC LIMIT $1 OFFSET $2;`, limit, offset)
+	order := "ASC"
+	if latest {
+		order = "DESC"
+	}
+	// We cant make a prepared statement with variable order directives,
+	// so we need to generate the query manually
+	queryString := fmt.Sprintf(`SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs ORDER BY created_time %s LIMIT $1 OFFSET $2;`, order)
+
+	rows, err := db.db.Query(queryString, limit, offset)
 	if err != nil {
 		return nil, err
 	}

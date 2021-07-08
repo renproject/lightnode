@@ -76,7 +76,7 @@ func (resolver *Resolver) QueryBlocks(ctx context.Context, id interface{}, param
 func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *jsonrpc.ParamsSubmitTx, req *http.Request) jsonrpc.Response {
 	// Check if the tx is a v1 tx or v0 tx.
 	txVersion := params.Tx.Version
-	if params.Tx.Version == tx.Version0{
+	if params.Tx.Version == tx.Version0 {
 		// We need to always make sure the tx to submit is a v1 tx as
 		// darknode won't accept v0 tx.
 		params.Tx.Version = tx.Version1
@@ -665,8 +665,12 @@ func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *
 		limit = int(*params.Limit)
 	}
 
+	latest := false
+	if params.Latest != nil {
+		latest = bool(*params.Latest)
+	}
 	// Fetch the matching transactions from the database.
-	txs, err := resolver.db.Txs(offset, limit)
+	txs, err := resolver.db.Txs(offset, limit, latest)
 	if err != nil {
 		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, fmt.Sprintf("failed to fetch txs: %v", err), nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
