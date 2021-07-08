@@ -157,6 +157,9 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		var burnLogFetcher watcher.BurnLogFetcher
 		var blockHeightFetcher watcher.BlockHeightFetcher
 		if chain == multichain.Solana {
+			if bindings.ContractGateway(chain, asset) == "" {
+				continue
+			}
 			burnLogFetcher = watcher.NewSolFetcher(solClient, string(bindings.ContractGateway(chain, asset)))
 			blockHeightFetcher = watcher.NewSolFetcher(solClient, string(bindings.ContractGateway(chain, asset)))
 		} else {

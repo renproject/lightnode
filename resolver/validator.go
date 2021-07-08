@@ -121,6 +121,10 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 		// determine if it is indeed a v0 tx
 		var v1params jsonrpc.ParamsSubmitTx
 		if err := json.Unmarshal(req.Params, &v1params); err == nil {
+			if !v1params.Tx.Selector.IsCrossChain() {
+				break
+			}
+
 			if v1params.Tx.Version == tx.Version1 {
 				// If the transaction is a burn, and contains a gpubkey,
 				// construct an updated transaction input excluding the
