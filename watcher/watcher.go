@@ -159,16 +159,16 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 			var nonceBytes pack.Bytes32
 			copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
 
-			programDerivedAddress := solana.ProgramDerivedAddress(b, multichain.Address(fetcher.gatewayAddress))
+			burnLogDerivedAddress := solana.ProgramDerivedAddress(b, multichain.Address(fetcher.gatewayAddress))
 
-			programPubk, err := solanaSDK.PublicKeyFromBase58(string(programDerivedAddress))
+			burnLogPubk, err := solanaSDK.PublicKeyFromBase58(string(burnLogDerivedAddress))
 			if err != nil {
 				resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log account: %v", err)}
 				return
 			}
 
 			// Fetch account data at gateway's state
-			accountInfo, err := fetcher.client.GetAccountInfo(ctx, programPubk)
+			accountInfo, err := fetcher.client.GetAccountInfo(ctx, burnLogPubk)
 			if err != nil {
 				resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log data for burn: %v err: %v", i, err)}
 				return
@@ -184,12 +184,19 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 			recipientLen := uint8(data[32:33][0])
 			recipient := multichain.RawAddress(data[33 : 33+int(recipientLen)])
 
-			signatures, err := fetcher.client.GetConfirmedSignaturesForAddress2(ctx, programPubk, &solanaRPC.GetConfirmedSignaturesForAddress2Opts{})
+			signatures, err := fetcher.client.GetSignaturesForAddress(ctx, burnLogPubk, &solanaRPC.GetSignaturesForAddressOpts{})
 			if err != nil {
-				resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log txes: %v", err)}
-				return
+				legacySignatures, err2 := fetcher.client.GetConfirmedSignaturesForAddress2(ctx, burnLogPubk, &solanaRPC.GetConfirmedSignaturesForAddress2Opts{})
+				if err2 != nil {
+					resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log txes: (current: %v) (legacy: %v)", err, err2)}
+					return
+				}
+				signatures = solanaRPC.GetSignaturesForAddressResult(legacySignatures)
 			}
 
+			// NOTE: We assume the burn watcher will always run before a signature gets pruned
+			// manual intervention will be required to skip a burns where the signatures are no longer
+			// returned by the nodes
 			if len(signatures) == 0 {
 				resultChan <- BurnLogResult{Error: fmt.Errorf("Burn signature not confirmed")}
 				return
