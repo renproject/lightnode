@@ -66,6 +66,13 @@ func main() {
 
 	options.Whitelist = conf.Whitelist
 
+	// Hacky, but needs to be done to override whats in the darknode
+	if os.Getenv("WHITELIST") != "" {
+		options = options.WithWhitelist(
+			parseWhitelist("WHITELIST"),
+		)
+	}
+
 	for chain, chainOpt := range options.Chains {
 		chainOpt.Confirmations = conf.Confirmations[chain]
 		if conf.MaxConfirmations[chain] != 0 {
