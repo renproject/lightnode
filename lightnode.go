@@ -22,6 +22,7 @@ import (
 	"github.com/renproject/multichain"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	solanaRPC "github.com/dfuse-io/solana-go/rpc"
 )
@@ -79,7 +80,14 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	multiStore := store.New(table, options.BootstrapAddrs)
 
 	// Initialise the blockchain adapter.
+	loggerConfig := zap.NewProductionConfig()
+	loggerConfig.DisableStacktrace = true
+	bindingsLogger, err := loggerConfig.Build()
+	if err != nil {
+		panic(fmt.Errorf("cannot init logger: %v", err))
+	}
 	bindingsOpts := binding.DefaultOptions().
+		WithLogger(bindingsLogger).
 		WithNetwork(options.Network)
 	for chain, chainOpts := range options.Chains {
 		bindingsOpts = bindingsOpts.WithChainOptions(chain, chainOpts)
@@ -95,6 +103,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	//
 
 	verifierBindingsOpts := binding.DefaultOptions().
+		WithLogger(bindingsLogger).
 		WithNetwork(options.Network)
 	for chain, chainOpts := range options.Chains {
 		chainOpts.Confirmations = 0
