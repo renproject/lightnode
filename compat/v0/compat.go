@@ -564,7 +564,7 @@ func V1TxFromV0Mint(ctx context.Context, v0tx Tx, bindings *binding.Binding) (tx
 	txid := txidB.CloneBytes()
 	txindex := pack.NewU32(uint32(vout))
 
-	client := bindings.BtcClient(selector.Asset().OriginChain())
+	client := bindings.UTXOClient(selector.Asset().OriginChain())
 	output, _, err := client.Output(ctx, multichain.UTXOutpoint{
 		Hash:  txid,
 		Index: pack.NewU32(uint32(vout)),
@@ -685,7 +685,7 @@ func V1TxFromV0Burn(ctx context.Context, v0tx Tx, bindings *binding.Binding, net
 	return tx.NewTx(selector, pack.Typed(input.(pack.Struct)))
 }
 
-func V0TxHashFromTx(tx Tx) (B32, error){
+func V0TxHashFromTx(tx Tx) (B32, error) {
 	var hash B32
 	if IsShiftIn(tx.To) {
 		payload := pack.NewBytes(tx.In.Get("p").Value.(ExtEthCompatPayload).Value[:])

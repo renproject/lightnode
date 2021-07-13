@@ -1610,6 +1610,8 @@ github.com/renproject/aw v0.4.1-0.20210604011747-50d6a643dc76 h1:pp21sp4scg61RYR
 github.com/renproject/aw v0.4.1-0.20210604011747-50d6a643dc76/go.mod h1:WzE3LgCNZSMCwg8tObbLXz+AvZQ0zRW3jNgWqg6dEyQ=
 github.com/renproject/darknode v0.5.3-0.20210629111346-e4f394804f14 h1:VfqzKf/9P6pcR5d3hTC6eEGcH2XnRrpPNTZkh8FVBgU=
 github.com/renproject/darknode v0.5.3-0.20210629111346-e4f394804f14/go.mod h1:9I7UvwFCtMD1yTd7LcCLExv4kEPqO40KSypIlZsHfTI=
+github.com/renproject/darknode v0.5.3-0.20210712002915-d47f46d601dd h1:1Di5d+cWpmqjS0f7lE9yjmWyFucVdrax3Xfx0KCXl+8=
+github.com/renproject/darknode v0.5.3-0.20210712002915-d47f46d601dd/go.mod h1:pEKscnfVkq/Pz8t+Y2apeNhk01Z+kV+K+WhhbA1QeOU=
 github.com/renproject/hyperdrive v0.4.8 h1:p66FEsHjkhn+PegvWzk21GYeHF5S4iHJiEs5DA+p7D0=
 github.com/renproject/hyperdrive v0.4.8/go.mod h1:ck1cKJ0M95xwfO0vuEj7ifDjNVYFrPvat5INU70wbUc=
 github.com/renproject/id v0.4.2 h1:XseNDPPCJtsZjIWR7Qgf+zxy0Gt5xsLrfwpQxJt5wFQ=
@@ -1618,6 +1620,8 @@ github.com/renproject/kv v1.1.2 h1:P18yHdDVJTEZ9yeyx6o82ICY1m6f+VdtAt/ouZez+AU=
 github.com/renproject/kv v1.1.2/go.mod h1:78bvdAtYiYxCoT9ihVhl8qdmjl7s9fST/FkRLnZ6rXY=
 github.com/renproject/multichain v0.3.16 h1:K7SO5lqiL1cowQpjXpIvQ7Ihjjy4sOGqtd1tGAdauHY=
 github.com/renproject/multichain v0.3.16/go.mod h1:9And10nVkgnTDoaX2VbA8QyP3S2qFts0VrySalzoaAY=
+github.com/renproject/multichain v0.3.18 h1:tEaCBvvWBk4NUhVpAPXlbLlq90WJuFiVhloUeTmgrUk=
+github.com/renproject/multichain v0.3.18/go.mod h1:9And10nVkgnTDoaX2VbA8QyP3S2qFts0VrySalzoaAY=
 github.com/renproject/pack v0.2.5/go.mod h1:pzX3Hc04RoPft89LaZJVp0xgngVGi90V7GvyC3mOGg4=
 github.com/renproject/pack v0.2.11 h1:TtLh/jOqB3SDwjoMODcPnQuVbySbDK4g49NJ4BAh5/4=
 github.com/renproject/pack v0.2.11/go.mod h1:pzX3Hc04RoPft89LaZJVp0xgngVGi90V7GvyC3mOGg4=
@@ -1887,6 +1891,7 @@ github.com/willf/bitset v1.1.3/go.mod h1:RjeCKbqT1RxIR/KWY6phxZiaY1IyutSBfGjNPyS
 github.com/wsddn/go-ecdh v0.0.0-20161211032359-48726bab9208/go.mod h1:IotVbo4F+mw0EzQ08zFqg7pK3FebNXpaMsRy2RT+Ees=
 github.com/x-cray/logrus-prefixed-formatter v0.5.2/go.mod h1:2duySbKsL6M18s5GU7VPsoEPHyzalCE06qoARUCeBBE=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
+github.com/xlab/c-for-go v0.0.0-20201112171043-ea6dce5809cb h1:/7/dQyiKnxAOj9L69FhST7uMe17U015XPzX7cy+5ykM=
 github.com/xlab/c-for-go v0.0.0-20201112171043-ea6dce5809cb/go.mod h1:pbNsDSxn1ICiNn9Ct4ZGNrwzfkkwYbx/lw8VuyutFIg=
 github.com/xlab/c-for-go v0.0.0-20201223145653-3ba5db515dcb h1:Bj7qzsczc8NfHg44eeJA6TIZhevFovN7aUawz+bPCxI=
 github.com/xlab/c-for-go v0.0.0-20201223145653-3ba5db515dcb/go.mod h1:pbNsDSxn1ICiNn9Ct4ZGNrwzfkkwYbx/lw8VuyutFIg=
