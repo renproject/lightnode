@@ -332,7 +332,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 	}
 
 	if currentHeight <= lastHeight {
-		watcher.logger.Warnf("[watcher] tried to process old blocks")
+		watcher.logger.Debug("[watcher] tried to process old blocks")
 		// Make sure we do not process old events. This could occur if there is
 		// an issue with the underlying blockchain node, for example if it needs
 		// to resync.
