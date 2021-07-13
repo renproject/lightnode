@@ -19,7 +19,7 @@ import (
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/id"
-	"github.com/renproject/lightnode/compat/v0"
+	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/lightnode/testutils"
@@ -161,6 +161,8 @@ var _ = Describe("Compat V0", func() {
 		keys, err := client.Keys(utxo.TxHash.String() + "_" + utxo.VOut.Int.String()).Result()
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(len(keys)).Should(Equal(1))
+
+		Expect(v1.Tx.Selector).Should(Equal(tx.Selector("BTC/toEthereum")))
 
 		// Check that redis mapped the hashes correctly
 		hash := v1.Tx.Hash.String()

@@ -554,7 +554,7 @@ func NetParams(chain multichain.Chain, net multichain.Network) *chaincfg.Params 
 }
 
 func V1TxFromV0Mint(ctx context.Context, v0tx Tx, bindings *binding.Binding) (tx.Tx, error) {
-	selector := tx.Selector(fmt.Sprintf("%s/fromEthereum", v0tx.To[0:3]))
+	selector := tx.Selector(fmt.Sprintf("%s/toEthereum", v0tx.To[0:3]))
 	utxo := v0tx.In.Get("utxo").Value.(ExtBtcCompatUTXO)
 	vout := utxo.VOut.Int.Uint64()
 	txidB, err := chainhash.NewHashFromStr(hex.EncodeToString(utxo.TxHash[:]))
