@@ -66,7 +66,7 @@ func main() {
 
 	options.Whitelist = conf.Whitelist
 
-	// Hacky, but needs to be done to override whats in the darknode
+	// Replace Darknode whitelist with a custom one if it is set.
 	if os.Getenv("WHITELIST") != "" {
 		options = options.WithWhitelist(
 			parseWhitelist("WHITELIST"),
