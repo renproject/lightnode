@@ -13,8 +13,8 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/id"
-	"github.com/renproject/lightnode/compat/v0"
-	"github.com/renproject/lightnode/compat/v1"
+	v0 "github.com/renproject/lightnode/compat/v0"
+	v1 "github.com/renproject/lightnode/compat/v1"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
@@ -176,6 +176,7 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 					Message: fmt.Sprintf("invalid params: %v", err),
 				})
 			}
+			validator.logger.Printf("cast params {%+v}", castParams)
 			raw, err := json.Marshal(castParams)
 			if err != nil {
 				return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{

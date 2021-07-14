@@ -76,11 +76,14 @@ func (resolver *Resolver) QueryBlocks(ctx context.Context, id interface{}, param
 func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *jsonrpc.ParamsSubmitTx, req *http.Request) jsonrpc.Response {
 	// Check if the tx is a v1 tx or v0 tx.
 	txVersion := params.Tx.Version
-	if params.Tx.Version == tx.Version0{
-		// We need to always make sure the tx to submit is a v1 tx as
-		// darknode won't accept v0 tx.
-		params.Tx.Version = tx.Version1
-	}
+	// The comment below is incorrect, we need to maintain the tx version to create the correct hashes on the darknode
+	// The darknode has a faulty implementation of tx version limiting, so we can still submit v0 txes
+	//
+	// if params.Tx.Version == tx.Version0{
+	// 	// We need to always make sure the tx to submit is a v1 tx as
+	// 	// darknode won't accept v0 tx.
+	// 	params.Tx.Version = tx.Version1
+	// }
 	response := resolver.handleMessage(ctx, id, jsonrpc.MethodSubmitTx, *params, req, true)
 
 	if txVersion != tx.Version0 {

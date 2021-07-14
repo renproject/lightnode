@@ -136,6 +136,7 @@ func (tc *txchecker) Run() {
 			err := tc.verifier.VerifyTx(ctx, params.Tx)
 			cancel()
 			if err != nil {
+				tc.logger.Errorf("lightnode validation fail %+v", params.Tx)
 				req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, err)
 				continue
 			}
