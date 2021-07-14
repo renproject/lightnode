@@ -456,25 +456,34 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *bind
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
 
-	// Calculate tx hash for v0 tx
-	txHash, err := V0TxHashFromTx(params.Tx)
-	if err != nil {
-		return jsonrpc.ParamsSubmitTx{}, err
-	}
+	var txHash B32
 
+	submitVersion := tx.Version0
 	// Convert the v0 tx to v1 transaction
 	if IsShiftIn(params.Tx.To) {
 		v1Tx, txHash, err = V1TxFromV0Mint(ctx, params.Tx, bindings, pubkey)
+		if err != nil {
+			return jsonrpc.ParamsSubmitTx{}, err
+		}
 	} else {
 		v1Tx, err = V1TxFromV0Burn(ctx, params.Tx, bindings, network)
-	}
-	if err != nil {
-		return jsonrpc.ParamsSubmitTx{}, err
+		if err != nil {
+			return jsonrpc.ParamsSubmitTx{}, err
+		}
+
+		submitVersion = tx.Version1
+
+		// Calculate tx hash for v0 tx
+		txHash, err = V0TxHashFromTx(params.Tx)
+		if err != nil {
+			return jsonrpc.ParamsSubmitTx{}, err
+		}
 	}
 
 	copy(params.Tx.Hash[:], txHash[:])
 
-	h, err := tx.NewTxHash(tx.Version0, v1Tx.Selector, v1Tx.Input)
+	// calculate the new tx format hash
+	h, err := tx.NewTxHash(submitVersion, v1Tx.Selector, v1Tx.Input)
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
@@ -568,7 +577,7 @@ func V1TxFromV0Mint(ctx context.Context, v0tx Tx, bindings *binding.Binding, pub
 	selector := tx.Selector(fmt.Sprintf("%s/toEthereum", v0tx.To[0:3]))
 	utxo := v0tx.In.Get("utxo").Value.(ExtBtcCompatUTXO)
 	vout := utxo.VOut.Int.Uint64()
-	txidB, err := utxo.TxHash.MarshalBinary() //chainhash.NewHashFromStr(hex.EncodeToString(utxo.TxHash[:]))
+	txidB, err := utxo.TxHash.MarshalBinary()
 	if err != nil {
 		return tx.Tx{}, B32{}, err
 	}
@@ -724,23 +733,8 @@ func V1TxFromV0Burn(ctx context.Context, v0tx Tx, bindings *binding.Binding, net
 
 func V0TxHashFromTx(tx Tx) (B32, error) {
 	var hash B32
-	// Incorrect - we need to use the nhash, not the nonce
 	if IsShiftIn(tx.To) {
-		return hash, fmt.Errorf("cannot handle shift-ins")
-		// payload := pack.NewBytes(tx.In.Get("p").Value.(ExtEthCompatPayload).Value[:])
-		// phash := engine.Phash(payload)
-		// tokenAddr := tx.In.Get("token").Value.(ExtEthCompatAddress)
-		// to := tx.In.Get("to").Value.(ExtEthCompatAddress)
-		// n := tx.In.Get("n").Value.(B32)
-		// var nonce pack.Bytes32
-		// copy(nonce[:], n[:])
-
-		// ghash, err := engine.V0Ghash(tokenAddr[:], phash, to[:], nonce)
-		// if err != nil {
-		// 	return B32{}, err
-		// }
-		// utxo := tx.In.Get("utxo").Value.(ExtBtcCompatUTXO)
-		// copy(hash[:], crypto.Keccak256([]byte(fmt.Sprintf("txHash_%s_%s_%s_%d", tx.To, ghash, utxo.TxHash, utxo.VOut.Int.Int64()))))
+		panic("cannot handle shift-ins")
 	} else {
 		ref := tx.In.Get("ref").Value.(U64)
 		copy(hash[:], crypto.Keccak256([]byte(fmt.Sprintf("txHash_%s_%d", tx.To, ref.Int.Int64()))))

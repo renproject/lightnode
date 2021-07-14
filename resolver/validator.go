@@ -176,7 +176,6 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 					Message: fmt.Sprintf("invalid params: %v", err),
 				})
 			}
-			validator.logger.Printf("cast params {%+v}", castParams)
 			raw, err := json.Marshal(castParams)
 			if err != nil {
 				return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
