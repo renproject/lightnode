@@ -164,7 +164,7 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 			// has already been processed by RenVM and it can be marked as
 			// complete.
 			if strings.Contains(err.Error(), "result is nil") {
-				if err := confirmer.database.UpdateStatus(transaction.Hash, db.TxStatusSubmitted); err != nil {
+				if err := confirmer.database.UpdateStatus(transaction.Hash, db.TxStatusConfirmed); err != nil {
 					confirmer.options.Logger.Errorf("[confirmer] updating status for tx=%v: %v", transaction.Hash.String(), err)
 					return false
 				}
