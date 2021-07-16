@@ -76,8 +76,9 @@ func (resolver *Resolver) QueryBlocks(ctx context.Context, id interface{}, param
 func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *jsonrpc.ParamsSubmitTx, req *http.Request) jsonrpc.Response {
 	// Check if the tx is a v1 tx or v0 tx.
 	txVersion := params.Tx.Version
-	if params.Tx.Version == tx.Version0{
-		// We need to always make sure the tx to submit is a v1 tx as
+
+	if params.Tx.Version == tx.Version0 && params.Tx.Selector.IsBurn() {
+		// When burning, we need to always make sure the tx to submit is a v1 tx as
 		// darknode won't accept v0 tx.
 		params.Tx.Version = tx.Version1
 	}
@@ -89,10 +90,11 @@ func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *
 	if response.Error != nil {
 		return response
 	}
+
 	v0tx, err := v0.TxFromV1Tx(params.Tx, false, resolver.bindings)
 	if err != nil {
 		resolver.logger.Errorf("[responder] cannot convert v1 tx to v0, %v", err)
-		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "fail to convert v1 tx to v0", nil)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to convert v1 tx to v0", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	}
 

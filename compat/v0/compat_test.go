@@ -19,7 +19,7 @@ import (
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/id"
-	"github.com/renproject/lightnode/compat/v0"
+	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/lightnode/testutils"
@@ -121,7 +121,7 @@ var _ = Describe("Compat V0", func() {
 		Expect(shardsResponse.Shards[0].Gateways[0].PubKey).Should(Equal("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"))
 	})
 
-	It("should convert a v0 BTC Burn ParamsSubmitTx into an empty v1 ParamsSubmitTx", func() {
+	It("should convert a v0 BTC Burn ParamsSubmitTx into an v1 ParamsSubmitTx", func() {
 		params := testutils.MockBurnParamSubmitTxV0BTC()
 		store, _, bindings, pubkey := init(params, false)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -162,14 +162,18 @@ var _ = Describe("Compat V0", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(len(keys)).Should(Equal(1))
 
+		Expect(v1.Tx.Selector).Should(Equal(tx.Selector("BTC/toEthereum")))
+
 		// Check that redis mapped the hashes correctly
 		hash := v1.Tx.Hash.String()
 		storedHash, err := client.Get(keys[0]).Result()
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(storedHash).Should(Equal(hash))
 
-		// v0 hash should have a mapping in the store
-		v0Hash, err := v0.V0TxHashFromTx(params.Tx)
+		ghash := v1.Tx.Input.Get("ghash").(pack.Bytes32)
+		txid := v1.Tx.Input.Get("txid").(pack.Bytes)
+		txindex := v1.Tx.Input.Get("txindex").(pack.U32)
+		v0Hash := v0.MintTxHash(v1.Tx.Selector, ghash, txid, txindex)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// btc txhash mapping
@@ -178,7 +182,7 @@ var _ = Describe("Compat V0", func() {
 		Expect(keys).Should(ContainElement(v0Hash.String()))
 
 		// v1 hash should be correct
-		v1Hash, err := tx.NewTxHash(tx.Version1, v1.Tx.Selector, v1.Tx.Input)
+		v1Hash, err := tx.NewTxHash(tx.Version0, v1.Tx.Selector, v1.Tx.Input)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(hash).To(Equal(v1Hash.String()))
 	})
@@ -204,8 +208,10 @@ var _ = Describe("Compat V0", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(storedHash).Should(Equal(hash))
 
-		// v0 hash should have a mapping in the store
-		v0Hash, err := v0.V0TxHashFromTx(params.Tx)
+		ghash := v1.Tx.Input.Get("ghash").(pack.Bytes32)
+		txid := v1.Tx.Input.Get("txid").(pack.Bytes)
+		txindex := v1.Tx.Input.Get("txindex").(pack.U32)
+		v0Hash := v0.MintTxHash(v1.Tx.Selector, ghash, txid, txindex)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// btc txhash mapping
@@ -214,7 +220,7 @@ var _ = Describe("Compat V0", func() {
 		Expect(keys).Should(ContainElement(v0Hash.String()))
 
 		// v1 hash should be correct
-		v1Hash, err := tx.NewTxHash(tx.Version1, v1.Tx.Selector, v1.Tx.Input)
+		v1Hash, err := tx.NewTxHash(tx.Version0, v1.Tx.Selector, v1.Tx.Input)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(hash).To(Equal(v1Hash.String()))
 	})
@@ -240,9 +246,10 @@ var _ = Describe("Compat V0", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(hash).Should(Equal(storedHash))
 
-		// v0 hash should have a mapping in the store
-		v0Hash, err := v0.V0TxHashFromTx(params.Tx)
-		Expect(err).ShouldNot(HaveOccurred())
+		ghash := v1.Tx.Input.Get("ghash").(pack.Bytes32)
+		txid := v1.Tx.Input.Get("txid").(pack.Bytes)
+		txindex := v1.Tx.Input.Get("txindex").(pack.U32)
+		v0Hash := v0.MintTxHash(v1.Tx.Selector, ghash, txid, txindex)
 
 		// btc txhash mapping
 		keys, err = client.Keys("*").Result()
@@ -250,7 +257,7 @@ var _ = Describe("Compat V0", func() {
 		Expect(keys).Should(ContainElement(v0Hash.String()))
 
 		// v1 hash should be correct
-		v1Hash, err := tx.NewTxHash(tx.Version1, v1.Tx.Selector, v1.Tx.Input)
+		v1Hash, err := tx.NewTxHash(tx.Version0, v1.Tx.Selector, v1.Tx.Input)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(hash).To(Equal(v1Hash.String()))
 	})

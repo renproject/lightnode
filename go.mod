@@ -27,6 +27,7 @@ require (
 	github.com/renproject/phi v0.1.0
 	github.com/renproject/surge v1.2.6
 	github.com/sirupsen/logrus v1.7.0
+	github.com/xlab/c-for-go v0.0.0-20201223145653-3ba5db515dcb // indirect
 	go.uber.org/zap v1.16.0
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324
