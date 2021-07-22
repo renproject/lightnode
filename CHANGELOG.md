@@ -1,3 +1,8 @@
+## 0.4.6
+
+- Update Multichain to v0.3.20
+- Update Solana recipient encoding
+
 ## 0.4.5
 - Update compatibility layer for v0 burns
 - Use connection pool for Redis interaction
