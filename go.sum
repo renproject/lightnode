@@ -1612,6 +1612,8 @@ github.com/renproject/darknode v0.5.3-0.20210629111346-e4f394804f14 h1:VfqzKf/9P
 github.com/renproject/darknode v0.5.3-0.20210629111346-e4f394804f14/go.mod h1:9I7UvwFCtMD1yTd7LcCLExv4kEPqO40KSypIlZsHfTI=
 github.com/renproject/darknode v0.5.3-0.20210708063137-4d3b96c44e31 h1:cAxTtWK7gAuAUJ5jxqzPwUNgUbLFI6eFS7E1vR9XePA=
 github.com/renproject/darknode v0.5.3-0.20210708063137-4d3b96c44e31/go.mod h1:9I7UvwFCtMD1yTd7LcCLExv4kEPqO40KSypIlZsHfTI=
+github.com/renproject/darknode v0.5.3-0.20210726013146-7710fce85625 h1:Seo9nNvFLqsLnDpDA/7BgqTl2OngINSJ48sM+ItVtdw=
+github.com/renproject/darknode v0.5.3-0.20210726013146-7710fce85625/go.mod h1:OIWTAZmZG7OV5e6/t4Ppf/GWqTbZV8e5AlLhPabID8Q=
 github.com/renproject/hyperdrive v0.4.8 h1:p66FEsHjkhn+PegvWzk21GYeHF5S4iHJiEs5DA+p7D0=
 github.com/renproject/hyperdrive v0.4.8/go.mod h1:ck1cKJ0M95xwfO0vuEj7ifDjNVYFrPvat5INU70wbUc=
 github.com/renproject/id v0.4.2 h1:XseNDPPCJtsZjIWR7Qgf+zxy0Gt5xsLrfwpQxJt5wFQ=
@@ -1620,6 +1622,8 @@ github.com/renproject/kv v1.1.2 h1:P18yHdDVJTEZ9yeyx6o82ICY1m6f+VdtAt/ouZez+AU=
 github.com/renproject/kv v1.1.2/go.mod h1:78bvdAtYiYxCoT9ihVhl8qdmjl7s9fST/FkRLnZ6rXY=
 github.com/renproject/multichain v0.3.16 h1:K7SO5lqiL1cowQpjXpIvQ7Ihjjy4sOGqtd1tGAdauHY=
 github.com/renproject/multichain v0.3.16/go.mod h1:9And10nVkgnTDoaX2VbA8QyP3S2qFts0VrySalzoaAY=
+github.com/renproject/multichain v0.3.20 h1:tQv2FYnDXF+BGZU8gNpzwlpUZSTxiyRyJXmE6mt/diQ=
+github.com/renproject/multichain v0.3.20/go.mod h1:9And10nVkgnTDoaX2VbA8QyP3S2qFts0VrySalzoaAY=
 github.com/renproject/pack v0.2.5/go.mod h1:pzX3Hc04RoPft89LaZJVp0xgngVGi90V7GvyC3mOGg4=
 github.com/renproject/pack v0.2.11 h1:TtLh/jOqB3SDwjoMODcPnQuVbySbDK4g49NJ4BAh5/4=
 github.com/renproject/pack v0.2.11/go.mod h1:pzX3Hc04RoPft89LaZJVp0xgngVGi90V7GvyC3mOGg4=
@@ -1889,6 +1893,9 @@ github.com/willf/bitset v1.1.3/go.mod h1:RjeCKbqT1RxIR/KWY6phxZiaY1IyutSBfGjNPyS
 github.com/wsddn/go-ecdh v0.0.0-20161211032359-48726bab9208/go.mod h1:IotVbo4F+mw0EzQ08zFqg7pK3FebNXpaMsRy2RT+Ees=
 github.com/x-cray/logrus-prefixed-formatter v0.5.2/go.mod h1:2duySbKsL6M18s5GU7VPsoEPHyzalCE06qoARUCeBBE=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
+github.com/xlab/c-for-go v0.0.0-20201002084316-c134bfab968f h1:nMhj+x/m7ZQsHBz0L3gpytp0v6ogokdbrQDnhB8Kh7s=
+github.com/xlab/c-for-go v0.0.0-20201002084316-c134bfab968f/go.mod h1:h/1PEBwj7Ym/8kOuMWvO2ujZ6Lt+TMbySEXNhjjR87I=
+github.com/xlab/c-for-go v0.0.0-20201112171043-ea6dce5809cb h1:/7/dQyiKnxAOj9L69FhST7uMe17U015XPzX7cy+5ykM=
 github.com/xlab/c-for-go v0.0.0-20201112171043-ea6dce5809cb/go.mod h1:pbNsDSxn1ICiNn9Ct4ZGNrwzfkkwYbx/lw8VuyutFIg=
 github.com/xlab/c-for-go v0.0.0-20201223145653-3ba5db515dcb h1:Bj7qzsczc8NfHg44eeJA6TIZhevFovN7aUawz+bPCxI=
 github.com/xlab/c-for-go v0.0.0-20201223145653-3ba5db515dcb/go.mod h1:pbNsDSxn1ICiNn9Ct4ZGNrwzfkkwYbx/lw8VuyutFIg=
@@ -2424,6 +2431,7 @@ howett.net/plist v0.0.0-20181124034731-591f970eefbb/go.mod h1:vMygbs4qMhSZSc4lCU
 modernc.org/cc v1.0.0 h1:nPibNuDEx6tvYrUAtvDTTw98rx5juGsa5zuDnKwEEQQ=
 modernc.org/cc v1.0.0/go.mod h1:1Sk4//wdnYJiUIxnW8ddKpaOJCF37yAdqYnkxUpaYxw=
 modernc.org/fileutil v1.0.0/go.mod h1:JHsWpkrk/CnVV1H/eGlFf85BEpfkrp56ro8nojIq9Q8=
+modernc.org/golex v1.0.0 h1:wWpDlbK8ejRfSyi0frMyhilD3JBvtcx2AdGDnU+JtsE=
 modernc.org/golex v1.0.0/go.mod h1:b/QX9oBD/LhixY6NDh+IdGv17hgB+51fET1i2kPSmvk=
 modernc.org/golex v1.0.1 h1:EYKY1a3wStt0RzHaH8mdSRNg78Ub0OHxYfCRWw35YtM=
 modernc.org/golex v1.0.1/go.mod h1:QCA53QtsT1NdGkaZZkF5ezFwk4IXh4BGNafAARTC254=
