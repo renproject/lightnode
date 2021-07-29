@@ -4,6 +4,9 @@
 - Update Solana recipient encoding
 
 ## 0.4.5
+
+- Add support for Arbitrum
+- Update Multichain to v0.3.18
 - Update compatibility layer for v0 burns
 - Use connection pool for Redis interaction
 - Fetch public key and max confirmations from Darknode when booting
