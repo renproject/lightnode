@@ -19,14 +19,16 @@ require (
 	github.com/onsi/ginkgo v1.14.0
 	github.com/onsi/gomega v1.10.1
 	github.com/renproject/aw v0.4.1-0.20210604011747-50d6a643dc76
-	github.com/renproject/darknode v0.5.3-0.20210708063137-4d3b96c44e31
+	github.com/renproject/darknode v0.5.3-0.20210713044842-f2a0eeaecec9
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
-	github.com/renproject/multichain v0.3.16
+	github.com/renproject/multichain v0.3.18
 	github.com/renproject/pack v0.2.11
 	github.com/renproject/phi v0.1.0
 	github.com/renproject/surge v1.2.6
 	github.com/sirupsen/logrus v1.7.0
+	github.com/xlab/c-for-go v0.0.0-20201223145653-3ba5db515dcb // indirect
+	go.uber.org/zap v1.16.0
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324
 )

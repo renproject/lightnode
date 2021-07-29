@@ -182,8 +182,13 @@ var _ = Describe("Resolver", func() {
 		paramsJSON, err := json.Marshal(params)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		v0Hash, err := v0.V0TxHashFromTx(params.Tx)
+		// It's a bit of a pain to make this robustly calculatable, so lets use the mock
+		// v0 tx's v0 hash directly
+		v0HashString := "fEwRnmZAjz6uzPZFGwYSa4OK8xtHVl2nsncCHvV0aKE="
+		v0HashBytes, err := base64.StdEncoding.DecodeString(v0HashString)
 		Expect(err).ShouldNot(HaveOccurred())
+		v0Hash := [32]byte{}
+		copy(v0Hash[:], v0HashBytes[:])
 
 		req, resp := validator.ValidateRequest(innerCtx, &http.Request{}, jsonrpc.Request{
 			Version: "2.0",
@@ -197,7 +202,7 @@ var _ = Describe("Resolver", func() {
 		resp = resolver.SubmitTx(ctx, nil, (req).(*jsonrpc.ParamsSubmitTx), nil)
 		Expect(resp.Error).Should(BeNil())
 
-		hashS, err := client.Get(v0Hash.String()).Result()
+		hashS, err := client.Get(v0HashString).Result()
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(hashS).ShouldNot(Equal(nil))
 

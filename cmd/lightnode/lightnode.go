@@ -66,6 +66,13 @@ func main() {
 
 	options.Whitelist = conf.Whitelist
 
+	// Replace Darknode whitelist with a custom one if it is set.
+	if os.Getenv("WHITELIST") != "" {
+		options = options.WithWhitelist(
+			parseWhitelist("WHITELIST"),
+		)
+	}
+
 	for chain, chainOpt := range options.Chains {
 		chainOpt.Confirmations = conf.Confirmations[chain]
 		if conf.MaxConfirmations[chain] != 0 {
@@ -243,11 +250,11 @@ func initRedis() *redis.Client {
 	}
 	redisPassword, _ := redisURL.User.Password()
 	return redis.NewClient(&redis.Options{
-		Addr:               redisURL.Host,
-		Password:           redisPassword,
-		DB:                 0, // Use default DB.
-		MaxRetries:         5,
-		PoolSize:           15,
+		Addr:       redisURL.Host,
+		Password:   redisPassword,
+		DB:         0, // Use default DB.
+		MaxRetries: 5,
+		PoolSize:   15,
 	})
 }
 
@@ -314,6 +321,12 @@ func parseOptions() lightnode.Options {
 	}
 
 	chains := map[multichain.Chain]binding.ChainOptions{}
+	if os.Getenv("RPC_ARBITRUM") != "" {
+		chains[multichain.Arbitrum] = binding.ChainOptions{
+			RPC:      pack.String(os.Getenv("RPC_ARBITRUM")),
+			Protocol: pack.String(os.Getenv("GATEWAY_ARBITRUM")),
+		}
+	}
 	if os.Getenv("RPC_AVALANCHE") != "" {
 		chains[multichain.Avalanche] = binding.ChainOptions{
 			RPC:      pack.String(os.Getenv("RPC_AVALANCHE")),
