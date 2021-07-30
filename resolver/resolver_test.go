@@ -471,6 +471,23 @@ var _ = Describe("Resolver", func() {
 		Expect(resp.Error).Should(BeZero())
 	})
 
+	It("should submit gateway txs for filecoin", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, _ := init(ctx)
+		defer cleanup()
+
+		params := testutils.MockParamsSubmitGatewayFil()
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		resp := resolver.SubmitGateway(innerCtx, nil, &params, nil)
+
+		Expect(resp.Error).Should(BeZero())
+	})
+
 	It("should submit gateway txs for zec", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -665,7 +682,7 @@ var _ = Describe("Resolver", func() {
 				Params:  paramsJSON,
 			})
 			return resp
-		}).Should(Equal(
+		}, time.Second*5, time.Millisecond*5).Should(Equal(
 			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
 				Code:    jsonrpc.ErrorCodeInvalidRequest,
 				Message: fmt.Sprintf("rate limit exceeded for %v", ipString),
