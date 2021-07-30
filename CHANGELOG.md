@@ -1,7 +1,8 @@
 ## 0.4.6
 
-- Update Multichain to v0.3.20
+- Update Multichain to v0.3.21
 - Update Solana recipient encoding
+- Add support for Goerli
 
 ## 0.4.5
 
