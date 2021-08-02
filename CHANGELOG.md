@@ -1,3 +1,9 @@
+## 0.4.6
+
+- Update Multichain to v0.3.21
+- Update Solana recipient encoding
+- Add support for Goerli
+
 ## 0.4.5
 
 - Add support for Arbitrum
