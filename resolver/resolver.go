@@ -196,7 +196,7 @@ func (resolver *Resolver) validateGateway(gateway string, tx tx.Tx, input Partia
 	if tx.Selector.Asset().OriginChain().IsAccountBased() {
 		pubKey := id.PubKey{}
 		if err := surge.FromBinary(&pubKey, input.Gpubkey); err != nil {
-			return fmt.Errorf("decompressing gpubkey: %v %v", err, input.Gpubkey)
+			return fmt.Errorf("decompressing gpubkey %v: %v", input.Gpubkey, err)
 		}
 		ghashPrivKey, err := crypto.ToECDSA(input.Ghash.Bytes())
 		if err != nil {
