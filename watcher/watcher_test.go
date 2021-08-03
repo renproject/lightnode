@@ -771,7 +771,7 @@ var _ = Describe("Watcher", func() {
 			}, 15*time.Second).Should(Equal(BurnLogResult{Result: BurnInfo{
 				Txid:        []byte{},
 				Amount:      pack.NewU256FromUint64(100000000),
-				ToBytes:     []byte{111, 156, 83, 29, 221, 210, 44, 11, 79, 156, 112, 96, 116, 20, 53, 247, 21, 98, 180, 2, 95, 155, 124, 199, 196},
+				ToBytes:     []byte("mumXH2WH8z8JMBuKrArV4XpNnf3xaR6Guy"),
 				Nonce:       [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 				BlockNumber: 1,
 			}}))

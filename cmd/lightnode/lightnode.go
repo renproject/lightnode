@@ -379,6 +379,12 @@ func parseOptions() lightnode.Options {
 			},
 		}
 	}
+	if os.Getenv("RPC_GOERLI") != "" {
+		chains[multichain.Goerli] = binding.ChainOptions{
+			RPC:      pack.String(os.Getenv("RPC_GOERLI")),
+			Protocol: pack.String(os.Getenv("GATEWAY_GOERLI")),
+		}
+	}
 	if os.Getenv("RPC_POLYGON") != "" {
 		chains[multichain.Polygon] = binding.ChainOptions{
 			RPC:      pack.String(os.Getenv("RPC_POLYGON")),
