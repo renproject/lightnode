@@ -11,6 +11,7 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx/txutil"
 	v0 "github.com/renproject/lightnode/compat/v0"
+	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/api/utxo"
 	"github.com/renproject/pack"
@@ -252,6 +253,19 @@ func MockEngineState() map[string]engine.XState {
 		"FIL":  accountState,
 		"LUNA": accountState,
 	}
+}
+
+func MockParamsSubmitGatewayFil() resolver.ParamsSubmitGateway {
+	jsonStr := `{"gateway":"t1syl7g6fypnv2ykixojpfjaxdpoqpmqgpodaojsa","tx":{"selector":"FIL/toSolana","version":"1","in":{"t":{"struct":[{"payload":"bytes"},{"phash":"bytes32"},{"to":"string"},{"nonce":"bytes32"},{"nhash":"bytes32"},{"gpubkey":"bytes"},{"ghash":"bytes32"}]},"v":{"ghash":"6hXCi-_3bJ6Qh6wo18xg8U0rYg4aeqKsMh384rIRIeM","gpubkey":"Aw3WX32ykguyKZEuP0IT3RUOX5csm3PpvnFNhEVhrDVc","nhash":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","nonce":"ICAgICAgICAgICAgICAgICAgICAgICAgICAgIDQ5OTY","payload":"","phash":"xdJGAYb3IzySfn2y3McDwOUAtlPKgic7e_rYBF2FpHA","to":"CCUr6NyGmj3MLVwN6XoxRm2RDtaZUqxS6djctfMyFszr"}}}}`
+
+	var params resolver.ParamsSubmitGateway
+
+	err := json.Unmarshal([]byte(jsonStr), &params)
+
+	if err != nil {
+		panic(fmt.Sprintf("Failed to unmarshal params %v", err))
+	}
+	return params
 }
 
 func MockParamSubmitTxV0ZEC() v0.ParamsSubmitTx {

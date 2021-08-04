@@ -196,7 +196,7 @@ func (resolver *Resolver) validateGateway(gateway string, tx tx.Tx, input Partia
 	if tx.Selector.Asset().OriginChain().IsAccountBased() {
 		pubKey := id.PubKey{}
 		if err := surge.FromBinary(&pubKey, input.Gpubkey); err != nil {
-			return fmt.Errorf("decompressing gpubkey: %v", err)
+			return fmt.Errorf("decompressing gpubkey %v: %v", input.Gpubkey, err)
 		}
 		ghashPrivKey, err := crypto.ToECDSA(input.Ghash.Bytes())
 		if err != nil {
@@ -213,6 +213,14 @@ func (resolver *Resolver) validateGateway(gateway string, tx tx.Tx, input Partia
 		if err != nil {
 			return fmt.Errorf("addressing gpubkey: %v", err)
 		}
+
+		// Ensure mainnet encoding
+		if tx.Selector.Asset() == multichain.FIL {
+			out := []rune(gateway)
+			out[0] = rune('f')
+			gateway = string(out)
+		}
+
 		if multichain.Address(gateway) != toExpected {
 			return fmt.Errorf("expected to %v, got %v", toExpected, gateway)
 		}
