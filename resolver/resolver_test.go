@@ -96,7 +96,7 @@ var _ = Describe("Resolver", func() {
 			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
 				RPC:              pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
 				Confirmations:    pack.U64(0),
-				Protocol:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+				Registry:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
 				MaxConfirmations: pack.MaxU64,
 			})
 
