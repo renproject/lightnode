@@ -159,6 +159,9 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		}
 		chain := selector.Source()
 		asset := selector.Asset()
+		if asset.Type() == multichain.AssetTypeToken {
+			continue
+		}
 		if watchers[chain] == nil {
 			watchers[chain] = map[multichain.Asset]watcher.Watcher{}
 		}
