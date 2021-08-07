@@ -142,26 +142,6 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 						Message: fmt.Sprintf("invalid params: %v", err),
 					})
 				}
-				if len(input.Gpubkey) == 0 {
-					break
-				}
-				v1params.Tx, err = validator.gpubkeyStore.RemoveGpubkey(v1params.Tx)
-				if err != nil {
-					validator.logger.Warn("[validator] building tx: %v", err)
-					return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
-						Code:    jsonrpc.ErrorCodeInvalidParams,
-						Message: fmt.Sprintf("invalid params: %v", err),
-					})
-				}
-
-				raw, err := json.Marshal(v1params)
-				if err != nil {
-					return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
-						Code:    jsonrpc.ErrorCodeInvalidParams,
-						Message: fmt.Sprintf("invalid params: %v", err),
-					})
-				}
-				req.Params = raw
 				break
 			}
 		}
