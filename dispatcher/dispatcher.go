@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -56,7 +57,7 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 		addrs, err = dispatcher.multiAddrs(msg.Method)
 	}
 	if err != nil {
-		dispatcher.logger.Errorf("[dispatcher] failed to send %v message to [%v], error getting multi-address: %v", msg.Method, id, err)
+		dispatcher.logger.Errorf("[dispatcher] sending %v request to [%v]: getting multi-address: %v", msg.Method, id, err)
 		msg.RespondWithErr(jsonrpc.ErrorCodeInternal, err)
 		return
 	}
@@ -92,7 +93,11 @@ func (dispatcher *Dispatcher) Handle(_ phi.Task, message phi.Message) {
 			}
 			response, err := dispatcher.client.SendRequest(ctx, addrString, req, nil)
 			if err != nil {
-				dispatcher.logger.Errorf("[dispatcher] sending request: %v", err)
+				// The context will be cancelled as soon as the first response
+				// is received, so this error is not worth logging.
+				if !errors.Is(err, context.Canceled) {
+					dispatcher.logger.Errorf("[dispatcher] sending %v request: %v", msg.Method, err)
+				}
 				return
 			}
 			responses <- response

@@ -1,3 +1,10 @@
+## 0.4.6
+
+- Update Multichain to v0.3.21
+- Update Solana recipient encoding
+- Add support for Goerli
+- Fix gateway querying for Filecoin
+
 ## 0.4.5
 
 - Add support for Arbitrum

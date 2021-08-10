@@ -174,15 +174,11 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 				return
 			}
 			data := accountInfo.Value.Data
-
-			if len(data) != 65 {
-				resultChan <- BurnLogResult{Error: fmt.Errorf("deserializing burn log data: expected data len 65, got %v", len(data))}
+			amount, recipient, err := solanastate.DecodeBurnLog(data)
+			if err != nil {
+				resultChan <- BurnLogResult{Error: fmt.Errorf("failed to decode burn log :  %v", err)}
 				return
 			}
-			amount := [32]byte{}
-			copy(amount[:], data[0:32])
-			recipientLen := uint8(data[32:33][0])
-			recipient := multichain.RawAddress(data[33 : 33+int(recipientLen)])
 
 			signatures, err := fetcher.client.GetSignaturesForAddress(ctx, burnLogPubk, &solanaRPC.GetSignaturesForAddressOpts{})
 			if err != nil {
@@ -204,8 +200,8 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 
 			result := BurnInfo{
 				Txid:        base58.Decode(signatures[0].Signature),
-				Amount:      pack.NewU256(amount),
-				ToBytes:     recipient[:],
+				Amount:      amount,
+				ToBytes:     []byte(recipient),
 				Nonce:       nonceBytes,
 				BlockNumber: pack.NewU64(i),
 			}
@@ -424,13 +420,7 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes [
 	var to multichain.Address
 	var toDecoded []byte
 	var err error
-	burnChain := watcher.selector.Source()
-	switch burnChain {
-	case multichain.Solana:
-		to, toDecoded, err = watcher.handleAssetAddrSolana(toBytes)
-	default:
-		to, toDecoded, err = watcher.handleAssetAddrEth(toBytes)
-	}
+	to, toDecoded, err = watcher.handleAssetAddr(toBytes)
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
@@ -482,7 +472,7 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes [
 	return jsonrpc.ParamsSubmitTx{Tx: transaction}, nil
 }
 
-func (watcher Watcher) handleAssetAddrEth(toBytes []byte) (multichain.Address, []byte, error) {
+func (watcher Watcher) handleAssetAddr(toBytes []byte) (multichain.Address, []byte, error) {
 	// For v0 burn, `to` can be base58 encoded
 	to := multichain.Address(toBytes)
 	switch watcher.selector.Asset() {
@@ -504,15 +494,6 @@ func (watcher Watcher) handleAssetAddrEth(toBytes []byte) (multichain.Address, [
 		return "", nil, err
 	}
 
-	return to, toBytes, nil
-}
-
-func (watcher Watcher) handleAssetAddrSolana(toBytes []byte) (multichain.Address, []byte, error) {
-	encoder := AddressEncodeDecoder(watcher.selector.Asset().OriginChain(), watcher.network)
-	to, err := encoder.EncodeAddress(toBytes)
-	if err != nil {
-		return "", nil, fmt.Errorf("encoding raw asset address returned by solana: %v", err)
-	}
 	return to, toBytes, nil
 }
 
