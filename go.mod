@@ -16,10 +16,10 @@ require (
 	github.com/lib/pq v1.7.0
 	github.com/mattn/go-sqlite3 v1.11.0
 	github.com/near/borsh-go v0.3.0
-	github.com/onsi/ginkgo v1.14.0
+	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.10.1
-	github.com/renproject/aw v0.4.1-0.20210604011747-50d6a643dc76
-	github.com/renproject/darknode v0.5.3-0.20210714091421-3bad2166941f
+	github.com/renproject/aw v0.5.2
+	github.com/renproject/darknode v0.5.3-0.20210810060625-4ea2416066a4
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/multichain v0.3.21

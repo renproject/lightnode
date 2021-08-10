@@ -61,6 +61,11 @@ var _ = Describe("Compat V0", func() {
 			Confirmations:    pack.U64(0),
 			Protocol:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
 			MaxConfirmations: pack.MaxU64,
+			RenAssets: []multichain.Asset{
+				multichain.BCH,
+				multichain.BTC,
+				multichain.ZEC,
+			},
 		})
 
 		bindings := binding.New(bindingsOpts)
@@ -93,6 +98,7 @@ var _ = Describe("Compat V0", func() {
 				Confirmations:    pack.U64(0),
 				Protocol:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
 				MaxConfirmations: pack.MaxU64,
+				RenAssets:        []multichain.Asset{multichain.BTC},
 			})
 
 		bindings := binding.New(bindingsOpts)
