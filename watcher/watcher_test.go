@@ -135,6 +135,7 @@ var _ = Describe("Watcher", func() {
 				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
 				Confirmations: pack.U64(0),
 				Protocol:      pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+				RenAssets:        []multichain.Asset{multichain.BTC},
 			})
 
 		bindings := binding.New(bindingsOpts)
@@ -598,6 +599,7 @@ var _ = Describe("Watcher", func() {
 					RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
 					Confirmations: pack.U64(0),
 					Protocol:      pack.String("0x59e23c087cA9bd9ce162875811CD6e99134D6d0F"),
+					RenAssets:        []multichain.Asset{multichain.BTC},
 				})
 
 			bindings := binding.New(bindingsOpts)
@@ -672,6 +674,7 @@ var _ = Describe("Watcher", func() {
 				WithChainOptions(multichain.Solana, binding.ChainOptions{
 					RPC:      pack.String("http://0.0.0.0:8899"),
 					Protocol: pack.String("DHpzwsdvAzq61PN9ZwQWg2hzwX8gYNfKAdsNKKtdKDux"),
+					RenAssets:        []multichain.Asset{multichain.BTC},
 				})
 
 			bindings := binding.New(bindingsOpts)
@@ -733,6 +736,7 @@ var _ = Describe("Watcher", func() {
 				WithChainOptions(multichain.Solana, binding.ChainOptions{
 					RPC:      pack.String("http://0.0.0.0:8899"),
 					Protocol: pack.String("DHpzwsdvAzq61PN9ZwQWg2hzwX8gYNfKAdsNKKtdKDux"),
+					RenAssets:        []multichain.Asset{multichain.BTC},
 				})
 
 			bindings := binding.New(bindingsOpts)
