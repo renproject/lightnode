@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/btcsuite/btcd/btcec"
 	"github.com/btcsuite/btcd/chaincfg"
 	solanaSDK "github.com/dfuse-io/solana-go"
 	solanaRPC "github.com/dfuse-io/solana-go/rpc"
@@ -21,7 +20,6 @@ import (
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/bitcoin"
@@ -87,7 +85,6 @@ func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64,
 				nonce := iter.Event.N.Uint64()
 				var nonceBytes pack.Bytes32
 				copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
-
 				result := BurnInfo{
 					Txid:        iter.Event.Raw.TxHash.Bytes(),
 					Amount:      pack.NewU256FromInt(iter.Event.Amount),
@@ -162,37 +159,40 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 			var nonceBytes pack.Bytes32
 			copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
 
-			programDerivedAddress := solana.ProgramDerivedAddress(b, multichain.Address(fetcher.gatewayAddress))
+			burnLogDerivedAddress := solana.ProgramDerivedAddress(b, multichain.Address(fetcher.gatewayAddress))
 
-			programPubk, err := solanaSDK.PublicKeyFromBase58(string(programDerivedAddress))
+			burnLogPubk, err := solanaSDK.PublicKeyFromBase58(string(burnLogDerivedAddress))
 			if err != nil {
 				resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log account: %v", err)}
 				return
 			}
 
 			// Fetch account data at gateway's state
-			accountInfo, err := fetcher.client.GetAccountInfo(ctx, programPubk)
+			accountInfo, err := fetcher.client.GetAccountInfo(ctx, burnLogPubk)
 			if err != nil {
 				resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log data for burn: %v err: %v", i, err)}
 				return
 			}
 			data := accountInfo.Value.Data
-
-			if len(data) != 65 {
-				resultChan <- BurnLogResult{Error: fmt.Errorf("deserializing burn log data: expected data len 65, got %v", len(data))}
-				return
-			}
-			amount := [32]byte{}
-			copy(amount[:], data[0:32])
-			recipientLen := uint8(data[32:33][0])
-			recipient := multichain.RawAddress(data[33 : 33+int(recipientLen)])
-
-			signatures, err := fetcher.client.GetConfirmedSignaturesForAddress2(ctx, programPubk, &solanaRPC.GetConfirmedSignaturesForAddress2Opts{})
+			amount, recipient, err := solanastate.DecodeBurnLog(data)
 			if err != nil {
-				resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log txes: %v", err)}
+				resultChan <- BurnLogResult{Error: fmt.Errorf("failed to decode burn log :  %v", err)}
 				return
 			}
 
+			signatures, err := fetcher.client.GetSignaturesForAddress(ctx, burnLogPubk, &solanaRPC.GetSignaturesForAddressOpts{})
+			if err != nil {
+				legacySignatures, err2 := fetcher.client.GetConfirmedSignaturesForAddress2(ctx, burnLogPubk, &solanaRPC.GetConfirmedSignaturesForAddress2Opts{})
+				if err2 != nil {
+					resultChan <- BurnLogResult{Error: fmt.Errorf("getting burn log txes: (current: %v) (legacy: %v)", err, err2)}
+					return
+				}
+				signatures = solanaRPC.GetSignaturesForAddressResult(legacySignatures)
+			}
+
+			// NOTE: We assume the burn watcher will always run before a signature gets pruned
+			// manual intervention will be required to skip a burns where the signatures are no longer
+			// returned by the nodes
 			if len(signatures) == 0 {
 				resultChan <- BurnLogResult{Error: fmt.Errorf("Burn signature not confirmed")}
 				return
@@ -200,8 +200,8 @@ func (fetcher SolFetcher) FetchBurnLogs(ctx context.Context, from uint64, to uin
 
 			result := BurnInfo{
 				Txid:        base58.Decode(signatures[0].Signature),
-				Amount:      pack.NewU256(amount),
-				ToBytes:     recipient[:],
+				Amount:      amount,
+				ToBytes:     []byte(recipient),
 				Nonce:       nonceBytes,
 				BlockNumber: pack.NewU64(i),
 			}
@@ -264,7 +264,6 @@ func (fetcher SolFetcher) FetchBlockHeight(ctx context.Context) (uint64, error) 
 type Watcher struct {
 	network            multichain.Network
 	logger             logrus.FieldLogger
-	gpubkey            pack.Bytes
 	selector           tx.Selector
 	bindings           binding.Bindings
 	burnLogFetcher     BurnLogFetcher
@@ -277,12 +276,10 @@ type Watcher struct {
 }
 
 // NewWatcher returns a new Watcher.
-func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector tx.Selector, bindings binding.Bindings, burnLogFetcher BurnLogFetcher, blockHeightFetcher BlockHeightFetcher, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey, pollInterval time.Duration, maxBlockAdvance uint64, confidenceInterval uint64) Watcher {
-	gpubkey := (*btcec.PublicKey)(distPubKey).SerializeCompressed()
+func NewWatcher(logger logrus.FieldLogger, network multichain.Network, selector tx.Selector, bindings binding.Bindings, burnLogFetcher BurnLogFetcher, blockHeightFetcher BlockHeightFetcher, resolver jsonrpc.Resolver, cache redis.Cmdable, pollInterval time.Duration, maxBlockAdvance uint64, confidenceInterval uint64) Watcher {
 	return Watcher{
 		logger:             logger,
 		network:            network,
-		gpubkey:            gpubkey,
 		selector:           selector,
 		bindings:           bindings,
 		burnLogFetcher:     burnLogFetcher,
@@ -331,7 +328,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 	}
 
 	if currentHeight <= lastHeight {
-		watcher.logger.Warnf("[watcher] tried to process old blocks")
+		watcher.logger.Debug("[watcher] tried to process old blocks")
 		// Make sure we do not process old events. This could occur if there is
 		// an issue with the underlying blockchain node, for example if it needs
 		// to resync.
@@ -376,7 +373,7 @@ func (watcher Watcher) watchLogShiftOuts(parent context.Context) {
 		watcher.logger.Infof("[watcher] detected burn for %v  with nonce=%v", watcher.selector.String(), nonce)
 
 		// Send the burn transaction to the resolver.
-		params, err := watcher.burnToParams(burn.Txid, amount, to, nonce, watcher.gpubkey)
+		params, err := watcher.burnToParams(burn.Txid, amount, to, nonce)
 		if err != nil {
 			watcher.logger.Errorf("[watcher] cannot get params from burn transaction (to=%v, amount=%v, nonce=%v): %v", to, amount, nonce, err)
 			continue
@@ -419,18 +416,11 @@ func (watcher Watcher) lastCheckedBlockNumber(currentBlockN uint64) (uint64, err
 }
 
 // burnToParams constructs params for a SubmitTx request with given ref.
-func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes []byte, nonce pack.Bytes32, gpubkey pack.Bytes) (jsonrpc.ParamsSubmitTx, error) {
-	var version tx.Version
+func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes []byte, nonce pack.Bytes32) (jsonrpc.ParamsSubmitTx, error) {
 	var to multichain.Address
 	var toDecoded []byte
 	var err error
-	burnChain := watcher.selector.Source()
-	switch burnChain {
-	case multichain.Solana:
-		version, to, toDecoded, err = watcher.handleAssetAddrSolana(toBytes)
-	default:
-		version, to, toDecoded, err = watcher.handleAssetAddrEth(toBytes)
-	}
+	to, toDecoded, err = watcher.handleAssetAddr(toBytes)
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
@@ -451,19 +441,19 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes [
 		To:      pack.String(to),
 		Nonce:   nonce,
 		Nhash:   nhash,
-		Gpubkey: gpubkey,
+		Gpubkey: pack.Bytes{},
 		Ghash:   ghash,
 	})
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
-	hash, err := tx.NewTxHash(version, watcher.selector, pack.Typed(input.(pack.Struct)))
+	hash, err := tx.NewTxHash(tx.Version1, watcher.selector, pack.Typed(input.(pack.Struct)))
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
 	transaction := tx.Tx{
 		Hash:     hash,
-		Version:  version,
+		Version:  tx.Version1,
 		Selector: watcher.selector,
 		Input:    pack.Typed(input.(pack.Struct)),
 	}
@@ -482,9 +472,8 @@ func (watcher Watcher) burnToParams(txid pack.Bytes, amount pack.U256, toBytes [
 	return jsonrpc.ParamsSubmitTx{Tx: transaction}, nil
 }
 
-func (watcher Watcher) handleAssetAddrEth(toBytes []byte) (tx.Version, multichain.Address, []byte, error) {
+func (watcher Watcher) handleAssetAddr(toBytes []byte) (multichain.Address, []byte, error) {
 	// For v0 burn, `to` can be base58 encoded
-	version := tx.Version1
 	to := multichain.Address(toBytes)
 	switch watcher.selector.Asset() {
 	case multichain.BTC, multichain.BCH, multichain.ZEC:
@@ -494,28 +483,18 @@ func (watcher Watcher) handleAssetAddrEth(toBytes []byte) (tx.Version, multichai
 			to = multichain.Address(base58.Encode(toBytes))
 			_, err = decoder.DecodeAddress(to)
 			if err != nil {
-				return "-1", "", nil, err
+				return "", nil, err
 			}
-			version = tx.Version0
 		}
 	}
 
 	burnChain := watcher.selector.Destination()
 	toBytes, err := watcher.bindings.DecodeAddress(burnChain, to)
 	if err != nil {
-		return "-1", "", nil, err
+		return "", nil, err
 	}
 
-	return version, to, toBytes, nil
-}
-
-func (watcher Watcher) handleAssetAddrSolana(toBytes []byte) (tx.Version, multichain.Address, []byte, error) {
-	encoder := AddressEncodeDecoder(watcher.selector.Asset().OriginChain(), watcher.network)
-	to, err := encoder.EncodeAddress(toBytes)
-	if err != nil {
-		return "-1", "", nil, fmt.Errorf("encoding raw asset address returned by solana: %v", err)
-	}
-	return tx.Version1, to, toBytes, nil
+	return to, toBytes, nil
 }
 
 func AddressEncodeDecoder(chain multichain.Chain, network multichain.Network) multichain.AddressEncodeDecoder {

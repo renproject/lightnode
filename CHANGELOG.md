@@ -1,6 +1,23 @@
+## 0.4.6
+
+- Update Multichain to v0.3.21
+- Update Solana recipient encoding
+- Add support for Goerli
+- Fix gateway querying for Filecoin
+
+## 0.4.5
+
+- Add support for Arbitrum
+- Update Multichain to v0.3.18
+- Update compatibility layer for v0 burns
+- Use connection pool for Redis interaction
+- Fetch public key and max confirmations from Darknode when booting
+- Fix incorrect `amount` field for v0 mints
+
 ## 0.4.4
 
 - Partial transaction persistence for gateway recovery
+- Compatibility updates for empty gpubkey
 
 ## 0.4.3
 

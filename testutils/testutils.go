@@ -11,6 +11,7 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx/txutil"
 	v0 "github.com/renproject/lightnode/compat/v0"
+	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/api/utxo"
 	"github.com/renproject/pack"
@@ -254,6 +255,19 @@ func MockEngineState() map[string]engine.XState {
 	}
 }
 
+func MockParamsSubmitGatewayFil() resolver.ParamsSubmitGateway {
+	jsonStr := `{"gateway":"t1syl7g6fypnv2ykixojpfjaxdpoqpmqgpodaojsa","tx":{"selector":"FIL/toSolana","version":"1","in":{"t":{"struct":[{"payload":"bytes"},{"phash":"bytes32"},{"to":"string"},{"nonce":"bytes32"},{"nhash":"bytes32"},{"gpubkey":"bytes"},{"ghash":"bytes32"}]},"v":{"ghash":"6hXCi-_3bJ6Qh6wo18xg8U0rYg4aeqKsMh384rIRIeM","gpubkey":"Aw3WX32ykguyKZEuP0IT3RUOX5csm3PpvnFNhEVhrDVc","nhash":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","nonce":"ICAgICAgICAgICAgICAgICAgICAgICAgICAgIDQ5OTY","payload":"","phash":"xdJGAYb3IzySfn2y3McDwOUAtlPKgic7e_rYBF2FpHA","to":"CCUr6NyGmj3MLVwN6XoxRm2RDtaZUqxS6djctfMyFszr"}}}}`
+
+	var params resolver.ParamsSubmitGateway
+
+	err := json.Unmarshal([]byte(jsonStr), &params)
+
+	if err != nil {
+		panic(fmt.Sprintf("Failed to unmarshal params %v", err))
+	}
+	return params
+}
+
 func MockParamSubmitTxV0ZEC() v0.ParamsSubmitTx {
 	jsonStr := `{"tx":{"to":"ZEC0Zec2Eth","in":[{"name":"p","type":"ext_ethCompatPayload","value":{"abi":"W3siY29uc3RhbnQiOmZhbHNlLCJpbnB1dHMiOlt7InR5cGUiOiJzdHJpbmciLCJuYW1lIjoiX3N5bWJvbCJ9LHsidHlwZSI6ImFkZHJlc3MiLCJuYW1lIjoiX2FkZHJlc3MifSx7Im5hbWUiOiJfYW1vdW50IiwidHlwZSI6InVpbnQyNTYifSx7Im5hbWUiOiJfbkhhc2giLCJ0eXBlIjoiYnl0ZXMzMiJ9LHsibmFtZSI6Il9zaWciLCJ0eXBlIjoiYnl0ZXMifV0sIm91dHB1dHMiOltdLCJwYXlhYmxlIjp0cnVlLCJzdGF0ZU11dGFiaWxpdHkiOiJwYXlhYmxlIiwidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6Im1pbnQifV0=","value":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAADqiy/w1/VGr66uF3EwZzY1fe+kNAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADWkVDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","fn":"bWludA=="}},{"name":"token","type":"ext_ethCompatAddress","value":"6f35D542f3E0886281fb6152010fb52aC6B931F6"},{"name":"to","type":"ext_ethCompatAddress","value":"6fA045D176CE69Fdf9837242E8A72e81c2750E64"},{"name":"n","type":"b32","value":"w6chJGKc0alaCkrLxdeAqubqyhfNGv+FD2Zh2eU4lRM="},{"name":"utxo","type":"ext_btcCompatUTXO","value":{"txHash":"eK3tRXHMrxw1SXOSGVJAWIpfTTy4Cr1g6wMWBATt3UM=","vOut":"0"}}]},"tags":[]}`
 
@@ -277,7 +291,7 @@ func MockParamSubmitTxV0BTC() v0.ParamsSubmitTx {
 }
 
 func MockBurnParamSubmitTxV0BTC() v0.ParamsSubmitTx {
-	jsonStr := `{"tx":{"to":"BTC0Eth2Btc","in":[{"name":"ref","type":"u64","value":"1"}]},"tags":[]}`
+	jsonStr := `{"tx":{"to":"BTC0Eth2Btc","in":[{"name":"ref","type":"u64","value":"5851"}]},"tags":[]}`
 
 	var params v0.ParamsSubmitTx
 	err := json.Unmarshal([]byte(jsonStr), &params)

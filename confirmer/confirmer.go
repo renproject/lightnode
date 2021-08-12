@@ -80,7 +80,7 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 		<-ctx.Done()
 	}()
 
-	txs, err := confirmer.database.PendingTxs(24 * time.Hour)
+	txs, err := confirmer.database.PendingTxs(72 * time.Hour)
 	if err != nil {
 		confirmer.options.Logger.Errorf("[confirmer] failed to read pending txs from database: %v", err)
 		return
@@ -158,6 +158,16 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 				confirmer.options.Logger.Errorf("[confirmer] cannot get output for utxo tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
 			} else {
 				confirmer.options.Logger.Warnf("[confirmer] cannot get output for utxo tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
+			}
+
+			// If the UTXO has already been spent, that means the transaction
+			// has already been processed by RenVM and it can be marked as
+			// complete.
+			if strings.Contains(err.Error(), "result is nil") {
+				if err := confirmer.database.UpdateStatus(transaction.Hash, db.TxStatusConfirmed); err != nil {
+					confirmer.options.Logger.Errorf("[confirmer] updating status for tx=%v: %v", transaction.Hash.String(), err)
+					return false
+				}
 			}
 
 			return false

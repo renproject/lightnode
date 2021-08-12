@@ -32,7 +32,7 @@ var _ = Describe("Cacher", func() {
 		sqlDB, err := sql.Open("sqlite3", "./test.db")
 		Expect(err).NotTo(HaveOccurred())
 
-		database := db.New(sqlDB)
+		database := db.New(sqlDB, 100)
 		Expect(database.Init()).Should(Succeed())
 
 		cacher := New(inspector, logrus.New(), ttl, phi.Options{Cap: 10}, database)

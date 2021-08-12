@@ -34,6 +34,20 @@ var (
 	IntrinsicEth = Shard(sha3.Sum256([]byte("Eth")))
 )
 
+func ValidateAddress(addr Address) error {
+	switch addr {
+	case IntrinsicBTC0Btc2Eth.Address,
+		IntrinsicZEC0Zec2Eth.Address,
+		IntrinsicBCH0Bch2Eth.Address,
+		IntrinsicBTC0Eth2Btc.Address,
+		IntrinsicZEC0Eth2Zec.Address,
+		IntrinsicBCH0Eth2Bch.Address:
+		return nil
+	default:
+		return fmt.Errorf("invalid v0 contract address")
+	}
+}
+
 // IsShiftIn returns if the given contract address is a shiftIn contract. Please
 // only use this function when you know the contract exists, otherwise it will
 // panic.

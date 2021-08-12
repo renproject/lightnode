@@ -12,33 +12,34 @@ import (
 	"os"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	. "github.com/renproject/lightnode/resolver"
+
 	"github.com/alicebob/miniredis/v2"
 	"github.com/btcsuite/btcutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/go-redis/redis/v7"
-	_ "github.com/mattn/go-sqlite3"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"github.com/renproject/id"
-	v0 "github.com/renproject/lightnode/compat/v0"
-	. "github.com/renproject/lightnode/resolver"
-	"github.com/renproject/lightnode/watcher"
-	"github.com/renproject/multichain"
-	"github.com/renproject/multichain/chain/zcash"
-
 	"github.com/renproject/aw/wire"
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/tx/txutil"
+	"github.com/renproject/id"
 	"github.com/renproject/kv"
+	v0 "github.com/renproject/lightnode/compat/v0"
+	v1 "github.com/renproject/lightnode/compat/v1"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
+	"github.com/renproject/lightnode/watcher"
+	"github.com/renproject/multichain"
+	"github.com/renproject/multichain/chain/zcash"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
 )
 
 type mockVerifier struct{}
@@ -66,7 +67,7 @@ var _ = Describe("Resolver", func() {
 		sqlDB, err := sql.Open("sqlite3", "./resolver_test.db")
 		Expect(err).NotTo(HaveOccurred())
 
-		database := db.New(sqlDB)
+		database := db.New(sqlDB, 10)
 		Expect(database.Init()).Should(Succeed())
 
 		mr, err := miniredis.Run()
@@ -93,9 +94,10 @@ var _ = Describe("Resolver", func() {
 				Confirmations: pack.U64(0),
 			}).
 			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
-				Confirmations: pack.U64(0),
-				Protocol:      pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+				RPC:              pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
+				Confirmations:    pack.U64(0),
+				Protocol:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+				MaxConfirmations: pack.MaxU64,
 			})
 
 		bindings := binding.New(bindingsOpts)
@@ -103,7 +105,8 @@ var _ = Describe("Resolver", func() {
 		cacher := testutils.NewMockCacher()
 		go cacher.Run(ctx)
 
-		compatStore := v0.NewCompatStore(database, client)
+		versionStore := v0.NewCompatStore(database, client, time.Hour)
+		gpubkeyStore := v1.NewCompatStore(client)
 
 		pubkeyB, err := base64.URLEncoding.DecodeString("AiF7_2ykZmts2wzZKJ5D-J1scRM2Pm2jJ84W_K4PQaGl")
 		Expect(err).ShouldNot(HaveOccurred())
@@ -111,11 +114,13 @@ var _ = Describe("Resolver", func() {
 		pubkey, err := crypto.DecompressPubkey(pubkeyB)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		limiter := NewRateLimiter(DefaultRateLimitConf())
-		validator := NewValidator(bindings, (*id.PubKey)(pubkey), compatStore, &limiter, logger)
+		rateLimitConf := DefaultRateLimitConf()
+		rateLimitConf.IpMethodRate["fallback"] = rate.Limit(1)
+		limiter := NewRateLimiter(rateLimitConf)
+		validator := NewValidator(multichain.NetworkTestnet, bindings, (*id.PubKey)(pubkey), versionStore, gpubkeyStore, &limiter, logger)
 
 		mockVerifier := mockVerifier{}
-		resolver := New(multichain.NetworkTestnet, logger, cacher, multiaddrStore, database, jsonrpc.Options{}, compatStore, bindings, mockVerifier)
+		resolver := New(multichain.NetworkTestnet, logger, cacher, multiaddrStore, database, jsonrpc.Options{}, versionStore, gpubkeyStore, bindings, mockVerifier)
 
 		return resolver, validator, client
 	}
@@ -204,8 +209,10 @@ var _ = Describe("Resolver", func() {
 		submission := (req).(*jsonrpc.ParamsSubmitTx)
 		Expect(submission.Tx.Hash).NotTo(Equal(pack.Bytes32{}))
 
+		var txHash id.Hash
+		copy(txHash[:], v0Hash[:])
 		resp = resolver.QueryTx(ctx, nil, &jsonrpc.ParamsQueryTx{
-			TxHash: v0Hash,
+			TxHash: txHash,
 		}, nil)
 
 		Expect(resp).ShouldNot(Equal(jsonrpc.Response{}))
@@ -346,6 +353,37 @@ var _ = Describe("Resolver", func() {
 		Expect(resp.Error).Should(BeZero())
 	})
 
+	It("should query v0 burn txs", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, validator, _ := init(ctx)
+		defer cleanup()
+
+		params := v0.ParamsQueryTx{
+			TxHash: [32]byte{1},
+		}
+		paramsJSON, err := json.Marshal(params)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(params).ShouldNot(Equal([]byte{}))
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		req, resp := validator.ValidateRequest(innerCtx, &http.Request{}, jsonrpc.Request{
+			Version: "2.0",
+			ID:      nil,
+			Method:  jsonrpc.MethodQueryTx,
+			Params:  paramsJSON,
+		})
+		// Response will only exist for errors
+		Expect(resp).Should(Equal(jsonrpc.Response{}))
+		Expect((req).(*jsonrpc.ParamsQueryTx).TxHash).ShouldNot(BeEmpty())
+
+		resp = resolver.QueryTx(ctx, nil, (req).(*jsonrpc.ParamsQueryTx), nil)
+		Expect(resp.Error).Should(BeZero())
+	})
+
 	It("should submit v0 burn txs", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -433,6 +471,23 @@ var _ = Describe("Resolver", func() {
 		Expect(resp.Error).Should(BeZero())
 	})
 
+	It("should submit gateway txs for filecoin", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, _ := init(ctx)
+		defer cleanup()
+
+		params := testutils.MockParamsSubmitGatewayFil()
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		resp := resolver.SubmitGateway(innerCtx, nil, &params, nil)
+
+		Expect(resp.Error).Should(BeZero())
+	})
+
 	It("should submit gateway txs for zec", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -467,6 +522,86 @@ var _ = Describe("Resolver", func() {
 		resp := resolver.SubmitGateway(innerCtx, nil, &params, nil)
 
 		Expect(resp.Error).Should(BeZero())
+	})
+
+	It("should successfully submit duplicate gateway txs for zec", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, _ := init(ctx)
+		defer cleanup()
+
+		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+
+		mocktx := txutil.RandomGoodTx(r)
+		mocktx.Selector = tx.Selector("ZEC/toEthereum")
+
+		input := engine.LockMintBurnReleaseInput{}
+		err := pack.Decode(&input, mocktx.Input)
+		Expect(err).NotTo(HaveOccurred())
+
+		script, err := engine.UTXOGatewayScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
+		Expect(err).NotTo(HaveOccurred())
+
+		scriptAddress, err := zcash.NewAddressScriptHash(script, watcher.ZcashNetParams(multichain.NetworkTestnet))
+		Expect(err).NotTo(HaveOccurred())
+
+		// Submit tx to ensure that it can be queried against
+		params := ParamsSubmitGateway{
+			Gateway: scriptAddress.EncodeAddress(),
+			Tx:      mocktx,
+		}
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		resolver.SubmitGateway(innerCtx, nil, &params, nil)
+		resp := resolver.SubmitGateway(innerCtx, nil, &params, nil)
+
+		Expect(resp.Error).Should(BeZero())
+	})
+
+	It("should fail to submit more than max gateways for zec", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, _ := init(ctx)
+		defer cleanup()
+
+		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+		i := 0
+		Eventually(func() string {
+			mocktx := txutil.RandomGoodTx(r)
+			mocktx.Selector = tx.Selector("ZEC/toEthereum")
+
+			input := engine.LockMintBurnReleaseInput{}
+			err := pack.Decode(&input, mocktx.Input)
+			Expect(err).NotTo(HaveOccurred())
+
+			script, err := engine.UTXOGatewayScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
+			Expect(err).NotTo(HaveOccurred())
+
+			scriptAddress, err := zcash.NewAddressScriptHash(script, watcher.ZcashNetParams(multichain.NetworkTestnet))
+			Expect(err).NotTo(HaveOccurred())
+
+			// Submit tx to ensure that it can be queried against
+			params := ParamsSubmitGateway{
+				Gateway: scriptAddress.EncodeAddress(),
+				Tx:      mocktx,
+			}
+
+			innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer innerCancel()
+
+			resolver.SubmitGateway(innerCtx, nil, &params, nil)
+			resp := resolver.SubmitGateway(innerCtx, nil, &params, nil)
+			if resp.Error != nil {
+				return resp.Error.Message
+			}
+			i++
+			return ""
+		}).Should(Equal("failed to insert gateway"))
+		Expect(i).To(Equal(11))
 	})
 
 	It("should handle queryGateways", func() {
@@ -529,7 +664,6 @@ var _ = Describe("Resolver", func() {
 			Header:     map[string][]string{},
 			RemoteAddr: ipString,
 		}
-
 		req, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
 			Version: "2.0",
 			ID:      nil,
@@ -548,7 +682,7 @@ var _ = Describe("Resolver", func() {
 				Params:  paramsJSON,
 			})
 			return resp
-		}).Should(Equal(
+		}, time.Second*5, time.Millisecond*5).Should(Equal(
 			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
 				Code:    jsonrpc.ErrorCodeInvalidRequest,
 				Message: fmt.Sprintf("rate limit exceeded for %v", ipString),
@@ -582,7 +716,7 @@ var _ = Describe("Resolver", func() {
 				Params:  paramsJSON,
 			})
 			return resp
-		}).Should(Equal(
+		}, time.Second*5, time.Millisecond*5).Should(Equal(
 			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
 				Code:    jsonrpc.ErrorCodeInvalidRequest,
 				Message: fmt.Sprintf("rate limit exceeded for %v", "9.9.9.9"),

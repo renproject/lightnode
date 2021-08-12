@@ -9,14 +9,25 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/jbenet/go-base58"
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/id"
 	"github.com/renproject/multichain"
+	"github.com/renproject/multichain/chain/bitcoin"
+	"github.com/renproject/multichain/chain/bitcoincash"
+	"github.com/renproject/multichain/chain/digibyte"
+	"github.com/renproject/multichain/chain/dogecoin"
 	"github.com/renproject/multichain/chain/ethereum"
+	"github.com/renproject/multichain/chain/filecoin"
+	"github.com/renproject/multichain/chain/terra"
+	"github.com/renproject/multichain/chain/zcash"
 	"github.com/renproject/pack"
 )
 
@@ -295,20 +306,6 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings binding.Bindings) (Tx, error) {
 		return tx, err
 	}
 
-	copy(sighash[:], crypto.Keccak256(ethereum.Encode(
-		phash,
-		inamount,
-		tokenEthAddr,
-		sender,
-		nhash,
-	)))
-
-	tx.Autogen.Set(Arg{
-		Name:  "sighash",
-		Type:  "b32",
-		Value: B32(sighash),
-	})
-
 	if hasOut {
 		if t.Output.Get("amount") != nil {
 			outamount := t.Output.Get("amount").(pack.U256)
@@ -317,6 +314,14 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings binding.Bindings) (Tx, error) {
 				Type:  "u256",
 				Value: U256{Int: outamount.Int()},
 			})
+
+			copy(sighash[:], crypto.Keccak256(ethereum.Encode(
+				phash,
+				outamount,
+				tokenEthAddr,
+				sender,
+				nhash,
+			)))
 		}
 
 		if t.Output.Get("revert") != nil {
@@ -356,6 +361,12 @@ func TxFromV1Tx(t tx.Tx, hasOut bool, bindings binding.Bindings) (Tx, error) {
 			})
 		}
 	}
+
+	tx.Autogen.Set(Arg{
+		Name:  "sighash",
+		Type:  "b32",
+		Value: B32(sighash),
+	})
 
 	tx.To = Address(ToFromV1Selector(t.Selector))
 	v0hash := MintTxHash(t.Selector, ghash, btcTxHash, btcTxIndex)
@@ -397,7 +408,7 @@ func BurnTxHash(sel tx.Selector, ref pack.U256) B32 {
 	return v0HashB32
 }
 
-// MintTxHash creates V0 MintTxHash from params avaialble in V1
+// MintTxHash creates V0 MintTxHash from params available in V1
 func MintTxHash(sel tx.Selector, ghash pack.Bytes32, txid pack.Bytes, txindex pack.U32) B32 {
 	// copy passed txid so that it doesn't modify the passed value...
 	// v1 txid is reversed, so un-reverse it
@@ -424,28 +435,19 @@ func MintTxHash(sel tx.Selector, ghash pack.Bytes32, txid pack.Bytes, txindex pa
 // Will attempt to check if we have already constructed the parameters previously,
 // otherwise will construct a v1 tx using v0 parameters, and persist a mapping
 // so that a v0 queryTX can find them
-func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings binding.Bindings, pubkey *id.PubKey, store CompatStore) (jsonrpc.ParamsSubmitTx, error) {
-	// It's a burn tx, we don't need to process it
-	// as it should be picked up from the watcher
-	// We pass the v0 hash along so that we can still
-	// respond with the data that renjs-v1 requires
-	if params.Tx.In.Get("utxo").Value == nil {
-		refTx := params.Tx.In.Get("ref").Value.(U64).Int
-		selString := fmt.Sprintf("%s/fromEthereum", params.Tx.To[0:3])
-		sel := tx.Selector(selString)
-		hash := BurnTxHash(sel, pack.NewU256FromInt(refTx))
-
-		return jsonrpc.ParamsSubmitTx{Tx: tx.Tx{
-			Selector: sel,
-			Input:    pack.NewTyped("v0hash", pack.NewBytes32(hash)),
-		}}, nil
+func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings *binding.Binding, pubkey *id.PubKey, store CompatStore, network multichain.Network) (jsonrpc.ParamsSubmitTx, error) {
+	// We first do some validation to the v0 params to prevent people spamming
+	// invalid v0 transactions
+	if err := ValidateV0Tx(params.Tx); err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
 	}
 
-	v1tx, err := store.GetV1TxFromTx(params.Tx)
+	// Check if we have constructed the parameters previously
+	v1Tx, err := store.GetV1TxFromTx(params.Tx)
 	if err == nil {
 		// We have persisted this tx before, so let's use it
 		return jsonrpc.ParamsSubmitTx{
-			Tx: v1tx,
+			Tx: v1Tx,
 		}, err
 	}
 	if err != nil && err != ErrNotFound {
@@ -454,16 +456,132 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings bindi
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
 
-	utxo := params.Tx.In.Get("utxo").Value.(ExtBtcCompatUTXO)
-	i := utxo.VOut.Int.Uint64()
-	txindex := pack.NewU32(uint32(i))
+	var txHash B32
 
-	txidB, err := utxo.TxHash.MarshalBinary()
+	submitVersion := tx.Version0
+	// Convert the v0 tx to v1 transaction
+	if IsShiftIn(params.Tx.To) {
+		v1Tx, txHash, err = V1TxFromV0Mint(ctx, params.Tx, bindings, pubkey)
+		if err != nil {
+			return jsonrpc.ParamsSubmitTx{}, err
+		}
+	} else {
+		v1Tx, err = V1TxFromV0Burn(ctx, params.Tx, bindings, network)
+		if err != nil {
+			return jsonrpc.ParamsSubmitTx{}, err
+		}
+
+		submitVersion = tx.Version1
+
+		// Calculate tx hash for v0 tx
+		txHash, err = V0TxHashFromTx(params.Tx)
+		if err != nil {
+			return jsonrpc.ParamsSubmitTx{}, err
+		}
+	}
+
+	copy(params.Tx.Hash[:], txHash[:])
+
+	// calculate the new tx format hash
+	h, err := tx.NewTxHash(submitVersion, v1Tx.Selector, v1Tx.Input)
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
 	}
 
-	// reverse the utxo txhash bytes
+	// We change the version version0 to indicate this tx is converted from a
+	// v0 transaction, so that when resolver tries to resolve this tx, it knows
+	// to return an v0 format response to the user.
+	v1Params := jsonrpc.ParamsSubmitTx{
+		Tx: tx.Tx{
+			Version:  tx.Version0,
+			Hash:     h,
+			Input:    v1Tx.Input,
+			Selector: v1Tx.Selector,
+		},
+	}
+
+	// Store the v0/v1 mapping in the CompatStore
+	if err := store.PersistTxMappings(params.Tx, v1Params.Tx); err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
+
+	return v1Params, nil
+}
+
+func AddressEncodeDecoder(chain multichain.Chain, network multichain.Network) multichain.AddressEncodeDecoder {
+	switch chain {
+	case multichain.Bitcoin, multichain.DigiByte, multichain.Dogecoin:
+		params := NetParams(chain, network)
+		return bitcoin.NewAddressEncodeDecoder(params)
+	case multichain.BitcoinCash:
+		params := NetParams(chain, network)
+		return bitcoincash.NewAddressEncodeDecoder(params)
+	case multichain.Filecoin:
+		return filecoin.NewAddressEncodeDecoder()
+	case multichain.Terra:
+		return terra.NewAddressEncodeDecoder()
+	case multichain.Zcash:
+		params := ZcashNetParams(network)
+		return zcash.NewAddressEncodeDecoder(params)
+	default:
+		panic(fmt.Errorf("unknown chain %v", chain))
+	}
+}
+
+func ZcashNetParams(network multichain.Network) *zcash.Params {
+	switch network {
+	case multichain.NetworkMainnet:
+		return &zcash.MainNetParams
+	case multichain.NetworkDevnet, multichain.NetworkTestnet:
+		return &zcash.TestNet3Params
+	default:
+		return &zcash.RegressionNetParams
+	}
+}
+
+func NetParams(chain multichain.Chain, net multichain.Network) *chaincfg.Params {
+	switch chain {
+	case multichain.Bitcoin, multichain.BitcoinCash:
+		switch net {
+		case multichain.NetworkDevnet, multichain.NetworkTestnet:
+			return &chaincfg.TestNet3Params
+		case multichain.NetworkMainnet:
+			return &chaincfg.MainNetParams
+		default:
+			return &chaincfg.RegressionNetParams
+		}
+	case multichain.DigiByte:
+		switch net {
+		case multichain.NetworkDevnet, multichain.NetworkTestnet:
+			return &digibyte.TestnetParams
+		case multichain.NetworkMainnet:
+			return &digibyte.MainNetParams
+		default:
+			return &digibyte.RegressionNetParams
+		}
+	case multichain.Dogecoin:
+		switch net {
+		case multichain.NetworkDevnet, multichain.NetworkTestnet:
+			return &dogecoin.TestNetParams
+		case multichain.NetworkMainnet:
+			return &dogecoin.MainNetParams
+		default:
+			return &dogecoin.RegressionNetParams
+		}
+	default:
+		panic(fmt.Errorf("cannot get network params: unknown chain %v", chain))
+	}
+}
+
+func V1TxFromV0Mint(ctx context.Context, v0tx Tx, bindings *binding.Binding, pubkey *id.PubKey) (tx.Tx, B32, error) {
+	selector := tx.Selector(fmt.Sprintf("%s/toEthereum", v0tx.To[0:3]))
+	utxo := v0tx.In.Get("utxo").Value.(ExtBtcCompatUTXO)
+	vout := utxo.VOut.Int.Uint64()
+	txidB, err := utxo.TxHash.MarshalBinary()
+	if err != nil {
+		return tx.Tx{}, B32{}, err
+	}
+
 	txl := len(txidB)
 	for i := 0; i < txl/2; i++ {
 		txidB[i], txidB[txl-1-i] = txidB[txl-1-i], txidB[i]
@@ -471,94 +589,155 @@ func V1TxParamsFromTx(ctx context.Context, params ParamsSubmitTx, bindings bindi
 
 	txid := pack.NewBytes(txidB)
 
-	payload := pack.NewBytes(params.Tx.In.Get("p").Value.(ExtEthCompatPayload).Value[:])
-	token := params.Tx.In.Get("token").Value.(ExtEthCompatAddress)
-	asset, err := bindings.AssetFromTokenAddress(multichain.Ethereum, multichain.Address(strings.ToUpper("0x"+token.String())))
-	if err != nil {
-		return jsonrpc.ParamsSubmitTx{}, err
-	}
-	sel := tx.Selector(asset + "/toEthereum")
+	txindex := pack.NewU32(uint32(vout))
 
+	client := bindings.UTXOClient(selector.Asset().OriginChain())
+	output, _, err := client.Output(ctx, multichain.UTXOutpoint{
+		Hash:  txid,
+		Index: pack.NewU32(uint32(vout)),
+	})
+	if err != nil {
+		return tx.Tx{}, B32{}, err
+	}
+	amount := output.Value
+
+	token := v0tx.In.Get("token").Value.(ExtEthCompatAddress)
+	payload := pack.NewBytes(v0tx.In.Get("p").Value.(ExtEthCompatPayload).Value[:])
 	phash := engine.Phash(payload)
-
-	to := pack.String(params.Tx.In.Get("to").Value.(ExtEthCompatAddress).String())
-
-	nonce, err := params.Tx.In.Get("n").Value.(B32).MarshalBinary()
+	to := pack.String(v0tx.In.Get("to").Value.(ExtEthCompatAddress).String())
+	nonceBytes, err := v0tx.In.Get("n").Value.(B32).MarshalBinary()
+	if err != nil {
+		return tx.Tx{}, B32{}, err
+	}
 	var c [32]byte
-	copy(c[:32], nonce)
-	nonceP := pack.NewBytes32(c)
-
-	minter, err := bindings.DecodeAddress(sel.Destination(), multichain.Address(to))
+	copy(c[:32], nonceBytes)
+	nonce := pack.NewBytes32(c)
+	// We need the v0 nhash to get the v0 ghash (to get the correct gateway)
+	nhash, err := engine.V0Nhash(nonce, txidB, txindex)
 	if err != nil {
-		return jsonrpc.ParamsSubmitTx{}, err
+		return tx.Tx{}, B32{}, err
 	}
 
-	ghash, err := engine.V0Ghash(token[:], phash, minter, nonceP)
+	minter := common.HexToAddress(string(to))
+
+	// We need to use the v0 ghash to get the correct gateway produced by renjsv1
+	ghash, err := engine.V0Ghash(token[:], phash, minter[:], nonce)
 	if err != nil {
-		return jsonrpc.ParamsSubmitTx{}, err
+		return tx.Tx{}, B32{}, err
 	}
 
-	nhash, err := engine.V0Nhash(nonceP, txidB, txindex)
-	if err != nil {
-		return jsonrpc.ParamsSubmitTx{}, err
-	}
-
-	// check if we've seen this amount before
-	// also a cheeky workaround to enable testability
-	amount, err := store.GetAmountFromUTXO(utxo)
-	if err == ErrNotFound {
-		// lets call the btc rpc endpoint because that's needed to get the correct amount
-		out, err := bindings.UTXOLockInfo(ctx, sel.Source(), sel.Asset(), multichain.UTXOutpoint{
-			Hash:  txid,
-			Index: txindex,
-		})
-		if err != nil {
-			return jsonrpc.ParamsSubmitTx{}, err
-		}
-		amount = out.Value.Int().Int64()
-
-	} else if err != nil {
-		return jsonrpc.ParamsSubmitTx{}, err
-	}
-
+	// We need to provide the gpubkey for mints
 	pubkbytes := crypto.CompressPubkey((*ecdsa.PublicKey)(pubkey))
-
 	input, err := pack.Encode(engine.LockMintBurnReleaseInput{
 		Txid:    txid,
 		Txindex: txindex,
-		Amount:  pack.NewU256FromUint64(uint64(amount)),
+		Amount:  amount,
 		Payload: payload,
 		Phash:   phash,
 		To:      to,
-		Nonce:   nonceP,
+		Nonce:   nonce,
 		Nhash:   nhash,
+		Ghash:   ghash,
 		Gpubkey: pack.NewBytes(pubkbytes),
+	})
+
+	if err != nil {
+		return tx.Tx{}, B32{}, err
+	}
+
+	v0hash := MintTxHash(selector, ghash, txid, pack.U32(vout))
+	v1Tx, err := tx.NewTx(selector, pack.Typed(input.(pack.Struct)))
+
+	return v1Tx, v0hash, err
+}
+
+func V1TxFromV0Burn(ctx context.Context, v0tx Tx, bindings *binding.Binding, network multichain.Network) (tx.Tx, error) {
+	selector := tx.Selector(fmt.Sprintf("%s/fromEthereum", v0tx.To[0:3]))
+	ref := v0tx.In.Get("ref").Value.(U64)
+	var nonce pack.Bytes32
+	copy(nonce[:], pack.NewU256FromInt(ref.Int).Bytes())
+
+	client := bindings.EthereumClient(multichain.Ethereum)
+	options := bindings.ChainOption(multichain.Ethereum)
+	gatewayBinding := bindings.EthereumGateway(multichain.Ethereum, selector.Asset())
+
+	details, err := gatewayBinding.GetBurn(&bind.CallOpts{}, ref.Int)
+	if err != nil {
+		return tx.Tx{}, err
+	}
+
+	latestBlockHeader, err := client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return tx.Tx{}, err
+	}
+	confirmations := new(big.Int).Sub(latestBlockHeader.Number, details.Blocknumber).Uint64()
+	if pack.U64(confirmations) > options.MaxConfirmations {
+		return tx.Tx{}, fmt.Errorf("burn too old: confirmations=%v exceeds max=%v", confirmations, options.MaxConfirmations)
+	}
+	blockNumber := details.Blocknumber.Uint64()
+
+	iter, err := gatewayBinding.FilterLogBurn(&bind.FilterOpts{
+		Start:   blockNumber,
+		End:     &blockNumber,
+		Context: ctx,
+	}, []*big.Int{ref.Int}, nil)
+	if err != nil {
+		return tx.Tx{}, err
+	}
+	if iter == nil {
+		return tx.Tx{}, err
+	}
+	var txid pack.Bytes
+	for iter.Next() {
+		txid = iter.Event.Raw.TxHash.Bytes()
+		break
+	}
+	if iter.Error() != nil {
+		return tx.Tx{}, err
+	}
+
+	amount := pack.NewU256FromInt(details.Amount)
+	payload := details.Payload
+	toBytes := details.To
+	to := multichain.Address(toBytes)
+	decoder := AddressEncodeDecoder(selector.Asset().OriginChain(), network)
+	toDecode, err := decoder.DecodeAddress(to)
+	if err != nil {
+		to = multichain.Address(base58.Encode(toBytes))
+		toDecode, err = decoder.DecodeAddress(to)
+		if err != nil {
+			return tx.Tx{}, err
+		}
+	}
+
+	phash := engine.Phash(payload)
+	nhash := engine.Nhash(nonce, txid, 0)
+	ghash := engine.Ghash(selector, phash, toDecode[:], nonce)
+
+	input, err := pack.Encode(engine.LockMintBurnReleaseInput{
+		Txid:    txid,
+		Txindex: 0,
+		Amount:  amount,
+		Payload: payload,
+		Phash:   phash,
+		To:      pack.String(to),
+		Nonce:   nonce,
+		Nhash:   nhash,
 		Ghash:   ghash,
 	})
 	if err != nil {
-		return jsonrpc.ParamsSubmitTx{}, err
+		return tx.Tx{}, err
 	}
+	return tx.NewTx(selector, pack.Typed(input.(pack.Struct)))
+}
 
-	v1Transaction := jsonrpc.ParamsSubmitTx{
-		Tx: tx.Tx{
-			Version:  tx.Version0,
-			Selector: sel,
-			Input:    pack.Typed(input.(pack.Struct)),
-		},
+func V0TxHashFromTx(tx Tx) (B32, error) {
+	var hash B32
+	if IsShiftIn(tx.To) {
+		panic("cannot handle shift-ins")
+	} else {
+		ref := tx.In.Get("ref").Value.(U64)
+		copy(hash[:], crypto.Keccak256([]byte(fmt.Sprintf("txHash_%s_%d", tx.To, ref.Int.Int64()))))
 	}
-
-	h, err := tx.NewTxHash(tx.Version0, sel, v1Transaction.Tx.Input)
-	if err != nil {
-		return v1Transaction, err
-	}
-	v1Transaction.Tx.Hash = h
-
-	params.Tx.Hash = MintTxHash(sel, ghash, txidB, txindex)
-
-	err = store.PersistTxMappings(params.Tx, v1Transaction.Tx)
-	if err != nil {
-		return v1Transaction, err
-	}
-
-	return v1Transaction, nil
+	return hash, nil
 }

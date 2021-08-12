@@ -9,7 +9,7 @@ import (
 // Enumerate default options.
 var (
 	DefaultPollInterval = 30 * time.Second
-	DefaultExpiry       = 14 * 24 * time.Hour
+	DefaultExpiry       = 30 * 24 * time.Hour
 )
 
 // Options to configure the precise behaviour of the confirmer.

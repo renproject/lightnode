@@ -81,7 +81,7 @@ var _ = Describe("Lightnode db", func() {
 				It("should create tables if they do not exist", func() {
 					sqlDB := init(dbname)
 					defer destroy(sqlDB)
-					db := New(sqlDB)
+					db := New(sqlDB, 100)
 
 					// Tables should not exist before creation.
 					Expect(CheckTableExistence(dbname, "txs", sqlDB)).Should(HaveOccurred())
@@ -104,7 +104,7 @@ var _ = Describe("Lightnode db", func() {
 				It("should be able to read and write tx", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB)
+					db := New(sqlDB, 100)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
@@ -125,7 +125,7 @@ var _ = Describe("Lightnode db", func() {
 				It("should be able to read and write gateways", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB)
+					db := New(sqlDB, 100)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
@@ -150,7 +150,7 @@ var _ = Describe("Lightnode db", func() {
 				It("should be able to write tx and query by txid", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB)
+					db := New(sqlDB, 100)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
@@ -171,14 +171,47 @@ var _ = Describe("Lightnode db", func() {
 				})
 			})
 
+			Context("when querying gateways", func() {
+				It("should return a page of gateways", func() {
+					sqlDB := init(dbname)
+					defer close(sqlDB)
+					db := New(sqlDB, 100)
+
+					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+					test := func() bool {
+						Expect(db.Init()).Should(Succeed())
+						defer cleanUp(sqlDB)
+
+						for i := 0; i < 50; i++ {
+							transaction := txutil.RandomGoodTx(r)
+							transaction.Output = nil
+							v := r.Intn(2)
+							if v == 0 {
+								transaction.Version = tx.Version0
+							}
+							gatewayAddress := transaction.Hash.String()
+
+							Expect(db.InsertGateway(gatewayAddress, transaction)).To(Succeed())
+						}
+
+						txsPage, err := db.Gateways(0, 10)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(len(txsPage)).Should(Equal(10))
+						return true
+					}
+
+					Expect(quick.Check(test, &quick.Config{MaxCount: 10})).NotTo(HaveOccurred())
+				})
+			})
+
 			Context("when querying txs", func() {
 				It("should return a page of txs", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB)
+					db := New(sqlDB, 100)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
-					test := func() bool {
+					test := func(order bool) bool {
 						Expect(db.Init()).Should(Succeed())
 						defer cleanUp(sqlDB)
 
@@ -195,7 +228,7 @@ var _ = Describe("Lightnode db", func() {
 							Expect(db.InsertTx(transaction)).To(Succeed())
 						}
 
-						txsPage, err := db.Txs(0, 10)
+						txsPage, err := db.Txs(0, 10, order)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(len(txsPage)).Should(Equal(10))
 						for _, tx := range txsPage {
@@ -217,7 +250,7 @@ var _ = Describe("Lightnode db", func() {
 				It("should return all txs which are not confirmed", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB)
+					db := New(sqlDB, 100)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
@@ -253,7 +286,7 @@ var _ = Describe("Lightnode db", func() {
 				It("should not return txs which added more than 24 hours ago", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB)
+					db := New(sqlDB, 100)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
@@ -279,7 +312,7 @@ var _ = Describe("Lightnode db", func() {
 				It("should returned the latest status of the tx", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB)
+					db := New(sqlDB, 100)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
@@ -309,7 +342,7 @@ var _ = Describe("Lightnode db", func() {
 				It("should only prune data which is expired", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB)
+					db := New(sqlDB, 100)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {

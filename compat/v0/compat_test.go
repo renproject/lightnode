@@ -4,10 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"encoding/hex"
-	"fmt"
 	"math/big"
 	"os"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 
@@ -18,11 +17,11 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode/binding"
-	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/lightnode/db"
+	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
@@ -39,19 +38,8 @@ var _ = Describe("Compat V0", func() {
 			Addr: mr.Addr(),
 		})
 
-		if hasCache {
-			// Cache a lookup value for the utxo so that
-			// we don't have to rely on external explorers
-			utxo := params.Tx.In.Get("utxo").Value.(v0.ExtBtcCompatUTXO)
-			vout := utxo.VOut.Int.String()
-			txHash := utxo.TxHash
-			key := fmt.Sprintf("amount_%s_%s", txHash, vout)
-			client.Set(key, 200000, 0)
-
-		}
-
 		bindingsOpts := binding.DefaultOptions().
-			WithNetwork("testnet")
+			WithNetwork(multichain.NetworkLocalnet)
 
 		bindingsOpts.WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
 			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
@@ -69,24 +57,47 @@ var _ = Describe("Compat V0", func() {
 		})
 
 		bindingsOpts.WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
-			Confirmations: pack.U64(0),
-			Protocol:      pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+			RPC:              pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
+			Confirmations:    pack.U64(0),
+			Protocol:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+			MaxConfirmations: pack.MaxU64,
 		})
 
 		bindings := binding.New(bindingsOpts)
 
-		pubkeyB, err := base64.URLEncoding.DecodeString("AiF7_2ykZmts2wzZKJ5D-J1scRM2Pm2jJ84W_K4PQaGl")
+		pubkeyB, err := base64.URLEncoding.DecodeString("AnbyLhl6mDMSj-K6-F_KCOCsI5Qc3wW-I3-b9-HpNdhl")
 		Expect(err).ShouldNot(HaveOccurred())
 
 		pubkey, err := crypto.DecompressPubkey(pubkeyB)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		sqlDB, err := sql.Open("sqlite3", "./test.db")
-		database := db.New(sqlDB)
-		store := v0.NewCompatStore(database, client)
+		database := db.New(sqlDB, 0)
+		store := v0.NewCompatStore(database, client, time.Hour)
 
 		return store, client, bindings, (*id.PubKey)(pubkey)
+	}
+
+	initVerifier := func() resolver.Verifier {
+		hostChains := map[multichain.Chain]bool{
+			multichain.Ethereum: true,
+		}
+		bindingsOpts := binding.DefaultOptions().
+			WithNetwork(multichain.NetworkLocalnet).
+			WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
+				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
+				Confirmations: pack.U64(0),
+			}).
+			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
+				RPC:              pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
+				Confirmations:    pack.U64(0),
+				Protocol:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+				MaxConfirmations: pack.MaxU64,
+			})
+
+		bindings := binding.New(bindingsOpts)
+		verifier := resolver.NewVerifier(hostChains, bindings)
+		return verifier
 	}
 
 	BeforeSuite(func() {
@@ -110,23 +121,30 @@ var _ = Describe("Compat V0", func() {
 		Expect(shardsResponse.Shards[0].Gateways[0].PubKey).Should(Equal("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"))
 	})
 
-	It("should convert a v0 BTC Burn ParamsSubmitTx into an empty v1 ParamsSubmitTx", func() {
+	It("should convert a v0 BTC Burn ParamsSubmitTx into an v1 ParamsSubmitTx", func() {
 		params := testutils.MockBurnParamSubmitTxV0BTC()
 		store, _, bindings, pubkey := init(params, false)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
+		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
 		Expect(err).ShouldNot(HaveOccurred())
-		hash, err := hex.DecodeString("ec5a011106c04a4019587c192409ca92faa518639569ccebd3c025c283b80fe9")
-		hash32 := [32]byte{}
-		copy(hash32[:], hash[:])
-		Expect(v1).Should(Equal(jsonrpc.ParamsSubmitTx{
-			Tx: tx.Tx{
-				Selector: tx.Selector("BTC/fromEthereum"),
-				Input:    pack.NewTyped("v0hash", pack.NewBytes32(hash32)),
-			},
-		}))
+		Expect(v1.Tx.Version).Should(Equal(tx.Version0))
+		v1.Tx.Version = tx.Version1
+
+		verifier := initVerifier()
+		Expect(verifier.VerifyTx(context.Background(), v1.Tx)).Should(Succeed())
+
+		Expect(v1.Tx.Selector).Should(Equal(tx.Selector("BTC/fromEthereum")))
+		Expect(v1.Tx.Input.Get("txid")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("txindex")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("amount")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("payload")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("phash")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("to")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("nonce")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("nhash")).ShouldNot(BeNil())
+		Expect(v1.Tx.Input.Get("ghash")).ShouldNot(BeNil())
 	})
 
 	It("should convert a v0 BTC ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
@@ -135,7 +153,7 @@ var _ = Describe("Compat V0", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
+		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// should have a key for the utxo
@@ -144,24 +162,27 @@ var _ = Describe("Compat V0", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(len(keys)).Should(Equal(1))
 
+		Expect(v1.Tx.Selector).Should(Equal(tx.Selector("BTC/toEthereum")))
+
 		// Check that redis mapped the hashes correctly
 		hash := v1.Tx.Hash.String()
 		storedHash, err := client.Get(keys[0]).Result()
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(storedHash).Should(Equal(hash))
 
-		// btc txhash mapping
-		keys, err = client.Keys("*").Result()
-
-		// v0 hash should have a mapping in the store
 		ghash := v1.Tx.Input.Get("ghash").(pack.Bytes32)
 		txid := v1.Tx.Input.Get("txid").(pack.Bytes)
 		txindex := v1.Tx.Input.Get("txindex").(pack.U32)
 		v0Hash := v0.MintTxHash(v1.Tx.Selector, ghash, txid, txindex)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		// btc txhash mapping
+		keys, err = client.Keys("*").Result()
+		Expect(err).ShouldNot(HaveOccurred())
 		Expect(keys).Should(ContainElement(v0Hash.String()))
 
 		// v1 hash should be correct
-		v1Hash, err := tx.NewTxHash(v1.Tx.Version, v1.Tx.Selector, v1.Tx.Input)
+		v1Hash, err := tx.NewTxHash(tx.Version0, v1.Tx.Selector, v1.Tx.Input)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(hash).To(Equal(v1Hash.String()))
 	})
@@ -172,7 +193,7 @@ var _ = Describe("Compat V0", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
+		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// should have a key for the utxo
@@ -187,18 +208,19 @@ var _ = Describe("Compat V0", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(storedHash).Should(Equal(hash))
 
-		// btc txhash mapping
-		keys, err = client.Keys("*").Result()
-
-		// v0 hash should have a mapping in the store
 		ghash := v1.Tx.Input.Get("ghash").(pack.Bytes32)
 		txid := v1.Tx.Input.Get("txid").(pack.Bytes)
 		txindex := v1.Tx.Input.Get("txindex").(pack.U32)
 		v0Hash := v0.MintTxHash(v1.Tx.Selector, ghash, txid, txindex)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		// btc txhash mapping
+		keys, err = client.Keys("*").Result()
+		Expect(err).ShouldNot(HaveOccurred())
 		Expect(keys).Should(ContainElement(v0Hash.String()))
 
 		// v1 hash should be correct
-		v1Hash, err := tx.NewTxHash(v1.Tx.Version, v1.Tx.Selector, v1.Tx.Input)
+		v1Hash, err := tx.NewTxHash(tx.Version0, v1.Tx.Selector, v1.Tx.Input)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(hash).To(Equal(v1Hash.String()))
 	})
@@ -209,7 +231,7 @@ var _ = Describe("Compat V0", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store)
+		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// should have a key for the utxo
@@ -224,18 +246,18 @@ var _ = Describe("Compat V0", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(hash).Should(Equal(storedHash))
 
-		// btc txhash mapping
-		keys, err = client.Keys("*").Result()
-
-		// v0 hash should have a mapping in the store
 		ghash := v1.Tx.Input.Get("ghash").(pack.Bytes32)
 		txid := v1.Tx.Input.Get("txid").(pack.Bytes)
 		txindex := v1.Tx.Input.Get("txindex").(pack.U32)
 		v0Hash := v0.MintTxHash(v1.Tx.Selector, ghash, txid, txindex)
+
+		// btc txhash mapping
+		keys, err = client.Keys("*").Result()
+		Expect(err).ShouldNot(HaveOccurred())
 		Expect(keys).Should(ContainElement(v0Hash.String()))
 
 		// v1 hash should be correct
-		v1Hash, err := tx.NewTxHash(v1.Tx.Version, v1.Tx.Selector, v1.Tx.Input)
+		v1Hash, err := tx.NewTxHash(tx.Version0, v1.Tx.Selector, v1.Tx.Input)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(hash).To(Equal(v1Hash.String()))
 	})

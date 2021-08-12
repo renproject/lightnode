@@ -7,7 +7,7 @@ import (
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
-	v1 "github.com/renproject/lightnode/compat/v1"
+	"github.com/renproject/lightnode/compat/v1"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/pack"

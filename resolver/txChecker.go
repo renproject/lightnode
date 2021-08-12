@@ -74,8 +74,6 @@ func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings
 		GasPrice:      pack.NewU256([32]byte{}),
 		MinimumAmount: pack.NewU256([32]byte{}),
 		DustAmount:    pack.NewU256([32]byte{}),
-		MintFee:       0,
-		BurnFee:       0,
 		Shards: []engine.XStateShard{
 			{
 				Shard:  pack.Bytes32{},
@@ -87,8 +85,10 @@ func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings
 		Minted: minted,
 		Fees: engine.XStateFees{
 			Unassigned: pack.NewU256([32]byte{}),
+			Unclaimed:  pack.NewU256([32]byte{}),
 			Epochs:     []engine.XStateFeesEpoch{},
 			Nodes:      []engine.XStateFeesNode{},
+			HostChains: []engine.XStateFeesHostChains{},
 		},
 	})
 	if err != nil {
@@ -129,7 +129,7 @@ func (tc *txchecker) Run() {
 	workers := 2 * runtime.NumCPU()
 	phi.ForAll(workers, func(_ int) {
 		for req := range tc.requests {
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 
 			params := req.Params.(jsonrpc.ParamsSubmitTx)
 

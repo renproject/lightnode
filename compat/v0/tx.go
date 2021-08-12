@@ -760,3 +760,31 @@ func (arg *Arg) UnmarshalBinary(data []byte) error {
 
 	return err
 }
+
+// ValidateV0Tx check the tx has a valid contract address and has all the
+// required input fields.
+func ValidateV0Tx(tx Tx) error {
+	// Validate the contract address
+	contract, ok := Intrinsics[tx.To]
+	if !ok {
+		return fmt.Errorf("contract '%v' not found", contract)
+	}
+
+	// Check the number of arguments.
+	if len(tx.In) < len(contract.In) {
+		return fmt.Errorf("%v expects %v arguments, got %v arguments", tx.To, len(contract.In), len(tx.In))
+	}
+
+	// Check the tx has all the parameters defined in the contract and each
+	// parameter is of the correct type.
+	for _, formal := range contract.In {
+		arg := tx.In.Get(formal.Name)
+		if arg.IsNil() {
+			return fmt.Errorf("missing argument [%v] in the tx", formal.Name)
+		}
+		if arg.Type != formal.Type {
+			return fmt.Errorf("%v expects type of [%v] to be '%v', got '%v'", tx.To, formal.Name, formal.Type, arg.Type)
+		}
+	}
+	return nil
+}
