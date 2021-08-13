@@ -735,6 +735,18 @@ var _ = Describe("Resolver", func() {
 			return resp
 		}).Should(Equal(jsonrpc.Response{}))
 
+		ipString = "1.1.1.1 , 9.9.9.9,,,"
+		httpRequest.Header.Set("x-forwarded-for", ipString)
+		Eventually(func() jsonrpc.Response {
+			_, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
+				Version: "2.0",
+				ID:      nil,
+				Method:  jsonrpc.MethodSubmitTx,
+				Params:  paramsJSON,
+			})
+			return resp
+		}).Should(Equal(jsonrpc.Response{}))
+
 		ipString = "1.1,9.9.9,,,"
 		httpRequest.Header.Set("x-forwarded-for", ipString)
 		Eventually(func() jsonrpc.Response {

@@ -55,7 +55,7 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 		i := 1
 		ipString = ""
 		for ipString == "" && len(ipStrings) >= i {
-			ipString = ipStrings[len(ipStrings)-i]
+			ipString = strings.TrimSpace(ipStrings[len(ipStrings)-i])
 			i++
 		}
 		// if there is a trailling comma, or the x-forwarded-for header is malformed,
