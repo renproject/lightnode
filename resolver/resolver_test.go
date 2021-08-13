@@ -733,11 +733,24 @@ var _ = Describe("Resolver", func() {
 				Params:  paramsJSON,
 			})
 			return resp
+		}).Should(Equal(jsonrpc.Response{}))
+
+		ipString = "1.1,9.9.9,,,"
+		httpRequest.Header.Set("x-forwarded-for", ipString)
+		Eventually(func() jsonrpc.Response {
+			_, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
+				Version: "2.0",
+				ID:      nil,
+				Method:  jsonrpc.MethodSubmitTx,
+				Params:  paramsJSON,
+			})
+			return resp
 		}).Should(Equal(
 			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
 				Code:    jsonrpc.ErrorCodeInvalidRequest,
-				Message: fmt.Sprintf("could not determine ip for %v", ipString),
+				Message: fmt.Sprintf("could not parse ip: 9.9.9"),
 			}),
 		))
+
 	})
 })

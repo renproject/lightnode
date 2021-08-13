@@ -52,13 +52,18 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 	if ipString == "" {
 		ipString = r.RemoteAddr
 	} else if ipStrings := strings.Split(ipString, ","); len(ipStrings) > 0 {
-		ipString = ipStrings[len(ipStrings)-1]
+		i := 1
+		ipString = ""
+		for ipString == "" && len(ipStrings) >= i {
+			ipString = ipStrings[len(ipStrings)-i]
+			i++
+		}
 		// if there is a trailling comma, or the x-forwarded-for header is malformed,
 		// skip parsing
 		if ipString == "" {
 			return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
 				Code:    jsonrpc.ErrorCodeInvalidRequest,
-				Message: fmt.Sprintf("could not determine ip for %v", strings.Join(ipStrings, ",")),
+				Message: fmt.Sprintf("could not find forwarded ip in %v", strings.Join(ipStrings, ",")),
 			})
 		}
 	}
@@ -74,7 +79,7 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 		if err != nil {
 			return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
 				Code:    jsonrpc.ErrorCodeInvalidRequest,
-				Message: fmt.Sprintf("could not determine ip for %v", ipString),
+				Message: fmt.Sprintf("could not parse ip: %v", ipString),
 			})
 		}
 	}
