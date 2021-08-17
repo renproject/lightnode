@@ -1,4 +1,4 @@
-FROM debian:stable-slim AS final
+FROM debian:buster-slim AS final
 # Set up final runner first, so that it caches
 
 # Install Filecoin and Solana dependencies.
