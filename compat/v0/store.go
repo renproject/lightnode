@@ -131,7 +131,7 @@ func (store Store) decodeHashString(s string) (id.Hash, error) {
 	hash := id.Hash{}
 	hashBytes, err1 := base64.RawURLEncoding.DecodeString(s)
 	if err1 != nil {
-		hashBytes2, err2 := base64.RawStdEncoding.DecodeString(s)
+		hashBytes2, err2 := base64.StdEncoding.DecodeString(s)
 		if err2 != nil {
 			err := fmt.Errorf("invalid hash encoding ( %v ) persisted: not base64URL %v not base64 %v", s, err1, err2)
 			return hash, err
