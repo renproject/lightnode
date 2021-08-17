@@ -663,12 +663,12 @@ func V1TxFromV0Burn(ctx context.Context, v0tx Tx, bindings *binding.Binding, net
 
 	details, err := gatewayBinding.GetBurn(&bind.CallOpts{}, ref.Int)
 	if err != nil {
-		return tx.Tx{}, err
+		return tx.Tx{}, fmt.Errorf("getting burn with ref=%v: %v", ref, err)
 	}
 
 	latestBlockHeader, err := client.HeaderByNumber(ctx, nil)
 	if err != nil {
-		return tx.Tx{}, err
+		return tx.Tx{}, fmt.Errorf("getting latest block header: %v", err)
 	}
 	confirmations := new(big.Int).Sub(latestBlockHeader.Number, details.Blocknumber).Uint64()
 	if pack.U64(confirmations) > options.MaxConfirmations {
@@ -682,10 +682,10 @@ func V1TxFromV0Burn(ctx context.Context, v0tx Tx, bindings *binding.Binding, net
 		Context: ctx,
 	}, []*big.Int{ref.Int}, nil)
 	if err != nil {
-		return tx.Tx{}, err
+		return tx.Tx{}, fmt.Errorf("filtering burn logs for block #%v (ref=%v): %v", blockNumber, ref, err)
 	}
 	if iter == nil {
-		return tx.Tx{}, err
+		return tx.Tx{}, fmt.Errorf("no burn logs for block #%v (ref=%v): %v", blockNumber, ref, err)
 	}
 	var txid pack.Bytes
 	for iter.Next() {
@@ -693,7 +693,7 @@ func V1TxFromV0Burn(ctx context.Context, v0tx Tx, bindings *binding.Binding, net
 		break
 	}
 	if iter.Error() != nil {
-		return tx.Tx{}, err
+		return tx.Tx{}, fmt.Errorf("getting burn log details for block #%v (ref=%v): %v", blockNumber, ref, err)
 	}
 
 	amount := pack.NewU256FromInt(details.Amount)
@@ -706,7 +706,7 @@ func V1TxFromV0Burn(ctx context.Context, v0tx Tx, bindings *binding.Binding, net
 		to = multichain.Address(base58.Encode(toBytes))
 		toDecode, err = decoder.DecodeAddress(to)
 		if err != nil {
-			return tx.Tx{}, err
+			return tx.Tx{}, fmt.Errorf("decoding address=%v (ref=%v): %v", to, ref, err)
 		}
 	}
 
@@ -726,7 +726,7 @@ func V1TxFromV0Burn(ctx context.Context, v0tx Tx, bindings *binding.Binding, net
 		Ghash:   ghash,
 	})
 	if err != nil {
-		return tx.Tx{}, err
+		return tx.Tx{}, fmt.Errorf("encoding input (ref=%v): %v", ref, err)
 	}
 	return tx.NewTx(selector, pack.Typed(input.(pack.Struct)))
 }
