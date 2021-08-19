@@ -185,7 +185,7 @@ func (resolver *Resolver) validateGateway(gateway string, tx tx.Tx, input Partia
 		case multichain.BitcoinCash:
 			scriptAddress, err := bitcoincash.NewAddressScriptHash(script, watcher.NetParams(tx.Selector.Asset().OriginChain(), resolver.network))
 			if err != nil {
-				return fmt.Errorf("unable to generate zcash address for UTXOGatewayScript: %v", err)
+				return fmt.Errorf("unable to generate bitcoin cash address for UTXOGatewayScript: %v", err)
 			}
 			scriptAddressStr = scriptAddress.EncodeAddress()
 		default:
