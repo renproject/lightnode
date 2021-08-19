@@ -129,10 +129,14 @@ func (store Store) getV1TxHashFromRef(selector tx.Selector, ref U64) (id.Hash, e
 
 func (store Store) decodeHashString(s string) (id.Hash, error) {
 	hash := id.Hash{}
-	hashBytes, err := base64.RawURLEncoding.DecodeString(s)
-	if err != nil {
-		err = fmt.Errorf("invalid hash encoding persisted: %v", err)
-		return hash, err
+	hashBytes, err1 := base64.RawURLEncoding.DecodeString(s)
+	if err1 != nil {
+		hashBytes2, err2 := base64.RawStdEncoding.DecodeString(s)
+		if err2 != nil {
+			err := fmt.Errorf("invalid hash encoding ( %v ) persisted: not base64URL %v not base64 %v", s, err1, err2)
+			return hash, err
+		}
+		hashBytes = hashBytes2
 	}
 
 	copy(hash[:], hashBytes)
