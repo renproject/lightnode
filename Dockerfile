@@ -1,4 +1,4 @@
-FROM debian:stable-slim AS final
+FROM debian:buster-slim AS final
 # Set up final runner first, so that it caches
 
 # Install Filecoin and Solana dependencies.
@@ -27,7 +27,7 @@ WORKDIR /lightnode
 
 ARG GITHUB_TOKEN
 
-RUN apt-get update && apt-get install -y ocl-icd-opencl-dev libgmp3-dev
+RUN apt-get update && apt-get install -y ocl-icd-opencl-dev libgmp3-dev libhwloc-dev
 
 # Use GitHub personal access token to fetch dependencies.
 RUN git config --global url."https://${GITHUB_TOKEN}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
