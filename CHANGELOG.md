@@ -1,3 +1,7 @@
+## 0.4.7
+
+- Fix BCH gateway validation
+
 ## 0.4.6
 
 - Update Multichain to v0.3.21
