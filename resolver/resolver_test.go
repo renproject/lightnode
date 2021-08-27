@@ -513,7 +513,7 @@ var _ = Describe("Resolver", func() {
 
 		// Submit tx to ensure that it can be queried against
 		params := ParamsSubmitGateway{
-			Gateway: scriptAddress.EncodeAddress(),
+			Gateway: "bchtest:" + scriptAddress.EncodeAddress(),
 			Tx:      mocktx,
 		}
 

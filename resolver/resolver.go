@@ -188,6 +188,17 @@ func (resolver *Resolver) validateGateway(gateway string, tx tx.Tx, input Partia
 				return fmt.Errorf("unable to generate bitcoin cash address for UTXOGatewayScript: %v", err)
 			}
 			scriptAddressStr = scriptAddress.EncodeAddress()
+			// we encode + decode the addresses to parse the raw bytes
+			enc := bitcoincash.NewAddressEncodeDecoder(watcher.NetParams(tx.Selector.Asset().OriginChain(), resolver.network))
+			gatewayB, err := enc.AddressDecoder.DecodeAddress((multichain.Address)((pack.String)(gateway)))
+			if err != nil {
+				return fmt.Errorf("unable to decode bitcoin cash address : %v", err)
+			}
+			encd, err := enc.EncodeAddress(gatewayB)
+			if err != nil {
+				return fmt.Errorf("unable to encode bitcoin cash address : %v", err)
+			}
+			gateway = string(encd)
 		default:
 			scriptAddress, err := btcutil.NewAddressScriptHash(script, watcher.NetParams(tx.Selector.Asset().OriginChain(), resolver.network))
 			if err != nil {
