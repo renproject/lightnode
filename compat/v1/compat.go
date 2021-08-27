@@ -88,6 +88,10 @@ func QueryStateResponseFromState(bindings binding.Bindings, state map[string]eng
 		if err != nil {
 			return QueryStateResponse{}, fmt.Errorf("addressing pubkey: %v", err)
 		}
+
+		if len(btcShard.PubKey.String()) < 1 {
+			return QueryStateResponse{}, fmt.Errorf("missing btc pubkey")
+		}
 		stateResponse.Bitcoin = UTXOState{
 			Address:           string(btcAddr),
 			Dust:              bitcoinS.DustAmount.String(),
@@ -131,6 +135,9 @@ func QueryStateResponseFromState(bindings binding.Bindings, state map[string]eng
 		zecAddr, err := bindings.AddressFromPubKey(multichain.Zcash, &pubKey)
 		if err != nil {
 			return QueryStateResponse{}, fmt.Errorf("addressing pubkey: %v", err)
+		}
+		if len(zecShard.PubKey.String()) < 1 {
+			return QueryStateResponse{}, fmt.Errorf("missing zec pubkey")
 		}
 		stateResponse.Zcash = UTXOState{
 			Address:           string(zecAddr),
@@ -176,6 +183,9 @@ func QueryStateResponseFromState(bindings binding.Bindings, state map[string]eng
 		if err != nil {
 			return QueryStateResponse{}, fmt.Errorf("addressing pubkey: %v", err)
 		}
+		if len(bchShard.PubKey.String()) < 1 {
+			return QueryStateResponse{}, fmt.Errorf("missing bch pubkey")
+		}
 		stateResponse.Bitcoincash = UTXOState{
 			Address:           string(bchAddr),
 			Dust:              bitcoinCashS.DustAmount.String(),
@@ -219,6 +229,10 @@ func QueryStateResponseFromState(bindings binding.Bindings, state map[string]eng
 		dgbAddr, err := bindings.AddressFromPubKey(multichain.DigiByte, &pubKey)
 		if err != nil {
 			return QueryStateResponse{}, fmt.Errorf("addressing pubkey: %v", err)
+		}
+
+		if len(dgbShard.PubKey.String()) < 1 {
+			return QueryStateResponse{}, fmt.Errorf("missing dgb pubkey")
 		}
 		stateResponse.Digibyte = UTXOState{
 			Address:           string(dgbAddr),
@@ -265,6 +279,10 @@ func QueryStateResponseFromState(bindings binding.Bindings, state map[string]eng
 		if err != nil {
 			return QueryStateResponse{}, fmt.Errorf("addressing pubkey: %v", err)
 		}
+
+		if len(dogeShard.PubKey.String()) < 1 {
+			return QueryStateResponse{}, fmt.Errorf("missing doge pubkey")
+		}
 		stateResponse.Dogecoin = UTXOState{
 			Address:           string(dogeAddr),
 			Dust:              dogecoinS.DustAmount.String(),
@@ -309,6 +327,10 @@ func QueryStateResponseFromState(bindings binding.Bindings, state map[string]eng
 		lunaAddr, err := bindings.AddressFromPubKey(multichain.Terra, &pubKey)
 		if err != nil {
 			return QueryStateResponse{}, fmt.Errorf("addressing pubkey: %v", err)
+		}
+
+		if len(lunaShard.PubKey.String()) < 1 {
+			return QueryStateResponse{}, fmt.Errorf("missing terra pubkey")
 		}
 		terra := AccountState{
 			Address:           string(lunaAddr),
@@ -355,6 +377,10 @@ func QueryStateResponseFromState(bindings binding.Bindings, state map[string]eng
 		filAddr, err := bindings.AddressFromPubKey(multichain.Filecoin, &pubKey)
 		if err != nil {
 			return QueryStateResponse{}, fmt.Errorf("addressing pubkey: %v", err)
+		}
+
+		if len(filShard.PubKey.String()) < 1 {
+			return QueryStateResponse{}, fmt.Errorf("missing filecoin pubkey")
 		}
 		filecoin := AccountState{
 			Address:           string(filAddr),
