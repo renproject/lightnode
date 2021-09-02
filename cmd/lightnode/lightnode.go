@@ -364,7 +364,7 @@ func parseOptions() lightnode.Options {
 			RPC:      pack.String(os.Getenv("RPC_ETHEREUM")),
 			Registry: pack.String(os.Getenv("GATEWAY_ETHEREUM")),
 			Extras: map[pack.String]pack.String{
-				"authToken": pack.String(os.Getenv("EXTRAS_ETHEREUM_PROTOCOL")),
+				"protocol": pack.String(os.Getenv("EXTRAS_ETHEREUM_PROTOCOL")),
 			},
 		}
 	}
