@@ -41,26 +41,29 @@ var _ = Describe("Compat V0", func() {
 		bindingsOpts := binding.DefaultOptions().
 			WithNetwork(multichain.NetworkLocalnet)
 
-		bindingsOpts.WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
+		bindingsOpts = bindingsOpts.WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
 			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
 			Confirmations: pack.U64(0),
 		})
 
-		bindingsOpts.WithChainOptions(multichain.BitcoinCash, binding.ChainOptions{
+		bindingsOpts = bindingsOpts.WithChainOptions(multichain.BitcoinCash, binding.ChainOptions{
 			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoincashd"),
 			Confirmations: pack.U64(0),
 		})
 
-		bindingsOpts.WithChainOptions(multichain.Zcash, binding.ChainOptions{
+		bindingsOpts = bindingsOpts.WithChainOptions(multichain.Zcash, binding.ChainOptions{
 			RPC:           pack.String("https://multichain-staging.renproject.io/testnet/zcashd"),
 			Confirmations: pack.U64(0),
 		})
 
-		bindingsOpts.WithChainOptions(multichain.Ethereum, binding.ChainOptions{
+		bindingsOpts = bindingsOpts.WithChainOptions(multichain.Ethereum, binding.ChainOptions{
 			RPC:              pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
 			Confirmations:    pack.U64(0),
-			Registry:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
 			MaxConfirmations: pack.MaxU64,
+			Registry:         "0x557e211EC5fc9a6737d2C6b7a1aDe3e0C11A8D5D",
+			Extras: map[pack.String]pack.String{
+				"protocol": "0x9e2Ed544eE281FBc4c00f8cE7fC2Ff8AbB4899D1",
+			},
 		})
 
 		bindings := binding.New(bindingsOpts)
@@ -89,10 +92,14 @@ var _ = Describe("Compat V0", func() {
 				Confirmations: pack.U64(0),
 			}).
 			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-				RPC:              pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
+				RPC: pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
+				// RPC:              pack.String("https://kovan.infura.io/v3/fa2051f87efb4c48ba36d607a271da49"),
 				Confirmations:    pack.U64(0),
-				Registry:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
 				MaxConfirmations: pack.MaxU64,
+				Registry:         "0x557e211EC5fc9a6737d2C6b7a1aDe3e0C11A8D5D",
+				Extras: map[pack.String]pack.String{
+					"protocol": "0x9e2Ed544eE281FBc4c00f8cE7fC2Ff8AbB4899D1",
+				},
 			})
 
 		bindings := binding.New(bindingsOpts)
@@ -127,7 +134,7 @@ var _ = Describe("Compat V0", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
+		v1, err := v0.V1LockTxParamsFromV0(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(v1.Tx.Version).Should(Equal(tx.Version0))
 		v1.Tx.Version = tx.Version1
@@ -153,7 +160,7 @@ var _ = Describe("Compat V0", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
+		v1, err := v0.V1LockTxParamsFromV0(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// should have a key for the utxo
@@ -193,7 +200,7 @@ var _ = Describe("Compat V0", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
+		v1, err := v0.V1LockTxParamsFromV0(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// should have a key for the utxo
@@ -231,7 +238,7 @@ var _ = Describe("Compat V0", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		v1, err := v0.V1TxParamsFromTx(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
+		v1, err := v0.V1LockTxParamsFromV0(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// should have a key for the utxo

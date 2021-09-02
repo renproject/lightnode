@@ -174,7 +174,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 			burnLogFetcher = watcher.NewSolFetcher(solClient, string(bindings.ContractGateway(chain, asset)))
 			blockHeightFetcher = watcher.NewSolFetcher(solClient, string(bindings.ContractGateway(chain, asset)))
 		} else {
-			burnLogFetcher = watcher.NewEthBurnLogFetcher(bindings.EthereumGateway(chain, asset))
+			burnLogFetcher = watcher.NewEthBurnLogFetcher(bindings.MintGateway(chain, asset))
 			blockHeightFetcher = watcher.NewEthBlockHeightFetcher(bindings.EthereumClient(chain))
 		}
 		watchers[chain][selector.Asset()] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, burnLogFetcher, blockHeightFetcher, resolverI, client, options.WatcherPollRate, options.WatcherMaxBlockAdvance, options.WatcherConfidenceInterval)

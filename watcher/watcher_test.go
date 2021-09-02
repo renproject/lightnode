@@ -602,7 +602,7 @@ var _ = Describe("Watcher", func() {
 
 			bindings := binding.New(bindingsOpts)
 
-			btcGateway := bindings.EthereumGateway(multichain.Ethereum, multichain.BTC)
+			btcGateway := bindings.MintGateway(multichain.Ethereum, multichain.BTC)
 			burnLogFetcher := NewEthBurnLogFetcher(btcGateway)
 
 			results, err := burnLogFetcher.FetchBurnLogs(ctx, 0, 0)

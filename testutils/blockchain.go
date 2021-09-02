@@ -76,12 +76,12 @@ func MockBindings(logger logrus.FieldLogger, maxAttemptsUntilConfirmed int) *bin
 	}
 }
 
-func (b mockBindings) AccountBurnInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, nonce pack.Bytes32) (amount pack.U256, recipient pack.String, payload pack.Bytes, err error) {
+func (b mockBindings) AccountBurnInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, txid pack.Bytes, nonce pack.Bytes32) (amount pack.U256, recipient pack.String, payload pack.Bytes, err error) {
 	return pack.U256{}, "", nil, b.isConfirmed(nonce.String())
 }
 
-func (b mockBindings) AccountLockInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, txid pack.Bytes) (multichain.AccountTx, error) {
-	return mockAccountTx{}, nil
+func (b mockBindings) AccountLockInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, txid pack.Bytes, nonce pack.Bytes32) (pack.U256, pack.String, error) {
+	return pack.U256{}, "", nil
 }
 
 func (b mockBindings) UTXOLockInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, outpoint multichain.UTXOutpoint) (multichain.UTXOutput, error) {

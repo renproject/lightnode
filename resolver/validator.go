@@ -91,8 +91,9 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 			Message: fmt.Sprintf("rate limit exceeded for %v", ipString),
 		})
 	}
-	switch req.Method {
 
+	var v1params jsonrpc.ParamsSubmitTx
+	switch req.Method {
 	case jsonrpc.MethodQueryTx:
 		// Check if the params deserializes to v1 queryTx
 		// to check if we need to do compat or not
@@ -126,7 +127,6 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 		// Both v0 and v1 txs successfully deseralize from json
 		// so lets try deserializing into v1 and use other checks to
 		// determine if it is indeed a v0 tx
-		var v1params jsonrpc.ParamsSubmitTx
 		if err := json.Unmarshal(req.Params, &v1params); err == nil {
 			if !v1params.Tx.Selector.IsCrossChain() {
 				break
@@ -173,26 +173,44 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 
 		var params v0.ParamsSubmitTx
 		if err := json.Unmarshal(req.Params, &params); err == nil {
-			castParams, err := v0.V1TxParamsFromTx(ctx, params, validator.bindings.(*binding.Binding), validator.pubkey, validator.versionStore, validator.network)
-			if err != nil {
-				validator.logger.Errorf("[validator] upgrading tx params: %v", err)
-				return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
-					Code:    jsonrpc.ErrorCodeInvalidParams,
-					Message: fmt.Sprintf("invalid params: %v", err),
-				})
+			if v0.IsShiftIn(params.Tx.To) {
+				castParams, err := v0.V1LockTxParamsFromV0(ctx, params, validator.bindings.(*binding.Binding), validator.pubkey, validator.versionStore, validator.network)
+				if err != nil {
+					validator.logger.Errorf("[validator] upgrading tx params: %v", err)
+					return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
+						Code:    jsonrpc.ErrorCodeInvalidParams,
+						Message: fmt.Sprintf("invalid params: %v", err),
+					})
+				}
+				raw, err := json.Marshal(castParams)
+				if err != nil {
+					return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
+						Code:    jsonrpc.ErrorCodeInvalidParams,
+						Message: fmt.Sprintf("invalid params: %v", err),
+					})
+				}
+				req.Params = raw
+			} else {
+				// We do not perform validation for v0 shift-out transactions.
+				return req.Params, jsonrpc.Response{}
 			}
-			raw, err := json.Marshal(castParams)
-			if err != nil {
-				return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
-					Code:    jsonrpc.ErrorCodeInvalidParams,
-					Message: fmt.Sprintf("invalid params: %v", err),
-				})
-			}
-			req.Params = raw
 		}
 	}
 
 	// By this point, all params should be valid v1 params
 	val := jsonrpc.NewValidator()
-	return val.ValidateRequest(ctx, r, req)
+	params, response := val.ValidateRequest(ctx, r, req)
+	if v1params.Tx.Selector.IsBurn() && response.Error == nil {
+		// It is far simpler to go from a v1 burn transaction to v0, hence we
+		// perform the compatibility mapping here.
+		_, err := v0.V0BurnTxParamsFromV1(ctx, v1params, validator.bindings.(*binding.Binding), validator.pubkey, validator.versionStore, validator.network)
+		if err != nil {
+			validator.logger.Errorf("[validator] storing burn tx mapping: %v", err)
+			return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
+				Code:    jsonrpc.ErrorCodeInvalidParams,
+				Message: fmt.Sprintf("invalid params: %v", err),
+			})
+		}
+	}
+	return params, response
 }
