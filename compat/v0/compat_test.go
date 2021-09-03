@@ -60,7 +60,7 @@ var _ = Describe("Compat V0", func() {
 			RPC:              pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
 			Confirmations:    pack.U64(0),
 			MaxConfirmations: pack.MaxU64,
-			Registry:         "0x557e211EC5fc9a6737d2C6b7a1aDe3e0C11A8D5D",
+			Registry:         "0x7725908D3C76Efc5aDaCAf2A1C79977511095d5e",
 			Extras: map[pack.String]pack.String{
 				"protocol": "0x9e2Ed544eE281FBc4c00f8cE7fC2Ff8AbB4899D1",
 			},
