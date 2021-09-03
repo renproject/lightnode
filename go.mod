@@ -11,7 +11,7 @@ require (
 	github.com/ethereum/go-ethereum v1.10.7
 	github.com/evalphobia/logrus_sentry v0.8.2
 	github.com/go-redis/redis/v7 v7.2.0
-	github.com/google/go-cmp v0.5.4
+	github.com/google/go-cmp v0.5.6
 	github.com/jbenet/go-base58 v0.0.0-20150317085156-6237cf65f3a6
 	github.com/lib/pq v1.7.0
 	github.com/mattn/go-sqlite3 v1.11.0
