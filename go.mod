@@ -6,7 +6,6 @@ require (
 	github.com/alicebob/miniredis/v2 v2.14.3
 	github.com/btcsuite/btcd v0.21.0-beta
 	github.com/btcsuite/btcutil v1.0.2
-	github.com/codahale/blake2 v0.0.0-20150924215134-8d10d0420cbf // indirect
 	github.com/dfuse-io/solana-go v0.2.1-0.20210622202728-1d0a90faa723
 	github.com/dgryski/go-farm v0.0.0-20191112170834-c2139c5d712b // indirect
 	github.com/ethereum/go-ethereum v1.10.7
