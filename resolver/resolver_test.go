@@ -685,7 +685,7 @@ var _ = Describe("Resolver", func() {
 				Params:  paramsJSON,
 			})
 			return resp
-		}, time.Second*5, time.Millisecond*5).Should(Equal(
+		}).Should(Equal(
 			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
 				Code:    jsonrpc.ErrorCodeInvalidRequest,
 				Message: fmt.Sprintf("rate limit exceeded for %v", ipString),
@@ -719,7 +719,7 @@ var _ = Describe("Resolver", func() {
 				Params:  paramsJSON,
 			})
 			return resp
-		}, time.Second*5, time.Millisecond*5).Should(Equal(
+		}).Should(Equal(
 			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
 				Code:    jsonrpc.ErrorCodeInvalidRequest,
 				Message: fmt.Sprintf("rate limit exceeded for %v", "9.9.9.9"),
@@ -736,7 +736,7 @@ var _ = Describe("Resolver", func() {
 				Params:  paramsJSON,
 			})
 			return resp
-		}).Should(Equal(jsonrpc.Response{}))
+		}, 5*time.Second, time.Second).Should(Equal(jsonrpc.Response{}))
 
 		ipString = "1.1.1.1 , 9.9.9.9,,,"
 		httpRequest.Header.Set("x-forwarded-for", ipString)
@@ -748,7 +748,7 @@ var _ = Describe("Resolver", func() {
 				Params:  paramsJSON,
 			})
 			return resp
-		}).Should(Equal(jsonrpc.Response{}))
+		}, 5*time.Second, time.Second).Should(Equal(jsonrpc.Response{}))
 
 		ipString = "1.1,9.9.9,,,"
 		httpRequest.Header.Set("x-forwarded-for", ipString)
@@ -766,6 +766,5 @@ var _ = Describe("Resolver", func() {
 				Message: fmt.Sprintf("could not parse ip: 9.9.9"),
 			}),
 		))
-
 	})
 })
