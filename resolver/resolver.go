@@ -638,9 +638,8 @@ func (resolver *Resolver) QueryState(ctx context.Context, id interface{}, params
 		for _, v := range v2Assets {
 			val := resp.State.Get(v)
 			if val == nil {
-				resolver.logger.Errorf("[resolver] cannot get %v state: %v", v, err)
-				jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to decode block state", nil)
-				return jsonrpc.NewResponse(id, nil, &jsonErr)
+				resolver.logger.Warnf("[resolver] cannot get %v state: %v", v, err)
+				continue
 			}
 			var state engine.XState
 			if err := pack.Decode(&state, val); err != nil {
