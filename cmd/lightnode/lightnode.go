@@ -73,6 +73,16 @@ func main() {
 		)
 	}
 
+	tokenAssets := []multichain.Asset{}
+	for i := range options.Whitelist {
+		asset := options.Whitelist[i].Asset()
+		switch asset.Type() {
+		case multichain.AssetTypeToken:
+			tokenAssets = append(tokenAssets, asset)
+		default:
+			continue
+		}
+	}
 	for chain, chainOpt := range options.Chains {
 		chainOpt.Confirmations = conf.Confirmations[chain]
 		if conf.MaxConfirmations[chain] != 0 {
@@ -80,6 +90,7 @@ func main() {
 		} else {
 			chainOpt.MaxConfirmations = pack.MaxU64
 		}
+		chainOpt.TokenAssets = tokenAssets
 		options.Chains[chain] = chainOpt
 	}
 

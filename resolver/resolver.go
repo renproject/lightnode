@@ -81,8 +81,14 @@ func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *
 		return jsonrpc.NewResponse(
 			id,
 			struct {
-				Tx interface{} `json:"tx"`
-			}{params.Tx},
+				Tx struct {
+					Hash v0.B32 `json:"hash"`
+				} `json:"tx"`
+			}{
+				Tx: struct {
+					Hash v0.B32 `json:"hash"`
+				}{v0.B32(params.Tx.Hash)},
+			},
 			nil,
 		)
 	}

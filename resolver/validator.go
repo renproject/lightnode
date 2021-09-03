@@ -171,10 +171,10 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 			}
 		}
 
-		var params v0.ParamsSubmitTx
-		if err := json.Unmarshal(req.Params, &params); err == nil {
-			if v0.IsShiftIn(params.Tx.To) {
-				castParams, err := v0.V1LockTxParamsFromV0(ctx, params, validator.bindings.(*binding.Binding), validator.pubkey, validator.versionStore, validator.network)
+		var v0Params v0.ParamsSubmitTx
+		if err := json.Unmarshal(req.Params, &v0Params); err == nil {
+			if v0.IsShiftIn(v0Params.Tx.To) {
+				castParams, err := v0.V1LockTxParamsFromV0(ctx, v0Params, validator.bindings.(*binding.Binding), validator.pubkey, validator.versionStore, validator.network)
 				if err != nil {
 					validator.logger.Errorf("[validator] upgrading tx params: %v", err)
 					return nil, jsonrpc.NewResponse(req.ID, nil, &jsonrpc.Error{
@@ -192,7 +192,13 @@ func (validator *LightnodeValidator) ValidateRequest(ctx context.Context, r *htt
 				req.Params = raw
 			} else {
 				// We do not perform validation for v0 shift-out transactions.
-				return req.Params, jsonrpc.Response{}
+				return &jsonrpc.ParamsSubmitTx{
+					Tx: tx.Tx{
+						Hash:     id.Hash(v0Params.Tx.Hash),
+						Version:  tx.Version0,
+						Selector: tx.Selector(fmt.Sprintf("%s/fromEthereum", v0Params.Tx.To[0:3])),
+					},
+				}, jsonrpc.Response{}
 			}
 		}
 	}
