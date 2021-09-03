@@ -21,7 +21,6 @@ import (
 	"github.com/renproject/id"
 	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/lightnode/db"
-	"github.com/renproject/lightnode/resolver"
 	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
@@ -81,32 +80,6 @@ var _ = Describe("Compat V0", func() {
 		return store, client, bindings, (*id.PubKey)(pubkey)
 	}
 
-	initVerifier := func() resolver.Verifier {
-		hostChains := map[multichain.Chain]bool{
-			multichain.Ethereum: true,
-		}
-		bindingsOpts := binding.DefaultOptions().
-			WithNetwork(multichain.NetworkLocalnet).
-			WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
-				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
-				Confirmations: pack.U64(0),
-			}).
-			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-				RPC: pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
-				// RPC:              pack.String("https://kovan.infura.io/v3/fa2051f87efb4c48ba36d607a271da49"),
-				Confirmations:    pack.U64(0),
-				MaxConfirmations: pack.MaxU64,
-				Registry:         "0x557e211EC5fc9a6737d2C6b7a1aDe3e0C11A8D5D",
-				Extras: map[pack.String]pack.String{
-					"protocol": "0x9e2Ed544eE281FBc4c00f8cE7fC2Ff8AbB4899D1",
-				},
-			})
-
-		bindings := binding.New(bindingsOpts)
-		verifier := resolver.NewVerifier(hostChains, bindings)
-		return verifier
-	}
-
 	BeforeSuite(func() {
 		os.Remove("./test.db")
 	})
@@ -126,32 +99,6 @@ var _ = Describe("Compat V0", func() {
 		shardsResponse, err := v0.ShardsResponseFromSystemState(testutils.MockSystemState())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(shardsResponse.Shards[0].Gateways[0].PubKey).Should(Equal("Akwn5WEMcB2Ff_E0ZOoVks9uZRvG_eFD99AysymOc5fm"))
-	})
-
-	It("should convert a v0 BTC Burn ParamsSubmitTx into an v1 ParamsSubmitTx", func() {
-		params := testutils.MockBurnParamSubmitTxV0BTC()
-		store, _, bindings, pubkey := init(params, false)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		v1, err := v0.V1LockTxParamsFromV0(ctx, params, bindings, pubkey, store, multichain.NetworkTestnet)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(v1.Tx.Version).Should(Equal(tx.Version0))
-		v1.Tx.Version = tx.Version1
-
-		verifier := initVerifier()
-		Expect(verifier.VerifyTx(context.Background(), v1.Tx)).Should(Succeed())
-
-		Expect(v1.Tx.Selector).Should(Equal(tx.Selector("BTC/fromEthereum")))
-		Expect(v1.Tx.Input.Get("txid")).ShouldNot(BeNil())
-		Expect(v1.Tx.Input.Get("txindex")).ShouldNot(BeNil())
-		Expect(v1.Tx.Input.Get("amount")).ShouldNot(BeNil())
-		Expect(v1.Tx.Input.Get("payload")).ShouldNot(BeNil())
-		Expect(v1.Tx.Input.Get("phash")).ShouldNot(BeNil())
-		Expect(v1.Tx.Input.Get("to")).ShouldNot(BeNil())
-		Expect(v1.Tx.Input.Get("nonce")).ShouldNot(BeNil())
-		Expect(v1.Tx.Input.Get("nhash")).ShouldNot(BeNil())
-		Expect(v1.Tx.Input.Get("ghash")).ShouldNot(BeNil())
 	})
 
 	It("should convert a v0 BTC ParamsSubmitTx into a v1 ParamsSubmitTx", func() {
