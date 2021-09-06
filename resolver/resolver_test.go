@@ -36,6 +36,7 @@ import (
 	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/lightnode/watcher"
 	"github.com/renproject/multichain"
+	"github.com/renproject/multichain/chain/bitcoincash"
 	"github.com/renproject/multichain/chain/zcash"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
@@ -482,6 +483,42 @@ var _ = Describe("Resolver", func() {
 		defer cleanup()
 
 		params := testutils.MockParamsSubmitGatewayFil()
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		resp := resolver.SubmitGateway(innerCtx, nil, &params, nil)
+
+		Expect(resp.Error).Should(BeZero())
+	})
+
+	It("should submit gateway txs for bch", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, _ := init(ctx)
+		defer cleanup()
+
+		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+
+		mocktx := txutil.RandomGoodTx(r)
+		mocktx.Selector = tx.Selector("BCH/toEthereum")
+
+		input := engine.LockMintBurnReleaseInput{}
+		err := pack.Decode(&input, mocktx.Input)
+		Expect(err).NotTo(HaveOccurred())
+
+		script, err := engine.UTXOGatewayScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
+		Expect(err).NotTo(HaveOccurred())
+
+		scriptAddress, err := bitcoincash.NewAddressScriptHash(script, watcher.NetParams(mocktx.Selector.Asset().OriginChain(), multichain.NetworkTestnet))
+		Expect(err).NotTo(HaveOccurred())
+
+		// Submit tx to ensure that it can be queried against
+		params := ParamsSubmitGateway{
+			Gateway: scriptAddress.EncodeAddress(),
+			Tx:      mocktx,
+		}
 
 		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer innerCancel()
