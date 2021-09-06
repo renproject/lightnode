@@ -58,7 +58,7 @@ var _ = Describe("Compat V0", func() {
 			r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 			ctx := chainstate.CodeContext{
 				Bindings: binding.Callbacks{
-					HandleAccountBurnInfo: func(ctx context.Context, chain multichain.Chain, asset multichain.Asset, nonce pack.Bytes32) (pack.U256, pack.String, pack.Bytes, error) {
+					HandleAccountBurnInfo: func(ctx context.Context, chain multichain.Chain, asset multichain.Asset, txid pack.Bytes, nonce pack.Bytes32) (pack.U256, pack.String, pack.Bytes, error) {
 						return pack.U256{}, "", nil, errors.New("error")
 					},
 				},

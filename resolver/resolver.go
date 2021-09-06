@@ -74,20 +74,28 @@ func (resolver *Resolver) QueryBlocks(ctx context.Context, id interface{}, param
 }
 
 func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *jsonrpc.ParamsSubmitTx, req *http.Request) jsonrpc.Response {
-	// Check if the tx is a v1 tx or v0 tx.
-	txVersion := params.Tx.Version
-
 	if params.Tx.Version == tx.Version0 && params.Tx.Selector.IsBurn() {
-		// When burning, we need to always make sure the tx to submit is a v1 tx as
-		// darknode won't accept v0 tx.
-		params.Tx.Version = tx.Version1
+		// v0 burns are not converted to v1 during the validation process. We do
+		// not forward the transaction to the Darknodes and instead rely on the
+		// watcher to forward it.
+		return jsonrpc.NewResponse(
+			id,
+			struct {
+				Tx struct {
+					Hash v0.B32 `json:"hash"`
+				} `json:"tx"`
+			}{
+				Tx: struct {
+					Hash v0.B32 `json:"hash"`
+				}{v0.B32(params.Tx.Hash)},
+			},
+			nil,
+		)
 	}
-	response := resolver.handleMessage(ctx, id, jsonrpc.MethodSubmitTx, *params, req, true)
 
-	if txVersion != tx.Version0 {
-		return response
-	}
-	if response.Error != nil {
+	// All other transactions are forward to the Darknodes.
+	response := resolver.handleMessage(ctx, id, jsonrpc.MethodSubmitTx, *params, req, true)
+	if response.Error != nil || params.Tx.Version != tx.Version0 {
 		return response
 	}
 
@@ -98,13 +106,13 @@ func (resolver *Resolver) SubmitTx(ctx context.Context, id interface{}, params *
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	}
 
-	return jsonrpc.Response{
-		Version: response.Version,
-		ID:      response.ID,
-		Result: struct {
+	return jsonrpc.NewResponse(
+		id,
+		struct {
 			Tx interface{} `json:"tx"`
 		}{v0tx},
-	}
+		nil,
+	)
 }
 
 const (
@@ -630,6 +638,7 @@ func (resolver *Resolver) QueryState(ctx context.Context, id interface{}, params
 		for _, v := range v2Assets {
 			val := resp.State.Get(v)
 			if val == nil {
+				resolver.logger.Warnf("[resolver] cannot get %v state: %v", v, err)
 				continue
 			}
 			var state engine.XState

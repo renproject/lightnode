@@ -1,6 +1,6 @@
 module github.com/renproject/lightnode
 
-go 1.15
+go 1.16
 
 require (
 	github.com/alicebob/miniredis/v2 v2.14.3
@@ -8,21 +8,21 @@ require (
 	github.com/btcsuite/btcutil v1.0.2
 	github.com/dfuse-io/solana-go v0.2.1-0.20210622202728-1d0a90faa723
 	github.com/dgryski/go-farm v0.0.0-20191112170834-c2139c5d712b // indirect
-	github.com/ethereum/go-ethereum v1.10.6
+	github.com/ethereum/go-ethereum v1.10.7
 	github.com/evalphobia/logrus_sentry v0.8.2
 	github.com/go-redis/redis/v7 v7.2.0
-	github.com/google/go-cmp v0.5.4
+	github.com/google/go-cmp v0.5.6
 	github.com/jbenet/go-base58 v0.0.0-20150317085156-6237cf65f3a6
 	github.com/lib/pq v1.7.0
 	github.com/mattn/go-sqlite3 v1.11.0
 	github.com/near/borsh-go v0.3.0
-	github.com/onsi/ginkgo v1.14.0
+	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.10.1
-	github.com/renproject/aw v0.4.1-0.20210604011747-50d6a643dc76
-	github.com/renproject/darknode v0.5.3-0.20210804001818-b8d7d530656d
+	github.com/renproject/aw v0.5.3
+	github.com/renproject/darknode v0.5.3-0.20210906012847-2dbf8bd9af8c
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
-	github.com/renproject/multichain v0.3.21
+	github.com/renproject/multichain v0.4.1
 	github.com/renproject/pack v0.2.11
 	github.com/renproject/phi v0.1.0
 	github.com/renproject/surge v1.2.6

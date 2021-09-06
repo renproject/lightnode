@@ -52,10 +52,10 @@ type BurnLogFetcher interface {
 }
 
 type EthBurnLogFetcher struct {
-	bindings *gatewaybinding.MintGatewayLogicV1
+	bindings *gatewaybinding.MintGatewayV3
 }
 
-func NewEthBurnLogFetcher(bindings *gatewaybinding.MintGatewayLogicV1) EthBurnLogFetcher {
+func NewEthBurnLogFetcher(bindings *gatewaybinding.MintGatewayV3) EthBurnLogFetcher {
 	return EthBurnLogFetcher{
 		bindings: bindings,
 	}
@@ -82,7 +82,7 @@ func (fetcher EthBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64,
 		func() {
 			defer close(resultChan)
 			for iter.Next() {
-				nonce := iter.Event.N.Uint64()
+				nonce := iter.Event.BurnNonce.Uint64()
 				var nonceBytes pack.Bytes32
 				copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
 				result := BurnInfo{

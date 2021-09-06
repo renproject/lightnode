@@ -73,12 +73,37 @@ func main() {
 		)
 	}
 
+	// Set the token assets using the whitelist. These are necessary for the
+	// bindings initialisation.
+	tokenAssetsMap := map[multichain.Chain]map[multichain.Asset]struct{}{}
+	for i := range options.Whitelist {
+		asset := options.Whitelist[i].Asset()
+		switch asset.Type() {
+		case multichain.AssetTypeToken:
+			assetsMap, ok := tokenAssetsMap[asset.OriginChain()]
+			if !ok {
+				tokenAssetsMap[asset.OriginChain()] = make(map[multichain.Asset]struct{})
+				assetsMap = tokenAssetsMap[asset.OriginChain()]
+			}
+			assetsMap[asset] = struct{}{}
+		default:
+			continue
+		}
+	}
 	for chain, chainOpt := range options.Chains {
 		chainOpt.Confirmations = conf.Confirmations[chain]
 		if conf.MaxConfirmations[chain] != 0 {
 			chainOpt.MaxConfirmations = conf.MaxConfirmations[chain]
 		} else {
 			chainOpt.MaxConfirmations = pack.MaxU64
+		}
+		assetsMap, ok := tokenAssetsMap[chain]
+		if ok {
+			tokenAssets := make([]multichain.Asset, 0, len(assetsMap))
+			for asset := range assetsMap {
+				tokenAssets = append(tokenAssets, asset)
+			}
+			chainOpt.TokenAssets = tokenAssets
 		}
 		options.Chains[chain] = chainOpt
 	}
@@ -324,19 +349,19 @@ func parseOptions() lightnode.Options {
 	if os.Getenv("RPC_ARBITRUM") != "" {
 		chains[multichain.Arbitrum] = binding.ChainOptions{
 			RPC:      pack.String(os.Getenv("RPC_ARBITRUM")),
-			Protocol: pack.String(os.Getenv("GATEWAY_ARBITRUM")),
+			Registry: pack.String(os.Getenv("GATEWAY_ARBITRUM")),
 		}
 	}
 	if os.Getenv("RPC_AVALANCHE") != "" {
 		chains[multichain.Avalanche] = binding.ChainOptions{
 			RPC:      pack.String(os.Getenv("RPC_AVALANCHE")),
-			Protocol: pack.String(os.Getenv("GATEWAY_AVALANCHE")),
+			Registry: pack.String(os.Getenv("GATEWAY_AVALANCHE")),
 		}
 	}
 	if os.Getenv("RPC_BINANCE") != "" {
 		chains[multichain.BinanceSmartChain] = binding.ChainOptions{
 			RPC:      pack.String(os.Getenv("RPC_BINANCE")),
-			Protocol: pack.String(os.Getenv("GATEWAY_BINANCE")),
+			Registry: pack.String(os.Getenv("GATEWAY_BINANCE")),
 		}
 	}
 	if os.Getenv("RPC_BITCOIN") != "" {
@@ -362,13 +387,16 @@ func parseOptions() lightnode.Options {
 	if os.Getenv("RPC_ETHEREUM") != "" {
 		chains[multichain.Ethereum] = binding.ChainOptions{
 			RPC:      pack.String(os.Getenv("RPC_ETHEREUM")),
-			Protocol: pack.String(os.Getenv("GATEWAY_ETHEREUM")),
+			Registry: pack.String(os.Getenv("GATEWAY_ETHEREUM")),
+			Extras: map[pack.String]pack.String{
+				"protocol": pack.String(os.Getenv("EXTRAS_ETHEREUM_PROTOCOL")),
+			},
 		}
 	}
 	if os.Getenv("RPC_FANTOM") != "" {
 		chains[multichain.Fantom] = binding.ChainOptions{
 			RPC:      pack.String(os.Getenv("RPC_FANTOM")),
-			Protocol: pack.String(os.Getenv("GATEWAY_FANTOM")),
+			Registry: pack.String(os.Getenv("GATEWAY_FANTOM")),
 		}
 	}
 	if os.Getenv("RPC_FILECOIN") != "" {
@@ -382,19 +410,19 @@ func parseOptions() lightnode.Options {
 	if os.Getenv("RPC_GOERLI") != "" {
 		chains[multichain.Goerli] = binding.ChainOptions{
 			RPC:      pack.String(os.Getenv("RPC_GOERLI")),
-			Protocol: pack.String(os.Getenv("GATEWAY_GOERLI")),
+			Registry: pack.String(os.Getenv("GATEWAY_GOERLI")),
 		}
 	}
 	if os.Getenv("RPC_POLYGON") != "" {
 		chains[multichain.Polygon] = binding.ChainOptions{
 			RPC:      pack.String(os.Getenv("RPC_POLYGON")),
-			Protocol: pack.String(os.Getenv("GATEWAY_POLYGON")),
+			Registry: pack.String(os.Getenv("GATEWAY_POLYGON")),
 		}
 	}
 	if os.Getenv("RPC_SOLANA") != "" {
 		chains[multichain.Solana] = binding.ChainOptions{
 			RPC:      pack.String(os.Getenv("RPC_SOLANA")),
-			Protocol: pack.String(os.Getenv("GATEWAY_SOLANA")),
+			Registry: pack.String(os.Getenv("GATEWAY_SOLANA")),
 		}
 	}
 	if os.Getenv("RPC_TERRA") != "" {

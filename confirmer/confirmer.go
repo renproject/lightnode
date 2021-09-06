@@ -178,7 +178,7 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 			confirmer.options.Logger.Errorf("[confirmer] failed to decode input for tx=%v: %v", transaction.Hash.String(), err)
 			return false
 		}
-		_, err := confirmer.bindings.AccountLockInfo(ctx, lockChain, transaction.Selector.Asset(), input.Txid)
+		_, _, err := confirmer.bindings.AccountLockInfo(ctx, lockChain, transaction.Selector.Asset(), input.Txid, input.Nonce)
 		if err != nil {
 			if !strings.Contains(err.Error(), "insufficient confirmations") {
 				confirmer.options.Logger.Errorf("[confirmer] cannot get output for account tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
@@ -197,13 +197,18 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 // confirmations.
 func (confirmer *Confirmer) burnTxConfirmed(ctx context.Context, transaction tx.Tx) bool {
 	burnChain := transaction.Selector.Source()
+	txid, ok := transaction.Input.Get("txid").(pack.Bytes)
+	if !ok {
+		confirmer.options.Logger.Errorf("[confirmer] failed to get txid for tx=%v", transaction.Hash.String())
+		return false
+	}
 	nonce, ok := transaction.Input.Get("nonce").(pack.Bytes32)
 	if !ok {
 		confirmer.options.Logger.Errorf("[confirmer] failed to get nonce for tx=%v", transaction.Hash.String())
 		return false
 	}
 
-	_, _, _, err := confirmer.bindings.AccountBurnInfo(ctx, burnChain, transaction.Selector.Asset(), nonce)
+	_, _, _, err := confirmer.bindings.AccountBurnInfo(ctx, burnChain, transaction.Selector.Asset(), txid, nonce)
 	if err != nil {
 		if !strings.Contains(err.Error(), "insufficient confirmations") {
 			confirmer.options.Logger.Errorf("[confirmer] cannot get burn info for tx=%v (%v): %v", transaction.Hash.String(), transaction.Selector.String(), err)

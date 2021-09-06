@@ -96,8 +96,11 @@ var _ = Describe("Resolver", func() {
 			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
 				RPC:              pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
 				Confirmations:    pack.U64(0),
-				Protocol:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+				Registry:         pack.String("0x7725908D3C76Efc5aDaCAf2A1C79977511095d5e"),
 				MaxConfirmations: pack.MaxU64,
+				Extras: map[pack.String]pack.String{
+					"protocol": "0x9e2Ed544eE281FBc4c00f8cE7fC2Ff8AbB4899D1",
+				},
 			})
 
 		bindings := binding.New(bindingsOpts)
@@ -682,7 +685,7 @@ var _ = Describe("Resolver", func() {
 				Params:  paramsJSON,
 			})
 			return resp
-		}, time.Second*5, time.Millisecond*5).Should(Equal(
+		}).Should(Equal(
 			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
 				Code:    jsonrpc.ErrorCodeInvalidRequest,
 				Message: fmt.Sprintf("rate limit exceeded for %v", ipString),
@@ -716,7 +719,7 @@ var _ = Describe("Resolver", func() {
 				Params:  paramsJSON,
 			})
 			return resp
-		}, time.Second*5, time.Millisecond*5).Should(Equal(
+		}).Should(Equal(
 			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
 				Code:    jsonrpc.ErrorCodeInvalidRequest,
 				Message: fmt.Sprintf("rate limit exceeded for %v", "9.9.9.9"),
@@ -733,7 +736,7 @@ var _ = Describe("Resolver", func() {
 				Params:  paramsJSON,
 			})
 			return resp
-		}).Should(Equal(jsonrpc.Response{}))
+		}, 5*time.Second, time.Second).Should(Equal(jsonrpc.Response{}))
 
 		ipString = "1.1.1.1 , 9.9.9.9,,,"
 		httpRequest.Header.Set("x-forwarded-for", ipString)
@@ -745,7 +748,7 @@ var _ = Describe("Resolver", func() {
 				Params:  paramsJSON,
 			})
 			return resp
-		}).Should(Equal(jsonrpc.Response{}))
+		}, 5*time.Second, time.Second).Should(Equal(jsonrpc.Response{}))
 
 		ipString = "1.1,9.9.9,,,"
 		httpRequest.Header.Set("x-forwarded-for", ipString)
@@ -763,6 +766,5 @@ var _ = Describe("Resolver", func() {
 				Message: fmt.Sprintf("could not parse ip: 9.9.9"),
 			}),
 		))
-
 	})
 })

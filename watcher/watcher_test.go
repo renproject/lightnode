@@ -134,7 +134,10 @@ var _ = Describe("Watcher", func() {
 			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
 				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
 				Confirmations: pack.U64(0),
-				Protocol:      pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+				Registry:      pack.String("0x7725908D3C76Efc5aDaCAf2A1C79977511095d5e"),
+				Extras: map[pack.String]pack.String{
+					"protocol": "0x9e2Ed544eE281FBc4c00f8cE7fC2Ff8AbB4899D1",
+				},
 			})
 
 		bindings := binding.New(bindingsOpts)
@@ -597,12 +600,15 @@ var _ = Describe("Watcher", func() {
 				WithChainOptions(multichain.Ethereum, binding.ChainOptions{
 					RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
 					Confirmations: pack.U64(0),
-					Protocol:      pack.String("0x59e23c087cA9bd9ce162875811CD6e99134D6d0F"),
+					Registry:      pack.String("0x7725908D3C76Efc5aDaCAf2A1C79977511095d5e"),
+					Extras: map[pack.String]pack.String{
+						"protocol": "0x9e2Ed544eE281FBc4c00f8cE7fC2Ff8AbB4899D1",
+					},
 				})
 
 			bindings := binding.New(bindingsOpts)
 
-			btcGateway := bindings.EthereumGateway(multichain.Ethereum, multichain.BTC)
+			btcGateway := bindings.MintGateway(multichain.Ethereum, multichain.BTC)
 			burnLogFetcher := NewEthBurnLogFetcher(btcGateway)
 
 			results, err := burnLogFetcher.FetchBurnLogs(ctx, 0, 0)
@@ -671,7 +677,7 @@ var _ = Describe("Watcher", func() {
 				// Tests against solana localnet
 				WithChainOptions(multichain.Solana, binding.ChainOptions{
 					RPC:      pack.String("http://0.0.0.0:8899"),
-					Protocol: pack.String("DHpzwsdvAzq61PN9ZwQWg2hzwX8gYNfKAdsNKKtdKDux"),
+					Registry: pack.String("DHpzwsdvAzq61PN9ZwQWg2hzwX8gYNfKAdsNKKtdKDux"),
 				})
 
 			bindings := binding.New(bindingsOpts)
@@ -732,7 +738,7 @@ var _ = Describe("Watcher", func() {
 				// Tests against solana localnet
 				WithChainOptions(multichain.Solana, binding.ChainOptions{
 					RPC:      pack.String("http://0.0.0.0:8899"),
-					Protocol: pack.String("DHpzwsdvAzq61PN9ZwQWg2hzwX8gYNfKAdsNKKtdKDux"),
+					Registry: pack.String("DHpzwsdvAzq61PN9ZwQWg2hzwX8gYNfKAdsNKKtdKDux"),
 				})
 
 			bindings := binding.New(bindingsOpts)
