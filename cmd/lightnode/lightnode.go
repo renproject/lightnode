@@ -73,12 +73,19 @@ func main() {
 		)
 	}
 
-	tokenAssets := []multichain.Asset{}
+	// Set the token assets using the whitelist. These are necessary for the
+	// bindings initialisation.
+	tokenAssetsMap := map[multichain.Chain]map[multichain.Asset]struct{}{}
 	for i := range options.Whitelist {
 		asset := options.Whitelist[i].Asset()
 		switch asset.Type() {
 		case multichain.AssetTypeToken:
-			tokenAssets = append(tokenAssets, asset)
+			assetsMap, ok := tokenAssetsMap[asset.OriginChain()]
+			if !ok {
+				tokenAssetsMap[asset.OriginChain()] = make(map[multichain.Asset]struct{})
+				assetsMap = tokenAssetsMap[asset.OriginChain()]
+			}
+			assetsMap[asset] = struct{}{}
 		default:
 			continue
 		}
@@ -90,7 +97,14 @@ func main() {
 		} else {
 			chainOpt.MaxConfirmations = pack.MaxU64
 		}
-		chainOpt.TokenAssets = tokenAssets
+		assetsMap, ok := tokenAssetsMap[chain]
+		if ok {
+			tokenAssets := make([]multichain.Asset, 0, len(assetsMap))
+			for asset := range assetsMap {
+				tokenAssets = append(tokenAssets, asset)
+			}
+			chainOpt.TokenAssets = tokenAssets
+		}
 		options.Chains[chain] = chainOpt
 	}
 
