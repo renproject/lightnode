@@ -80,7 +80,7 @@ func (b mockBindings) AccountBurnInfo(ctx context.Context, chain multichain.Chai
 	return pack.U256{}, "", nil, b.isConfirmed(nonce.String())
 }
 
-func (b mockBindings) AccountLockInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, txid pack.Bytes, nonce pack.Bytes32) (pack.U256, pack.String, error) {
+func (b mockBindings) AccountLockInfo(ctx context.Context, sourceChain, destinationChain multichain.Chain, asset multichain.Asset, txid pack.Bytes, nonce pack.Bytes32) (pack.U256, pack.String, error) {
 	return pack.U256{}, "", nil
 }
 
