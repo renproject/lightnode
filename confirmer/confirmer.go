@@ -179,7 +179,7 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 			confirmer.options.Logger.Errorf("[confirmer] failed to decode input for tx=%v: %v", transaction.Hash.String(), err)
 			return false
 		}
-		_, _, err := confirmer.bindings.AccountLockInfo(ctx, lockChain, mintChain, transaction.Selector.Asset(), input.Txid, input.Nonce)
+		_, _, err := confirmer.bindings.AccountLockInfo(ctx, lockChain, mintChain, transaction.Selector.Asset(), input.Txid, input.Payload, input.Nonce)
 		if err != nil {
 			if !strings.Contains(err.Error(), "insufficient confirmations") {
 				confirmer.options.Logger.Errorf("[confirmer] cannot get output for account tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
