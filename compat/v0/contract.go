@@ -55,10 +55,8 @@ func IsShiftIn(addr Address) bool {
 	switch addr {
 	case IntrinsicBTC0Btc2Eth.Address, IntrinsicZEC0Zec2Eth.Address, IntrinsicBCH0Bch2Eth.Address:
 		return true
-	case IntrinsicBTC0Eth2Btc.Address, IntrinsicZEC0Eth2Zec.Address, IntrinsicBCH0Eth2Bch.Address:
-		return false
 	default:
-		panic("unknown shift")
+		return false
 	}
 }
 
