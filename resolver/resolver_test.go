@@ -36,6 +36,7 @@ import (
 	"github.com/renproject/lightnode/testutils"
 	"github.com/renproject/lightnode/watcher"
 	"github.com/renproject/multichain"
+	"github.com/renproject/multichain/chain/bitcoincash"
 	"github.com/renproject/multichain/chain/zcash"
 	"github.com/renproject/pack"
 	"github.com/sirupsen/logrus"
@@ -488,6 +489,42 @@ var _ = Describe("Resolver", func() {
 		Expect(resp.Error).Should(BeZero())
 	})
 
+	It("should submit gateway txs for bch", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, _, _ := init(ctx)
+		defer cleanup()
+
+		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+
+		mocktx := txutil.RandomGoodTx(r)
+		mocktx.Selector = tx.Selector("BCH/toEthereum")
+
+		input := engine.LockMintBurnReleaseInput{}
+		err := pack.Decode(&input, mocktx.Input)
+		Expect(err).NotTo(HaveOccurred())
+
+		script, err := engine.UTXOGatewayScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
+		Expect(err).NotTo(HaveOccurred())
+
+		scriptAddress, err := bitcoincash.NewAddressScriptHash(script, watcher.NetParams(mocktx.Selector.Asset().OriginChain(), multichain.NetworkTestnet))
+		Expect(err).NotTo(HaveOccurred())
+
+		// Submit tx to ensure that it can be queried against
+		params := ParamsSubmitGateway{
+			Gateway: scriptAddress.EncodeAddress(),
+			Tx:      mocktx,
+		}
+
+		innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer innerCancel()
+
+		resp := resolver.SubmitGateway(innerCtx, nil, &params, nil)
+
+		Expect(resp.Error).Should(BeZero())
+	})
+
 	It("should submit gateway txs for zec", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -733,11 +770,36 @@ var _ = Describe("Resolver", func() {
 				Params:  paramsJSON,
 			})
 			return resp
+		}).Should(Equal(jsonrpc.Response{}))
+
+		ipString = "1.1.1.1 , 9.9.9.9,,,"
+		httpRequest.Header.Set("x-forwarded-for", ipString)
+		Eventually(func() jsonrpc.Response {
+			_, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
+				Version: "2.0",
+				ID:      nil,
+				Method:  jsonrpc.MethodSubmitTx,
+				Params:  paramsJSON,
+			})
+			return resp
+		}).Should(Equal(jsonrpc.Response{}))
+
+		ipString = "1.1,9.9.9,,,"
+		httpRequest.Header.Set("x-forwarded-for", ipString)
+		Eventually(func() jsonrpc.Response {
+			_, resp := validator.ValidateRequest(innerCtx, httpRequest, jsonrpc.Request{
+				Version: "2.0",
+				ID:      nil,
+				Method:  jsonrpc.MethodSubmitTx,
+				Params:  paramsJSON,
+			})
+			return resp
 		}).Should(Equal(
 			jsonrpc.NewResponse(nil, nil, &jsonrpc.Error{
 				Code:    jsonrpc.ErrorCodeInvalidRequest,
-				Message: fmt.Sprintf("could not determine ip for %v", ipString),
+				Message: fmt.Sprintf("could not parse ip: 9.9.9"),
 			}),
 		))
+
 	})
 })
