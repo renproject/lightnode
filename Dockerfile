@@ -17,9 +17,9 @@ FROM renbot/multichain:latest as builder
 
 # Compile cosmwasm dependency
 WORKDIR /lightnode
-RUN wget https://github.com/CosmWasm/go-cosmwasm/archive/v0.10.0.tar.gz
-RUN tar -xzf v0.10.0.tar.gz
-WORKDIR ./wasmvm-0.10.0
+RUN wget https://github.com/CosmWasm/go-cosmwasm/archive/v0.16.1.tar.gz
+RUN tar -xzf v0.16.1.tar.gz
+WORKDIR ./wasmvm-0.16.1
 RUN ls -lah
 RUN make build-rust
 
@@ -53,6 +53,5 @@ FROM final
 
 WORKDIR /lightnode
 COPY --from=builder /lightnode/lightnode .
-COPY --from=builder /lightnode/wasmvm-0.10.0/api/libgo_cosmwasm.so /usr/lib/
-
+COPY --from=builder /lightnode/wasmvm-0.16.1/api/libwasmvm.so /usr/lib/
 CMD ["./lightnode"]  
