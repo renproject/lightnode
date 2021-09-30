@@ -1,6 +1,7 @@
 ## 0.4.8
 
 - Updates for gateway contracts v2.0.0
+- Update Multichain to v0.4.3
 
 ## 0.4.7
 
