@@ -150,7 +150,7 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 			confirmer.options.Logger.Errorf("[confirmer] failed to decode input for tx=%v: %v", transaction.Hash.String(), err)
 			return false
 		}
-		_, err := confirmer.bindings.UTXOLockInfo(ctx, lockChain, transaction.Selector.Asset(), multichain.UTXOutpoint{
+		_, err := confirmer.bindings.UTXOLockInfo(ctx, lockChain, multichain.UTXOutpoint{
 			Hash:  input.Txid,
 			Index: input.Txindex,
 		})

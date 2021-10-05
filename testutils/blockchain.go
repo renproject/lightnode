@@ -84,7 +84,7 @@ func (b mockBindings) AccountLockInfo(ctx context.Context, sourceChain, destinat
 	return pack.U256{}, "", nil
 }
 
-func (b mockBindings) UTXOLockInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, outpoint multichain.UTXOutpoint) (multichain.UTXOutput, error) {
+func (b mockBindings) UTXOLockInfo(ctx context.Context, chain multichain.Chain, outpoint multichain.UTXOutpoint) (multichain.UTXOutput, error) {
 	return utxo.Output{}, b.isConfirmed(outpoint.Hash.String())
 }
 
