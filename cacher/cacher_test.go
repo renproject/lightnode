@@ -79,7 +79,7 @@ var _ = Describe("Cacher", func() {
 	})
 
 	Context("when receiving a queryTx request", func() {
-		It("should strip revert messages", func() {
+		It("should return a correct response", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			cacher, messages := init(ctx, time.Minute)
@@ -103,11 +103,8 @@ var _ = Describe("Cacher", func() {
 			Eventually(request.Responder).Should(Receive(&receivedResp))
 
 			queryTxResp := receivedResp.Result.(jsonrpc.ResponseQueryTx)
-			Expect(queryTxResp.Tx.Hash).To(Equal(queryTx.Tx.Hash))
-			Expect(queryTxResp.Tx.Input).To(Equal(queryTx.Tx.Input))
-			Expect(queryTxResp.Tx.Output).NotTo(Equal(queryTx.Tx.Output))
+			Expect(queryTxResp.Tx).To(Equal(queryTx.Tx))
 			res, err := queryTxResp.Tx.Output.MarshalJSON()
-			Expect(fmt.Sprintf("%v", string(res))).ShouldNot(ContainSubstring("\"revert\":\"\""))
 			Expect(fmt.Sprintf("%v", string(res))).Should(ContainSubstring("\"amount\":\"1698300\""))
 
 			// Send the second request and expect a cached response

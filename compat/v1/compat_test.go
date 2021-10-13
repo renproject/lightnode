@@ -2,7 +2,6 @@ package v1_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -39,17 +38,6 @@ var _ = Describe("Compat V0", func() {
 
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(stateResponse.State.Bitcoin.Gaslimit).Should(Equal("3"))
-	})
-
-	It("should omit empty revert reasons from a queryTxResponse", func() {
-		output := engine.LockMintBurnReleaseOutput{
-			Revert: "some reason",
-		}
-		txResponse := v1.TxOutputFromV2QueryTxOutput(output)
-
-		b, err := json.Marshal(txResponse)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(fmt.Sprintf("%v", string(b))).ShouldNot(ContainSubstring("\"revert\":\"some reason\""))
 	})
 
 	Context("when removing a gpubkey", func() {
