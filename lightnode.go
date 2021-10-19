@@ -168,13 +168,18 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		var burnLogFetcher watcher.BurnLogFetcher
 		var blockHeightFetcher watcher.BlockHeightFetcher
 		if chain == multichain.Solana {
-			if bindings.ContractGateway(chain, asset) == "" {
+			gatewayAddr := bindings.ContractGateway(chain, asset)
+			if gatewayAddr == "" {
 				continue
 			}
-			burnLogFetcher = watcher.NewSolFetcher(solClient, string(bindings.ContractGateway(chain, asset)))
-			blockHeightFetcher = watcher.NewSolFetcher(solClient, string(bindings.ContractGateway(chain, asset)))
+			burnLogFetcher = watcher.NewSolFetcher(solClient, string(gatewayAddr))
+			blockHeightFetcher = watcher.NewSolFetcher(solClient, string(gatewayAddr))
 		} else {
-			burnLogFetcher = watcher.NewEthBurnLogFetcher(bindings.MintGateway(chain, asset))
+			gateway := bindings.MintGateway(chain, asset)
+			if gateway == nil {
+				continue
+			}
+			burnLogFetcher = watcher.NewEthBurnLogFetcher(gateway)
 			blockHeightFetcher = watcher.NewEthBlockHeightFetcher(bindings.EthereumClient(chain))
 		}
 		watchers[chain][selector.Asset()] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, burnLogFetcher, blockHeightFetcher, resolverI, client, options.WatcherPollRate, options.WatcherMaxBlockAdvance, options.WatcherConfidenceInterval)
