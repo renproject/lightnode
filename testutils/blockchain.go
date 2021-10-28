@@ -76,7 +76,7 @@ func MockBindings(logger logrus.FieldLogger, maxAttemptsUntilConfirmed int) *bin
 	}
 }
 
-func (b mockBindings) AccountBurnInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, nonce pack.Bytes32) (amount pack.U256, recipient pack.String, payload pack.Bytes, err error) {
+func (b mockBindings) AccountBurnInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, txid pack.Bytes, nonce pack.Bytes32) (amount pack.U256, recipient pack.String, payload pack.Bytes, err error) {
 	return pack.U256{}, "", nil, b.isConfirmed(nonce.String())
 }
 
