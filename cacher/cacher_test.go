@@ -107,6 +107,7 @@ var _ = Describe("Cacher", func() {
 			Expect(queryTxResp.Tx.Input).To(Equal(queryTx.Tx.Input))
 			Expect(queryTxResp.Tx.Output).NotTo(Equal(queryTx.Tx.Output))
 			res, err := queryTxResp.Tx.Output.MarshalJSON()
+			Expect(err).ToNot(HaveOccurred())
 			Expect(fmt.Sprintf("%v", string(res))).ShouldNot(ContainSubstring("\"revert\":\"\""))
 			Expect(fmt.Sprintf("%v", string(res))).Should(ContainSubstring("\"amount\":\"1698300\""))
 
