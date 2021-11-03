@@ -380,3 +380,15 @@ func QueryStateResponseFromState(bindings binding.Bindings, state map[string]eng
 
 	return QueryStateResponse{State: stateResponse}, nil
 }
+
+func RemoveRevertString(output engine.LockMintBurnReleaseOutput) pack.Typed {
+	return pack.NewTyped(
+		"hash", output.Hash,
+		"amount", output.Amount,
+		"fees", output.Fees,
+		"sighash", output.Sighash,
+		"sig", output.Sig,
+		"txid", output.Txid,
+		"txindex", output.Txindex,
+	)
+}
