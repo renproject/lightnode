@@ -4,8 +4,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 
+	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/kv"
+	"github.com/renproject/lightnode/compat/v1"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/pack"
@@ -137,6 +139,20 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 
 				if tx.Tx.Output.String() == pack.NewTyped().String() {
 					return true
+				}
+
+				// RenJS treats "" reverts as errors, so for now we must remove
+				// the field entirely in case of empty strings.
+				var output engine.LockMintBurnReleaseOutput
+				err = pack.Decode(&output, tx.Tx.Output)
+				if err != nil {
+					cacher.logger.Warnf("failed to decode tx output: %v", err)
+					return false
+				}
+				if output.Revert.Equal("") {
+					v1TxOutput := v1.RemoveRevertString(output)
+					tx.Tx.Output = v1TxOutput
+					response = jsonrpc.NewResponse(msg.ID, tx, nil)
 				}
 			}
 			return false
