@@ -12,11 +12,11 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/id"
 	. "github.com/renproject/lightnode/db"
 	. "github.com/renproject/lightnode/testutils"
+	
+	"github.com/renproject/id"
 	"github.com/renproject/pack"
-
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/tx/txutil"
 )
