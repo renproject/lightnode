@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"database/sql"
-	"encoding/hex"
 	"math/rand"
 	"os"
 	"testing/quick"
@@ -13,11 +12,11 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/id"
 	. "github.com/renproject/lightnode/db"
 	. "github.com/renproject/lightnode/testutils"
+	
+	"github.com/renproject/id"
 	"github.com/renproject/pack"
-
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/tx/txutil"
 )
@@ -111,7 +110,7 @@ var _ = Describe("Lightnode db", func() {
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
 						defer cleanUp(sqlDB)
-						transaction := RandomGoodTxUTF8(r)
+						transaction := txutil.RandomGoodTx(r)
 						transaction.Output = nil
 						Expect(db.InsertTx(transaction)).Should(Succeed())
 						newTransaction, err := db.Tx(transaction.Hash)
@@ -132,7 +131,7 @@ var _ = Describe("Lightnode db", func() {
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
 						defer cleanUp(sqlDB)
-						transaction := RandomGoodTxUTF8(r)
+						transaction := txutil.RandomGoodTx(r)
 						transaction.Output = nil
 						gatewayAddress := "address"
 						Expect(db.InsertGateway(gatewayAddress, transaction)).Should(Succeed())
@@ -157,7 +156,7 @@ var _ = Describe("Lightnode db", func() {
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
 						defer cleanUp(sqlDB)
-						transaction := RandomGoodTxUTF8(r)
+						transaction := txutil.RandomGoodTx(r)
 						transaction.Output = nil
 						txid, ok := transaction.Input.Get("txid").(pack.Bytes)
 						Expect(ok).To(Equal(true))
@@ -184,7 +183,7 @@ var _ = Describe("Lightnode db", func() {
 						defer cleanUp(sqlDB)
 
 						for i := 0; i < 50; i++ {
-							transaction := RandomGoodTxUTF8(r)
+							transaction := txutil.RandomGoodTx(r)
 							transaction.Output = nil
 							v := r.Intn(2)
 							if v == 0 {
@@ -218,7 +217,7 @@ var _ = Describe("Lightnode db", func() {
 
 						txs := map[id.Hash]tx.Tx{}
 						for i := 0; i < 50; i++ {
-							transaction := RandomGoodTxUTF8(r)
+							transaction := txutil.RandomGoodTx(r)
 							transaction.Output = nil
 							v := r.Intn(2)
 							if v == 0 {
@@ -260,7 +259,7 @@ var _ = Describe("Lightnode db", func() {
 
 						txs := map[id.Hash]tx.Tx{}
 						for i := 0; i < 50; i++ {
-							transaction := RandomGoodTxUTF8(r)
+							transaction := txutil.RandomGoodTx(r)
 							transaction.Output = nil
 							transaction.Version.Generate(r, 2)
 							txs[transaction.Hash] = transaction
@@ -295,7 +294,7 @@ var _ = Describe("Lightnode db", func() {
 						defer cleanUp(sqlDB)
 
 						for i := 0; i < 50; i++ {
-							transaction := RandomGoodTxUTF8(r)
+							transaction := txutil.RandomGoodTx(r)
 							Expect(db.InsertTx(transaction)).To(Succeed())
 							Expect(UpdateTxCreatedTime(sqlDB, "txs", transaction.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
 						}
@@ -322,7 +321,7 @@ var _ = Describe("Lightnode db", func() {
 
 						txs := map[id.Hash]tx.Tx{}
 						for i := 0; i < 50; i++ {
-							transaction := RandomGoodTxUTF8(r)
+							transaction := txutil.RandomGoodTx(r)
 							txs[transaction.Hash] = transaction
 							Expect(db.InsertTx(transaction)).To(Succeed())
 							Expect(db.UpdateStatus(transaction.Hash, TxStatusConfirmed)).To(Succeed())
@@ -350,7 +349,7 @@ var _ = Describe("Lightnode db", func() {
 						Expect(db.Init()).Should(Succeed())
 						defer cleanUp(sqlDB)
 
-						transaction := RandomGoodTxUTF8(r)
+						transaction := txutil.RandomGoodTx(r)
 						Expect(db.InsertTx(transaction)).To(Succeed())
 
 						// Ensure no data gets pruned before it is expired.
@@ -375,47 +374,3 @@ var _ = Describe("Lightnode db", func() {
 		})
 	}
 })
-
-func RandomGoodTxUTF8(r *rand.Rand) tx.Tx{
-	// Generate a random transaction selector.
-	randomSelector := txutil.RandomGoodTxSelector(r)
-
-	// Generate random transaction inputs.
-	input := RandomTxInput(r)
-
-	// Construct the transaction.
-	transaction, err := tx.NewTx(randomSelector, input)
-	if err != nil {
-		panic(err)
-	}
-	transaction.Version = tx.Version1 // The inputs we generate are for version 1 transactions.
-	transaction.Output = pack.NewTyped()
-
-	// Compute the transaction hash correctly, based on the other randomly
-	// generated fields.
-	hash, err := tx.NewTxHash(transaction.Version, transaction.Selector, transaction.Input)
-	if err != nil {
-		panic(err)
-	}
-	transaction.Hash = hash
-
-	return transaction
-}
-
-func RandomTxInput(r *rand.Rand) pack.Typed {
-	toBytes := pack.Bytes{}.Generate(r, r.Int()%100).Interface().(pack.Bytes)
-
-	input := pack.NewStruct(
-		"txid", pack.Bytes{}.Generate(r, r.Int()%100).Interface().(pack.Bytes),
-		"txindex", pack.U32(0).Generate(r, 1).Interface().(pack.U32),
-		"amount", pack.U256{}.Generate(r, 1).Interface().(pack.U256),
-		"payload", pack.Bytes{}.Generate(r, r.Int()%100).Interface().(pack.Bytes),
-		"phash", pack.Bytes32{}.Generate(r, 1).Interface().(pack.Bytes32),
-		"to", pack.String(hex.EncodeToString(toBytes)),
-		"nonce", pack.Bytes32{}.Generate(r, 1).Interface().(pack.Bytes32),
-		"nhash", pack.Bytes32{}.Generate(r, 1).Interface().(pack.Bytes32),
-		"gpubkey", pack.Bytes{}.Generate(r, r.Int()%100).Interface().(pack.Bytes),
-		"ghash", pack.Bytes32{}.Generate(r, 1).Interface().(pack.Bytes32),
-	)
-	return pack.Typed(input)
-}
