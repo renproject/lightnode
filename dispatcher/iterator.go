@@ -18,7 +18,6 @@ type Iterator interface {
 // firstResponseIterator returns the first successful response it gets and stop
 // waiting for responses from the rest darknodes.
 type firstResponseIterator struct {
-	responses *interfaceMap
 }
 
 // NewFirstResponseIterator creates a new firstResponseIterator.
@@ -28,25 +27,22 @@ func NewFirstResponseIterator() Iterator {
 
 // Collect implements the Iterator interface.
 func (iter firstResponseIterator) Collect(id interface{}, cancel context.CancelFunc, responses <-chan jsonrpc.Response) jsonrpc.Response {
-	iter.responses = newInterfaceMap(cap(responses))
 	defer cancel()
 
+	var jsonErr *jsonrpc.Error
 	for response := range responses {
 		if response.Error == nil {
 			return response
-		} else {
-			iter.responses.store(response)
 		}
-	}
-	most := iter.responses.most()
-
-	// Failed to get a valid response from any of the nodes (rare).
-	if most == nil {
-		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "unable to query the network", nil)
-		return jsonrpc.NewResponse(id, nil, &jsonErr)
+		jsonErr = response.Error
 	}
 
-	return most.(jsonrpc.Response)
+	if jsonErr == nil {
+		err := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "unable to query the network", nil)
+		jsonErr = &err
+	}
+
+	return jsonrpc.NewResponse(id, nil, jsonErr)
 }
 
 // majorityResponseIterator select and returns the response returned by majority

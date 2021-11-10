@@ -417,10 +417,8 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 
 	select {
 	case <-ctx.Done():
-		resolver.logger.Error("timeout when waiting for response: %v", ctx.Err())
 		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "request timed out", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
-
 	case res := <-reqWithResponder.Responder:
 		if res.Error != nil {
 			return jsonrpc.NewResponse(id, nil, res.Error)
@@ -488,10 +486,12 @@ func (resolver *Resolver) QueryShards(ctx context.Context, id interface{}, param
 
 	select {
 	case <-ctx.Done():
-		resolver.logger.Error("timeout when waiting for response: %v", ctx.Err())
 		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "request timed out", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	case response := <-reqWithResponder.Responder:
+		if response.Error != nil {
+			return jsonrpc.NewResponse(id, nil, response.Error)
+		}
 		raw, err := json.Marshal(response.Result)
 		if err != nil {
 			resolver.logger.Errorf("[resolver] error marshaling queryBlockState result: %v", err)
@@ -540,10 +540,13 @@ func (resolver *Resolver) QueryFees(ctx context.Context, id interface{}, params 
 
 	select {
 	case <-ctx.Done():
-		resolver.logger.Error("timeout when waiting for response: %v", ctx.Err())
 		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "request timed out", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	case response := <-reqWithResponder.Responder:
+		if response.Error != nil {
+			return jsonrpc.NewResponse(id, nil, response.Error)
+		}
+
 		raw, err := json.Marshal(response.Result)
 		if err != nil {
 			resolver.logger.Errorf("[resolver] error marshaling queryBlockState result: %v", err)
@@ -607,10 +610,13 @@ func (resolver *Resolver) QueryState(ctx context.Context, id interface{}, params
 
 	select {
 	case <-ctx.Done():
-		resolver.logger.Error("timeout when waiting for response: %v", ctx.Err())
 		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "request timed out", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	case response := <-reqWithResponder.Responder:
+		if response.Error != nil {
+			return jsonrpc.NewResponse(id, nil, response.Error)
+		}
+
 		raw, err := json.Marshal(response.Result)
 		if err != nil {
 			resolver.logger.Errorf("[resolver] error marshaling queryBlockState result: %v", err)
@@ -651,9 +657,8 @@ func (resolver *Resolver) QueryState(ctx context.Context, id interface{}, params
 		}
 
 		shards, err := v1.QueryStateResponseFromState(resolver.bindings, v2AssetState)
-
 		if err != nil {
-			resolver.logger.Error("failed to cast to QueryFees: %v", err)
+			resolver.logger.Errorf("failed to cast to QueryState: %v", err)
 			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed compatibility conversion", nil)
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
 		}
@@ -723,7 +728,6 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 
 	select {
 	case <-ctx.Done():
-		resolver.logger.Error("timeout when waiting for response: %v", ctx.Err())
 		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "request timed out", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	case res := <-reqWithResponder.Responder:
