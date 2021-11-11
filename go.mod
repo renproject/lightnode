@@ -48,5 +48,3 @@ replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
 replace github.com/renproject/solana-ffi => ./extern/solana-ffi
 
-replace github.com/renproject/darknode => ../darknode
-
