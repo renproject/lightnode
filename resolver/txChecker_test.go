@@ -115,7 +115,7 @@ var _ = Describe("Verifier", func() {
 			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
 		})
 
-		FIt("should accept a lock tx with valid gpubkey", func() {
+		It("should accept a lock tx with valid gpubkey", func() {
 			network := multichain.NetworkMainnet
 			r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 			bindings := new(binding.Callbacks)
