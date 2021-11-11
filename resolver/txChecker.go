@@ -69,6 +69,8 @@ func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings
 	if err != nil {
 		panic(fmt.Sprintf("encoding shard state: %v", err))
 	}
+	// TODO: Once key rotation is enabled, we will need to watch for epochs and
+	// update the corresponding public keys.
 	pubkeyBytes, err := surge.ToBinary(pubkey)
 	if err != nil {
 		panic(fmt.Sprintf("invalid renvm public key: %v", err))
