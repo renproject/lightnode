@@ -67,7 +67,7 @@ var _ = Describe("Verifier", func() {
 				amount := tx.Input.Get("amount").(pack.U256)
 				gpubkey := tx.Input.Get("gpubkey").(pack.Bytes)
 				ghash := tx.Input.Get("ghash").(pack.Bytes32)
-				bindings.HandleUTXOLockInfo = func(ctx context.Context, chain multichain.Chain, asset multichain.Asset, outpoint multichain.UTXOutpoint) (multichain.UTXOutput, error) {
+				bindings.HandleUTXOLockInfo = func(ctx context.Context, chain multichain.Chain, outpoint multichain.UTXOutpoint) (multichain.UTXOutput, error) {
 					txid := tx.Input.Get("txid").(pack.Bytes)
 					txindex := tx.Input.Get("txindex").(pack.U32)
 
@@ -137,7 +137,7 @@ var _ = Describe("Verifier", func() {
 				amount := tx.Input.Get("amount").(pack.U256)
 				gpubkey := tx.Input.Get("gpubkey").(pack.Bytes)
 				ghash := tx.Input.Get("ghash").(pack.Bytes32)
-				bindings.HandleUTXOLockInfo = func(ctx context.Context, chain multichain.Chain, asset multichain.Asset, outpoint multichain.UTXOutpoint) (multichain.UTXOutput, error) {
+				bindings.HandleUTXOLockInfo = func(ctx context.Context, chain multichain.Chain, outpoint multichain.UTXOutpoint) (multichain.UTXOutput, error) {
 					txid := tx.Input.Get("txid").(pack.Bytes)
 					txindex := tx.Input.Get("txindex").(pack.U32)
 					gwPubKeyScript, err := engine.UTXOGatewayPubKeyScript(tx.Selector.Source(), tx.Selector.Asset(), gpubkey, ghash)
