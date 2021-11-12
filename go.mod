@@ -18,10 +18,10 @@ require (
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.10.1
 	github.com/renproject/aw v0.5.3
-	github.com/renproject/darknode v0.5.3-0.20211014053258-4652de0b5ddb
+	github.com/renproject/darknode v0.5.3-0.20211112032028-81b06526047f
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
-	github.com/renproject/multichain v0.4.4
+	github.com/renproject/multichain v0.5.1
 	github.com/renproject/pack v0.2.11
 	github.com/renproject/phi v0.1.0
 	github.com/renproject/surge v1.2.6
