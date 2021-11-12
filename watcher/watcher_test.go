@@ -134,7 +134,7 @@ var _ = Describe("Watcher", func() {
 			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
 				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
 				Confirmations: pack.U64(0),
-				Registry:      pack.String("0x7725908D3C76Efc5aDaCAf2A1C79977511095d5e"),
+				Registry:      pack.String("0x707bBd01A54958d1c0303b29CAfA9D9fB2D61C10"),
 				Extras: map[pack.String]pack.String{
 					"protocol": "0x9e2Ed544eE281FBc4c00f8cE7fC2Ff8AbB4899D1",
 				},
@@ -600,7 +600,7 @@ var _ = Describe("Watcher", func() {
 				WithChainOptions(multichain.Ethereum, binding.ChainOptions{
 					RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
 					Confirmations: pack.U64(0),
-					Registry:      pack.String("0x7725908D3C76Efc5aDaCAf2A1C79977511095d5e"),
+					Registry:      pack.String("0x707bBd01A54958d1c0303b29CAfA9D9fB2D61C10"),
 					Extras: map[pack.String]pack.String{
 						"protocol": "0x9e2Ed544eE281FBc4c00f8cE7fC2Ff8AbB4899D1",
 					},
