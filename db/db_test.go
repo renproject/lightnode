@@ -14,11 +14,11 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/lightnode/db"
 	. "github.com/renproject/lightnode/testutils"
-	
-	"github.com/renproject/id"
-	"github.com/renproject/pack"
+
 	"github.com/renproject/darknode/tx"
 	"github.com/renproject/darknode/tx/txutil"
+	"github.com/renproject/id"
+	"github.com/renproject/pack"
 )
 
 const (

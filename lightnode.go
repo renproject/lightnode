@@ -132,7 +132,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 			hostChains[selector.Destination()] = true
 		}
 	}
-	verifier := resolver.NewVerifier(hostChains, verifierBindings)
+	verifier := resolver.NewVerifier(hostChains, verifierBindings, options.DistPubKey)
 	resolverI := resolver.New(options.Network, logger, cacher, multiStore, db, serverOptions, versionStore, gpubkeyStore, bindings, verifier)
 	limiter := resolver.NewRateLimiter(resolver.RateLimiterConf{
 		GlobalMethodRate: options.LimiterGlobalRates,

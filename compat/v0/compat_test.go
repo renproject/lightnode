@@ -95,8 +95,9 @@ var _ = Describe("Compat V0", func() {
 				MaxConfirmations: pack.MaxU64,
 			})
 
+		key := id.NewPrivKey()
 		bindings := binding.New(bindingsOpts)
-		verifier := resolver.NewVerifier(hostChains, bindings)
+		verifier := resolver.NewVerifier(hostChains, bindings, key.PubKey())
 		return verifier
 	}
 

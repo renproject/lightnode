@@ -15,42 +15,47 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type mockAccountTx struct {
+type MockAccountTx struct {
+	TxHash pack.Bytes
+	TxFrom multichain.Address
+	TxTo multichain.Address
+	TxValue pack.U256
+	TxNonce pack.U256
 }
 
-func (tx mockAccountTx) Hash() pack.Bytes {
-	return pack.Bytes{}
+func (tx MockAccountTx) Hash() pack.Bytes {
+	return tx.TxHash
 }
 
-func (tx mockAccountTx) From() multichain.Address {
-	return ""
+func (tx MockAccountTx) From() multichain.Address {
+	return tx.TxFrom
 }
 
-func (tx mockAccountTx) To() multichain.Address {
-	return ""
+func (tx MockAccountTx) To() multichain.Address {
+	return tx.TxTo
 }
 
-func (tx mockAccountTx) Value() pack.U256 {
-	return pack.NewU256([32]byte{})
+func (tx MockAccountTx) Value() pack.U256 {
+	return tx.TxValue
 }
 
-func (tx mockAccountTx) Nonce() pack.U256 {
-	return pack.NewU256([32]byte{})
+func (tx MockAccountTx) Nonce() pack.U256 {
+	return tx.TxNonce
 }
 
-func (tx mockAccountTx) Payload() multichain.ContractCallData {
+func (tx MockAccountTx) Payload() multichain.ContractCallData {
 	return []byte{}
 }
 
-func (tx mockAccountTx) Sighashes() ([]pack.Bytes32, error) {
+func (tx MockAccountTx) Sighashes() ([]pack.Bytes32, error) {
 	return []pack.Bytes32{}, nil
 }
 
-func (tx mockAccountTx) Sign(signatures []pack.Bytes65, pubKey pack.Bytes) error {
+func (tx MockAccountTx) Sign(signatures []pack.Bytes65, pubKey pack.Bytes) error {
 	return nil
 }
 
-func (tx mockAccountTx) Serialize() (pack.Bytes, error) {
+func (tx MockAccountTx) Serialize() (pack.Bytes, error) {
 	return pack.Bytes{}, nil
 }
 
@@ -81,7 +86,7 @@ func (b mockBindings) AccountBurnInfo(ctx context.Context, chain multichain.Chai
 }
 
 func (b mockBindings) AccountLockInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, txid pack.Bytes) (multichain.AccountTx, error) {
-	return mockAccountTx{}, nil
+	return MockAccountTx{}, nil
 }
 
 func (b mockBindings) UTXOLockInfo(ctx context.Context, chain multichain.Chain, asset multichain.Asset, outpoint multichain.UTXOutpoint) (multichain.UTXOutput, error) {
