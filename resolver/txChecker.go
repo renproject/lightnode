@@ -14,11 +14,13 @@ import (
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
+	"github.com/renproject/id"
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/http"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 	"github.com/renproject/phi"
+	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
 )
 
@@ -41,7 +43,7 @@ type verifier struct {
 	contract *chainstate.Contract
 }
 
-func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings) Verifier {
+func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings, pubkey *id.PubKey) Verifier {
 	// Convert host chains map to sorted list.
 	chains := make([]string, 0, len(hostChains))
 	for chain := range hostChains {
@@ -67,6 +69,12 @@ func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings
 	if err != nil {
 		panic(fmt.Sprintf("encoding shard state: %v", err))
 	}
+	// TODO: Once key rotation is enabled, we will need to watch for epochs and
+	// update the corresponding public keys.
+	pubkeyBytes, err := surge.ToBinary(pubkey)
+	if err != nil {
+		panic(fmt.Sprintf("invalid renvm public key: %v", err))
+	}
 	contractState, err := pack.Encode(engine.XState{
 		LatestHeight:  pack.NewU256([32]byte{}),
 		GasCap:        pack.NewU256([32]byte{}),
@@ -77,7 +85,7 @@ func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings
 		Shards: []engine.XStateShard{
 			{
 				Shard:  pack.Bytes32{},
-				PubKey: pack.Bytes{},
+				PubKey: pubkeyBytes,
 				Queue:  []engine.XStateShardQueueItem{},
 				State:  shardState,
 			},

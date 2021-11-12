@@ -141,6 +141,8 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 					return true
 				}
 
+				// RenJS treats "" reverts as errors, so for now we must remove
+				// the field entirely in case of empty strings.
 				var output engine.LockMintBurnReleaseOutput
 				err = pack.Decode(&output, tx.Tx.Output)
 				if err != nil {
@@ -148,7 +150,7 @@ func (cacher *Cacher) dispatch(id [32]byte, msg http.RequestWithResponder) {
 					return false
 				}
 				if output.Revert.Equal("") {
-					v1TxOutput := v1.TxOutputFromV2QueryTxOutput(output)
+					v1TxOutput := v1.RemoveRevertString(output)
 					tx.Tx.Output = v1TxOutput
 					response = jsonrpc.NewResponse(msg.ID, tx, nil)
 				}

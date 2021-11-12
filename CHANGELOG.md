@@ -1,11 +1,12 @@
 ## 0.4.8
 
 - Updates for gateway contracts v2.0.0
-- Update Multichain to v0.4.3
+- Update Multichain to v0.4.4
 
 ## 0.4.7
 
 - Fix BCH gateway validation
+- Update Multichain to v0.4.3
 
 ## 0.4.6
 

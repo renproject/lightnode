@@ -41,11 +41,11 @@ var _ = Describe("Compat V0", func() {
 		Expect(stateResponse.State.Bitcoin.Gaslimit).Should(Equal("3"))
 	})
 
-	It("should omit empty revert reasons from a queryTxResponse", func() {
+	It("should omit revert reasons from a queryTxResponse", func() {
 		output := engine.LockMintBurnReleaseOutput{
 			Revert: "some reason",
 		}
-		txResponse := v1.TxOutputFromV2QueryTxOutput(output)
+		txResponse := v1.RemoveRevertString(output)
 
 		b, err := json.Marshal(txResponse)
 		Expect(err).ShouldNot(HaveOccurred())
