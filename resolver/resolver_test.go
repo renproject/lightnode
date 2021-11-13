@@ -49,6 +49,21 @@ func (v mockVerifier) VerifyTx(ctx context.Context, tx tx.Tx) error {
 	return nil
 }
 
+var bindingsOpts = binding.DefaultOptions().
+	WithNetwork("localnet").
+	WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
+		RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
+		Confirmations: pack.U64(0),
+	}).
+	WithChainOptions(multichain.Ethereum, binding.ChainOptions{
+		RPC:              pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
+		Confirmations:    pack.U64(0),
+		Protocol:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+		MaxConfirmations: pack.MaxU64,
+	})
+
+var bindings = binding.New(bindingsOpts)
+
 var _ = Describe("Resolver", func() {
 	init := func(ctx context.Context) (*Resolver, jsonrpc.Validator, *redis.Client) {
 		logger := logrus.New()
@@ -87,21 +102,6 @@ var _ = Describe("Resolver", func() {
 		btcTxHash := utxo.TxHash
 		key := fmt.Sprintf("amount_%s_%s", btcTxHash, vout)
 		client.Set(key, 200000, 0)
-
-		bindingsOpts := binding.DefaultOptions().
-			WithNetwork("localnet").
-			WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
-				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
-				Confirmations: pack.U64(0),
-			}).
-			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-				RPC:              pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
-				Confirmations:    pack.U64(0),
-				Protocol:         pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
-				MaxConfirmations: pack.MaxU64,
-			})
-
-		bindings := binding.New(bindingsOpts)
 
 		cacher := testutils.NewMockCacher()
 		go cacher.Run(ctx)
@@ -513,7 +513,7 @@ var _ = Describe("Resolver", func() {
 
 		// Submit tx to ensure that it can be queried against
 		params := ParamsSubmitGateway{
-			Gateway: scriptAddress.EncodeAddress(),
+			Gateway: "bchtest:" + scriptAddress.EncodeAddress(),
 			Tx:      mocktx,
 		}
 

@@ -98,6 +98,20 @@ func (fetcher MockBurnLogFetcher) FetchBurnLogs(ctx context.Context, from uint64
 	return x, nil
 }
 
+var bindingsOpts = binding.DefaultOptions().
+	WithNetwork("localnet").
+	WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
+		RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
+		Confirmations: pack.U64(0),
+	}).
+	WithChainOptions(multichain.Ethereum, binding.ChainOptions{
+		RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
+		Confirmations: pack.U64(0),
+		Protocol:      pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
+	})
+
+var bindings = binding.New(bindingsOpts)
+
 // Flag to check whether ethereum client is progressing
 // We need to wait a few seconds for new blocks,
 // so it is something we only want to do once
@@ -125,19 +139,6 @@ var _ = Describe("Watcher", func() {
 		}
 
 		burnIn := make(chan BurnLogResult)
-		bindingsOpts := binding.DefaultOptions().
-			WithNetwork("localnet").
-			WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
-				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/bitcoind"),
-				Confirmations: pack.U64(0),
-			}).
-			WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-				RPC:           pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
-				Confirmations: pack.U64(0),
-				Protocol:      pack.String("0x5045E727D9D9AcDe1F6DCae52B078EC30dC95455"),
-			})
-
-		bindings := binding.New(bindingsOpts)
 		if err != nil {
 			logger.Panicf("bad bindings: %v", err)
 		}
