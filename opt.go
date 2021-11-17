@@ -22,7 +22,7 @@ var (
 	DefaultMaxGatewayCount           = 10000
 	DefaultServerTimeout             = 15 * time.Second
 	DefaultClientTimeout             = 15 * time.Second
-	DefaultTTL                       = 3 * time.Second
+	DefaultTTL                       = 15 * time.Second
 	DefaultUpdaterPollRate           = 5 * time.Minute
 	DefaultConfirmerPollRate         = confirmer.DefaultPollInterval
 	DefaultWatcherPollRate           = 15 * time.Second
