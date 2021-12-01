@@ -63,8 +63,10 @@ func main() {
 	if err != nil {
 		logger.Fatalf("failed to fetch config from any bootstrap node")
 	}
-
 	options.Whitelist = conf.Whitelist
+
+	chainOptions := parseChainOptions(conf)
+	options = options.WithChains(chainOptions)
 
 	// Replace Darknode whitelist with a custom one if it is set.
 	if os.Getenv("WHITELIST") != "" {
@@ -126,7 +128,7 @@ func main() {
 
 func getConfigFromBootstrap(ctx context.Context, logger logrus.FieldLogger, addrs []wire.Address) (jsonrpc.ResponseQueryConfig, error) {
 	for i, addr := range addrs {
-		conf, err := fetchConfig(ctx, addrToUrl(addr, logger), logger, time.Minute)
+		conf, err := fetchConfig(ctx, addrToUrl(addr, logger), logger, 15*time.Second)
 		if i == len(addrs)-1 && err != nil {
 			return conf, err
 		}
@@ -345,99 +347,65 @@ func parseOptions() lightnode.Options {
 		options = options.WithLimiterGlobalRates(parseRates("LIMITER_GLOBAL_RATE"))
 	}
 
-	chains := map[multichain.Chain]binding.ChainOptions{}
-	if os.Getenv("RPC_ARBITRUM") != "" {
-		chains[multichain.Arbitrum] = binding.ChainOptions{
-			RPC:      pack.String(os.Getenv("RPC_ARBITRUM")),
-			Registry: pack.String(os.Getenv("GATEWAY_ARBITRUM")),
-		}
-	}
-	if os.Getenv("RPC_AVALANCHE") != "" {
-		chains[multichain.Avalanche] = binding.ChainOptions{
-			RPC:      pack.String(os.Getenv("RPC_AVALANCHE")),
-			Registry: pack.String(os.Getenv("GATEWAY_AVALANCHE")),
-		}
-	}
-	if os.Getenv("RPC_BINANCE") != "" {
-		chains[multichain.BinanceSmartChain] = binding.ChainOptions{
-			RPC:      pack.String(os.Getenv("RPC_BINANCE")),
-			Registry: pack.String(os.Getenv("GATEWAY_BINANCE")),
-		}
-	}
-	if os.Getenv("RPC_BITCOIN") != "" {
-		chains[multichain.Bitcoin] = binding.ChainOptions{
-			RPC: pack.String(os.Getenv("RPC_BITCOIN")),
-		}
-	}
-	if os.Getenv("RPC_BITCOIN_CASH") != "" {
-		chains[multichain.BitcoinCash] = binding.ChainOptions{
-			RPC: pack.String(os.Getenv("RPC_BITCOIN_CASH")),
-		}
-	}
-	if os.Getenv("RPC_DIGIBYTE") != "" {
-		chains[multichain.DigiByte] = binding.ChainOptions{
-			RPC: pack.String(os.Getenv("RPC_DIGIBYTE")),
-		}
-	}
-	if os.Getenv("RPC_DOGECOIN") != "" {
-		chains[multichain.Dogecoin] = binding.ChainOptions{
-			RPC: pack.String(os.Getenv("RPC_DOGECOIN")),
-		}
-	}
-	if os.Getenv("RPC_ETHEREUM") != "" {
-		chains[multichain.Ethereum] = binding.ChainOptions{
-			RPC:      pack.String(os.Getenv("RPC_ETHEREUM")),
-			Registry: pack.String(os.Getenv("GATEWAY_ETHEREUM")),
-			Extras: map[pack.String]pack.String{
-				"protocol": pack.String(os.Getenv("EXTRAS_ETHEREUM_PROTOCOL")),
-			},
-		}
-	}
-	if os.Getenv("RPC_FANTOM") != "" {
-		chains[multichain.Fantom] = binding.ChainOptions{
-			RPC:      pack.String(os.Getenv("RPC_FANTOM")),
-			Registry: pack.String(os.Getenv("GATEWAY_FANTOM")),
-		}
-	}
-	if os.Getenv("RPC_FILECOIN") != "" {
-		chains[multichain.Filecoin] = binding.ChainOptions{
-			RPC: pack.String(os.Getenv("RPC_FILECOIN")),
-			Extras: map[pack.String]pack.String{
-				"authToken": pack.String(os.Getenv("EXTRAS_FILECOIN_AUTH")),
-			},
-		}
-	}
-	if os.Getenv("RPC_GOERLI") != "" {
-		chains[multichain.Goerli] = binding.ChainOptions{
-			RPC:      pack.String(os.Getenv("RPC_GOERLI")),
-			Registry: pack.String(os.Getenv("GATEWAY_GOERLI")),
-		}
-	}
-	if os.Getenv("RPC_POLYGON") != "" {
-		chains[multichain.Polygon] = binding.ChainOptions{
-			RPC:      pack.String(os.Getenv("RPC_POLYGON")),
-			Registry: pack.String(os.Getenv("GATEWAY_POLYGON")),
-		}
-	}
-	if os.Getenv("RPC_SOLANA") != "" {
-		chains[multichain.Solana] = binding.ChainOptions{
-			RPC:      pack.String(os.Getenv("RPC_SOLANA")),
-			Registry: pack.String(os.Getenv("GATEWAY_SOLANA")),
-		}
-	}
-	if os.Getenv("RPC_TERRA") != "" {
-		chains[multichain.Terra] = binding.ChainOptions{
-			RPC: pack.String(os.Getenv("RPC_TERRA")),
-		}
-	}
-	if os.Getenv("RPC_ZCASH") != "" {
-		chains[multichain.Zcash] = binding.ChainOptions{
-			RPC: pack.String(os.Getenv("RPC_ZCASH")),
-		}
-	}
-	options = options.WithChains(chains)
-
 	return options
+}
+
+func parseChainOptions(config jsonrpc.ResponseQueryConfig) map[multichain.Chain]binding.ChainOptions {
+	chainOptions := map[multichain.Chain]binding.ChainOptions{}
+	chains := []multichain.Chain{
+		multichain.Arbitrum,
+		multichain.Avalanche,
+		multichain.BinanceSmartChain,
+		multichain.Bitcoin,
+		multichain.BitcoinCash,
+		multichain.DigiByte,
+		multichain.Dogecoin,
+		multichain.Ethereum,
+		multichain.Fantom,
+		multichain.Filecoin,
+		multichain.Goerli,
+		multichain.Polygon,
+		multichain.Solana,
+		multichain.Terra,
+		multichain.Zcash,
+	}
+	for _, chain := range chains {
+		var envName string
+		switch chain {
+		case multichain.BinanceSmartChain:
+			envName = "RPC_BINANCE"
+		case multichain.BitcoinCash:
+			envName = "RPC_BITCOIN_CASH"
+		default:
+			envName = fmt.Sprintf("RPC_%v", strings.ToUpper(string(chain)))
+		}
+		rpc := os.Getenv(envName)
+		if rpc != "" {
+			opts := binding.ChainOptions{
+				RPC: pack.String(rpc),
+			}
+
+			// For host chains
+			if registry, ok := config.Registries[chain]; ok {
+				opts.Registry = registry
+			}
+
+			// Special cases
+			switch chain {
+			case multichain.Ethereum:
+				opts.Extras = map[pack.String]pack.String{
+					"protocol": pack.String(os.Getenv("EXTRAS_ETHEREUM_PROTOCOL")),
+				}
+			case multichain.Filecoin:
+				opts.Extras = map[pack.String]pack.String{
+					"authToken": pack.String(os.Getenv("EXTRAS_FILECOIN_AUTH")),
+				}
+			}
+
+			chainOptions[chain] = opts
+		}
+	}
+	return chainOptions
 }
 
 func parseNetwork(name string) multichain.Network {
