@@ -13,6 +13,8 @@ import (
 	"github.com/renproject/pack"
 )
 
+var ErrNotFound = sql.ErrNoRows
+
 type TxStatus uint8
 
 const (

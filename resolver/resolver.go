@@ -313,8 +313,13 @@ func (resolver *Resolver) SubmitGateway(ctx context.Context, id interface{}, par
 func (resolver *Resolver) QueryGateway(ctx context.Context, id interface{}, params *ParamsQueryGateway, req *http.Request) jsonrpc.Response {
 	gateway, err := resolver.db.Gateway(params.Gateway)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeResultNotFound, "not found", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
+
 		resolver.logger.Errorf("[responder] cannot get gateway for gatewayAddress: %v :%v", params.Gateway, err)
-		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to query txid", nil)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to query gateway", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	}
 
@@ -325,6 +330,11 @@ func (resolver *Resolver) QueryGateway(ctx context.Context, id interface{}, para
 func (resolver *Resolver) QueryTxByTxid(ctx context.Context, id interface{}, params *ParamsQueryTxByTxid, req *http.Request) jsonrpc.Response {
 	txs, err := resolver.db.TxsByTxid(params.Txid)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeResultNotFound, "not found", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
+
 		resolver.logger.Errorf("[responder] cannot get txs for txid: %v :%v", params.Txid, err)
 		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to query txid", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
