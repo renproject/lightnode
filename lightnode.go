@@ -37,7 +37,7 @@ type Lightnode struct {
 	server    *jsonrpc.Server
 	updater   updater.Updater
 	confirmer confirmer.Confirmer
-	watchers  map[multichain.Chain]map[multichain.Asset]watcher.Watcher
+	watchers  []watcher.Watcher
 
 	// Tasks
 	cacher     phi.Task
@@ -151,39 +151,48 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		bindings,
 	)
 
-	watchers := map[multichain.Chain]map[multichain.Asset]watcher.Watcher{}
-	solClient := solanaRPC.NewClient(bindingsOpts.Chains[multichain.Solana].RPC.String())
+	// Parsing all the host chains and supported assets on each host chain from the
+	watchingAssets := map[multichain.Chain][]multichain.Asset{}
 	for _, selector := range options.Whitelist {
-		if !selector.IsBurn() || !selector.IsRelease() {
-			continue
-		}
 		chain := selector.Source()
 		asset := selector.Asset()
-		if watchers[chain] == nil {
-			watchers[chain] = map[multichain.Asset]watcher.Watcher{}
+		if _, ok := watchingAssets[chain]; !ok {
+			watchingAssets[chain] = []multichain.Asset{}
 		}
-		if _, ok := watchers[chain][asset]; ok {
-			continue
-		}
-		var burnLogFetcher watcher.BurnLogFetcher
-		var blockHeightFetcher watcher.BlockHeightFetcher
+		watchingAssets[chain] = append(watchingAssets[chain], asset)
+	}
+
+	watchers := make([]watcher.Watcher, 0)
+	solClient := solanaRPC.NewClient(bindingsOpts.Chains[multichain.Solana].RPC.String())
+	for chain, assets := range watchingAssets {
+		opts := watcher.DefaultOptions().
+			WithLogger(logger).
+			WithAssets(assets).
+			WithNetwork(options.Network).
+			WithChain(chain).
+			WithConfidenceInterval(options.WatcherConfidenceInterval).
+			WithMaxBlockAdvance(options.WatcherMaxBlockAdvance).
+			WithPollInterval(options.WatcherPollRate)
+
 		if chain == multichain.Solana {
-			gatewayAddr := bindings.ContractGateway(chain, asset)
-			if gatewayAddr == "" {
-				continue
+			for _, asset := range assets {
+				opts = opts.WithAssets([]multichain.Asset{asset})
+				gatewayAddr := bindings.ContractGateway(chain, asset)
+				if gatewayAddr == "" {
+					logger.Errorf("missing contract gateway %v on Solana", asset)
+					continue
+				}
+				fetcher := watcher.NewSolFetcher(solClient, string(gatewayAddr))
+				w := watcher.NewWatcher(opts, fetcher, bindings, resolverI, client)
+				watchers = append(watchers, w)
+				logger.Infof("watching %v on %v", asset, chain)
 			}
-			burnLogFetcher = watcher.NewSolFetcher(solClient, string(gatewayAddr))
-			blockHeightFetcher = watcher.NewSolFetcher(solClient, string(gatewayAddr))
 		} else {
-			gateway := bindings.MintGateway(chain, asset)
-			if gateway == nil {
-				continue
-			}
-			burnLogFetcher = watcher.NewEthBurnLogFetcher(gateway)
-			blockHeightFetcher = watcher.NewEthBlockHeightFetcher(bindings.EthereumClient(chain))
+			fetcher := watcher.NewEthFetcher(chain, bindings, assets)
+			w := watcher.NewWatcher(opts, fetcher, bindings, resolverI, client)
+			watchers = append(watchers, w)
+			logger.Infof("watching %v", chain)
 		}
-		watchers[chain][selector.Asset()] = watcher.NewWatcher(logger, options.Network, selector, verifierBindings, burnLogFetcher, blockHeightFetcher, resolverI, client, options.WatcherPollRate, options.WatcherMaxBlockAdvance, options.WatcherConfidenceInterval)
-		logger.Info("watching", selector)
 	}
 
 	return Lightnode{
@@ -207,10 +216,8 @@ func (lightnode Lightnode) Run(ctx context.Context) {
 
 	// Note: the following should be disabled when running locally.
 	go lightnode.confirmer.Run(ctx)
-	for _, assetMap := range lightnode.watchers {
-		for _, watcher := range assetMap {
-			go watcher.Run(ctx)
-		}
+	for _, watcher := range lightnode.watchers {
+		go watcher.Run(ctx)
 	}
 
 	lightnode.server.Listen(ctx, fmt.Sprintf(":%s", lightnode.options.Port))

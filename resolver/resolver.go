@@ -23,7 +23,6 @@ import (
 	"github.com/renproject/lightnode/db"
 	lhttp "github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
-	"github.com/renproject/lightnode/watcher"
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/bitcoincash"
 	"github.com/renproject/multichain/chain/zcash"
@@ -185,19 +184,19 @@ func (resolver *Resolver) validateGateway(gateway string, tx tx.Tx, input Partia
 		scriptAddressStr := ""
 		switch tx.Selector.Asset().OriginChain() {
 		case multichain.Zcash:
-			scriptAddress, err := zcash.NewAddressScriptHash(script, watcher.ZcashNetParams(resolver.network))
+			scriptAddress, err := zcash.NewAddressScriptHash(script, v0.ZcashNetParams(resolver.network))
 			if err != nil {
 				return fmt.Errorf("unable to generate zcash address for UTXOGatewayScript: %v", err)
 			}
 			scriptAddressStr = scriptAddress.EncodeAddress()
 		case multichain.BitcoinCash:
-			scriptAddress, err := bitcoincash.NewAddressScriptHash(script, watcher.NetParams(tx.Selector.Asset().OriginChain(), resolver.network))
+			scriptAddress, err := bitcoincash.NewAddressScriptHash(script, v0.NetParams(tx.Selector.Asset().OriginChain(), resolver.network))
 			if err != nil {
 				return fmt.Errorf("unable to generate bitcoin cash address for UTXOGatewayScript: %v", err)
 			}
 			scriptAddressStr = scriptAddress.EncodeAddress()
 		default:
-			scriptAddress, err := btcutil.NewAddressScriptHash(script, watcher.NetParams(tx.Selector.Asset().OriginChain(), resolver.network))
+			scriptAddress, err := btcutil.NewAddressScriptHash(script, v0.NetParams(tx.Selector.Asset().OriginChain(), resolver.network))
 			if err != nil {
 				return fmt.Errorf("unable to generate address for UTXOGatewayScript: %v", err)
 			}
