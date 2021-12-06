@@ -183,7 +183,7 @@ func (fetcher solFetcher) FetchBurnLogs(ctx context.Context, from, to uint64) ([
 		// manual intervention will be required to skip a burns where the signatures are no longer
 		// returned by the nodes
 		if len(signatures) == 0 {
-			return nil, fmt.Errorf("Burn signature not confirmed")
+			return nil, fmt.Errorf("burn signature not confirmed")
 		}
 
 		event := EventInfo{
