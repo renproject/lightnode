@@ -292,7 +292,7 @@ func RandomGoodTxid(r *rand.Rand, selector tx.Selector) pack.Bytes {
 	case multichain.Filecoin:
 		return pack.Bytes{}.Generate(r, 38).Interface().(pack.Bytes)
 
-	// Chain chains
+	// Host chains
 	case multichain.Arbitrum, multichain.Avalanche, multichain.BinanceSmartChain,
 		multichain.Ethereum, multichain.Fantom, multichain.Goerli,
 		multichain.Moonbeam, multichain.Polygon, multichain.Solana:

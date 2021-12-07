@@ -154,6 +154,9 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	// Parsing all the host chains and supported assets on each host chain from the
 	watchingAssets := map[multichain.Chain][]multichain.Asset{}
 	for _, selector := range options.Whitelist {
+		if !selector.IsBurn() || !selector.IsRelease() {
+			continue
+		}
 		chain := selector.Source()
 		asset := selector.Asset()
 		if _, ok := watchingAssets[chain]; !ok {
