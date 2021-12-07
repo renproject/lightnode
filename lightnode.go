@@ -182,7 +182,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 				opts = opts.WithAssets([]multichain.Asset{asset})
 				gatewayAddr := bindings.ContractGateway(chain, asset)
 				if gatewayAddr == "" {
-					logger.Errorf("missing contract gateway %v on Solana", asset)
+					logger.Warnf("missing contract gateway %v on Solana", asset)
 					continue
 				}
 				fetcher := watcher.NewSolFetcher(solClient, string(gatewayAddr))
