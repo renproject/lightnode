@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/go-redis/redis/v7"
 	"github.com/renproject/darknode/binding"
