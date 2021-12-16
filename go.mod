@@ -5,10 +5,10 @@ go 1.16
 require (
 	github.com/alicebob/miniredis/v2 v2.14.3
 	github.com/btcsuite/btcd v0.22.0-beta
-	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
+	github.com/btcsuite/btcutil v1.0.3-0.20211129182920-9c4bbabe7acd
 	github.com/cosmos/cosmos-sdk v0.44.0
 	github.com/dfuse-io/solana-go v0.2.1-0.20210622202728-1d0a90faa723
-	github.com/ethereum/go-ethereum v1.10.7
+	github.com/ethereum/go-ethereum v1.10.13
 	github.com/evalphobia/logrus_sentry v0.8.2
 	github.com/filecoin-project/go-address v0.0.5
 	github.com/go-redis/redis/v7 v7.2.0
@@ -23,15 +23,16 @@ require (
 	github.com/renproject/darknode v0.5.3-0.20211129013053-b9db92d76547
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
-	github.com/renproject/multichain v0.5.1
-	github.com/renproject/pack v0.2.11
+	github.com/renproject/multichain v0.5.3-0.20211216145209-fc1f29aaf82e
+	github.com/renproject/pack v0.2.12
 	github.com/renproject/phi v0.1.0
-	github.com/renproject/surge v1.2.6
+	github.com/renproject/surge v1.2.7
 	github.com/sirupsen/logrus v1.7.0
 	github.com/xlab/c-for-go v0.0.0-20201223145653-3ba5db515dcb // indirect
 	go.uber.org/zap v1.17.0
-	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
-	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324
+	golang.org/x/crypto v0.0.0-20211215153901-e495a2d5b3d3
+	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
+	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 )
 
 replace github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.3-alpha.regen.1
