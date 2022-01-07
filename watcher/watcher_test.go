@@ -200,6 +200,50 @@ var _ = Describe("Watcher", func() {
 			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
 		})
 
+		It("should convert the burn log to a renvm tx and submit to the resolver for Solana", func() {
+			redisClient := initRedis()
+			fetcher := &MockFetcher{}
+			bindings := initBindings()
+			resovler := &jsonrpcresolver.Callbacks{}
+			options := watcher.DefaultOptions().
+				WithNetwork(multichain.NetworkTestnet).
+				WithChain(multichain.Ethereum).
+				WithAssets([]multichain.Asset{multichain.BTC})
+			w := watcher.NewWatcher(options, fetcher, bindings, resovler, redisClient)
+
+			latestBlock := uint64(0)
+			test := func() bool {
+				// Make sure we are only pulling once
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+
+				// Simulate a burn event
+				event := RandomEventInfo()
+				fetcher.handleFetchBurnLogs = func(ctx context.Context, from, to uint64) ([]watcher.EventInfo, error) {
+					return []watcher.EventInfo{event}, nil
+				}
+				fetcher.handleLatestBlockHeight = func(ctx context.Context) (uint64, error) {
+					latestBlock += 10
+					return latestBlock, nil
+				}
+
+				resovler.SubmitTxHandler = func(ctx context.Context, i interface{}, tx *jsonrpc.ParamsSubmitTx, request *http.Request) jsonrpc.Response {
+					var input engine.LockMintBurnReleaseInput
+					Expect(pack.Decode(&input, tx.Tx.Input)).Should(Succeed())
+					Expect(input.Txid).Should(Equal(event.Txid))
+					Expect(input.Amount.Equal(event.Amount)).Should(BeTrue())
+					Expect(input.To).Should(Equal(pack.String(event.ToBytes)))
+					Expect(input.Nonce).Should(Equal(event.Nonce))
+					return jsonrpc.NewResponse(i, map[string]bool{"ok": true}, nil)
+				}
+				// Verify the burn tx sent to resolver
+				w.Run(ctx)
+				return true
+			}
+
+			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+		})
+
 		It("should not progress the pointer if we get any error fetching the log", func() {
 			redisClient := initRedis()
 			fetcher := &MockFetcher{}

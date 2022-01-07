@@ -91,7 +91,7 @@ var _ = Describe("fetcher", func() {
 			solClient := solanaRPC.NewClient("https://api.devnet.solana.com")
 
 			// For Solana, the block height is actually the burn count
-			fetcher := watcher.NewSolFetcher(solClient, string(gatewayAddr))
+			fetcher := watcher.NewSolFetcher(solClient, multichain.BTC, string(gatewayAddr))
 			latestBlock, err := fetcher.LatestBlockHeight(context.Background())
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(latestBlock).Should(BeNumerically(">", 0))
