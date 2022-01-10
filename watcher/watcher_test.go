@@ -207,7 +207,7 @@ var _ = Describe("Watcher", func() {
 			resovler := &jsonrpcresolver.Callbacks{}
 			options := watcher.DefaultOptions().
 				WithNetwork(multichain.NetworkTestnet).
-				WithChain(multichain.Ethereum).
+				WithChain(multichain.Solana).
 				WithAssets([]multichain.Asset{multichain.BTC})
 			w := watcher.NewWatcher(options, fetcher, bindings, resovler, redisClient)
 
