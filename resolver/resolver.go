@@ -23,7 +23,6 @@ import (
 	"github.com/renproject/lightnode/db"
 	lhttp "github.com/renproject/lightnode/http"
 	"github.com/renproject/lightnode/store"
-	"github.com/renproject/lightnode/watcher"
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/bitcoincash"
 	"github.com/renproject/multichain/chain/zcash"
@@ -185,19 +184,34 @@ func (resolver *Resolver) validateGateway(gateway string, tx tx.Tx, input Partia
 		scriptAddressStr := ""
 		switch tx.Selector.Asset().OriginChain() {
 		case multichain.Zcash:
-			scriptAddress, err := zcash.NewAddressScriptHash(script, watcher.ZcashNetParams(resolver.network))
+			scriptAddress, err := zcash.NewAddressScriptHash(script, v0.ZcashNetParams(resolver.network))
 			if err != nil {
 				return fmt.Errorf("unable to generate zcash address for UTXOGatewayScript: %v", err)
 			}
 			scriptAddressStr = scriptAddress.EncodeAddress()
 		case multichain.BitcoinCash:
-			scriptAddress, err := bitcoincash.NewAddressScriptHash(script, watcher.NetParams(tx.Selector.Asset().OriginChain(), resolver.network))
+			params := v0.NetParams(tx.Selector.Asset().OriginChain(), resolver.network)
+
+			// Decode then re-encode the address to ensure any "bitcoincash:"
+			// prefixes are stripped.
+			addrEncodeDecoder := bitcoincash.NewAddressEncodeDecoder(params)
+			rawAddr, err := addrEncodeDecoder.DecodeAddress(multichain.Address(gateway))
+			if err != nil {
+				return fmt.Errorf("decoding bitcoin cash gateway=%v: %v", gateway, err)
+			}
+			gatewayAddr, err := addrEncodeDecoder.EncodeAddress(rawAddr)
+			if err != nil {
+				return fmt.Errorf("encoding bitcoin cash gateway=%v (raw=%v): %v", gateway, rawAddr, err)
+			}
+			gateway = string(gatewayAddr)
+
+			scriptAddress, err := bitcoincash.NewAddressScriptHash(script, params)
 			if err != nil {
 				return fmt.Errorf("unable to generate bitcoin cash address for UTXOGatewayScript: %v", err)
 			}
 			scriptAddressStr = scriptAddress.EncodeAddress()
 		default:
-			scriptAddress, err := btcutil.NewAddressScriptHash(script, watcher.NetParams(tx.Selector.Asset().OriginChain(), resolver.network))
+			scriptAddress, err := btcutil.NewAddressScriptHash(script, v0.NetParams(tx.Selector.Asset().OriginChain(), resolver.network))
 			if err != nil {
 				return fmt.Errorf("unable to generate address for UTXOGatewayScript: %v", err)
 			}
@@ -314,8 +328,13 @@ func (resolver *Resolver) SubmitGateway(ctx context.Context, id interface{}, par
 func (resolver *Resolver) QueryGateway(ctx context.Context, id interface{}, params *ParamsQueryGateway, req *http.Request) jsonrpc.Response {
 	gateway, err := resolver.db.Gateway(params.Gateway)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeResultNotFound, "not found", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
+
 		resolver.logger.Errorf("[responder] cannot get gateway for gatewayAddress: %v :%v", params.Gateway, err)
-		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to query txid", nil)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to query gateway", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	}
 
@@ -326,6 +345,11 @@ func (resolver *Resolver) QueryGateway(ctx context.Context, id interface{}, para
 func (resolver *Resolver) QueryTxByTxid(ctx context.Context, id interface{}, params *ParamsQueryTxByTxid, req *http.Request) jsonrpc.Response {
 	txs, err := resolver.db.TxsByTxid(params.Txid)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeResultNotFound, "not found", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
+
 		resolver.logger.Errorf("[responder] cannot get txs for txid: %v :%v", params.Txid, err)
 		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to query txid", nil)
 		return jsonrpc.NewResponse(id, nil, &jsonErr)

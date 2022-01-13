@@ -34,7 +34,6 @@ import (
 	"github.com/renproject/lightnode/db"
 	"github.com/renproject/lightnode/store"
 	"github.com/renproject/lightnode/testutils"
-	"github.com/renproject/lightnode/watcher"
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/bitcoincash"
 	"github.com/renproject/multichain/chain/zcash"
@@ -458,7 +457,7 @@ var _ = Describe("Resolver", func() {
 
 		Expect(err).NotTo(HaveOccurred())
 
-		scriptAddress, err := btcutil.NewAddressScriptHash(script, watcher.NetParams(mocktx.Selector.Asset().OriginChain(), multichain.NetworkTestnet))
+		scriptAddress, err := btcutil.NewAddressScriptHash(script, v0.NetParams(mocktx.Selector.Asset().OriginChain(), multichain.NetworkTestnet))
 		Expect(err).NotTo(HaveOccurred())
 
 		// Submit tx to ensure that it can be queried against
@@ -511,7 +510,7 @@ var _ = Describe("Resolver", func() {
 		script, err := engine.UTXOGatewayScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
 		Expect(err).NotTo(HaveOccurred())
 
-		scriptAddress, err := bitcoincash.NewAddressScriptHash(script, watcher.NetParams(mocktx.Selector.Asset().OriginChain(), multichain.NetworkTestnet))
+		scriptAddress, err := bitcoincash.NewAddressScriptHash(script, v0.NetParams(mocktx.Selector.Asset().OriginChain(), multichain.NetworkTestnet))
 		Expect(err).NotTo(HaveOccurred())
 
 		// Submit tx to ensure that it can be queried against
@@ -547,7 +546,7 @@ var _ = Describe("Resolver", func() {
 		script, err := engine.UTXOGatewayScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
 		Expect(err).NotTo(HaveOccurred())
 
-		scriptAddress, err := zcash.NewAddressScriptHash(script, watcher.ZcashNetParams(multichain.NetworkTestnet))
+		scriptAddress, err := zcash.NewAddressScriptHash(script, v0.ZcashNetParams(multichain.NetworkTestnet))
 		Expect(err).NotTo(HaveOccurred())
 
 		// Submit tx to ensure that it can be queried against
@@ -583,7 +582,7 @@ var _ = Describe("Resolver", func() {
 		script, err := engine.UTXOGatewayScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
 		Expect(err).NotTo(HaveOccurred())
 
-		scriptAddress, err := zcash.NewAddressScriptHash(script, watcher.ZcashNetParams(multichain.NetworkTestnet))
+		scriptAddress, err := zcash.NewAddressScriptHash(script, v0.ZcashNetParams(multichain.NetworkTestnet))
 		Expect(err).NotTo(HaveOccurred())
 
 		// Submit tx to ensure that it can be queried against
@@ -621,7 +620,7 @@ var _ = Describe("Resolver", func() {
 			script, err := engine.UTXOGatewayScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
 			Expect(err).NotTo(HaveOccurred())
 
-			scriptAddress, err := zcash.NewAddressScriptHash(script, watcher.ZcashNetParams(multichain.NetworkTestnet))
+			scriptAddress, err := zcash.NewAddressScriptHash(script, v0.ZcashNetParams(multichain.NetworkTestnet))
 			Expect(err).NotTo(HaveOccurred())
 
 			// Submit tx to ensure that it can be queried against
