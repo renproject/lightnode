@@ -185,7 +185,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 					logger.Warnf("missing contract gateway %v on Solana", asset)
 					continue
 				}
-				fetcher := watcher.NewSolFetcher(solClient, string(gatewayAddr))
+				fetcher := watcher.NewSolFetcher(logger, solClient, asset, string(gatewayAddr))
 				w := watcher.NewWatcher(opts, fetcher, bindings, resolverI, client)
 				watchers = append(watchers, w)
 				logger.Infof("watching %v on %v", asset, chain)

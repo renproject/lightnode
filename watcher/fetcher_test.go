@@ -8,6 +8,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	solanaRPC "github.com/dfuse-io/solana-go/rpc"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -91,19 +92,26 @@ var _ = Describe("fetcher", func() {
 			solClient := solanaRPC.NewClient("https://api.devnet.solana.com")
 
 			// For Solana, the block height is actually the burn count
-			fetcher := watcher.NewSolFetcher(solClient, string(gatewayAddr))
+			logger := logrus.New()
+			fetcher := watcher.NewSolFetcher(logger, solClient, multichain.BTC, string(gatewayAddr))
 			latestBlock, err := fetcher.LatestBlockHeight(context.Background())
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(latestBlock).Should(BeNumerically(">", 0))
 
 			// Try latest 5 burn for time reason.
-			for i := latestBlock - 5; i <= latestBlock; i++ {
+			for i := latestBlock - 5; i < latestBlock; i++ {
 				events, err := fetcher.FetchBurnLogs(context.Background(), i, i+1)
+				Expect(err).ShouldNot(HaveOccurred())
 
-				// This err might be non-nil because some params in the event is invalid,
-				// so we ignore the check when err is not nil
-				if err == nil {
-					Expect(len(events)).Should(Equal(1))
+				for _, event := range events {
+					// Asset should be the expected asset
+					Expect(event.Asset).Should(Equal(multichain.BTC))
+
+					// Fields should be non-nil
+					Expect(event.Txid).ShouldNot(Equal(pack.Bytes{}))
+					Expect(event.Nonce).ShouldNot(Equal(pack.Bytes32{}))
+					Expect(event.Amount.GreaterThan(pack.NewU256FromU64(0))).Should(BeTrue())
+					Expect(event.ToBytes).ShouldNot(Equal(pack.Bytes{}))
 				}
 			}
 		})
