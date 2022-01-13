@@ -8,6 +8,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	solanaRPC "github.com/dfuse-io/solana-go/rpc"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -91,7 +92,8 @@ var _ = Describe("fetcher", func() {
 			solClient := solanaRPC.NewClient("https://api.devnet.solana.com")
 
 			// For Solana, the block height is actually the burn count
-			fetcher := watcher.NewSolFetcher(solClient, multichain.BTC, string(gatewayAddr))
+			logger := logrus.New()
+			fetcher := watcher.NewSolFetcher(logger, solClient, multichain.BTC, string(gatewayAddr))
 			latestBlock, err := fetcher.LatestBlockHeight(context.Background())
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(latestBlock).Should(BeNumerically(">", 0))
