@@ -15,6 +15,7 @@ import (
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/solana"
 	"github.com/renproject/pack"
+	"github.com/sirupsen/logrus"
 )
 
 type EventInfo struct {
@@ -105,20 +106,24 @@ func (fetcher ethFetcher) FetchBurnLogs(ctx context.Context, from, to uint64) ([
 }
 
 type solFetcher struct {
+	logger           logrus.FieldLogger
 	client           *solanaRPC.Client
+	asset            multichain.Asset
 	gatewayStatePubk solanaSDK.PublicKey
 	gatewayAddress   string
 }
 
-func NewSolFetcher(client *solanaRPC.Client, gatewayAddr string) Fetcher {
+func NewSolFetcher(logger logrus.FieldLogger, client *solanaRPC.Client, asset multichain.Asset, gatewayAddr string) Fetcher {
 	seeds := []byte("GatewayStateV0.1.4")
 	programDerivedAddress := solana.ProgramDerivedAddress(seeds, multichain.Address(gatewayAddr))
 	programPubk, err := solanaSDK.PublicKeyFromBase58(string(programDerivedAddress))
 	if err != nil {
-		panic("invalid pubk")
+		panic("invalid pubkey")
 	}
 	return solFetcher{
+		logger:           logger,
 		client:           client,
+		asset:            asset,
 		gatewayStatePubk: programPubk,
 		gatewayAddress:   gatewayAddr,
 	}
@@ -156,7 +161,8 @@ func (fetcher solFetcher) FetchBurnLogs(ctx context.Context, from, to uint64) ([
 
 		burnLogPubk, err := solanaSDK.PublicKeyFromBase58(string(burnLogDerivedAddress))
 		if err != nil {
-			return nil, err
+			fetcher.logger.Warnf("failed to decode solana burn, burnLogDerivedAddress = %v", burnLogDerivedAddress)
+			continue
 		}
 
 		// Fetch account data at gateway's state
@@ -187,6 +193,7 @@ func (fetcher solFetcher) FetchBurnLogs(ctx context.Context, from, to uint64) ([
 		}
 
 		event := EventInfo{
+			Asset:       fetcher.asset,
 			Txid:        base58.Decode(signatures[0].Signature),
 			Amount:      amount,
 			ToBytes:     []byte(recipient),
