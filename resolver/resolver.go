@@ -190,7 +190,22 @@ func (resolver *Resolver) validateGateway(gateway string, tx tx.Tx, input Partia
 			}
 			scriptAddressStr = scriptAddress.EncodeAddress()
 		case multichain.BitcoinCash:
-			scriptAddress, err := bitcoincash.NewAddressScriptHash(script, v0.NetParams(tx.Selector.Asset().OriginChain(), resolver.network))
+			params := v0.NetParams(tx.Selector.Asset().OriginChain(), resolver.network)
+
+			// Decode then re-encode the address to ensure any "bitcoincash:"
+			// prefixes are stripped.
+			addrEncodeDecoder := bitcoincash.NewAddressEncodeDecoder(params)
+			rawAddr, err := addrEncodeDecoder.DecodeAddress(multichain.Address(gateway))
+			if err != nil {
+				return fmt.Errorf("decoding bitcoin cash gateway=%v: %v", gateway, err)
+			}
+			gatewayAddr, err := addrEncodeDecoder.EncodeAddress(rawAddr)
+			if err != nil {
+				return fmt.Errorf("encoding bitcoin cash gateway=%v (raw=%v): %v", gateway, rawAddr, err)
+			}
+			gateway = string(gatewayAddr)
+
+			scriptAddress, err := bitcoincash.NewAddressScriptHash(script, params)
 			if err != nil {
 				return fmt.Errorf("unable to generate bitcoin cash address for UTXOGatewayScript: %v", err)
 			}
