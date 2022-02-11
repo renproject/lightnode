@@ -162,7 +162,11 @@ func (watcher Watcher) burnToParams(eventLog EventInfo) (jsonrpc.ParamsSubmitTx,
 		selector = tx.Selector(fmt.Sprintf("%v/from%v_to%v", eventLog.Asset, watcher.opts.Chain, eventLog.TargetChain))
 	}
 
-	to := multichain.Address(eventLog.ToBytes)
+	addressEncoder := v0.AddressEncodeDecoder(eventLog.TargetChain, watcher.opts.Network)
+	to, err := addressEncoder.EncodeAddress(eventLog.ToBytes)
+	if err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
+	}
 	toDecoded := eventLog.ToBytes
 	if !isBurnAndMint {
 		var err error
