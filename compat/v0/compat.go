@@ -23,7 +23,10 @@ import (
 	"github.com/renproject/multichain/chain/digibyte"
 	"github.com/renproject/multichain/chain/dogecoin"
 	"github.com/renproject/multichain/chain/ethereum"
+	"github.com/renproject/multichain/chain/fantom"
 	"github.com/renproject/multichain/chain/filecoin"
+	"github.com/renproject/multichain/chain/polygon"
+	"github.com/renproject/multichain/chain/solana"
 	"github.com/renproject/multichain/chain/terra"
 	"github.com/renproject/multichain/chain/zcash"
 	"github.com/renproject/pack"
@@ -143,7 +146,7 @@ func QueryFeesResponseFromState(state map[string]engine.XState) (ResponseQueryFe
 func BurnTxFromV1Tx(t tx.Tx, bindings binding.Bindings) (Tx, error) {
 	tx := Tx{}
 
-	//nonce is ref in byte format
+	// nonce is ref in byte format
 	nonce := t.Input.Get("nonce").(pack.Bytes32)
 	ref := pack.NewU256(nonce)
 
@@ -532,6 +535,19 @@ func AddressEncodeDecoder(chain multichain.Chain, network multichain.Network) mu
 	case multichain.Zcash:
 		params := ZcashNetParams(network)
 		return zcash.NewAddressEncodeDecoder(params)
+	case multichain.Arbitrum,
+		multichain.Avalanche,
+		multichain.BinanceSmartChain,
+		multichain.Ethereum,
+		multichain.Goerli,
+		multichain.Moonbeam:
+		return ethereum.NewAddressEncodeDecoder()
+	case multichain.Fantom:
+		return fantom.NewAddressEncodeDecoder()
+	case multichain.Polygon:
+		return polygon.NewAddressEncodeDecoder()
+	case multichain.Solana:
+		return solana.NewAddressEncodeDecoder()
 	default:
 		panic(fmt.Errorf("unknown chain %v", chain))
 	}

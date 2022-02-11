@@ -156,7 +156,11 @@ func (watcher Watcher) key() string {
 
 // burnToParams constructs params for a SubmitTx request with given ref.
 func (watcher Watcher) burnToParams(eventLog EventInfo) (jsonrpc.ParamsSubmitTx, error) {
+	isBurnAndMint := eventLog.Asset.OriginChain() != eventLog.TargetChain
 	selector := tx.Selector(fmt.Sprintf("%v/from%v", eventLog.Asset, watcher.opts.Chain))
+	if isBurnAndMint {
+		selector = tx.Selector(fmt.Sprintf("%v/from%v_to%v", eventLog.Asset, watcher.opts.Chain, eventLog.TargetChain))
+	}
 	to, toDecoded, err := watcher.decodeToAddress(eventLog.Asset, eventLog.ToBytes)
 	if err != nil {
 		return jsonrpc.ParamsSubmitTx{}, err
@@ -194,16 +198,18 @@ func (watcher Watcher) burnToParams(eventLog EventInfo) (jsonrpc.ParamsSubmitTx,
 		Input:    pack.Typed(input.(pack.Struct)),
 	}
 
-	// Map the v0 burn txhash to v1 txhash so that it is still
-	// queryable
-	// We don't get the required data during tx submission rpc to track it there,
-	// so we persist here in order to not re-filter all burn events
-	v0Hash := v0.BurnTxHash(selector, pack.NewU256(eventLog.Nonce))
-	watcher.cache.Set(v0Hash.String(), transaction.Hash.String(), 0)
+	if !isBurnAndMint {
+		// Map the v0 burn txhash to v1 txhash so that it is still
+		// queryable
+		// We don't get the required data during tx submission rpc to track it there,
+		// so we persist here in order to not re-filter all burn events
+		v0Hash := v0.BurnTxHash(selector, pack.NewU256(eventLog.Nonce))
+		watcher.cache.Set(v0Hash.String(), transaction.Hash.String(), 0)
 
-	// Map the selector + burn ref to the v0 hash so that we can return something
-	// to ren-js v1
-	watcher.cache.Set(fmt.Sprintf("%s_%v", selector, pack.NewU256(eventLog.Nonce).String()), v0Hash.String(), 0)
+		// Map the selector + burn ref to the v0 hash so that we can return something
+		// to ren-js v1
+		watcher.cache.Set(fmt.Sprintf("%s_%v", selector, pack.NewU256(eventLog.Nonce).String()), v0Hash.String(), 0)
+	}
 
 	return jsonrpc.ParamsSubmitTx{Tx: transaction}, nil
 }
