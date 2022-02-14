@@ -188,7 +188,10 @@ func (watcher Watcher) burnToParams(eventLog EventInfo) (jsonrpc.ParamsSubmitTx,
 	payload := pack.Bytes{}
 	phash := engine.Phash(payload)
 	nhash := engine.Nhash(eventLog.Nonce, eventLog.Txid, txindex)
+	log.Printf("selector = %v", selector)
+	log.Printf("phash = %v", phash)
 	log.Printf("toDecoded = %v", toDecoded)
+	log.Printf("nonce = %v", eventLog.Nonce)
 	ghash := engine.Ghash(selector, phash, toDecoded, eventLog.Nonce)
 	burnInput := engine.LockMintBurnReleaseInput{
 		Txid:    eventLog.Txid,
