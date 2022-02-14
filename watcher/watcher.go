@@ -3,6 +3,7 @@ package watcher
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/btcsuite/btcd/btcec"
@@ -187,6 +188,7 @@ func (watcher Watcher) burnToParams(eventLog EventInfo) (jsonrpc.ParamsSubmitTx,
 	payload := pack.Bytes{}
 	phash := engine.Phash(payload)
 	nhash := engine.Nhash(eventLog.Nonce, eventLog.Txid, txindex)
+	log.Printf("toDecoded = %v", toDecoded)
 	ghash := engine.Ghash(selector, phash, toDecoded, eventLog.Nonce)
 	burnInput := engine.LockMintBurnReleaseInput{
 		Txid:    eventLog.Txid,
