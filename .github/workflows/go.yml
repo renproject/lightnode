@@ -81,8 +81,8 @@ jobs:
           go get -u github.com/loongy/covermerge
           go get -u github.com/mattn/goveralls
           cd $GITHUB_WORKSPACE
-          go vet ./...
           go mod tidy 
+          go vet ./...
           golint ./...
       - name: Run tests and report test coverage
         env:
