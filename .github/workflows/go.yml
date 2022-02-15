@@ -73,6 +73,7 @@ jobs:
           make
       - name: Get dependencies
         run: |
+          set -x
           export PATH=$PATH:$(go env GOPATH)/bin
           go get -u github.com/onsi/ginkgo/ginkgo
           go get -u github.com/onsi/gomega/...
