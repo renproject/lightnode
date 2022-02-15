@@ -297,6 +297,7 @@ func RandomEventInfo() watcher.EventInfo {
 
 	return watcher.EventInfo{
 		Asset:       multichain.BTC,
+		TargetChain: multichain.Bitcoin,
 		Txid:        txid,
 		Amount:      pack.U256{}.Generate(r, 100).Interface().(pack.U256),
 		ToBytes:     []byte(addr),
