@@ -11,7 +11,6 @@ require (
 	github.com/ethereum/go-ethereum v1.10.7
 	github.com/evalphobia/logrus_sentry v0.8.2
 	github.com/filecoin-project/go-address v0.0.6
-	github.com/filecoin-project/lotus v1.13.2 // indirect
 	github.com/go-redis/redis/v7 v7.2.0
 	github.com/google/go-cmp v0.5.6
 	github.com/jbenet/go-base58 v0.0.0-20150317085156-6237cf65f3a6
