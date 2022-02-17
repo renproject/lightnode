@@ -90,7 +90,7 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 		tx := txs[i]
 		var confirmed bool
 		switch {
-		case tx.Selector.IsBurnAndMint():
+		case tx.Selector.IsBurn() && tx.Selector.IsMint():
 			confirmed = confirmer.burnAndMintTxConfirmed(ctx, tx)
 		case tx.Selector.IsLock():
 			confirmed = confirmer.lockTxConfirmed(ctx, tx)
