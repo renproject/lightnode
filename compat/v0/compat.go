@@ -143,7 +143,7 @@ func QueryFeesResponseFromState(state map[string]engine.XState) (ResponseQueryFe
 func BurnTxFromV1Tx(t tx.Tx, bindings binding.Bindings) (Tx, error) {
 	tx := Tx{}
 
-	//nonce is ref in byte format
+	// nonce is ref in byte format
 	nonce := t.Input.Get("nonce").(pack.Bytes32)
 	ref := pack.NewU256(nonce)
 

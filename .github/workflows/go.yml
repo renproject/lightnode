@@ -73,6 +73,7 @@ jobs:
           make
       - name: Get dependencies
         run: |
+          set -x
           export PATH=$PATH:$(go env GOPATH)/bin
           go get -u github.com/onsi/ginkgo/ginkgo
           go get -u github.com/onsi/gomega/...
@@ -80,6 +81,7 @@ jobs:
           go get -u github.com/loongy/covermerge
           go get -u github.com/mattn/goveralls
           cd $GITHUB_WORKSPACE
+          go mod tidy 
           go vet ./...
           golint ./...
       - name: Run tests and report test coverage

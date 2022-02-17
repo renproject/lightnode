@@ -11,7 +11,9 @@ import (
 	"github.com/jbenet/go-base58"
 	"github.com/near/borsh-go"
 	"github.com/renproject/darknode/binding"
+	"github.com/renproject/darknode/binding/gatewaybinding"
 	"github.com/renproject/darknode/binding/solanastate"
+	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/solana"
 	"github.com/renproject/pack"
@@ -20,6 +22,7 @@ import (
 
 type EventInfo struct {
 	Asset       multichain.Asset
+	TargetChain multichain.Chain
 	Txid        pack.Bytes
 	Amount      pack.U256
 	ToBytes     []byte
@@ -66,43 +69,109 @@ func (fetcher ethFetcher) LatestBlockHeight(ctx context.Context) (uint64, error)
 
 func (fetcher ethFetcher) FetchBurnLogs(ctx context.Context, from, to uint64) ([]EventInfo, error) {
 	var events []EventInfo
+
 	for _, asset := range fetcher.assets {
 		gateway := fetcher.bindings.MintGateway(fetcher.chain, asset)
-		iter, err := gateway.FilterLogBurn(
-			&bind.FilterOpts{
-				Context: ctx,
-				Start:   from,
-				End:     &to,
-			},
-			nil,
-			nil,
-		)
+
+		logBurnEvents, err := fetcher.fetchLogBurn(ctx, asset, gateway, from, to)
 		if err != nil {
 			return nil, err
 		}
-		defer iter.Close()
+		events = append(events, logBurnEvents...)
 
-		for iter.Next() {
-			nonce := iter.Event.BurnNonce.Uint64()
-			var nonceBytes pack.Bytes32
-			copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
-			event := EventInfo{
-				Asset:       asset,
-				Txid:        iter.Event.Raw.TxHash.Bytes(),
-				Amount:      pack.NewU256FromInt(iter.Event.Amount),
-				ToBytes:     iter.Event.To,
-				Nonce:       nonceBytes,
-				BlockNumber: pack.NewU64(iter.Event.Raw.BlockNumber),
-			}
-
-			events = append(events, event)
+		logBurnToChainEvents, err := fetcher.fetchLogBurnToChain(ctx, asset, gateway, from, to)
+		if err != nil {
+			return nil, err
 		}
-		if iter.Error() != nil {
-			return nil, iter.Error()
-		}
+		events = append(events, logBurnToChainEvents...)
 	}
 
 	return events, nil
+}
+
+func (fetcher ethFetcher) fetchLogBurn(ctx context.Context, asset multichain.Asset, gateway *gatewaybinding.MintGatewayV3, from, to uint64) ([]EventInfo, error) {
+	events := make([]EventInfo, 0)
+	iter, err := gateway.FilterLogBurn(
+		&bind.FilterOpts{
+			Context: ctx,
+			Start:   from,
+			End:     &to,
+		},
+		nil,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+
+	for iter.Next() {
+		nonce := iter.Event.BurnNonce.Uint64()
+		var nonceBytes pack.Bytes32
+		copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
+		event := EventInfo{
+			Asset:       asset,
+			TargetChain: asset.OriginChain(),
+			Txid:        iter.Event.Raw.TxHash.Bytes(),
+			Amount:      pack.NewU256FromInt(iter.Event.Amount),
+			ToBytes:     iter.Event.To,
+			Nonce:       nonceBytes,
+			BlockNumber: pack.NewU64(iter.Event.Raw.BlockNumber),
+		}
+
+		events = append(events, event)
+	}
+	return events, iter.Error()
+}
+
+func (fetcher ethFetcher) fetchLogBurnToChain(ctx context.Context, asset multichain.Asset, gateway *gatewaybinding.MintGatewayV3, from, to uint64) ([]EventInfo, error) {
+	events := make([]EventInfo, 0)
+	iter, err := gateway.FilterLogBurnToChain(
+		&bind.FilterOpts{
+			Context: ctx,
+			Start:   from,
+			End:     &to,
+		},
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+
+	for iter.Next() {
+		nonce := iter.Event.BurnNonce.Uint64()
+		var nonceBytes pack.Bytes32
+		copy(nonceBytes[:], pack.NewU256FromU64(pack.NewU64(nonce)).Bytes())
+
+		// Parse the target chain and make sure it's a valid chain
+		targetChain := multichain.Chain(iter.Event.RecipientChain)
+		if targetChain.ChainType() == "" {
+			continue
+		}
+
+		// Decode the target address
+		decoder := v0.AddressEncodeDecoder(targetChain, multichain.NetworkMainnet)
+		toBytes, err := decoder.DecodeAddress(multichain.Address(iter.Event.RecipientAddress))
+		if err != nil {
+			continue
+		}
+
+		event := EventInfo{
+			Asset:       asset,
+			TargetChain: targetChain,
+			Txid:        iter.Event.Raw.TxHash.Bytes(),
+			Amount:      pack.NewU256FromInt(iter.Event.Amount),
+			ToBytes:     toBytes,
+			Nonce:       nonceBytes,
+			BlockNumber: pack.NewU64(iter.Event.Raw.BlockNumber),
+		}
+
+		events = append(events, event)
+	}
+	return events, iter.Error()
 }
 
 type solFetcher struct {
@@ -194,6 +263,7 @@ func (fetcher solFetcher) FetchBurnLogs(ctx context.Context, from, to uint64) ([
 
 		event := EventInfo{
 			Asset:       fetcher.asset,
+			TargetChain: fetcher.asset.OriginChain(),
 			Txid:        base58.Decode(signatures[0].Signature),
 			Amount:      amount,
 			ToBytes:     []byte(recipient),
