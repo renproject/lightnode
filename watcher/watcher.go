@@ -177,11 +177,11 @@ func (watcher Watcher) burnToParams(eventLog EventInfo) (jsonrpc.ParamsSubmitTx,
 			return jsonrpc.ParamsSubmitTx{}, err
 		}
 	} else {
-		addressEncoder := v0.AddressEncodeDecoder(eventLog.TargetChain, watcher.opts.Network)
-		to, err = addressEncoder.EncodeAddress(eventLog.ToBytes)
+		to, err = watcher.bindings.EncodeAddress(eventLog.TargetChain, eventLog.ToBytes)
 		if err != nil {
 			return jsonrpc.ParamsSubmitTx{}, err
 		}
+
 		toDecoded = eventLog.ToBytes
 	}
 

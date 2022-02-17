@@ -23,10 +23,7 @@ import (
 	"github.com/renproject/multichain/chain/digibyte"
 	"github.com/renproject/multichain/chain/dogecoin"
 	"github.com/renproject/multichain/chain/ethereum"
-	"github.com/renproject/multichain/chain/fantom"
 	"github.com/renproject/multichain/chain/filecoin"
-	"github.com/renproject/multichain/chain/polygon"
-	"github.com/renproject/multichain/chain/solana"
 	"github.com/renproject/multichain/chain/terra"
 	"github.com/renproject/multichain/chain/zcash"
 	"github.com/renproject/pack"
@@ -535,19 +532,6 @@ func AddressEncodeDecoder(chain multichain.Chain, network multichain.Network) mu
 	case multichain.Zcash:
 		params := ZcashNetParams(network)
 		return zcash.NewAddressEncodeDecoder(params)
-	case multichain.Arbitrum,
-		multichain.Avalanche,
-		multichain.BinanceSmartChain,
-		multichain.Ethereum,
-		multichain.Goerli,
-		multichain.Moonbeam:
-		return ethereum.NewAddressEncodeDecoder()
-	case multichain.Fantom:
-		return fantom.NewAddressEncodeDecoder()
-	case multichain.Polygon:
-		return polygon.NewAddressEncodeDecoder()
-	case multichain.Solana:
-		return solana.NewAddressEncodeDecoder()
 	default:
 		panic(fmt.Errorf("unknown chain %v", chain))
 	}
