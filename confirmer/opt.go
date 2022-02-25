@@ -8,24 +8,27 @@ import (
 
 // Enumerate default options.
 var (
-	DefaultPollInterval = 30 * time.Second
-	DefaultExpiry       = 30 * 24 * time.Hour
+	DefaultConfirmationPeriod = 3 * 24 * time.Hour // we want to check txs within the last 3 days
+	DefaultPollInterval       = 30 * time.Second
+	DefaultExpiry             = 6 * 30 * 24 * time.Hour // 6 month expiry
 )
 
 // Options to configure the precise behaviour of the confirmer.
 type Options struct {
-	Logger       logrus.FieldLogger
-	PollInterval time.Duration
-	Expiry       time.Duration
+	Logger             logrus.FieldLogger
+	ConfirmationPeriod time.Duration
+	PollInterval       time.Duration
+	Expiry             time.Duration
 }
 
 // DefaultOptions returns new options with default configurations that should
 // work for the majority of use cases.
 func DefaultOptions() Options {
 	return Options{
-		Logger:       logrus.New(),
-		PollInterval: DefaultPollInterval,
-		Expiry:       DefaultExpiry,
+		Logger:             logrus.New(),
+		ConfirmationPeriod: DefaultConfirmationPeriod,
+		PollInterval:       DefaultPollInterval,
+		Expiry:             DefaultExpiry,
 	}
 }
 
@@ -44,5 +47,11 @@ func (opts Options) WithPollInterval(pollInterval time.Duration) Options {
 // WithExpiry returns new options with the given transaction expiry.
 func (opts Options) WithExpiry(expiry time.Duration) Options {
 	opts.Expiry = expiry
+	return opts
+}
+
+// WithConfirmationPeriod returns new options with the given confirmation period.
+func (opts Options) WithConfirmationPeriod(cp time.Duration) Options {
+	opts.ConfirmationPeriod = cp
 	return opts
 }

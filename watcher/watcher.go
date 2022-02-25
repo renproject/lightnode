@@ -49,7 +49,6 @@ func (watcher Watcher) Run(ctx context.Context) {
 	defer ticker.Stop()
 
 	for {
-
 		func() {
 			innerCtx, innerCancel := context.WithTimeout(ctx, watcher.opts.PollInterval)
 			defer innerCancel()
@@ -98,6 +97,11 @@ func (watcher Watcher) watchLogs(ctx context.Context) {
 		return
 	}
 
+	// The height pointer has falling behind too much and we emit an error event
+	if lastHeight-currentHeight >= 10*watcher.opts.MaxBlockAdvance {
+		watcher.opts.Logger.Errorf("[watcher] %v lastCheckedHeight = %v is falling behind too much against latestHeight = %v", watcher.opts.Chain, lastHeight, currentHeight)
+	}
+
 	// Only advance by a set number of blocks at a time to prevent over-subscription
 	step := lastHeight + watcher.opts.MaxBlockAdvance
 	if step < currentHeight {
@@ -106,7 +110,7 @@ func (watcher Watcher) watchLogs(ctx context.Context) {
 
 	burnLogs, err := watcher.fetcher.FetchBurnLogs(ctx, lastHeight, currentHeight)
 	if err != nil {
-		watcher.opts.Logger.Warnf("[watcher] error fetching LogBurn events from=%v to=%v: %v", lastHeight, currentHeight, err)
+		watcher.opts.Logger.Warnf("[watcher] error fetching LogBurn events on %v from=%v to=%v: %v", watcher.opts.Chain, lastHeight, currentHeight, err)
 		return
 	}
 
@@ -120,12 +124,24 @@ func (watcher Watcher) watchLogs(ctx context.Context) {
 			continue
 		}
 
+		// If filtering logs taking most of the context time, create a new
+		// context for submitting the tx.
+		var cancel context.CancelFunc
+		if deadline, ok := ctx.Deadline(); ok && deadline.Before(time.Now()) {
+			ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		}
+
 		response := watcher.resolver.SubmitTx(ctx, 0, &params, nil)
 		if response.Error != nil {
-			watcher.opts.Logger.Errorf("[watcher] invalid burn transaction %v: %v", params, response.Error.Message)
+			watcher.opts.Logger.Warnf("[watcher] invalid burn transaction %v: %v", params, response.Error.Message)
 			// return so that we retry, if the burnToParams are valid, the darknode should accept the tx
 			// we assume that the only failure case would be RPC/darknode backpressure, so we backoff here
 			return
+		}
+
+		// Cancel the temporary context
+		if cancel != nil {
+			cancel()
 		}
 	}
 

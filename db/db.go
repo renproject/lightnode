@@ -19,7 +19,7 @@ const (
 	TxStatusNil TxStatus = iota
 	TxStatusConfirming
 	TxStatusConfirmed
-	TxStatusSubmitted
+	TxStatusUnconfirmed
 )
 
 type GatewayStatus uint8
@@ -58,6 +58,9 @@ type DB interface {
 	// expired.
 	PendingTxs(expiry time.Duration) ([]tx.Tx, error)
 
+	// TxsByStatus returns txs with given status in the db
+	TxsByStatus(status TxStatus, before, after time.Duration) ([]tx.Tx, error)
+
 	// TxStatus returns the current status of the transaction with the given
 	// hash.
 	TxStatus(hash id.Hash) (TxStatus, error)
@@ -75,9 +78,6 @@ type DB interface {
 	// Gateway gets the details of the gateway with the given gateway address. It returns an
 	// `sql.ErrNoRows` if the gateway cannot be found.
 	Gateway(address string) (tx.Tx, error)
-
-	// Gateways returns gateways with the given pagination options.
-	Gateways(offset, limit int) ([]tx.Tx, error)
 
 	// GatewayCount returns the number of gateways persisted
 	GatewayCount() (int, error)
@@ -178,27 +178,6 @@ func (db database) GatewayCount() (int, error) {
 	}
 
 	return count, err
-}
-
-// Returns a page of stored gateway information
-func (db database) Gateways(offset, limit int) ([]tx.Tx, error) {
-	gateways := make([]tx.Tx, 0, limit)
-
-	rows, err := db.db.Query(`SELECT gateway_address, selector, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM gateways ORDER BY created_time DESC LIMIT $1 OFFSET $2;`, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	// Loop through rows and convert them to transactions.
-	for rows.Next() {
-		tx, err := rowToGateway(rows)
-		if err != nil {
-			return nil, err
-		}
-		gateways = append(gateways, tx)
-	}
-	return gateways, rows.Err()
 }
 
 func rowToGateway(row Scannable) (tx.Tx, error) {
@@ -438,6 +417,38 @@ func (db database) PendingTxs(expiry time.Duration) ([]tx.Tx, error) {
 	return txs, rows.Err()
 }
 
+// PendingTxs implements the DB interface.
+func (db database) TxsByStatus(status TxStatus, before, after time.Duration) ([]tx.Tx, error) {
+	txs := make([]tx.Tx, 0, 128)
+
+	now := time.Now()
+	script := fmt.Sprintf(`SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs
+		WHERE status = %v `, status)
+	if before != 0 {
+		script += fmt.Sprintf("AND %v - created_time < %v", now.Unix(), int64(before.Seconds()))
+	}
+	if after != 0 {
+		script += fmt.Sprintf("AND %v - created_time > %v", now.Unix(), int64(after.Seconds()))
+	}
+	script += ";"
+
+	// Get pending transactions from the database.
+	rows, err := db.db.Query(script)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		transaction, err := rowToTx(rows)
+		if err != nil {
+			return nil, err
+		}
+		txs = append(txs, transaction)
+	}
+	return txs, rows.Err()
+}
+
 // TxStatus implements the DB interface.
 func (db database) TxStatus(txHash id.Hash) (TxStatus, error) {
 	var status int
@@ -464,6 +475,11 @@ func (db database) UpdateStatus(txHash id.Hash, status TxStatus) error {
 // Prune deletes txs which have expired based on the given expiry.
 func (db database) Prune(expiry time.Duration) error {
 	_, err := db.db.Exec("DELETE FROM txs WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
+	if err != nil {
+		return err
+	}
+
+	_, err = db.db.Exec("DELETE FROM gateways WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
 	return err
 }
 

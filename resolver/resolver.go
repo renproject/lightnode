@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -750,6 +751,13 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 
 	reqWithResponder := lhttp.NewRequestWithResponder(ctx, id, method, params, query)
 	if method == jsonrpc.MethodSubmitTx && params.(jsonrpc.ParamsSubmitTx).Tx.Selector.IsCrossChain() {
+		// Log the submitTx before validation
+		submitTxParams := params.(jsonrpc.ParamsSubmitTx)
+		data, err := json.Marshal(submitTxParams.Tx)
+		if err == nil {
+			log.Printf("[new submit tx] %v", string(data))
+		}
+
 		resolver.txCheckerRequests <- reqWithResponder
 	} else {
 		if ok := resolver.cacher.Send(reqWithResponder); !ok {

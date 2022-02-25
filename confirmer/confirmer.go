@@ -44,6 +44,7 @@ func New(options Options, dispatcher phi.Sender, db db.DB, bindings binding.Bind
 // confirmations for pending transactions and prunes old transactions.
 func (confirmer *Confirmer) Run(ctx context.Context) {
 	phi.ParBegin(func() {
+		// Check pending txs
 		ticker := time.NewTicker(confirmer.options.PollInterval)
 		defer ticker.Stop()
 
@@ -56,6 +57,7 @@ func (confirmer *Confirmer) Run(ctx context.Context) {
 			}
 		}
 	}, func() {
+		// Prune old data from db
 		ticker := time.NewTicker(time.Hour)
 		defer ticker.Stop()
 
@@ -66,6 +68,20 @@ func (confirmer *Confirmer) Run(ctx context.Context) {
 				return
 			case <-ticker.C:
 				confirmer.prune()
+			}
+		}
+	}, func() {
+		// Check unconfirmed txs
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+
+		confirmer.checkUnconfirmedTxs()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				confirmer.checkUnconfirmedTxs()
 			}
 		}
 	})
@@ -80,7 +96,7 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 		<-ctx.Done()
 	}()
 
-	txs, err := confirmer.database.PendingTxs(72 * time.Hour)
+	txs, err := confirmer.database.PendingTxs(confirmer.options.ConfirmationPeriod)
 	if err != nil {
 		confirmer.options.Logger.Errorf("[confirmer] failed to read pending txs from database: %v", err)
 		return
@@ -129,7 +145,7 @@ func (confirmer *Confirmer) confirm(ctx context.Context, transaction tx.Tx) {
 				strings.Contains(response.Error.Message, "status = done") {
 				confirmer.options.Logger.Infof("✅ successfully submitted tx=%v to darknodes", transaction.Hash.String())
 			} else {
-				confirmer.options.Logger.Errorf("[confirmer] getting error back when submitting tx=%v: [%v] %v", transaction.Hash.String(), response.Error.Code, response.Error.Message)
+				confirmer.options.Logger.Warnf("[confirmer] getting error back when submitting tx=%v: [%v] %v", transaction.Hash.String(), response.Error.Code, response.Error.Message)
 				return
 			}
 
@@ -157,12 +173,6 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 			Index: input.Txindex,
 		})
 		if err != nil {
-			if !strings.Contains(err.Error(), "insufficient confirmations") {
-				confirmer.options.Logger.Errorf("[confirmer] cannot get output for utxo tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
-			} else {
-				confirmer.options.Logger.Warnf("[confirmer] cannot get output for utxo tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
-			}
-
 			// If the UTXO has already been spent, that means the transaction
 			// has already been processed by RenVM and it can be marked as
 			// complete.
@@ -172,6 +182,7 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 					return false
 				}
 			}
+			confirmer.options.Logger.Warnf("[confirmer] cannot get lock info for utxo tx=%v (renvm = %v)(selector = %v): %v", input.Txid.String(), transaction.Hash.String(), transaction.Selector, err)
 
 			return false
 		}
@@ -183,11 +194,7 @@ func (confirmer *Confirmer) lockTxConfirmed(ctx context.Context, transaction tx.
 		}
 		_, _, err := confirmer.bindings.AccountLockInfo(ctx, lockChain, mintChain, transaction.Selector.Asset(), input.Txid, input.Payload, input.Nonce)
 		if err != nil {
-			if !strings.Contains(err.Error(), "insufficient confirmations") {
-				confirmer.options.Logger.Errorf("[confirmer] cannot get output for account tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
-			} else {
-				confirmer.options.Logger.Warnf("[confirmer] cannot get output for account tx=%v (%v): %v", input.Txid.String(), transaction.Selector.String(), err)
-			}
+			confirmer.options.Logger.Warnf("[confirmer] cannot get lock info for account tx=%v (renvm = %v)(selector = %v): %v", input.Txid.String(), transaction.Hash.String(), transaction.Selector.String(), err)
 			return false
 		}
 	default:
@@ -213,11 +220,7 @@ func (confirmer *Confirmer) burnTxConfirmed(ctx context.Context, transaction tx.
 
 	_, _, _, err := confirmer.bindings.AccountBurnInfo(ctx, burnChain, transaction.Selector.Asset(), txid, nonce)
 	if err != nil {
-		if !strings.Contains(err.Error(), "insufficient confirmations") {
-			confirmer.options.Logger.Errorf("[confirmer] cannot get burn info for tx=%v (%v): %v", transaction.Hash.String(), transaction.Selector.String(), err)
-		} else {
-			confirmer.options.Logger.Warnf("[confirmer] cannot get burn info for tx=%v (%v): %v", transaction.Hash.String(), transaction.Selector.String(), err)
-		}
+		confirmer.options.Logger.Warnf("[confirmer] cannot get burn info for tx=%v (renvm = %v)(selector = %v): %v", txid, transaction.Hash.String(), transaction.Selector.String(), err)
 		return false
 	}
 	return true
@@ -240,11 +243,7 @@ func (confirmer *Confirmer) burnAndMintTxConfirmed(ctx context.Context, transact
 
 	_, _, _, err := confirmer.bindings.AccountBurnToChainInfo(ctx, burnChain, transaction.Selector.Asset(), txid, nonce)
 	if err != nil {
-		if !strings.Contains(err.Error(), "insufficient confirmations") {
-			confirmer.options.Logger.Errorf("[confirmer] cannot get burn info for burn-and-mint tx=%v (%v): %v", transaction.Hash.String(), transaction.Selector.String(), err)
-		} else {
-			confirmer.options.Logger.Warnf("[confirmer] cannot get burn info for burn-and-mint tx=%v (%v): %v", transaction.Hash.String(), transaction.Selector.String(), err)
-		}
+		confirmer.options.Logger.Warnf("[confirmer] cannot get info for burn-and-mint tx=%v (renvm = %v)(selector = %v): %v", txid, transaction.Hash.String(), transaction.Selector.String(), err)
 		return false
 	}
 	return true
@@ -254,6 +253,20 @@ func (confirmer *Confirmer) burnAndMintTxConfirmed(ctx context.Context, transact
 func (confirmer *Confirmer) prune() {
 	if err := confirmer.database.Prune(confirmer.options.Expiry); err != nil {
 		confirmer.options.Logger.Errorf("[confirmer] cannot prune database: %v", err)
+	}
+}
+
+func (confirmer *Confirmer) checkUnconfirmedTxs() {
+	unconfirmedTx, err := confirmer.database.TxsByStatus(db.TxStatusConfirming, time.Duration(0), confirmer.options.ConfirmationPeriod)
+	if err != nil {
+		confirmer.options.Logger.Errorf("[confirmer] cannot fetch unconfirmed txs: %v", err)
+	}
+	for _, tx := range unconfirmedTx {
+		if err := confirmer.database.UpdateStatus(tx.Hash, db.TxStatusUnconfirmed); err != nil {
+			confirmer.options.Logger.Errorf("[confirmer] cannot update tx=%v status to unconfirmed = %v", tx.Hash, err)
+			continue
+		}
+		confirmer.options.Logger.Errorf("[confirmer] tx=%v not confirmed after 3 days")
 	}
 }
 
