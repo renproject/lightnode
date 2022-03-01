@@ -600,49 +600,6 @@ var _ = Describe("Resolver", func() {
 		Expect(resp.Error).Should(BeZero())
 	})
 
-	It("should fail to submit more than max gateways for zec", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		resolver, _, _ := init(ctx)
-		defer cleanup()
-
-		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
-		i := 0
-		Eventually(func() string {
-			mocktx := txutil.RandomGoodTx(r)
-			mocktx.Selector = tx.Selector("ZEC/toEthereum")
-
-			input := engine.LockMintBurnReleaseInput{}
-			err := pack.Decode(&input, mocktx.Input)
-			Expect(err).NotTo(HaveOccurred())
-
-			script, err := engine.UTXOGatewayScript(mocktx.Selector.Asset().OriginChain(), mocktx.Selector.Asset(), input.Gpubkey, input.Ghash)
-			Expect(err).NotTo(HaveOccurred())
-
-			scriptAddress, err := zcash.NewAddressScriptHash(script, v0.ZcashNetParams(multichain.NetworkTestnet))
-			Expect(err).NotTo(HaveOccurred())
-
-			// Submit tx to ensure that it can be queried against
-			params := ParamsSubmitGateway{
-				Gateway: scriptAddress.EncodeAddress(),
-				Tx:      mocktx,
-			}
-
-			innerCtx, innerCancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer innerCancel()
-
-			resolver.SubmitGateway(innerCtx, nil, &params, nil)
-			resp := resolver.SubmitGateway(innerCtx, nil, &params, nil)
-			if resp.Error != nil {
-				return resp.Error.Message
-			}
-			i++
-			return ""
-		}).Should(Equal("failed to insert gateway"))
-		Expect(i).To(Equal(11))
-	})
-
 	It("should handle queryGateways", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
