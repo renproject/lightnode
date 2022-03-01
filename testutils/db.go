@@ -55,3 +55,10 @@ func UpdateTxCreatedTime(db *sql.DB, name string, txHash id.Hash, createdTime in
 	_, err := db.Exec(script, txHash.String())
 	return err
 }
+
+// UpdateGatewayCreatedTime of given tx hash.
+func UpdateGatewayCreatedTime(db *sql.DB, address string, createdTime int64) error {
+	script := fmt.Sprintf("UPDATE gateways set created_time = %v where gateway_address = $1;", createdTime)
+	_, err := db.Exec(script, address)
+	return err
+}

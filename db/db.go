@@ -37,8 +37,8 @@ type Scannable interface {
 // DB is a storage adapter (built on top of a SQL database) that stores all
 // transaction details.
 type DB interface {
-	// Initialise the database. Init should be called once the database object
-	// is created.
+	// Init the database. This should be called once the database object is
+	// created.
 	Init() error
 
 	// InsertTx inserts the transaction into the database.
@@ -51,15 +51,11 @@ type DB interface {
 	// Txs returns transactions with the given pagination options.
 	Txs(offset, limit int, latest bool) ([]tx.Tx, error)
 
-	// Txs returns transactions with the given pagination options.
+	// TxsByTxid returns transactions with the given blockchain transaction id.
 	TxsByTxid(id pack.Bytes) ([]tx.Tx, error)
 
-	// PendingTxs returns all pending transactions in the database which are not
-	// expired.
-	PendingTxs(expiry time.Duration) ([]tx.Tx, error)
-
 	// TxsByStatus returns txs with given status in the db
-	TxsByStatus(status TxStatus, before, after time.Duration) ([]tx.Tx, error)
+	TxsByStatus(status TxStatus, within, beyond time.Duration) ([]tx.Tx, error)
 
 	// TxStatus returns the current status of the transaction with the given
 	// hash.
@@ -78,157 +74,17 @@ type DB interface {
 	// Gateway gets the details of the gateway with the given gateway address. It returns an
 	// `sql.ErrNoRows` if the gateway cannot be found.
 	Gateway(address string) (tx.Tx, error)
-
-	// GatewayCount returns the number of gateways persisted
-	GatewayCount() (int, error)
-
-	// GatewayCount returns the number of gateways persisted
-	MaxGatewayCount() int
 }
 
 type database struct {
-	db              *sql.DB
-	maxGatewayCount int
+	db *sql.DB
 }
 
 // New creates a new DB instance.
-func New(db *sql.DB, maxGatewayCount int) DB {
+func New(db *sql.DB) DB {
 	return database{
-		db:              db,
-		maxGatewayCount: maxGatewayCount,
+		db: db,
 	}
-}
-
-func (db database) MaxGatewayCount() int {
-	return db.maxGatewayCount
-}
-
-// A gateway is a partial Tx that does not have deposits
-// We store it in order to be able to re-create the parameters needed to finish a mint
-func (db database) InsertGateway(address string, tx tx.Tx) error {
-	payload, ok := tx.Input.Get("payload").(pack.Bytes)
-	if !ok {
-		return fmt.Errorf("unexpected type for payload: expected pack.Bytes, got %v", tx.Input.Get("payload").Type())
-	}
-	phash, ok := tx.Input.Get("phash").(pack.Bytes32)
-	if !ok {
-		return fmt.Errorf("unexpected type for phash: expected pack.Bytes32, got %v", tx.Input.Get("phash").Type())
-	}
-	to, ok := tx.Input.Get("to").(pack.String)
-	if !ok {
-		return fmt.Errorf("unexpected type for to: expected pack.String, got %v", tx.Input.Get("to").Type())
-	}
-	nonce, ok := tx.Input.Get("nonce").(pack.Bytes32)
-	if !ok {
-		return fmt.Errorf("unexpected type for nonce: expected pack.Bytes32, got %v", tx.Input.Get("nonce").Type())
-	}
-	nhash, ok := tx.Input.Get("nhash").(pack.Bytes32)
-	if !ok {
-		return fmt.Errorf("unexpected type for nhash: expected pack.Bytes32, got %v", tx.Input.Get("nhash").Type())
-	}
-	gpubkey, ok := tx.Input.Get("gpubkey").(pack.Bytes)
-	if !ok {
-		return fmt.Errorf("unexpected type for gpubkey: expected pack.Bytes, got %v", tx.Input.Get("gpubkey").Type())
-	}
-	ghash, ok := tx.Input.Get("ghash").(pack.Bytes32)
-	if !ok {
-		return fmt.Errorf("unexpected type for ghash: expected pack.Bytes32, got %v", tx.Input.Get("ghash").Type())
-	}
-
-	script := `INSERT INTO gateways
-(gateway_address, status, created_time, selector, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`
-	_, err := db.db.Exec(script,
-		address,
-		GatewayStatusEmpty,
-		time.Now().Unix(),
-		tx.Selector.String(),
-		payload.String(),
-		phash.String(),
-		to.String(),
-		nonce.String(),
-		nhash.String(),
-		gpubkey.String(),
-		ghash.String(),
-		tx.Version.String(),
-	)
-
-	return err
-}
-
-// Returns the gateway information for a given address
-func (db database) Gateway(address string) (tx.Tx, error) {
-	script := "SELECT gateway_address, selector, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM gateways WHERE gateway_address = $1"
-	row := db.db.QueryRow(script, address)
-	err := row.Err()
-	if err != nil {
-		return tx.Tx{}, err
-	}
-	return rowToGateway(row)
-}
-
-// GatewayCount returns the number of gateways persisted
-func (db database) GatewayCount() (int, error) {
-	var count int
-	row := db.db.QueryRow("SELECT COUNT(*) FROM gateways;")
-
-	err := row.Scan(&count)
-	if err != nil {
-		return -1, err
-	}
-
-	return count, err
-}
-
-func rowToGateway(row Scannable) (tx.Tx, error) {
-	var gatewayAddress, selector, payloadStr, phashStr, toStr, nonceStr, nhashStr, gpubkeyStr, ghashStr, version string
-	if err := row.Scan(&gatewayAddress, &selector, &payloadStr, &phashStr, &toStr, &nonceStr, &nhashStr, &gpubkeyStr, &ghashStr, &version); err != nil {
-		return tx.Tx{}, err
-	}
-
-	payload, err := decodeBytes(payloadStr)
-	if err != nil {
-		return tx.Tx{}, fmt.Errorf("decoding payload %v: %v", payloadStr, err)
-	}
-	phash, err := decodeBytes32(phashStr)
-	if err != nil {
-		return tx.Tx{}, fmt.Errorf("decoding phash %v: %v", phashStr, err)
-	}
-	nonce, err := decodeBytes32(nonceStr)
-	if err != nil {
-		return tx.Tx{}, fmt.Errorf("decoding nonce %v: %v", nonceStr, err)
-	}
-	nhash, err := decodeBytes32(nhashStr)
-	if err != nil {
-		return tx.Tx{}, fmt.Errorf("decoding nhash %v: %v", nhashStr, err)
-	}
-	gpubkey, err := decodeBytes(gpubkeyStr)
-	if err != nil {
-		return tx.Tx{}, fmt.Errorf("decoding gpubkey %v: %v", gpubkeyStr, err)
-	}
-	ghash, err := decodeBytes32(ghashStr)
-	if err != nil {
-		return tx.Tx{}, fmt.Errorf("decoding ghash %v: %v", ghashStr, err)
-	}
-	input, err := pack.Encode(
-		engine.LockMintBurnReleaseInput{
-			Payload: payload,
-			Phash:   phash,
-			To:      pack.String(toStr),
-			Nonce:   nonce,
-			Nhash:   nhash,
-			Gpubkey: gpubkey,
-			Ghash:   ghash,
-		},
-	)
-	if err != nil {
-		return tx.Tx{}, err
-	}
-
-	return tx.Tx{
-		Selector: tx.Selector(selector),
-		Input:    pack.Typed(input.(pack.Struct)),
-	}, err
 }
 
 // Init creates the tables for storing transactions if they do not already
@@ -395,29 +251,7 @@ func (db database) TxsByTxid(txid pack.Bytes) ([]tx.Tx, error) {
 	return txs, rows.Err()
 }
 
-// PendingTxs implements the DB interface.
-func (db database) PendingTxs(expiry time.Duration) ([]tx.Tx, error) {
-	txs := make([]tx.Tx, 0, 128)
-
-	// Get pending transactions from the database.
-	rows, err := db.db.Query(`SELECT hash, selector, txid, txindex, amount, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM txs
-		WHERE status = $1 AND $2 - created_time < $3;`, TxStatusConfirming, time.Now().Unix(), int64(expiry.Seconds()))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		transaction, err := rowToTx(rows)
-		if err != nil {
-			return nil, err
-		}
-		txs = append(txs, transaction)
-	}
-	return txs, rows.Err()
-}
-
-// PendingTxs implements the DB interface.
+// TxsByStatus implements the DB interface.
 func (db database) TxsByStatus(status TxStatus, before, after time.Duration) ([]tx.Tx, error) {
 	txs := make([]tx.Tx, 0, 128)
 
@@ -481,6 +315,121 @@ func (db database) Prune(expiry time.Duration) error {
 
 	_, err = db.db.Exec("DELETE FROM gateways WHERE $1 - created_time > $2;", time.Now().Unix(), int(expiry.Seconds()))
 	return err
+}
+
+// A gateway is a partial Tx that does not have deposits
+// We store it in order to be able to re-create the parameters needed to finish a mint
+func (db database) InsertGateway(address string, tx tx.Tx) error {
+	payload, ok := tx.Input.Get("payload").(pack.Bytes)
+	if !ok {
+		return fmt.Errorf("unexpected type for payload: expected pack.Bytes, got %v", tx.Input.Get("payload").Type())
+	}
+	phash, ok := tx.Input.Get("phash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for phash: expected pack.Bytes32, got %v", tx.Input.Get("phash").Type())
+	}
+	to, ok := tx.Input.Get("to").(pack.String)
+	if !ok {
+		return fmt.Errorf("unexpected type for to: expected pack.String, got %v", tx.Input.Get("to").Type())
+	}
+	nonce, ok := tx.Input.Get("nonce").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for nonce: expected pack.Bytes32, got %v", tx.Input.Get("nonce").Type())
+	}
+	nhash, ok := tx.Input.Get("nhash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for nhash: expected pack.Bytes32, got %v", tx.Input.Get("nhash").Type())
+	}
+	gpubkey, ok := tx.Input.Get("gpubkey").(pack.Bytes)
+	if !ok {
+		return fmt.Errorf("unexpected type for gpubkey: expected pack.Bytes, got %v", tx.Input.Get("gpubkey").Type())
+	}
+	ghash, ok := tx.Input.Get("ghash").(pack.Bytes32)
+	if !ok {
+		return fmt.Errorf("unexpected type for ghash: expected pack.Bytes32, got %v", tx.Input.Get("ghash").Type())
+	}
+
+	script := `INSERT INTO gateways
+(gateway_address, status, created_time, selector, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`
+	_, err := db.db.Exec(script,
+		address,
+		GatewayStatusEmpty,
+		time.Now().Unix(),
+		tx.Selector.String(),
+		payload.String(),
+		phash.String(),
+		to.String(),
+		nonce.String(),
+		nhash.String(),
+		gpubkey.String(),
+		ghash.String(),
+		tx.Version.String(),
+	)
+
+	return err
+}
+
+// Returns the gateway information for a given address
+func (db database) Gateway(address string) (tx.Tx, error) {
+	script := "SELECT gateway_address, selector, payload, phash, to_address, nonce, nhash, gpubkey, ghash, version FROM gateways WHERE gateway_address = $1"
+	row := db.db.QueryRow(script, address)
+	err := row.Err()
+	if err != nil {
+		return tx.Tx{}, err
+	}
+	return rowToGateway(row)
+}
+
+func rowToGateway(row Scannable) (tx.Tx, error) {
+	var gatewayAddress, selector, payloadStr, phashStr, toStr, nonceStr, nhashStr, gpubkeyStr, ghashStr, version string
+	if err := row.Scan(&gatewayAddress, &selector, &payloadStr, &phashStr, &toStr, &nonceStr, &nhashStr, &gpubkeyStr, &ghashStr, &version); err != nil {
+		return tx.Tx{}, err
+	}
+
+	payload, err := decodeBytes(payloadStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding payload %v: %v", payloadStr, err)
+	}
+	phash, err := decodeBytes32(phashStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding phash %v: %v", phashStr, err)
+	}
+	nonce, err := decodeBytes32(nonceStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding nonce %v: %v", nonceStr, err)
+	}
+	nhash, err := decodeBytes32(nhashStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding nhash %v: %v", nhashStr, err)
+	}
+	gpubkey, err := decodeBytes(gpubkeyStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding gpubkey %v: %v", gpubkeyStr, err)
+	}
+	ghash, err := decodeBytes32(ghashStr)
+	if err != nil {
+		return tx.Tx{}, fmt.Errorf("decoding ghash %v: %v", ghashStr, err)
+	}
+	input, err := pack.Encode(
+		engine.LockMintBurnReleaseInput{
+			Payload: payload,
+			Phash:   phash,
+			To:      pack.String(toStr),
+			Nonce:   nonce,
+			Nhash:   nhash,
+			Gpubkey: gpubkey,
+			Ghash:   ghash,
+		},
+	)
+	if err != nil {
+		return tx.Tx{}, err
+	}
+
+	return tx.Tx{
+		Selector: tx.Selector(selector),
+		Input:    pack.Typed(input.(pack.Struct)),
+	}, err
 }
 
 func rowToTx(row Scannable) (tx.Tx, error) {

@@ -67,7 +67,7 @@ var _ = Describe("Resolver", func() {
 		sqlDB, err := sql.Open("sqlite3", "./resolver_test.db")
 		Expect(err).NotTo(HaveOccurred())
 
-		database := db.New(sqlDB, 10)
+		database := db.New(sqlDB)
 		Expect(database.Init()).Should(Succeed())
 
 		mr, err := miniredis.Run()

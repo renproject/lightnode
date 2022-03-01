@@ -136,6 +136,9 @@ func (watcher Watcher) watchLogs(ctx context.Context) {
 			watcher.opts.Logger.Warnf("[watcher] invalid burn transaction %v: %v", params, response.Error.Message)
 			// return so that we retry, if the burnToParams are valid, the darknode should accept the tx
 			// we assume that the only failure case would be RPC/darknode backpressure, so we backoff here
+			if cancel != nil {
+				cancel()
+			}
 			return
 		}
 

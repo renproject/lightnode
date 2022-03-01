@@ -301,20 +301,6 @@ func (resolver *Resolver) SubmitGateway(ctx context.Context, id interface{}, par
 		return jsonrpc.NewResponse(id, jsonrpc.ResponseSubmitTx{}, nil)
 	}
 
-	count, err := resolver.db.GatewayCount()
-	if err != nil {
-		resolver.logger.Errorf("[responder] cannot get gateway count: %v", err)
-		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to insert gateway", nil)
-		return jsonrpc.NewResponse(id, nil, &jsonErr)
-	}
-
-	// Check if we exceed max gateways before insterting
-	if count > resolver.db.MaxGatewayCount() {
-		resolver.logger.Errorf("[responder] max number of gateways reached: %v", err)
-		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to insert gateway", nil)
-		return jsonrpc.NewResponse(id, nil, &jsonErr)
-	}
-
 	err = resolver.db.InsertGateway(params.Gateway, params.Tx)
 	if err != nil {
 		resolver.logger.Errorf("[responder] cannot insert gateway: %v :%v", params.Gateway, err)

@@ -96,7 +96,7 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 		<-ctx.Done()
 	}()
 
-	txs, err := confirmer.database.PendingTxs(confirmer.options.ConfirmationPeriod)
+	txs, err := confirmer.database.TxsByStatus(db.TxStatusConfirming, confirmer.options.ConfirmationPeriod, 0)
 	if err != nil {
 		confirmer.options.Logger.Errorf("[confirmer] failed to read pending txs from database: %v", err)
 		return

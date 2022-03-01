@@ -42,7 +42,7 @@ var _ = Describe("Confirmer", func() {
 			sqlDB.SetMaxOpenConns(1)
 			defer cleanUp(sqlDB)
 
-			database := db.New(sqlDB, 0)
+			database := db.New(sqlDB)
 			Expect(database.Init()).To(Succeed())
 
 			maxAttempts := 2
@@ -99,7 +99,7 @@ var _ = Describe("Confirmer", func() {
 
 			defer cleanUp(sqlDB)
 
-			database := db.New(sqlDB, 0)
+			database := db.New(sqlDB)
 			Expect(database.Init()).To(Succeed())
 
 			maxAttempts := 2
