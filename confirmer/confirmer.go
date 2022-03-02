@@ -266,7 +266,7 @@ func (confirmer *Confirmer) checkUnconfirmedTxs() {
 			confirmer.options.Logger.Errorf("[confirmer] cannot update tx=%v status to unconfirmed = %v", tx.Hash, err)
 			continue
 		}
-		confirmer.options.Logger.Errorf("[confirmer] tx=%v not confirmed after 3 days")
+		confirmer.options.Logger.Errorf("[confirmer] tx=%v not confirmed after 3 days", tx.Hash)
 	}
 }
 
