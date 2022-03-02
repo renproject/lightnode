@@ -27,7 +27,6 @@ require (
 	github.com/renproject/pack v0.2.11
 	github.com/renproject/phi v0.1.0
 	github.com/renproject/surge v1.2.6
-	github.com/rs/zerolog v1.23.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/xlab/c-for-go v0.0.0-20201223145653-3ba5db515dcb // indirect
 	go.uber.org/zap v1.19.1
