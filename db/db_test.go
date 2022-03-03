@@ -81,7 +81,7 @@ var _ = Describe("Lightnode db", func() {
 				It("should create tables if they do not exist", func() {
 					sqlDB := init(dbname)
 					defer destroy(sqlDB)
-					db := New(sqlDB, 100)
+					db := New(sqlDB)
 
 					// Tables should not exist before creation.
 					Expect(CheckTableExistence(dbname, "txs", sqlDB)).Should(HaveOccurred())
@@ -104,7 +104,7 @@ var _ = Describe("Lightnode db", func() {
 				It("should be able to read and write tx", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB, 100)
+					db := New(sqlDB)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
@@ -125,7 +125,7 @@ var _ = Describe("Lightnode db", func() {
 				It("should be able to read and write gateways", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB, 100)
+					db := New(sqlDB)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
@@ -150,7 +150,7 @@ var _ = Describe("Lightnode db", func() {
 				It("should be able to write tx and query by txid", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB, 100)
+					db := New(sqlDB)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
@@ -171,44 +171,11 @@ var _ = Describe("Lightnode db", func() {
 				})
 			})
 
-			Context("when querying gateways", func() {
-				It("should return a page of gateways", func() {
-					sqlDB := init(dbname)
-					defer close(sqlDB)
-					db := New(sqlDB, 100)
-
-					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
-					test := func() bool {
-						Expect(db.Init()).Should(Succeed())
-						defer cleanUp(sqlDB)
-
-						for i := 0; i < 50; i++ {
-							transaction := txutil.RandomGoodTx(r)
-							transaction.Output = nil
-							v := r.Intn(2)
-							if v == 0 {
-								transaction.Version = tx.Version0
-							}
-							gatewayAddress := transaction.Hash.String()
-
-							Expect(db.InsertGateway(gatewayAddress, transaction)).To(Succeed())
-						}
-
-						txsPage, err := db.Gateways(0, 10)
-						Expect(err).NotTo(HaveOccurred())
-						Expect(len(txsPage)).Should(Equal(10))
-						return true
-					}
-
-					Expect(quick.Check(test, &quick.Config{MaxCount: 10})).NotTo(HaveOccurred())
-				})
-			})
-
 			Context("when querying txs", func() {
 				It("should return a page of txs", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB, 100)
+					db := New(sqlDB)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func(order bool) bool {
@@ -246,61 +213,152 @@ var _ = Describe("Lightnode db", func() {
 				})
 			})
 
-			Context("when querying pending tx", func() {
-				It("should return all txs which are not confirmed", func() {
+			Context("when querying txs by status", func() {
+				It("should return all txs with the given status", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB, 100)
+					db := New(sqlDB)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
 						defer cleanUp(sqlDB)
 
-						txs := map[id.Hash]tx.Tx{}
+						pendingMap := map[id.Hash]tx.Tx{}
+						confirmedMap := map[id.Hash]tx.Tx{}
+						uncofirmedMap := map[id.Hash]tx.Tx{}
 						for i := 0; i < 50; i++ {
 							transaction := txutil.RandomGoodTx(r)
 							transaction.Output = nil
 							transaction.Version.Generate(r, 2)
-							txs[transaction.Hash] = transaction
+							pendingMap[transaction.Hash] = transaction
+							confirmedMap[transaction.Hash] = transaction
+							uncofirmedMap[transaction.Hash] = transaction
 							Expect(db.InsertTx(transaction)).To(Succeed())
 						}
 
-						pendingTxs, err := db.PendingTxs(time.Hour)
+						pendingTxs, err := db.TxsByStatus(TxStatusConfirming, 0, 0)
 						Expect(err).NotTo(HaveOccurred())
-						Expect(len(pendingTxs)).Should(Equal(len(txs)))
+						Expect(len(pendingTxs)).Should(Equal(len(pendingMap)))
 						for _, tx := range pendingTxs {
-							originTx, ok := txs[tx.Hash]
+							originTx, ok := pendingMap[tx.Hash]
 							Expect(ok).Should(BeTrue())
 							Expect(originTx).Should(Equal(tx))
-							delete(txs, tx.Hash)
+							delete(pendingMap, tx.Hash)
 						}
+						Expect(pendingMap).To(HaveLen(0))
 
-						Expect(txs).To(HaveLen(0))
+						// Update tx to be confirmed
+						for hash := range confirmedMap {
+							err = db.UpdateStatus(hash, TxStatusConfirmed)
+							Expect(err).NotTo(HaveOccurred())
+						}
+						confirmedTxs, err := db.TxsByStatus(TxStatusConfirmed, 0, 0)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(len(confirmedTxs)).Should(Equal(len(confirmedMap)))
+						for _, tx := range confirmedTxs {
+							originTx, ok := confirmedMap[tx.Hash]
+							Expect(ok).Should(BeTrue())
+							Expect(originTx).Should(Equal(tx))
+							delete(confirmedMap, tx.Hash)
+						}
+						Expect(confirmedMap).To(HaveLen(0))
+
+						// Update tx to be unconfirmed
+						for hash := range uncofirmedMap {
+							err = db.UpdateStatus(hash, TxStatusUnconfirmed)
+							Expect(err).NotTo(HaveOccurred())
+						}
+						unconfirmedTxs, err := db.TxsByStatus(TxStatusUnconfirmed, 0, 0)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(len(unconfirmedTxs)).Should(Equal(len(uncofirmedMap)))
+						for _, tx := range unconfirmedTxs {
+							originTx, ok := uncofirmedMap[tx.Hash]
+							Expect(ok).Should(BeTrue())
+							Expect(originTx).Should(Equal(tx))
+							delete(uncofirmedMap, tx.Hash)
+						}
+						Expect(uncofirmedMap).To(HaveLen(0))
+
 						return true
 					}
 
 					Expect(quick.Check(test, &quick.Config{MaxCount: 10})).NotTo(HaveOccurred())
 				})
 
-				It("should not return txs which added more than 24 hours ago", func() {
+				It("should only return txs within a certain time", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB, 100)
+					db := New(sqlDB)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
 						Expect(db.Init()).Should(Succeed())
 						defer cleanUp(sqlDB)
 
-						for i := 0; i < 50; i++ {
-							transaction := txutil.RandomGoodTx(r)
-							Expect(db.InsertTx(transaction)).To(Succeed())
-							Expect(UpdateTxCreatedTime(sqlDB, "txs", transaction.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
+						expectedTxs := map[id.Hash]tx.Tx{}
+						for i := 0; i < 100; i++ {
+							if i < 50 {
+								transaction := txutil.RandomGoodTx(r)
+								Expect(db.InsertTx(transaction)).To(Succeed())
+								Expect(UpdateTxCreatedTime(sqlDB, "txs", transaction.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
+							} else {
+								transaction := txutil.RandomGoodTx(r)
+								transaction.Output = nil
+								Expect(db.InsertTx(transaction)).To(Succeed())
+								expectedTxs[transaction.Hash] = transaction
+							}
 						}
-						pendingTxs, err := db.PendingTxs(time.Hour)
+						txs, err := db.TxsByStatus(TxStatusConfirming, time.Hour, 0)
 						Expect(err).NotTo(HaveOccurred())
-						Expect(pendingTxs).To(HaveLen(0))
+						Expect(len(txs)).To(Equal(len(expectedTxs)))
+						for _, tx := range txs {
+							originTx, ok := expectedTxs[tx.Hash]
+							Expect(ok).Should(BeTrue())
+							originTx.Output = nil
+							Expect(originTx).Should(Equal(tx))
+							delete(expectedTxs, tx.Hash)
+						}
+						Expect(expectedTxs).To(HaveLen(0))
+						return true
+					}
+
+					Expect(quick.Check(test, &quick.Config{MaxCount: 10})).NotTo(HaveOccurred())
+				})
+
+				It("should only return txs beyond a certain time", func() {
+					sqlDB := init(dbname)
+					defer close(sqlDB)
+					db := New(sqlDB)
+
+					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+					test := func() bool {
+						Expect(db.Init()).Should(Succeed())
+						defer cleanUp(sqlDB)
+
+						expectedTxs := map[id.Hash]tx.Tx{}
+						for i := 0; i < 100; i++ {
+							if i < 50 {
+								transaction := txutil.RandomGoodTx(r)
+								transaction.Output = nil
+								Expect(db.InsertTx(transaction)).To(Succeed())
+								Expect(UpdateTxCreatedTime(sqlDB, "txs", transaction.Hash, time.Now().Unix()-24*3600)).Should(Succeed())
+								expectedTxs[transaction.Hash] = transaction
+							} else {
+								transaction := txutil.RandomGoodTx(r)
+								Expect(db.InsertTx(transaction)).To(Succeed())
+							}
+						}
+						txs, err := db.TxsByStatus(TxStatusConfirming, 0, time.Hour-1)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(len(txs)).To(Equal(len(expectedTxs)))
+						for _, tx := range txs {
+							originTx, ok := expectedTxs[tx.Hash]
+							Expect(ok).Should(BeTrue())
+							Expect(originTx).Should(Equal(tx))
+							delete(expectedTxs, tx.Hash)
+						}
+						Expect(expectedTxs).To(HaveLen(0))
 						return true
 					}
 
@@ -312,7 +370,7 @@ var _ = Describe("Lightnode db", func() {
 				It("should returned the latest status of the tx", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB, 100)
+					db := New(sqlDB)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
@@ -324,11 +382,16 @@ var _ = Describe("Lightnode db", func() {
 							transaction := txutil.RandomGoodTx(r)
 							txs[transaction.Hash] = transaction
 							Expect(db.InsertTx(transaction)).To(Succeed())
-							Expect(db.UpdateStatus(transaction.Hash, TxStatusConfirmed)).To(Succeed())
 
+							Expect(db.UpdateStatus(transaction.Hash, TxStatusConfirmed)).To(Succeed())
 							status, err := db.TxStatus(transaction.Hash)
 							Expect(err).NotTo(HaveOccurred())
 							Expect(status).Should(Equal(TxStatusConfirmed))
+
+							Expect(db.UpdateStatus(transaction.Hash, TxStatusUnconfirmed)).To(Succeed())
+							status, err = db.TxStatus(transaction.Hash)
+							Expect(err).NotTo(HaveOccurred())
+							Expect(status).Should(Equal(TxStatusUnconfirmed))
 						}
 
 						return true
@@ -342,7 +405,7 @@ var _ = Describe("Lightnode db", func() {
 				It("should only prune data which is expired", func() {
 					sqlDB := init(dbname)
 					defer close(sqlDB)
-					db := New(sqlDB, 100)
+					db := New(sqlDB)
 
 					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 					test := func() bool {
@@ -351,19 +414,28 @@ var _ = Describe("Lightnode db", func() {
 
 						transaction := txutil.RandomGoodTx(r)
 						Expect(db.InsertTx(transaction)).To(Succeed())
+						gatewayAddress := "address"
+						Expect(db.InsertGateway(gatewayAddress, transaction)).Should(Succeed())
 
 						// Ensure no data gets pruned before it is expired.
 						Expect(db.Prune(5 * time.Second)).Should(Succeed())
 						numTxs, err := NumOfDataEntries(sqlDB, "txs")
 						Expect(err).NotTo(HaveOccurred())
 						Expect(numTxs).Should(Equal(1))
+						numGateways, err := NumOfDataEntries(sqlDB, "gateways")
+						Expect(err).NotTo(HaveOccurred())
+						Expect(numGateways).Should(Equal(1))
 
 						// Ensure data gets pruned once it has expired.
 						Expect(UpdateTxCreatedTime(sqlDB, "txs", transaction.Hash, time.Now().Unix()-5)).Should(Succeed())
+						Expect(UpdateGatewayCreatedTime(sqlDB, gatewayAddress, time.Now().Unix()-5)).Should(Succeed())
 						Expect(db.Prune(time.Second)).Should(Succeed())
 						numTxs, err = NumOfDataEntries(sqlDB, "txs")
 						Expect(err).NotTo(HaveOccurred())
 						Expect(numTxs).Should(BeZero())
+						numGateways, err = NumOfDataEntries(sqlDB, "gateways")
+						Expect(err).NotTo(HaveOccurred())
+						Expect(numGateways).Should(BeZero())
 
 						return true
 					}

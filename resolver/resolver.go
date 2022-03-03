@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -298,20 +299,6 @@ func (resolver *Resolver) SubmitGateway(ctx context.Context, id interface{}, par
 	// If we have an existing gateway, return a successful response
 	if err == nil {
 		return jsonrpc.NewResponse(id, jsonrpc.ResponseSubmitTx{}, nil)
-	}
-
-	count, err := resolver.db.GatewayCount()
-	if err != nil {
-		resolver.logger.Errorf("[responder] cannot get gateway count: %v", err)
-		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to insert gateway", nil)
-		return jsonrpc.NewResponse(id, nil, &jsonErr)
-	}
-
-	// Check if we exceed max gateways before insterting
-	if count > resolver.db.MaxGatewayCount() {
-		resolver.logger.Errorf("[responder] max number of gateways reached: %v", err)
-		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to insert gateway", nil)
-		return jsonrpc.NewResponse(id, nil, &jsonErr)
 	}
 
 	err = resolver.db.InsertGateway(params.Gateway, params.Tx)
@@ -750,6 +737,13 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 
 	reqWithResponder := lhttp.NewRequestWithResponder(ctx, id, method, params, query)
 	if method == jsonrpc.MethodSubmitTx && params.(jsonrpc.ParamsSubmitTx).Tx.Selector.IsCrossChain() {
+		// Log the submitTx before validation
+		submitTxParams := params.(jsonrpc.ParamsSubmitTx)
+		data, err := json.Marshal(submitTxParams.Tx)
+		if err == nil {
+			log.Printf("[new submit tx] %v", string(data))
+		}
+
 		resolver.txCheckerRequests <- reqWithResponder
 	} else {
 		if ok := resolver.cacher.Send(reqWithResponder); !ok {
