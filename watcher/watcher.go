@@ -262,11 +262,10 @@ func (watcher Watcher) decodeToAddress(asset multichain.Asset, toBytes []byte) (
 	to := multichain.Address(toBytes)
 	switch asset {
 	case multichain.BTC, multichain.BCH, multichain.ZEC:
-		decoder := v0.AddressEncodeDecoder(asset.OriginChain(), watcher.opts.Network)
-		_, err := decoder.DecodeAddress(to)
+		_, err := watcher.bindings.DecodeAddress(asset.OriginChain(), to)
 		if err != nil {
 			to = multichain.Address(base58.Encode(toBytes))
-			_, err = decoder.DecodeAddress(to)
+			_, err = watcher.bindings.DecodeAddress(asset.OriginChain(), to)
 			if err != nil {
 				return "", nil, err
 			}
