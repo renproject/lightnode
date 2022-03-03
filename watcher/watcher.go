@@ -98,7 +98,7 @@ func (watcher Watcher) watchLogs(ctx context.Context) {
 	}
 
 	// The height pointer has falling behind too much and we emit an error event
-	if lastHeight-currentHeight >= 10*watcher.opts.MaxBlockAdvance {
+	if currentHeight-lastHeight >= 10*watcher.opts.MaxBlockAdvance {
 		watcher.opts.Logger.Errorf("[watcher] %v lastCheckedHeight = %v is falling behind too much against latestHeight = %v", watcher.opts.Chain, lastHeight, currentHeight)
 	}
 
