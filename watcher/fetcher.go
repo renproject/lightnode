@@ -13,7 +13,6 @@ import (
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/binding/gatewaybinding"
 	"github.com/renproject/darknode/binding/solanastate"
-	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/solana"
 	"github.com/renproject/pack"
@@ -153,8 +152,7 @@ func (fetcher ethFetcher) fetchLogBurnToChain(ctx context.Context, asset multich
 		}
 
 		// Decode the target address
-		decoder := v0.AddressEncodeDecoder(targetChain, multichain.NetworkMainnet)
-		toBytes, err := decoder.DecodeAddress(multichain.Address(iter.Event.RecipientAddress))
+		toBytes, err := fetcher.bindings.DecodeAddress(targetChain, multichain.Address(iter.Event.RecipientAddress))
 		if err != nil {
 			continue
 		}
