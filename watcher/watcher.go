@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/btcsuite/btcd/btcec"
 	"github.com/go-redis/redis/v7"
 	"github.com/jbenet/go-base58"
 	"github.com/renproject/darknode/binding"
 	"github.com/renproject/darknode/engine"
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/tx"
-	"github.com/renproject/id"
 	"github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
@@ -20,23 +18,20 @@ import (
 
 type Watcher struct {
 	opts     Options
-	gpubkey  pack.Bytes
 	fetcher  Fetcher
 	bindings binding.Bindings
 	resolver jsonrpc.Resolver
 	cache    redis.Cmdable
 }
 
-func NewWatcher(opts Options, fetcher Fetcher, binding binding.Bindings, resolver jsonrpc.Resolver, cache redis.Cmdable, distPubKey *id.PubKey) Watcher {
+func NewWatcher(opts Options, fetcher Fetcher, binding binding.Bindings, resolver jsonrpc.Resolver, cache redis.Cmdable) Watcher {
 	if opts.Chain == multichain.Solana {
 		if len(opts.Assets) != 1 {
 			panic("Solana needs to have one watcher per asset")
 		}
 	}
-	gpubkey := (*btcec.PublicKey)(distPubKey).SerializeCompressed()
 	return Watcher{
 		opts:     opts,
-		gpubkey:  gpubkey,
 		fetcher:  fetcher,
 		bindings: binding,
 		resolver: resolver,
@@ -221,9 +216,6 @@ func (watcher Watcher) burnToParams(eventLog EventInfo) (jsonrpc.ParamsSubmitTx,
 		Nonce:   eventLog.Nonce,
 		Nhash:   nhash,
 		Ghash:   ghash,
-	}
-	if isBurnAndMint {
-		burnInput.Gpubkey = watcher.gpubkey
 	}
 
 	input, err := pack.Encode(burnInput)

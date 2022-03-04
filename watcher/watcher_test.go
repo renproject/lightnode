@@ -68,8 +68,7 @@ var _ = Describe("Watcher", func() {
 				WithAssets([]multichain.Asset{multichain.BTC, multichain.LUNA}).
 				WithPollInterval(3 * time.Second).
 				WithConfidenceInterval(0)
-			key := id.NewPrivKey()
-			w := watcher.NewWatcher(options, fetcher, bindings, resovler, redisClient, key.PubKey())
+			w := watcher.NewWatcher(options, fetcher, bindings, resovler, redisClient)
 
 			// Make sure we are only pulling once
 			ctx, cancel := context.WithCancel(context.Background())
@@ -101,8 +100,7 @@ var _ = Describe("Watcher", func() {
 				WithAssets([]multichain.Asset{multichain.BTC}).
 				WithPollInterval(3 * time.Second).
 				WithConfidenceInterval(confidenceInterval)
-			key := id.NewPrivKey()
-			w := watcher.NewWatcher(options, fetcher, bindings, resovler, redisClient, key.PubKey())
+			w := watcher.NewWatcher(options, fetcher, bindings, resovler, redisClient)
 
 			// Make sure we are only pulling once
 			ctx, cancel := context.WithCancel(context.Background())
@@ -136,8 +134,7 @@ var _ = Describe("Watcher", func() {
 				WithPollInterval(3 * time.Second).
 				WithMaxBlockAdvance(maxAdvance).
 				WithConfidenceInterval(0)
-			key := id.NewPrivKey()
-			w := watcher.NewWatcher(options, fetcher, bindings, resovler, redisClient, key.PubKey())
+			w := watcher.NewWatcher(options, fetcher, bindings, resovler, redisClient)
 
 			// Make sure we are only pulling once
 			ctx, cancel := context.WithCancel(context.Background())
@@ -168,8 +165,7 @@ var _ = Describe("Watcher", func() {
 				WithNetwork(multichain.NetworkTestnet).
 				WithChain(multichain.Ethereum).
 				WithAssets([]multichain.Asset{multichain.BTC})
-			key := id.NewPrivKey()
-			w := watcher.NewWatcher(options, fetcher, bindings, resovler, redisClient, key.PubKey())
+			w := watcher.NewWatcher(options, fetcher, bindings, resovler, redisClient)
 
 			latestBlock := uint64(0)
 			test := func() bool {
@@ -213,8 +209,7 @@ var _ = Describe("Watcher", func() {
 				WithNetwork(multichain.NetworkTestnet).
 				WithChain(multichain.Solana).
 				WithAssets([]multichain.Asset{multichain.BTC})
-			key := id.NewPrivKey()
-			w := watcher.NewWatcher(options, fetcher, bindings, resovler, redisClient, key.PubKey())
+			w := watcher.NewWatcher(options, fetcher, bindings, resovler, redisClient)
 
 			latestBlock := uint64(0)
 			test := func() bool {
@@ -259,8 +254,7 @@ var _ = Describe("Watcher", func() {
 				WithChain(multichain.Ethereum).
 				WithAssets([]multichain.Asset{multichain.BTC}).
 				WithPollInterval(3 * time.Second)
-			key := id.NewPrivKey()
-			w := watcher.NewWatcher(options, fetcher, bindings, resovler, redisClient, key.PubKey())
+			w := watcher.NewWatcher(options, fetcher, bindings, resovler, redisClient)
 
 			// Set a starting height
 			startingHeight := uint64(rand.Int())
