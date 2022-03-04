@@ -186,13 +186,13 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 					continue
 				}
 				fetcher := watcher.NewSolFetcher(logger, solClient, asset, string(gatewayAddr))
-				w := watcher.NewWatcher(opts, fetcher, bindings, resolverI, client, options.DistPubKey)
+				w := watcher.NewWatcher(opts, fetcher, bindings, resolverI, client)
 				watchers = append(watchers, w)
 				logger.Infof("watching %v on %v", asset, chain)
 			}
 		} else {
 			fetcher := watcher.NewEthFetcher(chain, bindings, assets)
-			w := watcher.NewWatcher(opts, fetcher, bindings, resolverI, client, options.DistPubKey)
+			w := watcher.NewWatcher(opts, fetcher, bindings, resolverI, client)
 			watchers = append(watchers, w)
 			logger.Infof("watching %v", chain)
 		}
