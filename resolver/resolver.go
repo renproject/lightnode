@@ -706,6 +706,10 @@ func (resolver *Resolver) QueryTxs(ctx context.Context, id interface{}, params *
 		limit = 8
 	} else {
 		limit = int(*params.Limit)
+		if limit > 16 {
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidRequest, fmt.Sprintf("expected limit <= 16, got %v", limit), nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
 	}
 
 	latest := false
