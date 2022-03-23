@@ -134,7 +134,7 @@ func (watcher Watcher) watchLogs(ctx context.Context) {
 			if cancel != nil {
 				cancel()
 			}
-			return
+			continue
 		}
 
 		// Cancel the temporary context
