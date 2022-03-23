@@ -183,20 +183,9 @@ func (watcher Watcher) burnToParams(eventLog EventInfo) (jsonrpc.ParamsSubmitTx,
 
 	var to multichain.Address
 	var toDecoded []byte
-	var err error
-	if !isBurnAndMint {
-		var err error
-		to, toDecoded, err = watcher.decodeToAddress(eventLog.Asset, eventLog.ToBytes)
-		if err != nil {
-			return jsonrpc.ParamsSubmitTx{}, err
-		}
-	} else {
-		to, err = watcher.bindings.EncodeAddress(eventLog.TargetChain, eventLog.ToBytes)
-		if err != nil {
-			return jsonrpc.ParamsSubmitTx{}, err
-		}
-
-		toDecoded = eventLog.ToBytes
+	to, toDecoded, err := watcher.decodeToAddress(eventLog.Asset, eventLog.ToBytes)
+	if err != nil {
+		return jsonrpc.ParamsSubmitTx{}, err
 	}
 
 	watcher.opts.Logger.Infof("[watcher] %v burn parameters (to=%v, amount=%v, nonce=%v)", selector, string(to), eventLog.Amount, eventLog.Nonce)

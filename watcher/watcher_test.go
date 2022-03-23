@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"strings"
 	"testing/quick"
 	"time"
 
@@ -200,6 +201,53 @@ var _ = Describe("Watcher", func() {
 			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
 		})
 
+		It("should convert the burn log with an address of all small letters", func() {
+			redisClient := initRedis()
+			fetcher := &MockFetcher{}
+			bindings := initBindings()
+			resovler := &jsonrpcresolver.Callbacks{}
+			options := watcher.DefaultOptions().
+				WithNetwork(multichain.NetworkTestnet).
+				WithChain(multichain.Ethereum).
+				WithAssets([]multichain.Asset{multichain.BTC})
+			w := watcher.NewWatcher(options, fetcher, bindings, resovler, redisClient)
+
+			latestBlock := uint64(0)
+			test := func() bool {
+				// Make sure we are only pulling once
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+
+				// Simulate a burn event
+				event := RandomEventInfo()
+				if event.TargetChain.IsAccountBased() {
+					event.ToBytes = []byte(strings.ToLower(string(event.ToBytes)))
+				}
+				fetcher.handleFetchBurnLogs = func(ctx context.Context, from, to uint64) ([]watcher.EventInfo, error) {
+					return []watcher.EventInfo{event}, nil
+				}
+				fetcher.handleLatestBlockHeight = func(ctx context.Context) (uint64, error) {
+					latestBlock += 10
+					return latestBlock, nil
+				}
+
+				resovler.SubmitTxHandler = func(ctx context.Context, i interface{}, tx *jsonrpc.ParamsSubmitTx, request *http.Request) jsonrpc.Response {
+					var input engine.LockMintBurnReleaseInput
+					Expect(pack.Decode(&input, tx.Tx.Input)).Should(Succeed())
+					Expect(input.Txid).Should(Equal(event.Txid))
+					Expect(input.Amount.Equal(event.Amount)).Should(BeTrue())
+					Expect(input.To).Should(Equal(pack.String(event.ToBytes)))
+					Expect(input.Nonce).Should(Equal(event.Nonce))
+					return jsonrpc.NewResponse(i, map[string]bool{"ok": true}, nil)
+				}
+				// Verify the burn tx sent to resolver
+				w.Run(ctx)
+				return true
+			}
+
+			Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+		})
+
 		It("should convert the burn log to a renvm tx and submit to the resolver for Solana", func() {
 			redisClient := initRedis()
 			fetcher := &MockFetcher{}
@@ -286,12 +334,30 @@ var _ = Describe("Watcher", func() {
 
 func RandomEventInfo() watcher.EventInfo {
 	r := rand.New(rand.NewSource(time.Now().Unix()))
+	chains := []multichain.Chain{
+		multichain.Bitcoin,
+		multichain.DigiByte,
+		multichain.Dogecoin,
+		multichain.BitcoinCash,
+		multichain.Zcash,
+		multichain.Avalanche,
+		multichain.Ethereum,
+		multichain.Goerli,
+		multichain.BinanceSmartChain,
+		multichain.Fantom,
+		multichain.Polygon,
+		multichain.Arbitrum,
+		multichain.Filecoin,
+		multichain.Terra,
+		multichain.Solana,
+	}
+	chain := chains[rand.Intn(len(chains))]
+	addr := RandomGoodAddress(chain, multichain.NetworkTestnet)
 	txid := RandomBytes(r, 20)
-	addr := RandomGoodAddress(multichain.Bitcoin, multichain.NetworkTestnet)
 
 	return watcher.EventInfo{
-		Asset:       multichain.BTC,
-		TargetChain: multichain.Bitcoin,
+		Asset:       chain.NativeAsset(),
+		TargetChain: chain,
 		Txid:        txid,
 		Amount:      pack.U256{}.Generate(r, 100).Interface().(pack.U256),
 		ToBytes:     []byte(addr),
