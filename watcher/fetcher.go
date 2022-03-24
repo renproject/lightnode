@@ -156,7 +156,7 @@ func (fetcher ethFetcher) fetchLogBurnToChain(ctx context.Context, asset multich
 			TargetChain: targetChain,
 			Txid:        iter.Event.Raw.TxHash.Bytes(),
 			Amount:      pack.NewU256FromInt(iter.Event.Amount),
-			ToBytes:     []byte(iter.Event.RecipientChain),
+			ToBytes:     []byte(iter.Event.RecipientAddress),
 			Nonce:       nonceBytes,
 			BlockNumber: pack.NewU64(iter.Event.Raw.BlockNumber),
 		}
