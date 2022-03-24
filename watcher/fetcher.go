@@ -151,18 +151,12 @@ func (fetcher ethFetcher) fetchLogBurnToChain(ctx context.Context, asset multich
 			continue
 		}
 
-		// Decode the target address
-		toBytes, err := fetcher.bindings.DecodeAddress(targetChain, multichain.Address(iter.Event.RecipientAddress))
-		if err != nil {
-			continue
-		}
-
 		event := EventInfo{
 			Asset:       asset,
 			TargetChain: targetChain,
 			Txid:        iter.Event.Raw.TxHash.Bytes(),
 			Amount:      pack.NewU256FromInt(iter.Event.Amount),
-			ToBytes:     toBytes,
+			ToBytes:     []byte(iter.Event.RecipientAddress),
 			Nonce:       nonceBytes,
 			BlockNumber: pack.NewU64(iter.Event.Raw.BlockNumber),
 		}
