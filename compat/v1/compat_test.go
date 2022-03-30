@@ -85,7 +85,7 @@ var _ = Describe("Compat V0", func() {
 
 			err = engine.XValidateBurnExtrinsicTx(ctx, nil, tx, input)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("expected gpubkey len=0, got len=%v", len(input.Gpubkey))))
+			Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("expected gpubkey to be unset, got %v", input.Gpubkey)))
 
 			// Remove the gpubkey from the transaction and validate the result.
 			newTx, err := gpubkeyStore.RemoveGpubkey(tx)
