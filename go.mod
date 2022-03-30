@@ -4,11 +4,12 @@ go 1.16
 
 require (
 	github.com/alicebob/miniredis/v2 v2.14.3
+	github.com/allegro/bigcache v1.2.1 // indirect
 	github.com/btcsuite/btcd v0.22.0-beta
-	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
+	github.com/btcsuite/btcutil v1.0.3-0.20211129182920-9c4bbabe7acd
 	github.com/cosmos/cosmos-sdk v0.44.0
 	github.com/dfuse-io/solana-go v0.2.1-0.20210622202728-1d0a90faa723
-	github.com/ethereum/go-ethereum v1.10.7
+	github.com/ethereum/go-ethereum v1.10.13
 	github.com/evalphobia/logrus_sentry v0.8.2
 	github.com/filecoin-project/go-address v0.0.6
 	github.com/go-redis/redis/v7 v7.2.0
@@ -20,13 +21,13 @@ require (
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.13.0
 	github.com/renproject/aw v0.5.3
-	github.com/renproject/darknode v0.5.3-0.20220217003459-544e44d64337
+	github.com/renproject/darknode v0.5.3-0.20220328012341-5e15344cae54
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
 	github.com/renproject/multichain v0.5.3
-	github.com/renproject/pack v0.2.11
+	github.com/renproject/pack v0.2.12
 	github.com/renproject/phi v0.1.0
-	github.com/renproject/surge v1.2.6
+	github.com/renproject/surge v1.2.7
 	github.com/sirupsen/logrus v1.8.1
 	github.com/xlab/c-for-go v0.0.0-20201223145653-3ba5db515dcb // indirect
 	go.uber.org/zap v1.19.1
