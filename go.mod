@@ -20,11 +20,11 @@ require (
 	github.com/near/borsh-go v0.3.0
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.13.0
-	github.com/renproject/aw v0.5.3
-	github.com/renproject/darknode v0.5.3-0.20220402040548-6a1ba3b9e4a5
+	github.com/renproject/aw v0.6.1
+	github.com/renproject/darknode v0.5.3-0.20220412023316-8d10c62087e4
 	github.com/renproject/id v0.4.2
 	github.com/renproject/kv v1.1.2
-	github.com/renproject/multichain v0.5.6
+	github.com/renproject/multichain v0.5.7-0.20220411000708-eb9781cd6e10
 	github.com/renproject/pack v0.2.12
 	github.com/renproject/phi v0.1.0
 	github.com/renproject/surge v1.2.7
