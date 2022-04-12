@@ -1,3 +1,15 @@
+## 0.4.11
+
+- Add support for new EVM chains
+
+## 0.4.10
+
+TODO:
+
+## 0.4.9
+
+TODO:
+
 ## 0.4.8
 
 - Updates for gateway contracts v2.0.0

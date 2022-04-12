@@ -293,9 +293,10 @@ func RandomGoodTxid(r *rand.Rand, selector tx.Selector) pack.Bytes {
 		return pack.Bytes{}.Generate(r, 38).Interface().(pack.Bytes)
 
 	// Host chains
-	case multichain.Arbitrum, multichain.Avalanche, multichain.BinanceSmartChain,
-		multichain.Ethereum, multichain.Fantom, multichain.Goerli,
-		multichain.Moonbeam, multichain.Polygon, multichain.Solana:
+	case multichain.Arbitrum, multichain.Avalanche,
+		multichain.BinanceSmartChain, multichain.Ethereum, multichain.Fantom,
+		multichain.Goerli, multichain.Kava, multichain.Moonbeam, multichain.Polygon,
+		multichain.Ren, multichain.Solana:
 		return pack.Bytes{}.Generate(r, 32).Interface().(pack.Bytes)
 	default:
 		panic(fmt.Sprintf("unknown chain for txid = %v", selector.Source()))
@@ -353,7 +354,10 @@ func RandomGoodAddress(chain multichain.Chain, network multichain.Network) pack.
 		return pack.String(addr.EncodeAddress())
 
 	// Ethereum-like chain
-	case multichain.Avalanche, multichain.Ethereum, multichain.Goerli, multichain.BinanceSmartChain, multichain.Fantom, multichain.Polygon, multichain.Arbitrum, multichain.Moonbeam:
+	case multichain.Arbitrum, multichain.Avalanche,
+		multichain.BinanceSmartChain, multichain.Ethereum, multichain.Fantom,
+		multichain.Goerli, multichain.Kava, multichain.Moonbeam,
+		multichain.Polygon, multichain.Ren:
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		return pack.String(addr.Hex())
 
@@ -452,7 +456,10 @@ func AddressEncodeDecoder(chain multichain.Chain, network multichain.Network) mu
 	case multichain.Zcash:
 		params := ZcashNetParams(network)
 		return zcash.NewAddressEncodeDecoder(params)
-	case multichain.Avalanche, multichain.BinanceSmartChain, multichain.Ethereum, multichain.Fantom, multichain.Polygon, multichain.Moonbeam, multichain.Arbitrum, multichain.Goerli:
+	case multichain.Arbitrum, multichain.Avalanche,
+		multichain.BinanceSmartChain, multichain.Ethereum, multichain.Fantom,
+		multichain.Goerli, multichain.Kava, multichain.Moonbeam, multichain.Polygon,
+		multichain.Ren:
 		return ethereum.NewAddressEncodeDecoder()
 	case multichain.Filecoin:
 		return filecoin.NewAddressEncodeDecoder()

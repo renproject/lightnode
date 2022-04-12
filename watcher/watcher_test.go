@@ -23,7 +23,7 @@ import (
 	"github.com/renproject/darknode/jsonrpc"
 	"github.com/renproject/darknode/jsonrpc/jsonrpcresolver"
 	"github.com/renproject/id"
-	"github.com/renproject/lightnode/compat/v0"
+	v0 "github.com/renproject/lightnode/compat/v0"
 	"github.com/renproject/lightnode/watcher"
 	"github.com/renproject/multichain"
 	"github.com/renproject/multichain/chain/bitcoincash"
@@ -340,16 +340,19 @@ func RandomEventInfo() watcher.EventInfo {
 		multichain.Dogecoin,
 		multichain.BitcoinCash,
 		multichain.Zcash,
-		multichain.Avalanche,
-		multichain.Ethereum,
-		multichain.Goerli,
-		multichain.BinanceSmartChain,
-		multichain.Fantom,
-		multichain.Polygon,
 		multichain.Arbitrum,
+		multichain.Avalanche,
+		multichain.BinanceSmartChain,
+		multichain.Ethereum,
+		multichain.Fantom,
 		multichain.Filecoin,
-		multichain.Terra,
+		multichain.Goerli,
+		multichain.Kava,
+		multichain.Moonbeam,
+		multichain.Polygon,
+		multichain.Ren,
 		multichain.Solana,
+		multichain.Terra,
 	}
 	chain := chains[rand.Intn(len(chains))]
 	addr := RandomGoodAddress(chain, multichain.NetworkTestnet)
