@@ -48,7 +48,7 @@ func NewEthFetcher(logger logrus.FieldLogger, chain multichain.Chain, bindings *
 	for i := 0; i < len(assets); i++ {
 		gateway := bindings.MintGateway(chain, assets[i])
 		if gateway == nil {
-			logger.Warnf("gateway for %v on %v is not initialized", chain, assets[i])
+			logger.Warnf("gateway for %v on %v is not initialized", assets[i], chain)
 			assets = append(assets[:i], assets[i+1:]...)
 			i--
 		}
