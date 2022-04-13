@@ -45,10 +45,12 @@ type ethFetcher struct {
 func NewEthFetcher(logger logrus.FieldLogger, chain multichain.Chain, bindings *binding.Binding, assets []multichain.Asset) Fetcher {
 
 	// Make sure we have initialized the gateway for all supported assets
-	for _, asset := range assets {
-		gateway := bindings.MintGateway(chain, asset)
+	for i := 0; i < len(assets); i++ {
+		gateway := bindings.MintGateway(chain, assets[i])
 		if gateway == nil {
-			logger.Warnf("gateway for %v on %v is not initialized", chain, asset)
+			logger.Warnf("gateway for %v on %v is not initialized", chain, assets[i])
+			assets = append(assets[:i], assets[i+1:]...)
+			i--
 		}
 	}
 
