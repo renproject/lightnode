@@ -22,9 +22,10 @@ import (
 var _ = Describe("fetcher", func() {
 	Context("Ethereum fetcher", func() {
 		It("should be able to fetch latest block height", func() {
+			logger := logrus.New()
 			binding := initBindings()
 			assets := []multichain.Asset{multichain.BTC}
-			fetcher := watcher.NewEthFetcher(multichain.Ethereum, binding, assets)
+			fetcher := watcher.NewEthFetcher(logger, multichain.Ethereum, binding, assets)
 			latestBlock, err := fetcher.LatestBlockHeight(context.Background())
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -37,11 +38,12 @@ var _ = Describe("fetcher", func() {
 		})
 
 		It("should be able to fetch burn event from the contract", func() {
+			logger := logrus.New()
 			binding := initBindings()
 			assets := []multichain.Asset{
 				multichain.BTC,
 			}
-			fetcher := watcher.NewEthFetcher(multichain.Ethereum, binding, assets)
+			fetcher := watcher.NewEthFetcher(logger, multichain.Ethereum, binding, assets)
 
 			// First btc burn on kovan is on block 18121453
 			// Try a block range before that and expect zero event returned
@@ -65,12 +67,13 @@ var _ = Describe("fetcher", func() {
 		})
 
 		It("should be able to fetch burn event for multiple assets on the same chain", func() {
+			logger := logrus.New()
 			binding := initBindings()
 			assets := []multichain.Asset{
 				multichain.BTC,  // 23520344
 				multichain.LUNA, // 23528857
 			}
-			fetcher := watcher.NewEthFetcher(multichain.Ethereum, binding, assets)
+			fetcher := watcher.NewEthFetcher(logger, multichain.Ethereum, binding, assets)
 			from, to := uint64(23520000), uint64(23529000)
 			events, err := fetcher.FetchBurnLogs(context.Background(), from, to)
 			Expect(err).ShouldNot(HaveOccurred())

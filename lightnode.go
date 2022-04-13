@@ -191,7 +191,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 				logger.Infof("watching %v on %v", asset, chain)
 			}
 		} else {
-			fetcher := watcher.NewEthFetcher(chain, bindings, assets)
+			fetcher := watcher.NewEthFetcher(logger, chain, bindings, assets)
 			w := watcher.NewWatcher(opts, fetcher, bindings, resolverI, client)
 			watchers = append(watchers, w)
 			logger.Infof("watching %v", chain)

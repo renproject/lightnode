@@ -36,22 +36,24 @@ type Fetcher interface {
 }
 
 type ethFetcher struct {
+	logger   logrus.FieldLogger
 	chain    multichain.Chain
 	assets   []multichain.Asset
 	bindings *binding.Binding
 }
 
-func NewEthFetcher(chain multichain.Chain, bindings *binding.Binding, assets []multichain.Asset) Fetcher {
+func NewEthFetcher(logger logrus.FieldLogger, chain multichain.Chain, bindings *binding.Binding, assets []multichain.Asset) Fetcher {
 
 	// Make sure we have initialized the gateway for all supported assets
 	for _, asset := range assets {
 		gateway := bindings.MintGateway(chain, asset)
 		if gateway == nil {
-			panic(fmt.Sprintf("gateway for %v on %v is not initialized", chain, asset))
+			logger.Warnf("gateway for %v on %v is not initialized", chain, asset)
 		}
 	}
 
 	return ethFetcher{
+		logger:   logger,
 		chain:    chain,
 		assets:   assets,
 		bindings: bindings,
