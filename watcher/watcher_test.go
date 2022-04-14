@@ -410,7 +410,10 @@ func RandomGoodAddress(chain multichain.Chain, network multichain.Network) pack.
 		return pack.String(addr.EncodeAddress())
 
 	// Ethereum-like chain
-	case multichain.Avalanche, multichain.Ethereum, multichain.Goerli, multichain.BinanceSmartChain, multichain.Fantom, multichain.Polygon, multichain.Arbitrum, multichain.Moonbeam:
+	case multichain.Arbitrum, multichain.Avalanche,
+		multichain.BinanceSmartChain, multichain.Ethereum, multichain.Fantom,
+		multichain.Goerli, multichain.Kava, multichain.Moonbeam,
+		multichain.Polygon, multichain.Ren:
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		return pack.String(addr.Hex())
 
