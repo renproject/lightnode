@@ -343,6 +343,7 @@ func RandomEventInfo() watcher.EventInfo {
 		multichain.Arbitrum,
 		multichain.Avalanche,
 		multichain.BinanceSmartChain,
+		multichain.Catalog,
 		multichain.Ethereum,
 		multichain.Fantom,
 		multichain.Filecoin,
@@ -350,7 +351,6 @@ func RandomEventInfo() watcher.EventInfo {
 		multichain.Kava,
 		multichain.Moonbeam,
 		multichain.Polygon,
-		multichain.Ren,
 		multichain.Solana,
 		multichain.Terra,
 	}
@@ -411,9 +411,9 @@ func RandomGoodAddress(chain multichain.Chain, network multichain.Network) pack.
 
 	// Ethereum-like chain
 	case multichain.Arbitrum, multichain.Avalanche,
-		multichain.BinanceSmartChain, multichain.Ethereum, multichain.Fantom,
-		multichain.Goerli, multichain.Kava, multichain.Moonbeam,
-		multichain.Polygon, multichain.Ren:
+		multichain.BinanceSmartChain, multichain.Catalog, multichain.Ethereum,
+		multichain.Fantom, multichain.Goerli, multichain.Kava,
+		multichain.Moonbeam, multichain.Polygon:
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		return pack.String(addr.Hex())
 

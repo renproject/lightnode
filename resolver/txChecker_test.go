@@ -294,9 +294,9 @@ func RandomGoodTxid(r *rand.Rand, selector tx.Selector) pack.Bytes {
 
 	// Host chains
 	case multichain.Arbitrum, multichain.Avalanche,
-		multichain.BinanceSmartChain, multichain.Ethereum, multichain.Fantom,
-		multichain.Goerli, multichain.Kava, multichain.Moonbeam, multichain.Polygon,
-		multichain.Ren, multichain.Solana:
+		multichain.BinanceSmartChain, multichain.Catalog, multichain.Ethereum,
+		multichain.Fantom, multichain.Goerli, multichain.Kava,
+		multichain.Moonbeam, multichain.Polygon, multichain.Solana:
 		return pack.Bytes{}.Generate(r, 32).Interface().(pack.Bytes)
 	default:
 		panic(fmt.Sprintf("unknown chain for txid = %v", selector.Source()))
@@ -355,9 +355,9 @@ func RandomGoodAddress(chain multichain.Chain, network multichain.Network) pack.
 
 	// Ethereum-like chain
 	case multichain.Arbitrum, multichain.Avalanche,
-		multichain.BinanceSmartChain, multichain.Ethereum, multichain.Fantom,
-		multichain.Goerli, multichain.Kava, multichain.Moonbeam,
-		multichain.Polygon, multichain.Ren:
+		multichain.BinanceSmartChain, multichain.Catalog, multichain.Ethereum,
+		multichain.Fantom, multichain.Goerli, multichain.Kava,
+		multichain.Moonbeam, multichain.Polygon:
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		return pack.String(addr.Hex())
 
@@ -457,9 +457,9 @@ func AddressEncodeDecoder(chain multichain.Chain, network multichain.Network) mu
 		params := ZcashNetParams(network)
 		return zcash.NewAddressEncodeDecoder(params)
 	case multichain.Arbitrum, multichain.Avalanche,
-		multichain.BinanceSmartChain, multichain.Ethereum, multichain.Fantom,
-		multichain.Goerli, multichain.Kava, multichain.Moonbeam, multichain.Polygon,
-		multichain.Ren:
+		multichain.BinanceSmartChain, multichain.Catalog, multichain.Ethereum,
+		multichain.Fantom, multichain.Goerli, multichain.Kava,
+		multichain.Moonbeam, multichain.Polygon:
 		return ethereum.NewAddressEncodeDecoder()
 	case multichain.Filecoin:
 		return filecoin.NewAddressEncodeDecoder()
