@@ -2091,6 +2091,8 @@ github.com/renproject/darknode v0.5.3-0.20220414004103-ac605b8c61a9 h1:hwZu0pfhx
 github.com/renproject/darknode v0.5.3-0.20220414004103-ac605b8c61a9/go.mod h1:HoSlgPRVEaJQxn8ur4RNd0YVsWfwi9wT58v52btIguk=
 github.com/renproject/darknode v0.5.3-0.20220420045804-6c4efb58abc3 h1:1FdMRcuHbFBRAjMlRuHji8B04cuykFJi2HflFbM4ziY=
 github.com/renproject/darknode v0.5.3-0.20220420045804-6c4efb58abc3/go.mod h1:7QKJWl7vofnvjrRthwGFRdPs/7CDAtdhwPeAdxbiFNg=
+github.com/renproject/darknode v0.5.3-0.20220420235937-b7b6784b5ee7 h1:efDzPBRlox6UWWqkHrF5TaNfhnLgb/Hxayt3LrBZZzQ=
+github.com/renproject/darknode v0.5.3-0.20220420235937-b7b6784b5ee7/go.mod h1:7QKJWl7vofnvjrRthwGFRdPs/7CDAtdhwPeAdxbiFNg=
 github.com/renproject/hyperdrive v0.4.9 h1:PbFy7RoELePZSZo55tFS9itNPOuOKr4mjC8MbbngE5M=
 github.com/renproject/hyperdrive v0.4.9/go.mod h1:ck1cKJ0M95xwfO0vuEj7ifDjNVYFrPvat5INU70wbUc=
 github.com/renproject/id v0.4.2 h1:XseNDPPCJtsZjIWR7Qgf+zxy0Gt5xsLrfwpQxJt5wFQ=
