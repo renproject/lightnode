@@ -4,7 +4,6 @@ go 1.16
 
 require (
 	github.com/alicebob/miniredis/v2 v2.14.3
-	github.com/allegro/bigcache v1.2.1 // indirect
 	github.com/btcsuite/btcd v0.22.0-beta
 	github.com/btcsuite/btcutil v1.0.3-0.20211129182920-9c4bbabe7acd
 	github.com/cosmos/cosmos-sdk v0.44.0
