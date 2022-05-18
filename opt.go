@@ -16,6 +16,7 @@ import (
 // Enumerate default options.
 var (
 	DefaultPort                      = "5000"
+	DefaultSanctionKey               = ""
 	DefaultCap                       = 128
 	DefaultMaxBatchSize              = 10
 	DefaultMaxPageSize               = 10
@@ -40,6 +41,7 @@ type Options struct {
 	Network                   multichain.Network
 	DistPubKey                *id.PubKey
 	Port                      string
+	SanctionKey               string
 	Cap                       int
 	MaxBatchSize              int
 	MaxPageSize               int
@@ -66,8 +68,8 @@ type Options struct {
 func DefaultOptions() Options {
 	return Options{
 		Port:                      DefaultPort,
+		SanctionKey:               DefaultSanctionKey,
 		Cap:                       DefaultCap,
-		BootstrapAddrs:            DefaultBootstrapAddrs,
 		MaxBatchSize:              DefaultMaxBatchSize,
 		MaxPageSize:               DefaultMaxPageSize,
 		ServerTimeout:             DefaultServerTimeout,
@@ -79,9 +81,10 @@ func DefaultOptions() Options {
 		WatcherMaxBlockAdvance:    DefaultWatcherMaxBlockAdvance,
 		WatcherConfidenceInterval: DefaultWatcherConfidenceInterval,
 		TransactionExpiry:         DefaultTransactionExpiry,
-		LimiterTTL:                DefaultLimiterTTL,
+		BootstrapAddrs:            DefaultBootstrapAddrs,
 		LimiterGlobalRates:        DefaultLimiterGlobalRates,
 		LimiterIPRates:            DefaultLimiterIPRates,
+		LimiterTTL:                DefaultLimiterTTL,
 		LimiterMaxClients:         DefaultLimiterMaxClients,
 	}
 }
@@ -101,6 +104,12 @@ func (opts Options) WithDistPubKey(distPubKey *id.PubKey) Options {
 // WithPort updates the port.
 func (opts Options) WithPort(port string) Options {
 	opts.Port = port
+	return opts
+}
+
+// WithSanctionKey updates the API key of the sanction address screening.
+func (opts Options) WithSanctionKey(key string) Options {
+	opts.SanctionKey = key
 	return opts
 }
 

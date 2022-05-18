@@ -32,6 +32,7 @@ type txchecker struct {
 	verifier Verifier
 	db       db.DB
 	mu       *sync.Mutex
+	screener Screener
 }
 
 type Verifier interface {
@@ -121,13 +122,14 @@ func (v verifier) VerifyTx(ctx context.Context, transaction tx.Tx) error {
 }
 
 // newTxChecker returns a new txchecker.
-func newTxChecker(logger logrus.FieldLogger, requests <-chan http.RequestWithResponder, verifier Verifier, db db.DB) txchecker {
+func newTxChecker(logger logrus.FieldLogger, requests <-chan http.RequestWithResponder, verifier Verifier, db db.DB, screener Screener) txchecker {
 	return txchecker{
 		logger:   logger,
 		requests: requests,
 		verifier: verifier,
 		db:       db,
 		mu:       new(sync.Mutex),
+		screener: screener,
 	}
 }
 
@@ -144,6 +146,16 @@ func (tc *txchecker) Run() {
 			cancel()
 			if err != nil {
 				req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, err)
+				continue
+			}
+
+			to := params.Tx.Input.Get("to").(pack.String)
+			isSanctioned, err := tc.screener.IsSanctioned(to)
+			if err != nil {
+				tc.logger.Errorf("[txchecker] fail to screen sanction address: %v", err)
+			}
+			if isSanctioned {
+				req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("target address is sanctioned"))
 				continue
 			}
 

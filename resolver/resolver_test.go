@@ -123,7 +123,7 @@ var _ = Describe("Resolver", func() {
 		validator := NewValidator(multichain.NetworkTestnet, bindings, (*id.PubKey)(pubkey), versionStore, gpubkeyStore, &limiter, logger)
 
 		mockVerifier := mockVerifier{}
-		resolver := New(multichain.NetworkTestnet, logger, cacher, multiaddrStore, database, jsonrpc.Options{}, versionStore, gpubkeyStore, bindings, mockVerifier)
+		resolver := New(multichain.NetworkTestnet, logger, cacher, multiaddrStore, database, jsonrpc.Options{}, versionStore, gpubkeyStore, bindings, mockVerifier, "")
 
 		return resolver, validator, client
 	}
