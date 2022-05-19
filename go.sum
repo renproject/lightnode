@@ -2072,8 +2072,6 @@ github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 h1:OdAsTTz6O
 github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/renproject/aw v0.6.1 h1:qPzf+a9fFt+TQV/KNVZgDLZb0T1lSq6hNKfGPOx9Zy0=
 github.com/renproject/aw v0.6.1/go.mod h1:Eb0/6xJmA7/alntu51RNCtpicZyDOVXuXTHOECawX7E=
-github.com/renproject/darknode v0.5.3-0.20220429012904-37e66ebf1af3 h1:9W4/HpphwP6aCLkuPYchdthbJd9dXjOmLo0SGzOdmwA=
-github.com/renproject/darknode v0.5.3-0.20220429012904-37e66ebf1af3/go.mod h1:7QKJWl7vofnvjrRthwGFRdPs/7CDAtdhwPeAdxbiFNg=
 github.com/renproject/darknode v0.5.3-0.20220518082221-57115a6b8f1c h1:iVFzKCKR3mnzMYVDlcOx4eFwutH9UmuNbcBTN6ilaMA=
 github.com/renproject/darknode v0.5.3-0.20220518082221-57115a6b8f1c/go.mod h1:7QKJWl7vofnvjrRthwGFRdPs/7CDAtdhwPeAdxbiFNg=
 github.com/renproject/hyperdrive v0.4.9 h1:PbFy7RoELePZSZo55tFS9itNPOuOKr4mjC8MbbngE5M=
