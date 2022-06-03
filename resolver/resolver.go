@@ -378,13 +378,9 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 		params.TxHash = newHash
 	}
 
-	newHash, err := resolver.compatStore.GetStandardHash(params.TxHash)
-	if err != nil && err != ErrNotFound {
-		resolver.logger.Errorf("[responder] cannot get compat hash mapping from store: %v", err)
-		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to read tx mapping from store", nil)
-		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	if newHash, err := resolver.compatStore.GetStandardHash(params.TxHash); err == nil {
+		params.TxHash = newHash
 	}
-	params.TxHash = newHash
 
 	// Retrieve transaction status from the database.
 	status, err := resolver.db.TxStatus(params.TxHash)
