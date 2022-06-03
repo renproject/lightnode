@@ -14,7 +14,7 @@ import (
 )
 
 // ErrNotFound wraps redis errors to hide implementation details
-var ErrNotFound = errors.New("compatstore: not found")
+var ErrNotFound = errors.New("compatstore : not found")
 
 // CompatStore aims to abstract compat persistence mappings
 type CompatStore interface {

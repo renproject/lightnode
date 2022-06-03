@@ -42,12 +42,13 @@ type Resolver struct {
 	db                db.DB
 	serverOptions     jsonrpc.Options
 	versionStore      v0.CompatStore
+	compatStore       CompatStore
 	gpubkeyStore      v1.GpubkeyCompatStore
 	bindings          binding.Bindings
 }
 
 func New(network multichain.Network, logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, db db.DB,
-	serverOptions jsonrpc.Options, versionStore v0.CompatStore, gpubkeyStore v1.GpubkeyCompatStore, bindings binding.Bindings, verifier Verifier) *Resolver {
+	serverOptions jsonrpc.Options, compatStore CompatStore, versionStore v0.CompatStore, gpubkeyStore v1.GpubkeyCompatStore, bindings binding.Bindings, verifier Verifier) *Resolver {
 	requests := make(chan lhttp.RequestWithResponder, 128)
 	txChecker := newTxChecker(logger, requests, verifier, db)
 	go txChecker.Run()
@@ -61,6 +62,7 @@ func New(network multichain.Network, logger logrus.FieldLogger, cacher phi.Task,
 		db:                db,
 		serverOptions:     serverOptions,
 		versionStore:      versionStore,
+		compatStore:       compatStore,
 		gpubkeyStore:      gpubkeyStore,
 		bindings:          bindings,
 	}
@@ -375,6 +377,14 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 		// the query instead.
 		params.TxHash = newHash
 	}
+
+	newHash, err := resolver.compatStore.GetStandardHash(params.TxHash)
+	if err != nil && err != ErrNotFound {
+		resolver.logger.Errorf("[responder] cannot get compat hash mapping from store: %v", err)
+		jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to read tx mapping from store", nil)
+		return jsonrpc.NewResponse(id, nil, &jsonErr)
+	}
+	params.TxHash = newHash
 
 	// Retrieve transaction status from the database.
 	status, err := resolver.db.TxStatus(params.TxHash)
@@ -748,6 +758,16 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 			log.Printf("[new submit tx] %v", string(data))
 		}
 
+		// If the tx uses a non-standard target address, we convert it to a
+		// standard address and update the transaction object. The tx hashes
+		// mapping will be stored in storage for future quering.
+		if submitTxParams.Tx.Version == tx.Version1 && submitTxParams.Tx.Selector.IsMint() {
+			tx, err := resolver.compactTx(submitTxParams.Tx)
+			if err == nil {
+				submitTxParams.Tx = tx
+			}
+		}
+
 		resolver.txCheckerRequests <- reqWithResponder
 	} else {
 		if ok := resolver.cacher.Send(reqWithResponder); !ok {
@@ -764,4 +784,42 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 	case res := <-reqWithResponder.Responder:
 		return res
 	}
+}
+
+func (resolver *Resolver) compactTx(transaction tx.Tx) (tx.Tx, error) {
+	// Ignore none mint transactions
+	if !transaction.Selector.IsMint() {
+		return transaction, nil
+	}
+
+	// Check the `to` address
+	toArg := transaction.Input.Get("to")
+	if toArg == nil {
+		return transaction, nil
+	}
+	to, ok := toArg.(pack.String)
+	if !ok {
+		return transaction, nil
+	}
+
+	toDecoded, err := resolver.bindings.DecodeAddress(transaction.Selector.Destination(), multichain.Address(to))
+	if err != nil {
+		return transaction, err
+	}
+	expectedTo, err := resolver.bindings.EncodeAddress(transaction.Selector.Destination(), toDecoded)
+	if err != nil {
+		return transaction, err
+	}
+	if expectedTo != multichain.Address(to) {
+		transaction.Input.Set("to", pack.String(expectedTo))
+		oldHash := transaction.Hash
+		newHash, err := tx.NewTxHash(transaction.Version, transaction.Selector, transaction.Input)
+		if err != nil {
+			return transaction, err
+		}
+		transaction.Hash = newHash
+		err = resolver.compatStore.TxHashMapping(oldHash, newHash)
+		return transaction, err
+	}
+	return transaction, nil
 }
