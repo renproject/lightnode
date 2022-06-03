@@ -761,6 +761,7 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 			tx, err := resolver.compactTx(submitTxParams.Tx)
 			if err == nil {
 				submitTxParams.Tx = tx
+				reqWithResponder.Params = submitTxParams
 			}
 		}
 
