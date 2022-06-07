@@ -104,7 +104,10 @@ var _ = Describe("fetcher", func() {
 			// Try latest 5 burn for time reason.
 			for i := latestBlock - 5; i < latestBlock; i++ {
 				events, err := fetcher.FetchBurnLogs(context.Background(), i, i+1)
-				Expect(err).ShouldNot(HaveOccurred())
+				// There might be burns with invalid params which we want to skip
+				if err != nil {
+					continue
+				}
 
 				for _, event := range events {
 					// Asset should be the expected asset
@@ -133,6 +136,10 @@ func initBindings() *binding.Binding {
 		WithNetwork(multichain.NetworkTestnet).
 		WithChainOptions(multichain.Bitcoin, binding.ChainOptions{
 			RPC:           "https://multichain-staging.renproject.io/testnet/bitcoind",
+			Confirmations: pack.U64(0),
+		}).
+		WithChainOptions(multichain.Dogecoin, binding.ChainOptions{
+			RPC:           "https://multichain-staging.renproject.io/testnet/dogecoind",
 			Confirmations: pack.U64(0),
 		}).
 		WithChainOptions(multichain.Terra, binding.ChainOptions{
