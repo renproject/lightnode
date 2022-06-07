@@ -104,6 +104,10 @@ var _ = Describe("fetcher", func() {
 			// Try latest 5 burn for time reason.
 			for i := latestBlock - 5; i < latestBlock; i++ {
 				events, err := fetcher.FetchBurnLogs(context.Background(), i, i+1)
+				// There might be burns with invalid params which we want to skip
+				if err != nil {
+					continue
+				}
 				Expect(err).ShouldNot(HaveOccurred())
 
 				for _, event := range events {
