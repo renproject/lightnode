@@ -108,7 +108,6 @@ var _ = Describe("fetcher", func() {
 				if err != nil {
 					continue
 				}
-				Expect(err).ShouldNot(HaveOccurred())
 
 				for _, event := range events {
 					// Asset should be the expected asset
