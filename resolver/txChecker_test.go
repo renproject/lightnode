@@ -49,6 +49,10 @@ var _ = Describe("Verifier", func() {
 				encodDecoder := AddressEncodeDecoder(chain, network)
 				return encodDecoder.DecodeAddress(addr)
 			}
+			bindings.HandleEncodeAddress = func(chain multichain.Chain, rawAddr multichain.RawAddress) (multichain.Address, error) {
+				encodeDecoder := AddressEncodeDecoder(chain, network)
+				return encodeDecoder.EncodeAddress(rawAddr)
+			}
 			bindings.HandleAddressFromPubKey = func(chain multichain.Chain, pubKey *id.PubKey) (multichain.Address, error) {
 				return binding.AddressFromPubKey(network, chain, pubKey)
 			}
@@ -118,6 +122,10 @@ var _ = Describe("Verifier", func() {
 			bindings.HandleDecodeAddress = func(chain multichain.Chain, addr multichain.Address) (multichain.RawAddress, error) {
 				encodDecoder := AddressEncodeDecoder(chain, network)
 				return encodDecoder.DecodeAddress(addr)
+			}
+			bindings.HandleEncodeAddress = func(chain multichain.Chain, rawAddr multichain.RawAddress) (multichain.Address, error) {
+				encodeDecoder := AddressEncodeDecoder(chain, network)
+				return encodeDecoder.EncodeAddress(rawAddr)
 			}
 			bindings.HandleAddressFromPubKey = func(chain multichain.Chain, pubKey *id.PubKey) (multichain.Address, error) {
 				return binding.AddressFromPubKey(network, chain, pubKey)

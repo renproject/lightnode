@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"encoding/base64"
 	"errors"
 	"time"
 
@@ -45,7 +46,11 @@ func (store Store) GetStandardHash(compatHash id.Hash) (id.Hash, error) {
 		}
 		return id.Hash{}, err
 	}
+	data, err := base64.RawURLEncoding.DecodeString(hashStr)
+	if err != nil {
+		return id.Hash{}, err
+	}
 	var hash id.Hash
-	copy(hash[:], hashStr)
+	copy(hash[:], data)
 	return hash, nil
 }
