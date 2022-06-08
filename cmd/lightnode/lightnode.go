@@ -294,6 +294,9 @@ func parseOptions() lightnode.Options {
 	if os.Getenv("PORT") != "" {
 		options = options.WithPort(os.Getenv("PORT"))
 	}
+	if os.Getenv("SANCTION_KEY") != "" {
+		options = options.WithSanctionKey(os.Getenv("SANCTION_KEY"))
+	}
 	if os.Getenv("CAP") != "" {
 		options = options.WithCap(parseInt("CAP"))
 	}
