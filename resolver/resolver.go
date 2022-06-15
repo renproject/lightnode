@@ -768,7 +768,7 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 		// If the tx uses a non-standard target address, we convert it to a
 		// standard address and update the transaction object. The tx hashes
 		// mapping will be stored in storage for future quering.
-		if submitTxParams.Tx.Version == tx.Version1 && submitTxParams.Tx.Selector.IsMint() {
+		if submitTxParams.Tx.Selector.IsMint() {
 			tx, err := resolver.compactTx(submitTxParams.Tx)
 			if err == nil {
 				submitTxParams.Tx = tx
