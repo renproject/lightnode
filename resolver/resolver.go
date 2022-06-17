@@ -769,7 +769,7 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 		// standard address and update the transaction object. The tx hashes
 		// mapping will be stored in storage for future quering.
 		if submitTxParams.Tx.Selector.IsMint() {
-			tx, err := resolver.compactTx(submitTxParams.Tx)
+			tx, err := resolver.compatTx(submitTxParams.Tx)
 			if err == nil {
 				submitTxParams.Tx = tx
 				reqWithResponder.Params = submitTxParams
@@ -794,8 +794,8 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 	}
 }
 
-func (resolver *Resolver) compactTx(transaction tx.Tx) (tx.Tx, error) {
-	// Ignore none mint transactions
+func (resolver *Resolver) compatTx(transaction tx.Tx) (tx.Tx, error) {
+	// Ignore non-mint transactions
 	if !transaction.Selector.IsMint() {
 		return transaction, nil
 	}
