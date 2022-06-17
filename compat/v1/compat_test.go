@@ -65,7 +65,7 @@ var _ = Describe("Compat V0", func() {
 			}
 
 			// Generate a random transaction with a gpubkey specified.
-			selector := tx.Selector(fmt.Sprintf("%v/to%v", multichain.AMOCK1, multichain.AccountMocker2))
+			selector := tx.Selector(fmt.Sprintf("%v/from%v", multichain.AMOCK1, multichain.AccountMocker2))
 			input := engine.LockMintBurnReleaseInput{
 				Txid:    pack.Bytes{},
 				Txindex: 0,
