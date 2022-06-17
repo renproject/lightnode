@@ -48,9 +48,10 @@ type Resolver struct {
 }
 
 func New(network multichain.Network, logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, db db.DB,
-	serverOptions jsonrpc.Options, compatStore CompatStore, versionStore v0.CompatStore, gpubkeyStore v1.GpubkeyCompatStore, bindings binding.Bindings, verifier Verifier) *Resolver {
+	serverOptions jsonrpc.Options, compatStore CompatStore, versionStore v0.CompatStore, gpubkeyStore v1.GpubkeyCompatStore, bindings binding.Bindings, verifier Verifier, sanctionKey string) *Resolver {
 	requests := make(chan lhttp.RequestWithResponder, 128)
-	txChecker := newTxChecker(logger, requests, verifier, db)
+	screener := NewScreener(sanctionKey)
+	txChecker := newTxChecker(logger, requests, verifier, db, screener)
 	go txChecker.Run()
 
 	return &Resolver{
