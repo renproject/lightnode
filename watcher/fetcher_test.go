@@ -138,6 +138,10 @@ func initBindings() *binding.Binding {
 			RPC:           "https://multichain-staging.renproject.io/testnet/bitcoind",
 			Confirmations: pack.U64(0),
 		}).
+		WithChainOptions(multichain.Dogecoin, binding.ChainOptions{
+			RPC:           "https://multichain-staging.renproject.io/testnet/dogecoind",
+			Confirmations: pack.U64(0),
+		}).
 		WithChainOptions(multichain.Terra, binding.ChainOptions{
 			RPC:           "https://multichain-staging.renproject.io/testnet/terrad",
 			Confirmations: pack.U64(0),

@@ -108,6 +108,7 @@ var _ = Describe("Resolver", func() {
 		cacher := testutils.NewMockCacher()
 		go cacher.Run(ctx)
 
+		compatStore := NewCompatStore(client, time.Hour)
 		versionStore := v0.NewCompatStore(database, client, time.Hour)
 		gpubkeyStore := v1.NewCompatStore(client)
 
@@ -123,7 +124,7 @@ var _ = Describe("Resolver", func() {
 		validator := NewValidator(multichain.NetworkTestnet, bindings, (*id.PubKey)(pubkey), versionStore, gpubkeyStore, &limiter, logger)
 
 		mockVerifier := mockVerifier{}
-		resolver := New(multichain.NetworkTestnet, logger, cacher, multiaddrStore, database, jsonrpc.Options{}, versionStore, gpubkeyStore, bindings, mockVerifier, "")
+		resolver := New(multichain.NetworkTestnet, logger, cacher, multiaddrStore, database, jsonrpc.Options{}, compatStore, versionStore, gpubkeyStore, bindings, mockVerifier, "")
 
 		return resolver, validator, client
 	}

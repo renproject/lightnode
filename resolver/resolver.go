@@ -42,12 +42,13 @@ type Resolver struct {
 	db                db.DB
 	serverOptions     jsonrpc.Options
 	versionStore      v0.CompatStore
+	compatStore       CompatStore
 	gpubkeyStore      v1.GpubkeyCompatStore
 	bindings          binding.Bindings
 }
 
 func New(network multichain.Network, logger logrus.FieldLogger, cacher phi.Task, multiStore store.MultiAddrStore, db db.DB,
-	serverOptions jsonrpc.Options, versionStore v0.CompatStore, gpubkeyStore v1.GpubkeyCompatStore, bindings binding.Bindings, verifier Verifier, sanctionKey string) *Resolver {
+	serverOptions jsonrpc.Options, compatStore CompatStore, versionStore v0.CompatStore, gpubkeyStore v1.GpubkeyCompatStore, bindings binding.Bindings, verifier Verifier, sanctionKey string) *Resolver {
 	requests := make(chan lhttp.RequestWithResponder, 128)
 	screener := NewScreener(sanctionKey)
 	txChecker := newTxChecker(logger, requests, verifier, db, screener)
@@ -62,6 +63,7 @@ func New(network multichain.Network, logger logrus.FieldLogger, cacher phi.Task,
 		db:                db,
 		serverOptions:     serverOptions,
 		versionStore:      versionStore,
+		compatStore:       compatStore,
 		gpubkeyStore:      gpubkeyStore,
 		bindings:          bindings,
 	}
@@ -377,8 +379,23 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 		params.TxHash = newHash
 	}
 
-	// Retrieve transaction status from the database.
+	// Check the tx hash before the compat mapping
 	status, err := resolver.db.TxStatus(params.TxHash)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			resolver.logger.Errorf("[responder] cannot get tx status from db: %v", err)
+			// some error handling
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to read tx from db", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
+		// Try to get the standard tx hash if tx not found from db
+		if newHash, err := resolver.compatStore.GetStandardHash(params.TxHash); err == nil {
+			params.TxHash = newHash
+		}
+	}
+
+	// Retrieve transaction status from the database.
+	status, err = resolver.db.TxStatus(params.TxHash)
 	if err != nil {
 		// Send the request to the Darknodes if we do not have it in our
 		// database.
@@ -749,6 +766,17 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 			log.Printf("[new submit tx] %v", string(data))
 		}
 
+		// If the tx uses a non-standard target address, we convert it to a
+		// standard address and update the transaction object. The tx hashes
+		// mapping will be stored in storage for future quering.
+		if submitTxParams.Tx.Selector.IsMint() {
+			tx, err := resolver.compatTx(submitTxParams.Tx)
+			if err == nil {
+				submitTxParams.Tx = tx
+				reqWithResponder.Params = submitTxParams
+			}
+		}
+
 		resolver.txCheckerRequests <- reqWithResponder
 	} else {
 		if ok := resolver.cacher.Send(reqWithResponder); !ok {
@@ -765,4 +793,42 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 	case res := <-reqWithResponder.Responder:
 		return res
 	}
+}
+
+func (resolver *Resolver) compatTx(transaction tx.Tx) (tx.Tx, error) {
+	// Ignore non-mint transactions
+	if !transaction.Selector.IsMint() {
+		return transaction, nil
+	}
+
+	// Check the `to` address
+	toArg := transaction.Input.Get("to")
+	if toArg == nil {
+		return transaction, nil
+	}
+	to, ok := toArg.(pack.String)
+	if !ok {
+		return transaction, nil
+	}
+
+	toDecoded, err := resolver.bindings.DecodeAddress(transaction.Selector.Destination(), multichain.Address(to))
+	if err != nil {
+		return transaction, err
+	}
+	expectedTo, err := resolver.bindings.EncodeAddress(transaction.Selector.Destination(), toDecoded)
+	if err != nil {
+		return transaction, err
+	}
+	if expectedTo != multichain.Address(to) {
+		transaction.Input.Set("to", pack.String(expectedTo))
+		oldHash := transaction.Hash
+		newHash, err := tx.NewTxHash(transaction.Version, transaction.Selector, transaction.Input)
+		if err != nil {
+			return transaction, err
+		}
+		transaction.Hash = newHash
+		err = resolver.compatStore.TxHashMapping(oldHash, newHash)
+		return transaction, err
+	}
+	return transaction, nil
 }

@@ -124,6 +124,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	ttlCache := kv.NewTTLCache(ctx, kv.NewMemDB(kv.JSONCodec), "cacher", options.TTL)
 	cacher := cacher.New(dispatcher, logger, ttlCache, opts, db)
 
+	compatStore := resolver.NewCompatStore(client, options.TransactionExpiry)
 	versionStore := v0.NewCompatStore(db, client, options.TransactionExpiry)
 	gpubkeyStore := v1.NewCompatStore(client)
 	hostChains := map[multichain.Chain]bool{}
@@ -133,7 +134,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		}
 	}
 	verifier := resolver.NewVerifier(hostChains, verifierBindings, options.DistPubKey)
-	resolverI := resolver.New(options.Network, logger, cacher, multiStore, db, serverOptions, versionStore, gpubkeyStore, bindings, verifier, options.SanctionKey)
+	resolverI := resolver.New(options.Network, logger, cacher, multiStore, db, serverOptions, compatStore, versionStore, gpubkeyStore, bindings, verifier, options.SanctionKey)
 	limiter := resolver.NewRateLimiter(resolver.RateLimiterConf{
 		GlobalMethodRate: options.LimiterGlobalRates,
 		IpMethodRate:     options.LimiterIPRates,
