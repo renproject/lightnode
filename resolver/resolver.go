@@ -373,37 +373,46 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 		v0tx = true
 	}
 
-	if newHash, err := resolver.gpubkeyStore.UpdatedHash(params.TxHash); err == nil {
-		// A gpubkey compat hash exists in the cache, so we use that to perform
-		// the query instead.
-		params.TxHash = newHash
-	}
-
-	// Check the tx hash before the compat mapping
 	status, err := resolver.db.TxStatus(params.TxHash)
 	if err != nil {
 		if err != sql.ErrNoRows {
 			resolver.logger.Errorf("[responder] cannot get tx status from db: %v", err)
-			// some error handling
 			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to read tx from db", nil)
 			return jsonrpc.NewResponse(id, nil, &jsonErr)
-		}
-		// Try to get the standard tx hash if tx not found from db
-		if newHash, err := resolver.compatStore.GetStandardHash(params.TxHash); err == nil {
-			params.TxHash = newHash
 		}
 	}
 
-	// Retrieve transaction status from the database.
-	status, err = resolver.db.TxStatus(params.TxHash)
-	if err != nil {
-		// Send the request to the Darknodes if we do not have it in our
-		// database.
-		if err != sql.ErrNoRows {
-			resolver.logger.Errorf("[responder] cannot get tx status from db: %v", err)
-			// some error handling
-			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to read tx from db", nil)
-			return jsonrpc.NewResponse(id, nil, &jsonErr)
+	// Try the gpubkeyStore
+	if status == db.TxStatusNil {
+		if newHash, err := resolver.gpubkeyStore.UpdatedHash(params.TxHash); err == nil {
+			// A gpubkey compat hash exists in the cache, so we use that to perform
+			// the query instead.
+			params.TxHash = newHash
+
+			status, err = resolver.db.TxStatus(params.TxHash)
+			if err != nil {
+				if err != sql.ErrNoRows {
+					resolver.logger.Errorf("[responder] cannot get tx status from db: %v", err)
+					jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to read tx from db", nil)
+					return jsonrpc.NewResponse(id, nil, &jsonErr)
+				}
+			}
+		}
+	}
+
+	// Try the compat store
+	if status == db.TxStatusNil {
+		if newHash, err := resolver.compatStore.GetStandardHash(params.TxHash); err == nil {
+			params.TxHash = newHash
+
+			status, err = resolver.db.TxStatus(params.TxHash)
+			if err != nil {
+				if err != sql.ErrNoRows {
+					resolver.logger.Errorf("[responder] cannot get tx status from db: %v", err)
+					jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInternal, "failed to read tx from db", nil)
+					return jsonrpc.NewResponse(id, nil, &jsonErr)
+				}
+			}
 		}
 	}
 
@@ -445,6 +454,7 @@ func (resolver *Resolver) QueryTx(ctx context.Context, id interface{}, params *j
 		query = req.URL.Query()
 	}
 
+	// Send the request to the Darknodes if we do not have it in our database.
 	reqWithResponder := lhttp.NewRequestWithResponder(ctx, id, jsonrpc.MethodQueryTx, params, query)
 	if ok := resolver.cacher.Send(reqWithResponder); !ok {
 		resolver.logger.Error("failed to send request to cacher, too much back pressure")
