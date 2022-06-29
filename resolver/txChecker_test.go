@@ -304,7 +304,8 @@ func RandomGoodTxid(r *rand.Rand, selector tx.Selector) pack.Bytes {
 	case multichain.Arbitrum, multichain.Avalanche,
 		multichain.BinanceSmartChain, multichain.Catalog, multichain.Ethereum,
 		multichain.Fantom, multichain.Goerli, multichain.Kava,
-		multichain.Moonbeam, multichain.Polygon, multichain.Solana:
+		multichain.Moonbeam, multichain.Optimism, multichain.Polygon,
+		multichain.Solana:
 		return pack.Bytes{}.Generate(r, 32).Interface().(pack.Bytes)
 	default:
 		panic(fmt.Sprintf("unknown chain for txid = %v", selector.Source()))
@@ -365,7 +366,7 @@ func RandomGoodAddress(chain multichain.Chain, network multichain.Network) pack.
 	case multichain.Arbitrum, multichain.Avalanche,
 		multichain.BinanceSmartChain, multichain.Catalog, multichain.Ethereum,
 		multichain.Fantom, multichain.Goerli, multichain.Kava,
-		multichain.Moonbeam, multichain.Polygon:
+		multichain.Moonbeam, multichain.Optimism, multichain.Polygon:
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		return pack.String(addr.Hex())
 
@@ -467,7 +468,7 @@ func AddressEncodeDecoder(chain multichain.Chain, network multichain.Network) mu
 	case multichain.Arbitrum, multichain.Avalanche,
 		multichain.BinanceSmartChain, multichain.Catalog, multichain.Ethereum,
 		multichain.Fantom, multichain.Goerli, multichain.Kava,
-		multichain.Moonbeam, multichain.Polygon:
+		multichain.Moonbeam, multichain.Optimism, multichain.Polygon:
 		return ethereum.NewAddressEncodeDecoder()
 	case multichain.Filecoin:
 		return filecoin.NewAddressEncodeDecoder()

@@ -350,6 +350,7 @@ func RandomEventInfo() watcher.EventInfo {
 		multichain.Goerli,
 		multichain.Kava,
 		multichain.Moonbeam,
+		multichain.Optimism,
 		multichain.Polygon,
 		multichain.Solana,
 		multichain.Terra,
@@ -413,7 +414,7 @@ func RandomGoodAddress(chain multichain.Chain, network multichain.Network) pack.
 	case multichain.Arbitrum, multichain.Avalanche,
 		multichain.BinanceSmartChain, multichain.Catalog, multichain.Ethereum,
 		multichain.Fantom, multichain.Goerli, multichain.Kava,
-		multichain.Moonbeam, multichain.Polygon:
+		multichain.Moonbeam, multichain.Optimism, multichain.Polygon:
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		return pack.String(addr.Hex())
 

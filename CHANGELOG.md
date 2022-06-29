@@ -1,14 +1,20 @@
+## 0.4.12
+
+- Add support for Optimism
+- Update Darknode to 0.4.12
+
 ## 0.4.11
 
-- Add support for new EVM chains
+- Add support for Kava and Moonbeam
+- Update Darknode to 0.4.11
 
 ## 0.4.10
 
-TODO:
+- Update Darknode to 0.4.10
 
 ## 0.4.9
 
-TODO:
+- Update Darknode to 0.4.9
 
 ## 0.4.8
 

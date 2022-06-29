@@ -367,6 +367,7 @@ func parseChainOptions(config jsonrpc.ResponseQueryConfig) map[multichain.Chain]
 		multichain.Goerli,
 		multichain.Kava,
 		multichain.Moonbeam,
+		multichain.Optimism,
 		multichain.Polygon,
 		multichain.Solana,
 		multichain.Terra,
