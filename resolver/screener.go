@@ -43,15 +43,17 @@ func (screener Screener) IsSanctioned(addr pack.String) (bool, error) {
 	}
 	input := bytes.NewBuffer(data)
 
-	// Send the request
+	// Construct the request
 	request, err := http.NewRequest("POST", "https://api.trmlabs.com/public/v1/sanctions/screening", input)
 	if err != nil {
 		return false, err
 	}
+	request.Header.Set("Content-Type", "application/json")
 	if screener.key != "" {
 		request.SetBasicAuth(screener.key, screener.key)
 	}
-	response, err := client.Post("https://api.trmlabs.com/public/v1/sanctions/screening", "application/json", input)
+
+	response, err := client.Do(request)
 	if err != nil {
 		return false, fmt.Errorf("[screener] error sending request, err = %v", err)
 	}
