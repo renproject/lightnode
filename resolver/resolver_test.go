@@ -103,7 +103,7 @@ var _ = Describe("Resolver", func() {
 				},
 			})
 
-		bindings := binding.New(bindingsOpts)
+		bindings := binding.New(bindingsOpts, nil)
 
 		cacher := testutils.NewMockCacher()
 		go cacher.Run(ctx)

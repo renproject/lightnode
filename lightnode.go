@@ -97,7 +97,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 	for chain, chainOpts := range options.Chains {
 		bindingsOpts = bindingsOpts.WithChainOptions(chain, chainOpts)
 	}
-	bindings := binding.New(bindingsOpts)
+	bindings := binding.New(bindingsOpts, nil)
 
 	// ==== BEGIN GROSS HACK
 	//
@@ -114,7 +114,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		chainOpts.Confirmations = 0
 		verifierBindingsOpts = verifierBindingsOpts.WithChainOptions(chain, chainOpts)
 	}
-	verifierBindings := binding.New(verifierBindingsOpts)
+	verifierBindings := binding.New(verifierBindingsOpts, nil)
 
 	// ==== END GROSS HACK
 	//

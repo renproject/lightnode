@@ -160,5 +160,5 @@ func initBindings() *binding.Binding {
 			Registry:      "REGrPFKQhRneFFdUV3e9UDdzqUJyS6SKj88GdXFCRd2",
 		})
 
-	return binding.New(bindingsOpts)
+	return binding.New(bindingsOpts, nil)
 }

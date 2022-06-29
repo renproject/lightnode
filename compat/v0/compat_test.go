@@ -65,7 +65,7 @@ var _ = Describe("Compat V0", func() {
 			},
 		})
 
-		bindings := binding.New(bindingsOpts)
+		bindings := binding.New(bindingsOpts, nil)
 
 		pubkeyB, err := base64.URLEncoding.DecodeString("AnbyLhl6mDMSj-K6-F_KCOCsI5Qc3wW-I3-b9-HpNdhl")
 		Expect(err).ShouldNot(HaveOccurred())
