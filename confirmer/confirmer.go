@@ -106,8 +106,6 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 		tx := txs[i]
 		var confirmed bool
 		switch {
-		case tx.Selector.IsBurn() && tx.Selector.IsMint():
-			confirmed = confirmer.burnAndMintTxConfirmed(ctx, tx)
 		case tx.Selector.IsLock():
 			confirmed = confirmer.lockTxConfirmed(ctx, tx)
 		case tx.Selector.IsBurn():
@@ -220,31 +218,11 @@ func (confirmer *Confirmer) burnTxConfirmed(ctx context.Context, transaction tx.
 
 	_, _, _, err := confirmer.bindings.AccountBurnInfo(ctx, burnChain, transaction.Selector.Asset(), txid, nonce)
 	if err != nil {
-		confirmer.options.Logger.Warnf("[confirmer] cannot get burn info for tx=%v (renvm = %v)(selector = %v): %v", txid, transaction.Hash.String(), transaction.Selector.String(), err)
-		return false
-	}
-	return true
-}
-
-// burnAndMintTxConfirmed checks if a given burn-and-mint transaction has
-// received sufficient confirmations.
-func (confirmer *Confirmer) burnAndMintTxConfirmed(ctx context.Context, transaction tx.Tx) bool {
-	burnChain := transaction.Selector.Source()
-	txid, ok := transaction.Input.Get("txid").(pack.Bytes)
-	if !ok {
-		confirmer.options.Logger.Errorf("[confirmer] failed to get txid for tx=%v", transaction.Hash.String())
-		return false
-	}
-	nonce, ok := transaction.Input.Get("nonce").(pack.Bytes32)
-	if !ok {
-		confirmer.options.Logger.Errorf("[confirmer] failed to get nonce for tx=%v", transaction.Hash.String())
-		return false
-	}
-
-	_, _, _, _, err := confirmer.bindings.AccountBurnToChainInfo(ctx, burnChain, transaction.Selector.Asset(), txid, nonce)
-	if err != nil {
-		confirmer.options.Logger.Warnf("[confirmer] cannot get info for burn-and-mint tx=%v (renvm = %v)(selector = %v): %v", txid, transaction.Hash.String(), transaction.Selector.String(), err)
-		return false
+		_, _, _, _, err := confirmer.bindings.AccountBurnToChainInfo(ctx, burnChain, transaction.Selector.Asset(), txid, nonce)
+		if err != nil {
+			confirmer.options.Logger.Warnf("[confirmer] cannot get info for burn info for tx=%v (renvm = %v)(selector = %v): %v", txid, transaction.Hash.String(), transaction.Selector.String(), err)
+			return false
+		}
 	}
 	return true
 }
