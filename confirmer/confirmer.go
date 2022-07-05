@@ -241,7 +241,7 @@ func (confirmer *Confirmer) burnAndMintTxConfirmed(ctx context.Context, transact
 		return false
 	}
 
-	_, _, _, _, err := confirmer.bindings.AccountBurnToChainInfo(ctx, burnChain, transaction.Selector.Asset(), txid, nonce)
+	_, _, _, err := confirmer.bindings.AccountBurnToChainInfo(ctx, burnChain, transaction.Selector.Asset(), txid, nonce)
 	if err != nil {
 		confirmer.options.Logger.Warnf("[confirmer] cannot get info for burn-and-mint tx=%v (renvm = %v)(selector = %v): %v", txid, transaction.Hash.String(), transaction.Selector.String(), err)
 		return false
