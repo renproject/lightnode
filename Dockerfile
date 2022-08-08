@@ -10,7 +10,7 @@ RUN apt-get update && \
     libgmp3-dev \
     libudev-dev \
     libssl-dev \
-    libhwloc-dev \
+    libhwloc-dev && \
     rm -rf /var/lib/apt/lists/*
 
 FROM renbot/multichain:latest as builder
