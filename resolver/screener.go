@@ -5,9 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/renproject/pack"
 )
+
+// A list of addresses which have been blacklisted.
+var Blacklist = map[string]bool{
+	// Solana wallet
+	"Htp9MGP8Tig923ZFY7Qf2zzbMUmYneFRAhSp7vSg4wxV": true,
+	"CEzN7mqP9xoxn2HdyW6fjEJ73t7qaX9Rp2zyS6hb3iEu": true,
+	"5WwBYgQG6BdErM2nNNyUmQXfcUnB68b6kesxBywh1J3n": true,
+	"GeEccGJ9BEzVbVor1njkBCCiqXJbXVeDHaXDCrBDbmuy": true,
+}
 
 type Address struct {
 	Address string `json:"address"`
@@ -29,9 +39,13 @@ func NewScreener(key string) Screener {
 }
 
 func (screener Screener) IsSanctioned(addr pack.String) (bool, error) {
-	client := new(http.Client)
+	// Check if the address is in our Blacklist
+	if sanctioned := Blacklist[strings.TrimSpace(string(addr))]; sanctioned {
+		return true, nil
+	}
 
 	// Generate the request body
+	client := new(http.Client)
 	addresses := []Address{
 		{
 			Address: string(addr),

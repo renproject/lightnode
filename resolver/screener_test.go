@@ -26,4 +26,16 @@ var _ = Describe("Screening sanction addresses", func() {
 			Expect(ok).Should(BeFalse())
 		})
 	})
+
+	Context("when the address is in our blacklist", func() {
+		It("should return the address been sanctioned", func() {
+			screener := NewScreener("")
+
+			for addr := range Blacklist {
+				ok, err := screener.IsSanctioned(pack.String(addr))
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ok).Should(BeTrue())
+			}
+		})
+	})
 })
