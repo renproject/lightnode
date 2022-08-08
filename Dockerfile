@@ -10,10 +10,10 @@ RUN apt-get update && \
     libgmp3-dev \
     libudev-dev \
     libssl-dev \
-    libhwloc-dev && \
+    hwloc && \
     rm -rf /var/lib/apt/lists/*
 
-FROM renbot/multichain:latest as builder
+FROM renbot/multichain:v0.5.12 as builder
 
 # Compile cosmwasm dependency
 WORKDIR /lightnode
