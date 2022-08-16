@@ -96,7 +96,7 @@ func (confirmer *Confirmer) checkPendingTxs(parent context.Context) {
 		<-ctx.Done()
 	}()
 
-	txs, err := confirmer.database.TxsByStatus(db.TxStatusConfirming, confirmer.options.ConfirmationPeriod, 0)
+	txs, err := confirmer.database.TxsByStatus(db.TxStatusConfirming, confirmer.options.ConfirmationPeriod, 0, 15)
 	if err != nil {
 		confirmer.options.Logger.Errorf("[confirmer] failed to read pending txs from database: %v", err)
 		return
@@ -235,7 +235,7 @@ func (confirmer *Confirmer) prune() {
 }
 
 func (confirmer *Confirmer) checkUnconfirmedTxs() {
-	unconfirmedTx, err := confirmer.database.TxsByStatus(db.TxStatusConfirming, time.Duration(0), confirmer.options.ConfirmationPeriod)
+	unconfirmedTx, err := confirmer.database.TxsByStatus(db.TxStatusConfirming, time.Duration(0), confirmer.options.ConfirmationPeriod, 15)
 	if err != nil {
 		confirmer.options.Logger.Errorf("[confirmer] cannot fetch unconfirmed txs: %v", err)
 	}
