@@ -265,7 +265,7 @@ func (db database) TxsByStatus(status TxStatus, before, after time.Duration, lim
 		script += fmt.Sprintf("AND %v - created_time > %v", now.Unix(), int64(after.Seconds()))
 	}
 	if limit > 0 {
-		script += fmt.Sprintf("LIMIT %v", limit)
+		script += fmt.Sprintf(" LIMIT %v", limit)
 	}
 	script += ";"
 
