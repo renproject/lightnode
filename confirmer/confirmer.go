@@ -235,7 +235,7 @@ func (confirmer *Confirmer) prune() {
 }
 
 func (confirmer *Confirmer) checkUnconfirmedTxs() {
-	unconfirmedTx, err := confirmer.database.TxsByStatus(db.TxStatusConfirming, time.Duration(0), confirmer.options.ConfirmationPeriod, 15)
+	unconfirmedTx, err := confirmer.database.TxsByStatus(db.TxStatusConfirming, time.Duration(0), confirmer.options.ConfirmationPeriod, 20)
 	if err != nil {
 		confirmer.options.Logger.Errorf("[confirmer] cannot fetch unconfirmed txs: %v", err)
 	}
