@@ -61,7 +61,7 @@ var _ = Describe("Confirmer", func() {
 			go confirmer.Run(ctx)
 
 			// Insert random transactions into the database.
-			hashes := make([]id.Hash, 100)
+			hashes := make([]id.Hash, 20)
 			r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 			for i := range hashes {
 				transaction := txutil.RandomGoodTx(r)
@@ -118,7 +118,7 @@ var _ = Describe("Confirmer", func() {
 			go confirmer.Run(ctx)
 
 			// Insert random transactions into the database.
-			hashes := make([]id.Hash, 100)
+			hashes := make([]id.Hash, 20)
 			r := rand.New(rand.NewSource(GinkgoRandomSeed()))
 			for i := range hashes {
 				transaction := txutil.RandomGoodTx(r)

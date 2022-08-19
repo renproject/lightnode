@@ -237,7 +237,7 @@ var _ = Describe("Lightnode db", func() {
 							Expect(db.InsertTx(transaction)).To(Succeed())
 						}
 
-						pendingTxs, err := db.TxsByStatus(TxStatusConfirming, 0, 0)
+						pendingTxs, err := db.TxsByStatus(TxStatusConfirming, 0, 0, 0)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(len(pendingTxs)).Should(Equal(len(pendingMap)))
 						for _, tx := range pendingTxs {
@@ -253,7 +253,7 @@ var _ = Describe("Lightnode db", func() {
 							err = db.UpdateStatus(hash, TxStatusConfirmed)
 							Expect(err).NotTo(HaveOccurred())
 						}
-						confirmedTxs, err := db.TxsByStatus(TxStatusConfirmed, 0, 0)
+						confirmedTxs, err := db.TxsByStatus(TxStatusConfirmed, 0, 0, 0)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(len(confirmedTxs)).Should(Equal(len(confirmedMap)))
 						for _, tx := range confirmedTxs {
@@ -269,7 +269,7 @@ var _ = Describe("Lightnode db", func() {
 							err = db.UpdateStatus(hash, TxStatusUnconfirmed)
 							Expect(err).NotTo(HaveOccurred())
 						}
-						unconfirmedTxs, err := db.TxsByStatus(TxStatusUnconfirmed, 0, 0)
+						unconfirmedTxs, err := db.TxsByStatus(TxStatusUnconfirmed, 0, 0, 0)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(len(unconfirmedTxs)).Should(Equal(len(uncofirmedMap)))
 						for _, tx := range unconfirmedTxs {
@@ -309,7 +309,7 @@ var _ = Describe("Lightnode db", func() {
 								expectedTxs[transaction.Hash] = transaction
 							}
 						}
-						txs, err := db.TxsByStatus(TxStatusConfirming, time.Hour, 0)
+						txs, err := db.TxsByStatus(TxStatusConfirming, time.Hour, 0, 0)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(len(txs)).To(Equal(len(expectedTxs)))
 						for _, tx := range txs {
@@ -349,7 +349,7 @@ var _ = Describe("Lightnode db", func() {
 								Expect(db.InsertTx(transaction)).To(Succeed())
 							}
 						}
-						txs, err := db.TxsByStatus(TxStatusConfirming, 0, time.Hour-1)
+						txs, err := db.TxsByStatus(TxStatusConfirming, 0, time.Hour-1, 0)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(len(txs)).To(Equal(len(expectedTxs)))
 						for _, tx := range txs {
@@ -359,6 +359,39 @@ var _ = Describe("Lightnode db", func() {
 							delete(expectedTxs, tx.Hash)
 						}
 						Expect(expectedTxs).To(HaveLen(0))
+						return true
+					}
+
+					Expect(quick.Check(test, &quick.Config{MaxCount: 10})).NotTo(HaveOccurred())
+				})
+
+				It("should not return more txs than the limit", func() {
+					sqlDB := init(dbname)
+					defer close(sqlDB)
+					db := New(sqlDB)
+
+					r := rand.New(rand.NewSource(GinkgoRandomSeed()))
+					test := func() bool {
+						Expect(db.Init()).Should(Succeed())
+						defer cleanUp(sqlDB)
+
+						numTxs := 50
+						for i := 0; i < numTxs; i++ {
+							transaction := txutil.RandomGoodTx(r)
+							Expect(db.InsertTx(transaction)).To(Succeed())
+						}
+
+						for i := 1; i <= 100; i++ {
+							txs, err := db.TxsByStatus(TxStatusConfirming, 0, 0, i)
+							Expect(err).NotTo(HaveOccurred())
+
+							if i > numTxs {
+								Expect(len(txs)).To(Equal(numTxs))
+							} else {
+								Expect(len(txs)).To(Equal(i))
+							}
+						}
+
 						return true
 					}
 

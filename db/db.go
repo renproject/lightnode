@@ -55,7 +55,7 @@ type DB interface {
 	TxsByTxid(id pack.Bytes) ([]tx.Tx, error)
 
 	// TxsByStatus returns txs with given status in the db
-	TxsByStatus(status TxStatus, within, beyond time.Duration) ([]tx.Tx, error)
+	TxsByStatus(status TxStatus, within, beyond time.Duration, limit int) ([]tx.Tx, error)
 
 	// TxStatus returns the current status of the transaction with the given
 	// hash.
@@ -252,7 +252,7 @@ func (db database) TxsByTxid(txid pack.Bytes) ([]tx.Tx, error) {
 }
 
 // TxsByStatus implements the DB interface.
-func (db database) TxsByStatus(status TxStatus, before, after time.Duration) ([]tx.Tx, error) {
+func (db database) TxsByStatus(status TxStatus, before, after time.Duration, limit int) ([]tx.Tx, error) {
 	txs := make([]tx.Tx, 0, 128)
 
 	now := time.Now()
@@ -263,6 +263,9 @@ func (db database) TxsByStatus(status TxStatus, before, after time.Duration) ([]
 	}
 	if after != 0 {
 		script += fmt.Sprintf("AND %v - created_time > %v", now.Unix(), int64(after.Seconds()))
+	}
+	if limit > 0 {
+		script += fmt.Sprintf(" LIMIT %v", limit)
 	}
 	script += ";"
 
