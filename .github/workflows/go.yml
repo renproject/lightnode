@@ -4,8 +4,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      FILECOIN_FFI_COMMIT: 8b97bd8230b77bd32f4f27e4766a6d8a03b4e801
-      SOLANA_FFI_COMMIT: 1428533377eb4ce00e81d04a53bad92f5339db00
+      FILECOIN_FFI_COMMIT: 7912389334e347bbb2eac0520c836830875c39de
+      SOLANA_FFI_COMMIT: 720c0143d8655bfcd412ae73c949474df2c1dcf3
     services:
       solana:
         image: renbot/ren-solana:latest
