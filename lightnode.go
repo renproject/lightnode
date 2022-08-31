@@ -134,7 +134,7 @@ func New(options Options, ctx context.Context, logger logrus.FieldLogger, sqlDB 
 		}
 	}
 	verifier := resolver.NewVerifier(hostChains, verifierBindings, options.DistPubKey)
-	resolverI := resolver.New(options.Network, logger, cacher, multiStore, db, serverOptions, compatStore, versionStore, gpubkeyStore, bindings, verifier, options.SanctionKey)
+	resolverI := resolver.New(options.Network, logger, cacher, multiStore, sqlDB, db, serverOptions, compatStore, versionStore, gpubkeyStore, bindings, verifier, options.SanctionKey)
 	limiter := resolver.NewRateLimiter(resolver.RateLimiterConf{
 		GlobalMethodRate: options.LimiterGlobalRates,
 		IpMethodRate:     options.LimiterIPRates,
