@@ -66,7 +66,7 @@ jobs:
         if: steps.cache-extern.outputs.cache-hit != 'true'
         run: |
           git submodule add https://github.com/renproject/solana-ffi.git .extern/solana-ffi
-          go get -u github.com/xlab/c-for-go
+          go get -u github.com/xlab/c-for-go@cef5ec7
           cd .extern/solana-ffi
           git checkout ${{ env.SOLANA_FFI_COMMIT }}
           make clean
