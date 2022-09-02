@@ -2,22 +2,13 @@ package resolver
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/renproject/pack"
 )
-
-// A list of addresses which have been blacklisted.
-var Blacklist = map[string]bool{
-	// Solana wallet
-	"Htp9MGP8Tig923ZFY7Qf2zzbMUmYneFRAhSp7vSg4wxV": true,
-	"CEzN7mqP9xoxn2HdyW6fjEJ73t7qaX9Rp2zyS6hb3iEu": true,
-	"5WwBYgQG6BdErM2nNNyUmQXfcUnB68b6kesxBywh1J3n": true,
-	"GeEccGJ9BEzVbVor1njkBCCiqXJbXVeDHaXDCrBDbmuy": true,
-}
 
 type Address struct {
 	Address string `json:"address"`
@@ -29,21 +20,62 @@ type Response struct {
 }
 
 type Screener struct {
+	db  *sql.DB
 	key string
 }
 
-func NewScreener(key string) Screener {
-	return Screener{
+func NewScreener(db *sql.DB, key string) Screener {
+	screener := Screener{
+		db:  db,
 		key: key,
 	}
+	if err := screener.init(); err != nil {
+		panic(fmt.Errorf("failed to initialized db, err = %v", err))
+	}
+	return screener
+}
+
+func (screener Screener) init() error {
+	if screener.db == nil {
+		return nil
+	}
+	script := `CREATE TABLE IF NOT EXISTS blacklist (
+		address            VARCHAR NOT NULL PRIMARY KEY
+	);`
+	_, err := screener.db.Exec(script)
+	return err
 }
 
 func (screener Screener) IsSanctioned(addr pack.String) (bool, error) {
-	// Check if the address is in our Blacklist
-	if sanctioned := Blacklist[strings.TrimSpace(string(addr))]; sanctioned {
+	// First check if the address has been blacklisted in the db
+	sanctioned, err := screener.isSanctionedFromDB(addr)
+	if err != nil {
+		return false, err
+	}
+	if sanctioned {
 		return true, nil
 	}
 
+	// Query external API
+	return screener.isSanctionedFromAPI(addr)
+}
+
+func (screener Screener) isSanctionedFromDB(addr pack.String) (bool, error) {
+	if screener.db == nil {
+		return false, nil
+	}
+	rows, err := screener.db.Query("SELECT * FROM blacklist where address=$1", addr.String())
+	if err != nil {
+		return false, err
+	}
+
+	defer rows.Close()
+	sanctioned := rows.Next()
+
+	return sanctioned, rows.Err()
+}
+
+func (screener Screener) isSanctionedFromAPI(addr pack.String) (bool, error) {
 	// Generate the request body
 	client := new(http.Client)
 	addresses := []Address{
