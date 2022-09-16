@@ -51,7 +51,7 @@ func New(network multichain.Network, logger logrus.FieldLogger, cacher phi.Task,
 	serverOptions jsonrpc.Options, compatStore CompatStore, versionStore v0.CompatStore, gpubkeyStore v1.GpubkeyCompatStore, bindings binding.Bindings, verifier Verifier, sanctionKey string) *Resolver {
 	requests := make(chan lhttp.RequestWithResponder, 128)
 	screener := NewScreener(database, sanctionKey)
-	txChecker := newTxChecker(logger, requests, verifier, db, screener)
+	txChecker := newTxChecker(logger, requests, verifier, db, screener, bindings)
 	go txChecker.Run()
 
 	return &Resolver{

@@ -28,6 +28,7 @@ import (
 // of the transaction. It will store the transaction if it is valid.
 type txchecker struct {
 	logger   logrus.FieldLogger
+	bindings binding.Bindings
 	requests <-chan http.RequestWithResponder
 	verifier Verifier
 	db       db.DB
@@ -122,9 +123,10 @@ func (v verifier) VerifyTx(ctx context.Context, transaction tx.Tx) error {
 }
 
 // newTxChecker returns a new txchecker.
-func newTxChecker(logger logrus.FieldLogger, requests <-chan http.RequestWithResponder, verifier Verifier, db db.DB, screener Screener) txchecker {
+func newTxChecker(logger logrus.FieldLogger, requests <-chan http.RequestWithResponder, verifier Verifier, db db.DB, screener Screener, bindings binding.Bindings) txchecker {
 	return txchecker{
 		logger:   logger,
+		bindings: bindings,
 		requests: requests,
 		verifier: verifier,
 		db:       db,
@@ -138,15 +140,53 @@ func (tc *txchecker) Run() {
 	workers := 2 * runtime.NumCPU()
 	phi.ForAll(workers, func(_ int) {
 		for req := range tc.requests {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-
+			// Check if we already have the transaction
 			params := req.Params.(jsonrpc.ParamsSubmitTx)
+			_, err := tc.db.Tx(params.Tx.Hash)
+			switch err {
+			case sql.ErrNoRows:
+				// continue verification
+			case nil:
+				// tx already exists, skip
+				response := jsonrpc.ResponseSubmitTx{}
+				req.Responder <- jsonrpc.NewResponse(req.ID, response, nil)
+				continue
+			default:
+				// error getting transaction details from db
+				req.RespondWithErr(jsonrpc.ErrorCodeInternal, fmt.Errorf("failed to check tx exsitence, err = %v", err))
+				continue
+			}
 
-			err := tc.verifier.VerifyTx(ctx, params.Tx)
+			// Verify the transaction details
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			err = tc.verifier.VerifyTx(ctx, params.Tx)
 			cancel()
 			if err != nil {
 				req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, err)
 				continue
+			}
+
+			// If it's a mint, we want to check the tx sender address
+			if params.Tx.Selector.IsMint() {
+				chain := params.Tx.Selector.Source()
+				txid := params.Tx.Input.Get("txid").(pack.Bytes)
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				senders, err := tc.bindings.TransactionSenders(ctx, chain, txid)
+				cancel()
+				if err != nil {
+					req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("[txchecker] fail to get transaction sender addresses: %v", err))
+					continue
+				}
+				for _, sender := range senders {
+					isSanctioned, err := tc.screener.IsSanctioned(sender)
+					if err != nil {
+						tc.logger.Errorf("[txchecker] fail to screen sanction address: %v", err)
+					}
+					if isSanctioned {
+						req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("target address is sanctioned"))
+						continue
+					}
+				}
 			}
 
 			to := params.Tx.Input.Get("to").(pack.String)
