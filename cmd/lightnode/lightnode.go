@@ -400,6 +400,10 @@ func parseChainOptions(config jsonrpc.ResponseQueryConfig) map[multichain.Chain]
 				opts.Extras = map[pack.String]pack.String{
 					"protocol": pack.String(os.Getenv("EXTRAS_ETHEREUM_PROTOCOL")),
 				}
+			case multichain.Goerli:
+				opts.Extras = map[pack.String]pack.String{
+					"protocol": pack.String(os.Getenv("EXTRAS_GOERLI_PROTOCOL")),
+				}
 			case multichain.Filecoin:
 				opts.Extras = map[pack.String]pack.String{
 					"authToken": pack.String(os.Getenv("EXTRAS_FILECOIN_AUTH")),
