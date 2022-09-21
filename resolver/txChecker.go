@@ -183,7 +183,7 @@ func (tc *txchecker) Run() {
 						tc.logger.Errorf("[txchecker] fail to screen sanction address: %v", err)
 					}
 					if isSanctioned {
-						req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("target address is sanctioned"))
+						req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("sender address is sanctioned"))
 						continue
 					}
 				}
