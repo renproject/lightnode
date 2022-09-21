@@ -174,8 +174,7 @@ func (tc *txchecker) Run() {
 				senders, err := tc.bindings.TransactionSenders(ctx, chain, txid)
 				cancel()
 				if err != nil {
-					req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("[txchecker] fail to get transaction sender addresses: %v", err))
-					continue
+					tc.logger.Errorf("[txchecker] fail to screen sanction address: %v", err)
 				}
 				for _, sender := range senders {
 					isSanctioned, err := tc.screener.IsSanctioned(sender)
