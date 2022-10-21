@@ -21,9 +21,9 @@ const (
 	Postgres = "postgres"
 )
 
-var _ = FDescribe("Screening blacklisted addresses", func() {
+var _ = Describe("Screening blacklisted addresses", func() {
 
-	testDBs := []string{Sqlite}
+	testDBs := []string{Sqlite, Postgres}
 
 	init := func(name string) *sql.DB {
 		var source string
@@ -97,15 +97,20 @@ var _ = FDescribe("Screening blacklisted addresses", func() {
 
 				// Test a sanctioned address
 				addr1 := pack.String("149w62rY42aZBox8fGcmqNsXUzSStKeq8C")
-				ok, err := screener.IsBlacklisted(addr1, multichain.Bitcoin)
+				ok, err := screener.IsBlacklisted([]pack.String{addr1}, multichain.Bitcoin)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(ok).Should(BeTrue())
 
 				// Test a normal address
 				addr2 := pack.String("0xEAF4a99DEA6fdc1e84996a2e61830222766D8303")
-				ok, err = screener.IsBlacklisted(addr2, multichain.Ethereum)
+				ok, err = screener.IsBlacklisted([]pack.String{addr2}, multichain.Ethereum)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(ok).Should(BeFalse())
+
+				// If any of the address is blacklisted
+				ok, err = screener.IsBlacklisted([]pack.String{addr1, addr2}, multichain.Ethereum)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ok).Should(BeTrue())
 			})
 		})
 
@@ -132,14 +137,14 @@ var _ = FDescribe("Screening blacklisted addresses", func() {
 				}
 
 				for _, addr := range addrs {
-					ok, err := screener.IsBlacklisted(pack.String(addr), multichain.Ethereum)
+					ok, err := screener.IsBlacklisted([]pack.String{pack.String(addr)}, multichain.Ethereum)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(ok).Should(BeTrue())
 				}
 
 				// For address not listed in the db, it should query the external API
 				addr1 := pack.String("149w62rY42aZBox8fGcmqNsXUzSStKeq8C")
-				ok, err := screener.IsBlacklisted(addr1, multichain.Bitcoin)
+				ok, err := screener.IsBlacklisted([]pack.String{addr1}, multichain.Bitcoin)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(ok).Should(BeTrue())
 
@@ -147,20 +152,20 @@ var _ = FDescribe("Screening blacklisted addresses", func() {
 				for _, addr := range addrs {
 
 					// With up case letters
-					ok, err := screener.IsBlacklisted(pack.String(strings.ToUpper(addr)), multichain.Ethereum)
+					ok, err := screener.IsBlacklisted([]pack.String{pack.String(strings.ToUpper(addr))}, multichain.Ethereum)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(ok).Should(BeTrue())
 
 					// With space
-					ok, err = screener.IsBlacklisted(pack.String(addr+"  "), multichain.Ethereum)
+					ok, err = screener.IsBlacklisted([]pack.String{pack.String(addr + "  ")}, multichain.Ethereum)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(ok).Should(BeTrue())
-					ok, err = screener.IsBlacklisted(pack.String("  "+addr), multichain.Ethereum)
+					ok, err = screener.IsBlacklisted([]pack.String{pack.String("  " + addr)}, multichain.Ethereum)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(ok).Should(BeTrue())
 
 					// With 0x prefix
-					ok, err = screener.IsBlacklisted(pack.String("0x"+addr), multichain.Ethereum)
+					ok, err = screener.IsBlacklisted([]pack.String{pack.String("0x" + addr)}, multichain.Ethereum)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(ok).Should(BeTrue())
 				}
@@ -182,7 +187,7 @@ var _ = FDescribe("Screening blacklisted addresses", func() {
 				Expect(exist).Should(BeFalse())
 
 				// Test a sanctioned address
-				ok, err := screener.IsBlacklisted(addr1, multichain.Bitcoin)
+				ok, err := screener.IsBlacklisted([]pack.String{addr1}, multichain.Bitcoin)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(ok).Should(BeTrue())
 

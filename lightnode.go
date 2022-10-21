@@ -219,10 +219,10 @@ func (lightnode Lightnode) Run(ctx context.Context) {
 	go lightnode.dispatcher.Run(ctx)
 
 	// Note: the following should be disabled when running locally.
-	go lightnode.confirmer.Run(ctx)
-	for _, watcher := range lightnode.watchers {
-		go watcher.Run(ctx)
-	}
+	// go lightnode.confirmer.Run(ctx)
+	// for _, watcher := range lightnode.watchers {
+	// 	go watcher.Run(ctx)
+	// }
 
 	lightnode.server.Listen(ctx, fmt.Sprintf(":%s", lightnode.options.Port))
 }

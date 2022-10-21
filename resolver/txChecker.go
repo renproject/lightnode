@@ -174,23 +174,21 @@ func (tc *txchecker) Run() {
 				senders, err := tc.bindings.TransactionSenders(ctx, chain, txid)
 				cancel()
 				if err != nil {
+					tc.logger.Errorf("[txchecker] fail to get transaction sender: %v", err)
+				}
+				blacklisted, err := tc.screener.IsBlacklisted(senders, chain)
+				if err != nil {
 					tc.logger.Errorf("[txchecker] fail to screen address: %v", err)
 				}
-				for _, sender := range senders {
-					sBlacklisted, err := tc.screener.IsBlacklisted(sender, chain)
-					if err != nil {
-						tc.logger.Errorf("[txchecker] fail to screen address: %v", err)
-					}
-					if sBlacklisted {
-						req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("sender address is blacklisted"))
-						continue
-					}
+				if blacklisted {
+					req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("sender address is blacklisted"))
+					continue
 				}
 			}
 
 			chain := params.Tx.Selector.Destination()
 			to := params.Tx.Input.Get("to").(pack.String)
-			isBlacklisted, err := tc.screener.IsBlacklisted(to, chain)
+			isBlacklisted, err := tc.screener.IsBlacklisted([]pack.String{to}, chain)
 			if err != nil {
 				tc.logger.Errorf("[txchecker] fail to screen address: %v", err)
 			}
