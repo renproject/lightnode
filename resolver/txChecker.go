@@ -71,11 +71,11 @@ func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings
 	if err != nil {
 		panic(fmt.Sprintf("encoding shard state: %v", err))
 	}
-	// TODO: Once key rotation is enabled, we will need to watch for epochs and
+	// TODO: Once Key rotation is enabled, we will need to watch for epochs and
 	// update the corresponding public keys.
 	pubkeyBytes, err := surge.ToBinary(pubkey)
 	if err != nil {
-		panic(fmt.Sprintf("invalid renvm public key: %v", err))
+		panic(fmt.Sprintf("invalid renvm public Key: %v", err))
 	}
 	contractState, err := pack.Encode(engine.XState{
 		LatestHeight:  pack.NewU256([32]byte{}),
@@ -174,27 +174,28 @@ func (tc *txchecker) Run() {
 				senders, err := tc.bindings.TransactionSenders(ctx, chain, txid)
 				cancel()
 				if err != nil {
-					tc.logger.Errorf("[txchecker] fail to screen sanction address: %v", err)
+					tc.logger.Errorf("[txchecker] fail to screen address: %v", err)
 				}
 				for _, sender := range senders {
-					isSanctioned, err := tc.screener.IsSanctioned(sender)
+					sBlacklisted, err := tc.screener.IsBlacklisted(sender, chain)
 					if err != nil {
-						tc.logger.Errorf("[txchecker] fail to screen sanction address: %v", err)
+						tc.logger.Errorf("[txchecker] fail to screen address: %v", err)
 					}
-					if isSanctioned {
-						req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("sender address is sanctioned"))
+					if sBlacklisted {
+						req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("sender address is blacklisted"))
 						continue
 					}
 				}
 			}
 
+			chain := params.Tx.Selector.Destination()
 			to := params.Tx.Input.Get("to").(pack.String)
-			isSanctioned, err := tc.screener.IsSanctioned(to)
+			isBlacklisted, err := tc.screener.IsBlacklisted(to, chain)
 			if err != nil {
-				tc.logger.Errorf("[txchecker] fail to screen sanction address: %v", err)
+				tc.logger.Errorf("[txchecker] fail to screen address: %v", err)
 			}
-			if isSanctioned {
-				req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("target address is sanctioned"))
+			if isBlacklisted {
+				req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("target address is blacklisted"))
 				continue
 			}
 

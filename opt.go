@@ -16,7 +16,7 @@ import (
 // Enumerate default options.
 var (
 	DefaultPort                      = "5000"
-	DefaultSanctionKey               = ""
+	DefaultScreeningKey              = ""
 	DefaultCap                       = 128
 	DefaultMaxBatchSize              = 10
 	DefaultMaxPageSize               = 10
@@ -41,7 +41,7 @@ type Options struct {
 	Network                   multichain.Network
 	DistPubKey                *id.PubKey
 	Port                      string
-	SanctionKey               string
+	ScreeningKey              string
 	Cap                       int
 	MaxBatchSize              int
 	MaxPageSize               int
@@ -68,7 +68,7 @@ type Options struct {
 func DefaultOptions() Options {
 	return Options{
 		Port:                      DefaultPort,
-		SanctionKey:               DefaultSanctionKey,
+		ScreeningKey:              DefaultScreeningKey,
 		Cap:                       DefaultCap,
 		MaxBatchSize:              DefaultMaxBatchSize,
 		MaxPageSize:               DefaultMaxPageSize,
@@ -107,9 +107,9 @@ func (opts Options) WithPort(port string) Options {
 	return opts
 }
 
-// WithSanctionKey updates the API key of the sanction address screening.
-func (opts Options) WithSanctionKey(key string) Options {
-	opts.SanctionKey = key
+// WithScreeningKey updates the API key of the TRM address screening.
+func (opts Options) WithScreeningKey(key string) Options {
+	opts.ScreeningKey = key
 	return opts
 }
 
