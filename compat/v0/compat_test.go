@@ -56,7 +56,7 @@ var _ = Describe("Compat V0", func() {
 		})
 
 		bindingsOpts = bindingsOpts.WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-			RPC:              pack.String("https://multichain-staging.renproject.io/testnet/goerli"),
+			RPC:              pack.String("https://rpc.ankr.com/eth_goerli"),
 			Confirmations:    pack.U64(0),
 			MaxConfirmations: pack.MaxU64,
 			Registry:         "0x5076a1F237531fa4dC8ad99bb68024aB6e1Ff701",
