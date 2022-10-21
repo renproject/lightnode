@@ -30,7 +30,7 @@ var _ = Describe("fetcher", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Check the returned block height has a timestamp within 1 minute
-			client, err := ethclient.Dial("https://multichain-staging.renproject.io/testnet/kovan")
+			client, err := ethclient.Dial("https://multichain-staging.renproject.io/testnet/goerli")
 			Expect(err).ShouldNot(HaveOccurred())
 			block, err := client.BlockByNumber(context.Background(), big.NewInt(int64(latestBlock)))
 			Expect(err).ShouldNot(HaveOccurred())
@@ -147,11 +147,11 @@ func initBindings() *binding.Binding {
 			Confirmations: pack.U64(0),
 		}).
 		WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-			RPC:           "https://multichain-staging.renproject.io/testnet/kovan",
+			RPC:           "https://multichain-staging.renproject.io/testnet/goerli",
 			Confirmations: pack.U64(0),
 			Registry:      "0x5076a1F237531fa4dC8ad99bb68024aB6e1Ff701",
 			Extras: map[pack.String]pack.String{
-				"protocol": "0x9e2Ed544eE281FBc4c00f8cE7fC2Ff8AbB4899D1",
+				"protocol": "0x581E96Ee347a2b5e91c06171FDe3A2539B9C979a",
 			},
 		}).
 		WithChainOptions(multichain.Solana, binding.ChainOptions{
