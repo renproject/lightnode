@@ -2133,6 +2133,8 @@ github.com/renproject/darknode v0.5.3-0.20220916061314-2ae8ef54d56a h1:EvGjjzjm4
 github.com/renproject/darknode v0.5.3-0.20220916061314-2ae8ef54d56a/go.mod h1:EyPw28pwYZzBkOWNLV9gBNRjAW7wFgh1Pebf3vUIQxQ=
 github.com/renproject/darknode v0.5.3-0.20220920071044-d84d579397cc h1:+VPfrFLuUb6YhlG8BZYHgYCDHUU1SQJVpUKVxw8MgQU=
 github.com/renproject/darknode v0.5.3-0.20220920071044-d84d579397cc/go.mod h1:tug98Chqqbq0tTng/JYG1RtzIo6TyWhSv9UYE299PrM=
+github.com/renproject/darknode v0.5.3-0.20221020002614-125e560059eb h1:CiHJJQW1sOA+wsKOhPbWqzqrCHoFKdW45aQJlLPUGlc=
+github.com/renproject/darknode v0.5.3-0.20221020002614-125e560059eb/go.mod h1:mtK3vnVcAb91KmQ/aGoBr07zfpZO11djrQIA7yCvovs=
 github.com/renproject/hyperdrive v0.4.9 h1:PbFy7RoELePZSZo55tFS9itNPOuOKr4mjC8MbbngE5M=
 github.com/renproject/hyperdrive v0.4.9/go.mod h1:ck1cKJ0M95xwfO0vuEj7ifDjNVYFrPvat5INU70wbUc=
 github.com/renproject/id v0.4.2 h1:XseNDPPCJtsZjIWR7Qgf+zxy0Gt5xsLrfwpQxJt5wFQ=
@@ -2153,6 +2155,8 @@ github.com/renproject/multichain v0.5.14-0.20220916060737-e18f54f25764 h1:8ReMKB
 github.com/renproject/multichain v0.5.14-0.20220916060737-e18f54f25764/go.mod h1:aRZdjr6gaQQMv9cSCNh/qkGxMU/OCKdB7HHQy2u24tU=
 github.com/renproject/multichain v0.5.14 h1:n37dVxATu8UTckJd8t//5j5q9V5+A12fYDB3wcEdHGI=
 github.com/renproject/multichain v0.5.14/go.mod h1:9mUPdZis4lOZ6l3qM2su9oj04gTgAe5ByS79RDX2o7c=
+github.com/renproject/multichain v0.5.15 h1:wa00v5fhqLLjBwclcsnAWzQV0pYAPg4yCcKjyV/mHdI=
+github.com/renproject/multichain v0.5.15/go.mod h1:9mUPdZis4lOZ6l3qM2su9oj04gTgAe5ByS79RDX2o7c=
 github.com/renproject/pack v0.2.5/go.mod h1:pzX3Hc04RoPft89LaZJVp0xgngVGi90V7GvyC3mOGg4=
 github.com/renproject/pack v0.2.12 h1:BfSHK0R9Dyis2xOiqyASyW2P3LedxohETTlPx7EbvYg=
 github.com/renproject/pack v0.2.12/go.mod h1:Ge7Nw0frVTRw1mEvswwtJs8uNrenVCahUih6dhbVA7k=
