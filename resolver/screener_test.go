@@ -21,7 +21,7 @@ const (
 	Postgres = "postgres"
 )
 
-var _ = Describe("Screening blacklisted addresses", func() {
+var _ = PDescribe("Screening blacklisted addresses", func() {
 
 	testDBs := []string{Sqlite, Postgres}
 
@@ -195,7 +195,6 @@ var _ = Describe("Screening blacklisted addresses", func() {
 				exist, err = checkAddressFromDB(sqlDB, string(addr1))
 				Expect(err).NotTo(HaveOccurred())
 				Expect(exist).Should(BeTrue())
-
 			})
 		})
 	}
