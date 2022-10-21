@@ -59,18 +59,18 @@ var _ = Describe("fetcher", func() {
 			Expect(len(events)).Should(Equal(0))
 
 			// Try a range which has the first burn
-			from, to = uint64(18058250), uint64(18058260)
+			from, to = uint64(6426350), uint64(6426370)
 			events, err = fetcher.FetchBurnLogs(context.Background(), from, to)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(len(events)).Should(Equal(1))
-			Expect(events[0].BlockNumber).Should(Equal(pack.NewU64(18058253)))
+			Expect(events[0].BlockNumber).Should(Equal(pack.NewU64(6426360)))
 		})
 
-		It("should be able to fetch burn event for multiple assets on the same chain", func() {
+		PIt("should be able to fetch burn event for multiple assets on the same chain", func() {
 			logger := logrus.New()
 			binding := initBindings()
 			assets := []multichain.Asset{
-				multichain.BTC,  // 23520344
+				multichain.BTC,  // 6426360
 				multichain.LUNA, // 23528857
 			}
 			fetcher := watcher.NewEthFetcher(logger, multichain.Ethereum, binding, assets)

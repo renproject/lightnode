@@ -197,5 +197,21 @@ var _ = PDescribe("Screening blacklisted addresses", func() {
 				Expect(exist).Should(BeTrue())
 			})
 		})
+
+		Context("when checking a chain which isn't supported by TRM", func() {
+			It("should skip the external call", func() {
+				sqlDB := init(dbname)
+				defer destroy(sqlDB)
+
+				screeningKey := os.Getenv("SCREENING_KEY")
+				screener := NewScreener(sqlDB, screeningKey)
+				addr1 := pack.String("149w62rY42aZBox8fGcmqNsXUzSStKeq8C")
+
+				// Test a sanctioned address
+				ok, err := screener.IsBlacklisted([]pack.String{addr1}, multichain.DigiByte)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ok).Should(BeFalse())
+			})
+		})
 	}
 })
