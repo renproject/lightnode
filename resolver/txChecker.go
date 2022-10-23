@@ -75,7 +75,7 @@ func NewVerifier(hostChains map[multichain.Chain]bool, bindings binding.Bindings
 	// update the corresponding public keys.
 	pubkeyBytes, err := surge.ToBinary(pubkey)
 	if err != nil {
-		panic(fmt.Sprintf("invalid renvm public Key: %v", err))
+		panic(fmt.Sprintf("invalid renvm public key: %v", err))
 	}
 	contractState, err := pack.Encode(engine.XState{
 		LatestHeight:  pack.NewU256([32]byte{}),
