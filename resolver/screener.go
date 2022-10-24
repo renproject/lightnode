@@ -179,7 +179,7 @@ func (screener Screener) isBlacklistedFromAPI(addrs []pack.String, chain multich
 Responses:
 	for _, resp := range resps {
 		for _, indicator := range resp.AddressRiskIndicators {
-			if indicator.CategoryRiskScoreLevel >= 10 {
+			if indicator.CategoryRiskScoreLevel >= 15 {
 				blacklisted = true
 				if err := screener.addToDB(FormatAddress(resp.AddressSubmitted)); err != nil {
 					return blacklisted, err
