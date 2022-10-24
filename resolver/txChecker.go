@@ -168,6 +168,7 @@ func (tc *txchecker) Run() {
 
 			// If it's a mint, we want to check the tx sender address
 			if params.Tx.Selector.IsMint() {
+
 				chain := params.Tx.Selector.Source()
 				txid := params.Tx.Input.Get("txid").(pack.Bytes)
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -178,7 +179,7 @@ func (tc *txchecker) Run() {
 				}
 				blacklisted, err := tc.screener.IsBlacklisted(senders, chain)
 				if err != nil {
-					tc.logger.Errorf("[txchecker] fail to screen address: %v", err)
+					tc.logger.Errorf("[txchecker] fail to mint screen address: %v", err)
 				}
 				if blacklisted {
 					req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("sender address is blacklisted"))

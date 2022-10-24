@@ -69,6 +69,10 @@ func (screener Screener) init() error {
 }
 
 func (screener Screener) IsBlacklisted(addrs []pack.String, chain multichain.Chain) (bool, error) {
+	if len(addrs) == 0 {
+		return false, nil
+	}
+
 	// First check if the address has been blacklisted in the db
 	blacklisted, err := screener.isBlacklistedFromDB(addrs)
 	if err != nil {
