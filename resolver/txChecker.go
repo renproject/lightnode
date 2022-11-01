@@ -179,9 +179,10 @@ func (tc *txchecker) Run() {
 				}
 				blacklisted, err := tc.screener.IsBlacklisted(senders, chain)
 				if err != nil {
-					tc.logger.Errorf("[txchecker] fail to mint screen address: %v", err)
+					tc.logger.Errorf("[txchecker] fail to screen tx senders: %v", err)
 				}
 				if blacklisted {
+					tc.logger.Infof("[txchecker] mint tx with blacklisted address, hash = %v", params.Tx.Hash)
 					req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("sender address is blacklisted"))
 					continue
 				}
@@ -194,6 +195,7 @@ func (tc *txchecker) Run() {
 				tc.logger.Errorf("[txchecker] fail to screen address: %v", err)
 			}
 			if isBlacklisted {
+				tc.logger.Infof("[txchecker] tx with blacklisted to address, hash = %v", params.Tx.Hash)
 				req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("target address is blacklisted"))
 				continue
 			}
