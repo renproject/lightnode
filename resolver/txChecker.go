@@ -168,33 +168,35 @@ func (tc *txchecker) Run() {
 
 			// If it's a mint, we want to check the tx sender address
 			if params.Tx.Selector.IsMint() {
+
 				chain := params.Tx.Selector.Source()
 				txid := params.Tx.Input.Get("txid").(pack.Bytes)
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				senders, err := tc.bindings.TransactionSenders(ctx, chain, txid)
 				cancel()
 				if err != nil {
-					tc.logger.Errorf("[txchecker] fail to screen sanction address: %v", err)
+					tc.logger.Errorf("[txchecker] fail to get transaction sender: %v", err)
 				}
-				for _, sender := range senders {
-					isSanctioned, err := tc.screener.IsSanctioned(sender)
-					if err != nil {
-						tc.logger.Errorf("[txchecker] fail to screen sanction address: %v", err)
-					}
-					if isSanctioned {
-						req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("sender address is sanctioned"))
-						continue
-					}
+				blacklisted, err := tc.screener.IsBlacklisted(senders, chain)
+				if err != nil {
+					tc.logger.Errorf("[txchecker] fail to screen tx senders: %v", err)
+				}
+				if blacklisted {
+					tc.logger.Infof("[txchecker] mint tx with blacklisted address, hash = %v", params.Tx.Hash)
+					req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("sender address is blacklisted"))
+					continue
 				}
 			}
 
+			chain := params.Tx.Selector.Destination()
 			to := params.Tx.Input.Get("to").(pack.String)
-			isSanctioned, err := tc.screener.IsSanctioned(to)
+			isBlacklisted, err := tc.screener.IsBlacklisted([]pack.String{to}, chain)
 			if err != nil {
-				tc.logger.Errorf("[txchecker] fail to screen sanction address: %v", err)
+				tc.logger.Errorf("[txchecker] fail to screen address: %v", err)
 			}
-			if isSanctioned {
-				req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("target address is sanctioned"))
+			if isBlacklisted {
+				tc.logger.Infof("[txchecker] tx with blacklisted to address, hash = %v", params.Tx.Hash)
+				req.RespondWithErr(jsonrpc.ErrorCodeInvalidParams, fmt.Errorf("target address is blacklisted"))
 				continue
 			}
 

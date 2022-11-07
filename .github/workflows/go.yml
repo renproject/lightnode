@@ -76,7 +76,7 @@ jobs:
           set -x
           export PATH=$PATH:$(go env GOPATH)/bin
           go get -u github.com/onsi/ginkgo/ginkgo
-          go get -u github.com/onsi/gomega/...
+          go get github.com/onsi/gomega@v1.13.0
           go get -u golang.org/x/lint/golint
           go get -u github.com/loongy/covermerge
           go get -u github.com/mattn/goveralls

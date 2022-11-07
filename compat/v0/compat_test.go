@@ -56,12 +56,12 @@ var _ = Describe("Compat V0", func() {
 		})
 
 		bindingsOpts = bindingsOpts.WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-			RPC:              pack.String("https://multichain-staging.renproject.io/testnet/kovan"),
+			RPC:              pack.String("https://rpc.ankr.com/eth_goerli"),
 			Confirmations:    pack.U64(0),
 			MaxConfirmations: pack.MaxU64,
 			Registry:         "0x5076a1F237531fa4dC8ad99bb68024aB6e1Ff701",
 			Extras: map[pack.String]pack.String{
-				"protocol": "0x9e2Ed544eE281FBc4c00f8cE7fC2Ff8AbB4899D1",
+				"protocol": "0x581E96Ee347a2b5e91c06171FDe3A2539B9C979a",
 			},
 		})
 

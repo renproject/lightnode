@@ -30,7 +30,7 @@ var _ = Describe("fetcher", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Check the returned block height has a timestamp within 1 minute
-			client, err := ethclient.Dial("https://multichain-staging.renproject.io/testnet/kovan")
+			client, err := ethclient.Dial("https://rpc.ankr.com/eth_goerli")
 			Expect(err).ShouldNot(HaveOccurred())
 			block, err := client.BlockByNumber(context.Background(), big.NewInt(int64(latestBlock)))
 			Expect(err).ShouldNot(HaveOccurred())
@@ -59,18 +59,18 @@ var _ = Describe("fetcher", func() {
 			Expect(len(events)).Should(Equal(0))
 
 			// Try a range which has the first burn
-			from, to = uint64(18058250), uint64(18058260)
+			from, to = uint64(6426350), uint64(6426370)
 			events, err = fetcher.FetchBurnLogs(context.Background(), from, to)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(len(events)).Should(Equal(1))
-			Expect(events[0].BlockNumber).Should(Equal(pack.NewU64(18058253)))
+			Expect(events[0].BlockNumber).Should(Equal(pack.NewU64(6426360)))
 		})
 
-		It("should be able to fetch burn event for multiple assets on the same chain", func() {
+		PIt("should be able to fetch burn event for multiple assets on the same chain", func() {
 			logger := logrus.New()
 			binding := initBindings()
 			assets := []multichain.Asset{
-				multichain.BTC,  // 23520344
+				multichain.BTC,  // 6426360
 				multichain.LUNA, // 23528857
 			}
 			fetcher := watcher.NewEthFetcher(logger, multichain.Ethereum, binding, assets)
@@ -147,11 +147,11 @@ func initBindings() *binding.Binding {
 			Confirmations: pack.U64(0),
 		}).
 		WithChainOptions(multichain.Ethereum, binding.ChainOptions{
-			RPC:           "https://multichain-staging.renproject.io/testnet/kovan",
+			RPC:           "https://rpc.ankr.com/eth_goerli",
 			Confirmations: pack.U64(0),
 			Registry:      "0x5076a1F237531fa4dC8ad99bb68024aB6e1Ff701",
 			Extras: map[pack.String]pack.String{
-				"protocol": "0x9e2Ed544eE281FBc4c00f8cE7fC2Ff8AbB4899D1",
+				"protocol": "0x581E96Ee347a2b5e91c06171FDe3A2539B9C979a",
 			},
 		}).
 		WithChainOptions(multichain.Solana, binding.ChainOptions{

@@ -6,17 +6,39 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
+	"github.com/renproject/multichain"
 	"github.com/renproject/pack"
 )
 
-type Address struct {
-	Address string `json:"address"`
+type AddressScreeningRequest struct {
+	Address           string `json:"address"`
+	Chain             string `json:"chain"`
+	AccountExternalID string `json:"accountExternalId"`
 }
 
-type Response struct {
-	Address      string `json:"address"`
-	IsSanctioned bool   `json:"isSanctioned"`
+type AddressScreeningResponse struct {
+	AddressRiskIndicators []AddressRiskIndicator `json:"addressRiskIndicators"`
+	Address               string                 `json:"address"`
+	AddressSubmitted      string                 `json:"addressSubmitted"`
+	Entities              []Entity               `json:"entities"`
+}
+
+type AddressRiskIndicator struct {
+	Category                    string `json:"category"`
+	CategoryID                  string `json:"categoryId"`
+	CategoryRiskScoreLevel      int    `json:"categoryRiskScoreLevel"`
+	CategoryRiskScoreLevelLabel string `json:"categoryRiskScoreLevelLabel"`
+	RiskType                    string `json:"risk_type"`
+}
+
+type Entity struct {
+	Category            string `json:"category"`
+	CategoryID          string `json:"categoryId"`
+	Entity              string `json:"entity"`
+	RiskScoreLevel      int    `json:"riskScoreLevel"`
+	RiskScoreLevelLabel string `json:"riskScoreLevelLabel"`
 }
 
 type Screener struct {
@@ -46,59 +68,94 @@ func (screener Screener) init() error {
 	return err
 }
 
-func (screener Screener) IsSanctioned(addr pack.String) (bool, error) {
+func (screener Screener) IsBlacklisted(addrs []pack.String, chain multichain.Chain) (bool, error) {
+	if len(addrs) == 0 {
+		return false, nil
+	}
+
 	// First check if the address has been blacklisted in the db
-	sanctioned, err := screener.isSanctionedFromDB(addr)
+	blacklisted, err := screener.isBlacklistedFromDB(addrs)
 	if err != nil {
 		return false, err
 	}
-	if sanctioned {
+	if blacklisted {
 		return true, nil
 	}
 
-	// Query external API
-	return screener.isSanctionedFromAPI(addr)
+	// Check against external API
+	return screener.isBlacklistedFromAPI(addrs, chain)
 }
 
-func (screener Screener) isSanctionedFromDB(addr pack.String) (bool, error) {
+func (screener Screener) isBlacklistedFromDB(addrs []pack.String) (bool, error) {
 	if screener.db == nil {
 		return false, nil
 	}
-	rows, err := screener.db.Query("SELECT * FROM blacklist where address=$1", addr.String())
+
+	// Query the db
+	addresses := make([]string, len(addrs))
+	for i := range addrs {
+		addresses[i] = "'" + FormatAddress(string(addrs[i])) + "'"
+	}
+	array := "(" + strings.Join(addresses, ",") + ")"
+	query := fmt.Sprintf("SELECT * FROM blacklist where address in %v", array)
+	rows, err := screener.db.Query(query)
 	if err != nil {
 		return false, err
 	}
-
 	defer rows.Close()
-	sanctioned := rows.Next()
 
-	return sanctioned, rows.Err()
+	return rows.Next(), rows.Err()
 }
 
-func (screener Screener) isSanctionedFromAPI(addr pack.String) (bool, error) {
+func (screener Screener) addToDB(addr string) error {
+	if screener.db == nil {
+		return nil
+	}
+	script := "INSERT INTO blacklist values ($1);"
+	_, err := screener.db.Exec(script, FormatAddress(addr))
+	return err
+}
+
+func (screener Screener) isBlacklistedFromAPI(addrs []pack.String, chain multichain.Chain) (bool, error) {
+	// Disable the external API call when key is not set
+	if screener.key == "" {
+		fmt.Printf("screener disabled : key not set")
+		return false, nil
+	}
+
 	// Generate the request body
 	client := new(http.Client)
-	addresses := []Address{
-		{
-			Address: string(addr),
-		},
+	requestData := make([]AddressScreeningRequest, 0, len(addrs))
+	for _, addr := range addrs {
+		chainIdentifier := trmIdentifier(chain)
+		if chainIdentifier == "" {
+			continue
+		}
+		requestData = append(requestData, AddressScreeningRequest{
+			Address:           string(addr),
+			Chain:             chainIdentifier,
+			AccountExternalID: fmt.Sprintf("%v_%v", chainIdentifier, addr),
+		})
 	}
-	data, err := json.Marshal(addresses)
+	if len(requestData) == 0 {
+		return false, nil
+	}
+
+	data, err := json.Marshal(requestData)
 	if err != nil {
-		return false, fmt.Errorf("[screener] unable to marshal address [%v], err = %v", addresses, err)
+		return false, fmt.Errorf("[screener] unable to marshal request, err = %v", err)
 	}
 	input := bytes.NewBuffer(data)
 
 	// Construct the request
-	request, err := http.NewRequest("POST", "https://api.trmlabs.com/public/v1/sanctions/screening", input)
+	request, err := http.NewRequest("POST", "https://api.trmlabs.com/public/v2/screening/addresses", input)
 	if err != nil {
 		return false, err
 	}
 	request.Header.Set("Content-Type", "application/json")
-	if screener.key != "" {
-		request.SetBasicAuth(screener.key, screener.key)
-	}
+	request.SetBasicAuth(screener.key, screener.key)
 
+	// Send the request and parse the response
 	response, err := client.Do(request)
 	if err != nil {
 		return false, fmt.Errorf("[screener] error sending request, err = %v", err)
@@ -108,16 +165,77 @@ func (screener Screener) isSanctionedFromAPI(addr pack.String) (bool, error) {
 	}
 
 	// Parse the response
-	var resp []Response
-	if err := json.NewDecoder(response.Body).Decode(&resp); err != nil {
+	var resps []AddressScreeningResponse
+	if err := json.NewDecoder(response.Body).Decode(&resps); err != nil {
 		return false, fmt.Errorf("[screener] unexpected response, %v", err)
 	}
 	defer response.Body.Close()
-	if len(resp) != 1 {
-		return false, fmt.Errorf("[screener] invalid number of reponse, expected 1, got %v", len(resp))
+
+	if len(resps) != len(addrs) {
+		return false, fmt.Errorf("[screener] invalid number of reponse, expected %v , got %v", len(addrs), len(resps))
 	}
-	if resp[0].Address != string(addr) {
-		return false, fmt.Errorf("[screener] invalid response of address, expect %v, got %v", string(addr), resp[0].Address)
+
+	blacklisted := false
+Responses:
+	for _, resp := range resps {
+		for _, entity := range resp.Entities {
+			// Allow deposits from exchange
+			if entity.Category == "Exchange" {
+				break Responses
+			}
+			if entity.RiskScoreLevel >= 10 {
+				if err := screener.addToDB(FormatAddress(resp.AddressSubmitted)); err != nil {
+					return blacklisted, err
+				}
+				continue Responses
+			}
+		}
+
+		for _, indicator := range resp.AddressRiskIndicators {
+			if indicator.CategoryRiskScoreLevel >= 15 {
+				blacklisted = true
+				if err := screener.addToDB(FormatAddress(resp.AddressSubmitted)); err != nil {
+					return blacklisted, err
+				}
+				continue Responses
+			}
+		}
 	}
-	return resp[0].IsSanctioned, nil
+
+	return blacklisted, nil
+}
+
+func trmIdentifier(chain multichain.Chain) string {
+	switch chain {
+	case multichain.Avalanche:
+		return "avalanche_c_chain"
+	case multichain.BinanceSmartChain:
+		return "binance_smart_chain"
+	case multichain.BitcoinCash:
+		return "bitcoin_cash"
+	case multichain.Bitcoin:
+		return "bitcoin"
+	case multichain.Dogecoin:
+		return "dogecoin"
+	case multichain.Ethereum, multichain.Fantom, multichain.Arbitrum, multichain.Kava, multichain.Moonbeam, multichain.Optimism:
+		return "ethereum"
+	case multichain.Filecoin:
+		return "filecoin"
+	case multichain.Polygon:
+		return "polygon"
+	case multichain.Solana:
+		return "solana"
+	case multichain.Zcash:
+		return "zcash"
+	default:
+		return ""
+	}
+}
+
+func FormatAddress(addr string) string {
+	addr = strings.TrimSpace(addr)
+	addr = strings.TrimPrefix(addr, "0x")
+	addr = strings.ToLower(addr)
+	addr = strings.TrimSpace(addr)
+	return addr
 }

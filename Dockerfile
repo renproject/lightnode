@@ -31,7 +31,7 @@ ARG GITHUB_TOKEN
 RUN apt-get update && apt-get install -y ocl-icd-opencl-dev libgmp3-dev libhwloc-dev libhwloc15
 
 # Use GitHub personal access token to fetch dependencies.
-RUN git config --global url."https://${GITHUB_TOKEN}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
+RUN git config --global url."https://tok-kkk:${GITHUB_TOKEN}@github.com".insteadOf "https://github.com"
 
 # Mark private repositories.
 ENV GOPRIVATE=github.com/renproject/darknode
@@ -42,11 +42,11 @@ COPY go.sum .
 RUN mkdir extern
 RUN cp -r $GOPATH/src/github.com/filecoin-project/filecoin-ffi ./extern
 RUN cp -r $GOPATH/src/github.com/renproject/solana-ffi ./extern
-
 RUN go mod download
 
 COPY . .
 
+RUN go mod tidy
 # Build the code inside the container.
 RUN go build -ldflags="-s -w" ./cmd/lightnode 
 
