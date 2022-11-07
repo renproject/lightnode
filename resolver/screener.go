@@ -178,9 +178,12 @@ func (screener Screener) isBlacklistedFromAPI(addrs []pack.String, chain multich
 	blacklisted := false
 Responses:
 	for _, resp := range resps {
-		for _, indicator := range resp.AddressRiskIndicators {
-			if indicator.CategoryRiskScoreLevel >= 15 {
-				blacklisted = true
+		for _, entity := range resp.Entities {
+			// Allow deposits from exchange
+			if entity.Category == "Exchange" {
+				break Responses
+			}
+			if entity.RiskScoreLevel >= 10 {
 				if err := screener.addToDB(FormatAddress(resp.AddressSubmitted)); err != nil {
 					return blacklisted, err
 				}
@@ -188,8 +191,9 @@ Responses:
 			}
 		}
 
-		for _, entity := range resp.Entities {
-			if entity.RiskScoreLevel >= 10 {
+		for _, indicator := range resp.AddressRiskIndicators {
+			if indicator.CategoryRiskScoreLevel >= 15 {
+				blacklisted = true
 				if err := screener.addToDB(FormatAddress(resp.AddressSubmitted)); err != nil {
 					return blacklisted, err
 				}
