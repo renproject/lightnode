@@ -776,6 +776,11 @@ func (resolver *Resolver) handleMessage(ctx context.Context, id interface{}, met
 			log.Printf("[new submit tx] %v", string(data))
 		}
 
+		if submitTxParams.Tx.Selector.IsMint() {
+			jsonErr := jsonrpc.NewError(jsonrpc.ErrorCodeInvalidRequest, "mint is currently disabled", nil)
+			return jsonrpc.NewResponse(id, nil, &jsonErr)
+		}
+
 		// If the tx uses a non-standard target address, we convert it to a
 		// standard address and update the transaction object. The tx hashes
 		// mapping will be stored in storage for future quering.
