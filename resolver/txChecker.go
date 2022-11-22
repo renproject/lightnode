@@ -167,7 +167,7 @@ func (tc *txchecker) Run() {
 			}
 
 			// If it's a mint, we want to check the tx sender address
-			if params.Tx.Selector.IsMint() {
+			if params.Tx.Selector.IsCrossChain() {
 
 				chain := params.Tx.Selector.Source()
 				txid := params.Tx.Input.Get("txid").(pack.Bytes)
