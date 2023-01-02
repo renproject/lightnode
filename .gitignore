@@ -11,4 +11,4 @@
 .vscode
 
 # db
-*.db
+*.db.git/
