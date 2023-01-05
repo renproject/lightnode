@@ -20,3 +20,4 @@ Ensure you have a working local `.env` file for neccesary env vars set, then
 ```sh
 docker run --env-file=.env --env DATABASE_URL=/lightnode/cache.sql --network host -v `pwd`/cache.sql:/lightnode/cache.sql lightnode
 ```
+test
